@@ -1,0 +1,26 @@
+# Buduje instalator Windows i wrzuca go razem z latest.yml do szkicu wydania v<wersja z package.json>.
+# Szkic nie trafia do graczy, dopóki ktoś nie kliknie "Publish release" na GitHubie.
+name: Zbuduj wydanie
+
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --win nsis --x64 --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
