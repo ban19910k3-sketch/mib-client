@@ -2,9 +2,9 @@
 // Wszystko, co dostaje interfejs, to zwykłe obiekty; błąd to {error: kod}, nigdy wyjątek.
 const P = require('./lib/profile');
 
-const SESSION = 'mib-session.json', QUEUE = 'mib-stats-queue.json';
+const SESSION = 'mib-session.json', QUEUE = 'mib-stats-queue.json', REVIEW = 'mib-mod-review.json';
 
-function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now }) {
+function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods }) {
   let sess = null, restored = false, game = null, flushing = null;
 
   function saveSession(s) {
@@ -82,8 +82,53 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now }
     try { return { ...st, ...(await newCode()) }; } catch (e) { return { ...st, recoveryError: e.code || 'unknown' }; }
   }
 
+  // ===== Kopia modów =====
+  // Ten komputer „przejrzał” kopię wersji, gdy ją przywrócił, zastąpił albo sam ją utworzył
+  const reviewed = gv => !!store.read(REVIEW, {})[gv];
+  const markReviewed = gv => store.write(REVIEW, { ...store.read(REVIEW, {}), [gv]: true });
+  async function remoteBackup(gv, t) {
+    const [row] = await supa.select('mod_backups', 'select=game_version,loader,mods,skipped&game_version=eq.' + encodeURIComponent(gv), t);
+    return row || null;
+  }
+  async function pushMods(gv, t) {
+    const files = mods.scan(gv), ids = files.length ? await mods.identify(files.map(f => f.sha1)) : {};
+    const list = files.filter(f => ids[f.sha1]).map(f => ({ project: ids[f.sha1].project_id, version: ids[f.sha1].id, file: f.file.replace(/\.disabled$/, ''), on: f.on }));
+    await supa.upsert('mod_backups', { user_id: sess.userId, game_version: gv, loader: mods.loader(gv), mods: list, skipped: files.length - list.length, updated_at: new Date(now()).toISOString() }, t);
+    markReviewed(gv);
+  }
+
   const api = {
     state,
+    async modsChanged(gv) {
+      restore();
+      if (!sess) return;
+      const t = await token();
+      if (!t) return;
+      const r = await remoteBackup(gv, t);
+      if (P.backupDecision({ hasRemote: !!(r && r.mods && r.mods.length), reviewed: reviewed(gv) }) === 'push') await pushMods(gv, t);
+    },
+    async modInfo({ gv }) {
+      const r = await remoteBackup(gv, await need());
+      return r ? { count: (r.mods || []).length, skipped: r.skipped || 0, reviewed: reviewed(gv) } : null;
+    },
+    async modReplace({ gv }) {
+      await pushMods(gv, await need());
+      return { ok: true };
+    },
+    async modRestore({ gv }) {
+      const r = await remoteBackup(gv, await need());
+      if (!r) return { added: 0, skipped: 0, failed: 0 };
+      const local = mods.loader(gv);
+      if (local && r.loader && local !== r.loader) return { error: 'loader_mismatch' };
+      if (!local && r.loader) mods.setLoader(gv, r.loader);
+      const out = { added: 0, skipped: 0, failed: 0 };
+      for (const m of r.mods || []) {
+        if (mods.exists(gv, m.file)) { out.skipped++; continue; }
+        try { await mods.download(gv, m.version, m.on); out.added++; } catch { out.failed++; }
+      }
+      markReviewed(gv);
+      return out;
+    },
     async signup({ email, password, nick }) {
       const bad = P.validateNick(nick);
       if (bad) return { error: bad };
@@ -147,20 +192,19 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now }
       store.write(QUEUE, [...store.read(QUEUE, []), { v: g.version, min: P.clampSessionMinutes(now() - g.start) }]);
       try { const t = await token(); if (t) await flushStats(t); } catch {}
     },
-    // dla Task 5 (kopia modów)
-    _token: token, _userId: () => sess && sess.userId,
   };
 
   // Każda metoda dla interfejsu: wynik albo {error}
   const safe = {};
   for (const [k, fn] of Object.entries(api)) {
-    safe[k] = k.startsWith('_') || k.startsWith('game') ? fn : async (...a) => { try { return await fn(...a); } catch (e) { return { error: e.code || 'unknown' }; } };
+    safe[k] = k.startsWith('game') ? fn : async (...a) => { try { return await fn(...a); } catch (e) { return { error: e.code || 'unknown' }; } };
   }
   return safe;
 }
 
 const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:login', logout: 'prof:logout', newCode: 'prof:newCode', reset: 'prof:reset',
-  remove: 'prof:delete', nickFree: 'prof:nickFree', cosmetics: 'prof:cosmetics', redeem: 'prof:redeem', pullSettings: 'prof:pullSettings', pushSettings: 'prof:pushSettings' };
+  remove: 'prof:delete', nickFree: 'prof:nickFree', cosmetics: 'prof:cosmetics', redeem: 'prof:redeem', pullSettings: 'prof:pullSettings', pushSettings: 'prof:pushSettings',
+  modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

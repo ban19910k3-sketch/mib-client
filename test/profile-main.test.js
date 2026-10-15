@@ -170,3 +170,84 @@ test('logout and delete clear the session file', async () => {
   assert.deepEqual(await p.remove(), { loggedIn: false });
   assert.equal(store.files['mib-session.json'], undefined);
 });
+
+// ===== Kopia modów =====
+function fakeMods(o = {}) {
+  const dl = [];
+  return {
+    dl,
+    scan: () => o.files || [{ file: 'sodium.jar', on: true, sha1: 'h1' }, { file: 'own.jar', on: true, sha1: 'h2' }],
+    identify: async () => ({ h1: { project_id: 'P1', id: 'V1' } }),
+    loader: () => (o.loader === undefined ? 'fabric' : o.loader),
+    setLoader: (gv, l) => { o.setTo = l; },
+    exists: (gv, f) => (o.present || []).includes(f),
+    download: async (gv, id, on) => { if ((o.fail || []).includes(id)) throw new Error('net'); dl.push([id, on]); return id + '.jar'; },
+  };
+}
+const withBackup = (row, extra = {}) => fakeSupa({ select: async t => (t === 'profiles' ? [profileRow] : t === 'mod_backups' ? (row ? [row] : []) : []), ...extra });
+const mkMods = (o = {}) => {
+  const store = memStore(), supa = o.supa || withBackup(o.row), mods = o.mods || fakeMods();
+  let t = 1_000_000;
+  const p = createProfile({ supa, store, safeStorage: safe(), randomBytes: n => Buffer.alloc(n, 7), now: () => t, mods });
+  return { p, store, supa, mods };
+};
+const remote = { game_version: '1.20.1', loader: 'fabric', skipped: 0, mods: [
+  { project: 'P1', version: 'V1', file: 'sodium.jar', on: true },
+  { project: 'P2', version: 'V2', file: 'lithium.jar', on: false },
+  { project: 'P3', version: 'V3', file: 'iris.jar', on: true }] };
+
+test('modsChanged holds an unreviewed remote backup, pushes after replace', async () => {
+  const { p, supa } = mkMods({ row: remote });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  await p.modsChanged('1.20.1');
+  assert.equal(supa.calls.filter(c => c[0] === 'upsert').length, 0);
+  assert.deepEqual(await p.modInfo({ gv: '1.20.1' }), { count: 3, skipped: 0, reviewed: false });
+  assert.deepEqual(await p.modReplace({ gv: '1.20.1' }), { ok: true });
+  const up = supa.calls.find(c => c[0] === 'upsert');
+  assert.equal(up[1], 'mod_backups');
+  assert.deepEqual(up[2].mods, [{ project: 'P1', version: 'V1', file: 'sodium.jar', on: true }]);
+  assert.equal(up[2].skipped, 1, 'plik spoza Modrinth pominięty');
+  assert.equal(up[2].loader, 'fabric');
+  assert.equal(up[2].user_id, 'U1');
+  await p.modsChanged('1.20.1');
+  assert.equal(supa.calls.filter(c => c[0] === 'upsert').length, 2, 'po przejrzeniu zapisuje automatycznie');
+});
+
+test('modsChanged pushes when there is no remote backup', async () => {
+  const { p, supa } = mkMods({ row: null });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  await p.modsChanged('1.8.9');
+  assert.equal(supa.calls.filter(c => c[0] === 'upsert').length, 1);
+});
+
+test('modsChanged does nothing without a profile', async () => {
+  const { p, supa } = mkMods({ row: null });
+  await p.modsChanged('1.8.9');
+  assert.equal(supa.calls.length, 0);
+});
+
+test('restore keeps existing and reports failures', async () => {
+  const mods = fakeMods({ present: ['sodium.jar'], fail: ['V3'], loader: null });
+  const { p } = mkMods({ row: remote, mods });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.modRestore({ gv: '1.20.1' }), { added: 1, skipped: 1, failed: 1 });
+  assert.deepEqual(mods.dl, [['V2', false]], 'wyłączony mod pobrany jako wyłączony; istniejący nie ruszany');
+  assert.deepEqual(await p.modInfo({ gv: '1.20.1' }), { count: 3, skipped: 0, reviewed: true });
+});
+
+test('restore refuses a different loader', async () => {
+  const mods = fakeMods({ loader: 'forge' });
+  const { p } = mkMods({ row: remote, mods });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.modRestore({ gv: '1.20.1' }), { error: 'loader_mismatch' });
+  assert.equal(mods.dl.length, 0);
+});
+
+test('restore sets the loader when the instance has none', async () => {
+  const o = { loader: null };
+  const mods = fakeMods(o);
+  const { p } = mkMods({ row: remote, mods });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  await p.modRestore({ gv: '1.20.1' });
+  assert.equal(o.setTo, 'fabric');
+});

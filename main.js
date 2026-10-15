@@ -20,7 +20,22 @@ const prof = profileMain.createProfile({
   supa: createSupa({ url: SUPA_URL, key: SUPA_KEY, fetch: (...a) => fetch(...a) }),
   store: { read: rd, write: wr, remove: f => { try { fs.unlinkSync(jf(f)); } catch {} } },
   safeStorage, randomBytes: crypto.randomBytes,
+  // Kopia modów: dostęp do plików instancji (funkcje niżej w pliku, wołane dopiero po starcie)
+  mods: {
+    scan: gv => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), sha1: crypto.createHash('sha1').update(fs.readFileSync(path.join(modsDir(gv), f))).digest('hex') })); } catch { return []; } },
+    identify: async hashes => (await fetch('https://api.modrinth.com/v2/version_files', { method: 'POST', headers: { 'Content-Type': 'application/json', ...UA.headers }, body: JSON.stringify({ hashes, algorithm: 'sha1' }) })).json(),
+    loader: gv => instGet(gv).loader || null,
+    setLoader: (gv, loader) => instSet(gv, { loader }),
+    exists: (gv, f) => fs.existsSync(path.join(modsDir(gv), f)) || fs.existsSync(path.join(modsDir(gv), f + '.disabled')),
+    async download(gv, id, on) {
+      const v = await mr('/version/' + encodeURIComponent(id)), done = []; done.gv = gv; done.loader = instGet(gv).loader;
+      await getFile(v, modsDir(gv), done);
+      if (!on && done[0]) fs.renameSync(path.join(modsDir(gv), done[0]), path.join(modsDir(gv), done[0] + '.disabled'));
+      return done[0];
+    },
+  },
 });
+const modsChanged = gv => prof.modsChanged(gv).catch(() => {});
 profileMain.register(ipcMain, prof);
 const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };
 
@@ -208,14 +223,15 @@ ipcMain.handle('hub:install', async (_, { slug, gv }) => {
     if (loader && !cur) instSet(gv, { loader });
     const done = []; done.gv = gv; done.loader = loader;
     await getFile(v, path.join(rootDir(), 'instances', gv, pack ? 'resourcepacks' : 'mods'), done);
+    if (!pack) modsChanged(gv);
     return 'Zainstalowano (' + done.length + ' plik/ów)' + (loader ? ', loader: ' + loader : '') + ': ' + done.join(', ');
   } catch (e) { return 'Błąd instalacji: ' + e.message; }
 });
 // ---- Zarządzanie zainstalowanymi modami ----
 const safe = f => f === path.basename(f);
 ipcMain.handle('mods:list', (_, gv) => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), size: fs.statSync(path.join(modsDir(gv), f)).size })); } catch { return []; } });
-ipcMain.handle('mods:toggle', (_, { gv, file }) => { if (!safe(file)) return false; const d = modsDir(gv); fs.renameSync(path.join(d, file), path.join(d, file.endsWith('.disabled') ? file.slice(0, -9) : file + '.disabled')); return true; });
-ipcMain.handle('mods:delete', (_, { gv, file }) => { if (!safe(file)) return false; fs.unlinkSync(path.join(modsDir(gv), file)); return true; });
+ipcMain.handle('mods:toggle', (_, { gv, file }) => { if (!safe(file)) return false; const d = modsDir(gv); fs.renameSync(path.join(d, file), path.join(d, file.endsWith('.disabled') ? file.slice(0, -9) : file + '.disabled')); modsChanged(gv); return true; });
+ipcMain.handle('mods:delete', (_, { gv, file }) => { if (!safe(file)) return false; fs.unlinkSync(path.join(modsDir(gv), file)); modsChanged(gv); return true; });
 ipcMain.handle('mods:updates', async (_, gv) => {
   try {
     const d = modsDir(gv), hs = {}; for (const f of fs.readdirSync(d).filter(x => x.endsWith('.jar'))) hs[crypto.createHash('sha1').update(fs.readFileSync(path.join(d, f))).digest('hex')] = f;
@@ -228,7 +244,7 @@ ipcMain.handle('mods:updates', async (_, gv) => {
 });
 ipcMain.handle('mods:update', async (_, { gv, file, id }) => {
   try { if (!safe(file)) return 'błąd'; const v = await mr('/version/' + id), done = []; done.gv = gv; done.loader = instGet(gv).loader;
-    await getFile(v, modsDir(gv), done); if (done[0] !== file) fs.unlinkSync(path.join(modsDir(gv), file)); return 'ok'; } catch (e) { return e.message; }
+    await getFile(v, modsDir(gv), done); if (done[0] !== file) fs.unlinkSync(path.join(modsDir(gv), file)); modsChanged(gv); return 'ok'; } catch (e) { return e.message; }
 });
 ipcMain.handle('repair', (_, gv) => {
   const r = path.join(rootDir(), 'instances', gv); for (const p of ['libraries', 'natives', 'versions']) fs.rmSync(path.join(r, p), { recursive: true, force: true });
