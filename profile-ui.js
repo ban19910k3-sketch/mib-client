@@ -247,6 +247,17 @@
   async function refresh() { apply(await mib.call('prof:state')); }
   document.querySelector('.nav[data-p="prof"]').addEventListener('click', () => { render(); refresh(); });
   document.querySelector('.nav[data-p="cos"]').addEventListener('click', renderCos);
+  // Efekt odblokowania nowego kosmetyku
+  window.mibUnlock = item => {
+    if (document.documentElement.classList.contains('noanim')) return toast(T('Nowy przedmiot') + ': ' + item.name);
+    const old = $('unlock'); if (old) old.remove();
+    const o = h('div', { id: 'unlock', role: 'dialog', 'aria-label': T('Nowy przedmiot!') }, h('div', { class: 'ring' }),
+      h('div', { class: 'card2' }, h('i', {}, item.imageUrl ? h('img', { src: item.imageUrl, alt: '' }) : GLYPH[item.type] || '◆'), h('small', {}, T('Nowy przedmiot!')), h('b', {}, item.name)));
+    const close = () => { o.classList.add('bye'); setTimeout(() => o.remove(), 250); };
+    o.onclick = close;
+    document.body.append(o);
+    setTimeout(() => { if (o.isConnected) close(); }, 2200);
+  };
   window.mibProfileUI = { modsShown, refresh };
   sidebar();
   render();
