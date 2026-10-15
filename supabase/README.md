@@ -12,7 +12,7 @@ Zrób kroki 1–3 **przed** opublikowaniem wersji z profilem (0.8.x) na GitHubie
 3. Otwórz plik [`schema.sql`](schema.sql), skopiuj **całą** zawartość i wklej w okno zapytania.
 4. Kliknij **Run**. Na dole powinno pojawić się „Success. No rows returned”.
 
-Ten krok możesz powtarzać przy kolejnych aktualizacjach. Nie usuwa danych graczy.
+Ten krok **powtarzaj przy każdej aktualizacji launchera, która zmienia ten plik** (np. 0.8.2 dodała dokańczanie profilu). Nie usuwa danych graczy.
 
 ## 2. Wyłącz potwierdzanie e-maila
 
@@ -42,7 +42,8 @@ Launcher pokazuje wtedy, co jest nie tak. Najczęstsze sytuacje:
 | Komunikat w launcherze | Co zrobić |
 |---|---|
 | „Serwer MiB wymaga potwierdzenia e-maila…” | Wyłącz **Confirm email** (krok 2). Konta założone, gdy było włączone, są „niepotwierdzone” i nie da się na nie zalogować: usuń je w **Authentication → Users** i załóż profil jeszcze raz. |
-| „Konto istnieje, ale w bazie nie ma profilu…” | Nie uruchomiono `schema.sql` (krok 1). Uruchom go, usuń to konto w **Authentication → Users** i załóż profil jeszcze raz. |
+| „Dokończ profil MiB” zamiast profilu | Konto powstało, zanim uruchomiono `schema.sql`. Gracz wybiera nick i profil się tworzy — nic nie trzeba robić. |
+| „Baza serwera MiB jest nieaktualna…” | Uruchom ponownie najnowszy `schema.sql` (krok 1). |
 | „Na ten e-mail jest już założony profil…” | Konto z tym e-mailem już istnieje (np. z wcześniejszej próby). Zaloguj się albo usuń je w **Authentication → Users**. |
 | „Ten nick jest już zajęty albo niedozwolony…” | Nick zajęty, ma złe znaki albo nie uruchomiono `schema.sql`. |
 | „Coś poszło nie tak… (kod: treść)” | Zrób zrzut ekranu — w nawiasie jest odpowiedź serwera. |

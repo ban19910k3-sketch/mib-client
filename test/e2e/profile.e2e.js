@@ -92,6 +92,26 @@ const ok = m => console.log('PASS', m);
     await w.evaluate(() => { setLang('pl'); });
     ok('(g) profil po angielsku');
 
+    // Konto bez profilu (założone, zanim w Supabase uruchomiono schema.sql)
+    await w.click('.nav[data-p="prof"]');
+    await w.waitForSelector('#p-prof.on .phead');
+    await w.click('text=Wyloguj');
+    await w.waitForSelector('#pf-nick');
+    fake.st.users.push({ id: 'orphan-1', email: 'sierota@mib.pl', password: 'haslo1234', nick: '', num: 0, noProfile: true, created: new Date().toISOString() });
+    await w.click('.seg button:nth-child(2)');
+    await w.fill('#pl-email', 'sierota@mib.pl'); await w.fill('#pl-pass', 'haslo1234');
+    await w.press('#pl-pass', 'Enter');
+    await w.waitForSelector('#pc-nick');
+    assert.equal(await w.textContent('#plname'), 'Dokończ profil MiB');
+    await shot('prof-complete.png');
+    await w.fill('#pc-nick', 'Sierota_1');
+    await w.click('#pc-go');
+    await w.waitForSelector('#rc.on');
+    assert.equal(await w.textContent('#rc-t'), 'Konto założone!');
+    await w.check('#rc-ok'); await w.click('#rc-x');
+    await w.waitForFunction(() => document.getElementById('plname').textContent === 'Sierota_1');
+    ok('(j) konto bez profilu: wybór nicku dokańcza profil');
+
     await new Promise(r => { fake.server.closeAllConnections && fake.server.closeAllConnections(); fake.server.close(r); });
     await w.click('.nav[data-p="prof"]');
     await w.waitForFunction(() => /Brak połączenia z serwerem MiB/.test(document.getElementById('prof-box').textContent), null, { timeout: 15000 });

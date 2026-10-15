@@ -70,13 +70,19 @@ function createFake() {
           const c = cosmetics[code.cosmetic];
           return json(res, 200, { cosmetic_id: c.id, name: c.name, type: c.type, image_url: c.image_url });
         }
+        if (fn === 'create_my_profile') {
+          if (!user.noProfile) return json(res, 400, { code: 'P0001', message: 'profile_exists' });
+          if (st.users.some(u => !u.noProfile && u.nick.toLowerCase() === String(body.p_nick).toLowerCase())) return json(res, 400, { code: 'P0001', message: 'nick_taken' });
+          user.nick = body.p_nick; user.noProfile = false; user.num = ++st.num;
+          return json(res, 204);
+        }
         if (fn === 'delete_my_profile') { st.users = st.users.filter(u => u.id !== user.id); return json(res, 204); }
         return json(res, 404, { message: 'no function ' + fn });
       }
       if (!user) return json(res, 401, { code: '42501', message: 'permission denied' });
       if (p === '/rest/v1/profiles') {
         if (req.method === 'PATCH') { user.settings = body.settings; user.settingsAt = body.settings_updated_at; return json(res, 204); }
-        return json(res, 200, [profileRow(user)]);
+        return json(res, 200, user.noProfile ? [] : [profileRow(user)]);
       }
       if (p === '/rest/v1/owned_cosmetics') return json(res, 200, st.owned.filter(o => o.user === user.id).map(o => ({ source: 'code', acquired_at: o.at, cosmetics: cosmetics[o.cosmetic] })));
       if (p === '/rest/v1/mod_backups') {

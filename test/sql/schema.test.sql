@@ -129,6 +129,26 @@ do $$ begin
   assert (select (version_stats -> '1.8.9' ->> 'runs')::int from public.profiles) = 2, 'statystyki wersji';
 end $$;
 
+-- Konto bez profilu (założone przed uruchomieniem schematu): gracz dokańcza profil sam
+reset role;
+delete from public.profiles where id = '22222222-2222-2222-2222-222222222222';
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select pg_temp.expect_error($q$select public.create_my_profile('Gracz_1')$q$, 'nick_taken');
+select pg_temp.expect_error($q$select public.create_my_profile('zły nick')$q$, 'nick_invalid');
+select public.create_my_profile('Drugi_Nowy');
+do $$ begin
+  assert (select nick from public.profiles) = 'Drugi_Nowy', 'profil dokończony';
+  assert (select num from public.profiles) = 3, 'kolejny numer';
+end $$;
+select pg_temp.expect_error($q$select public.create_my_profile('Trzeci')$q$, 'profile_exists');
+reset role;
+set role anon;
+select pg_temp.expect_error($q$select public.create_my_profile('Anonim')$q$, 'permission denied');
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+
 -- Kopia modów: tylko swoja
 insert into public.mod_backups (game_version, loader, mods) values ('1.20.1', 'fabric', '[{"project":"p"}]');
 select pg_temp.expect_error($q$insert into public.mod_backups (game_version) values ('zły; wpis')$q$, 'check constraint');

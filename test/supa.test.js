@@ -100,3 +100,7 @@ test('unknown errors keep the server message for the player to report', async ()
   try { await mk({ status: 400, body: { error_code: 'something_new', msg: 'Something new happened' } }).s.signIn('a', 'b'); assert.fail(); }
   catch (e) { assert.equal(e.code, 'request_failed'); assert.equal(e.message, 'Something new happened'); }
 });
+
+test('a missing database function means schema.sql must be run again', async () => {
+  assert.equal(await code(mk({ status: 404, body: { code: 'PGRST202', message: 'Could not find the function public.create_my_profile' } }).s.rpc('create_my_profile', {}, 'AT')), 'schema_outdated');
+});

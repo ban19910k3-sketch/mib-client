@@ -336,8 +336,25 @@ test('signup that needs e-mail confirmation is an error, not a silent logout', a
   assert.equal(store.files['mib-session.json'], undefined);
 });
 
-test('a missing profile row is reported as no_profile', async () => {
-  const supa = fakeSupa({ select: async () => [] });
+test('an account without a profile asks for a nick and can finish the profile', async () => {
+  let row = null;
+  const supa = fakeSupa({ select: async t => (t === 'profiles' ? (row ? [row] : []) : []),
+    rpc: async (n, a) => { if (n === 'create_my_profile') row = { ...profileRow, nick: a.p_nick }; return null; } });
   const { p } = mk({ supa });
-  assert.deepEqual(await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' }), { offline: true, error: 'no_profile' });
+  assert.deepEqual(await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' }), { needsProfile: true });
+  assert.equal((await p.createProfile({ nick: 'zły nick' })).error, 'nick_chars');
+  const r = await p.createProfile({ nick: 'Nowy_1' });
+  assert.equal(r.loggedIn, true);
+  assert.equal(r.nick, 'Nowy_1');
+  assert.ok(r.recoveryCode, 'nowy profil dostaje kod odzyskiwania');
+});
+
+test('signup finishes the profile itself when the database trigger did not', async () => {
+  let row = null;
+  const supa = fakeSupa({ select: async t => (t === 'profiles' ? (row ? [row] : []) : []),
+    rpc: async (n, a) => { if (n === 'create_my_profile') row = { ...profileRow, nick: a.p_nick }; return null; } });
+  const { p } = mk({ supa });
+  const r = await p.signup({ email: 'a@b.pl', password: 'tajnehaslo1', nick: 'Gracz_9' });
+  assert.equal(r.loggedIn, true);
+  assert.equal(r.nick, 'Gracz_9');
 });

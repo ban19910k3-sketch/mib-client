@@ -30,22 +30,37 @@ drop policy if exists profiles_update_own on public.profiles;
 create policy profiles_update_own on public.profiles for update to authenticated
   using (id = (select auth.uid())) with check (id = (select auth.uid()));
 
+-- Tworzenie profilu: sprawdza nick, nadaje numer i odznakę Założyciela
+create or replace function private.make_profile(p_uid uuid, p_nick text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_num bigint;
+begin
+  if p_nick is null or p_nick !~ '^[A-Za-z0-9_]{3,16}$' then
+    raise exception 'nick_invalid';
+  end if;
+  if exists (select 1 from public.profiles where lower(nick) = lower(p_nick)) then
+    raise exception 'nick_taken';
+  end if;
+  insert into public.profiles (id, nick) values (p_uid, p_nick) returning num into v_num;
+  update public.profiles set founder = (v_num <= 1000) where id = p_uid;
+end $$;
+
 -- Profil powstaje razem z kontem; nick przychodzi w danych rejestracji
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = '' as $$
-declare
-  v_nick text := new.raw_user_meta_data ->> 'nick';
-  v_num bigint;
 begin
-  if v_nick is null or v_nick !~ '^[A-Za-z0-9_]{3,16}$' then
-    raise exception 'nick_invalid';
-  end if;
-  if exists (select 1 from public.profiles where lower(nick) = lower(v_nick)) then
-    raise exception 'nick_taken';
-  end if;
-  insert into public.profiles (id, nick) values (new.id, v_nick) returning num into v_num;
-  update public.profiles set founder = (v_num <= 1000) where id = new.id;
+  perform private.make_profile(new.id, new.raw_user_meta_data ->> 'nick');
   return new;
+end $$;
+
+-- Dla kont bez profilu (np. założonych, zanim uruchomiono ten plik): gracz sam dokańcza profil
+create or replace function public.create_my_profile(p_nick text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'not_logged_in'; end if;
+  if exists (select 1 from public.profiles where id = auth.uid()) then raise exception 'profile_exists'; end if;
+  perform private.make_profile(auth.uid(), p_nick);
 end $$;
 revoke all on function public.handle_new_user() from public, anon, authenticated;
 drop trigger if exists on_auth_user_created on auth.users;
@@ -252,6 +267,8 @@ revoke all on function public.set_recovery_code(text) from public, anon, authent
 revoke all on function public.reset_password_with_code(text, text, text) from public, anon, authenticated;
 revoke all on function public.add_play_session(text, integer) from public, anon, authenticated;
 revoke all on function public.delete_my_profile() from public, anon, authenticated;
+revoke all on function public.create_my_profile(text) from public, anon, authenticated;
+revoke all on function private.make_profile(uuid, text) from public, anon, authenticated;
 revoke all on function private.norm_code(text) from public, anon, authenticated;
 grant execute on function public.nick_available(text) to anon, authenticated;
 grant execute on function public.reset_password_with_code(text, text, text) to anon, authenticated;
@@ -259,3 +276,4 @@ grant execute on function public.redeem_code(text) to authenticated;
 grant execute on function public.set_recovery_code(text) to authenticated;
 grant execute on function public.add_play_session(text, integer) to authenticated;
 grant execute on function public.delete_my_profile() to authenticated;
+grant execute on function public.create_my_profile(text) to authenticated;

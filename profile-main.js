@@ -76,7 +76,7 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     await flushStats().catch(() => {});
     try {
       const [p] = await authed(t2 => supa.select('profiles', 'select=nick,num,founder,created_at,playtime_min,launches,version_stats&id=eq.' + sess.userId, t2));
-      if (!p) return { offline: true, error: 'no_profile' };
+      if (!p) return { needsProfile: true }; // konto bez profilu: gracz wybiera nick i dokańcza profil
       return {
         loggedIn: true, nick: p.nick, mibId: P.formatMibId(p.num), founder: p.founder, createdAt: p.created_at,
         playtimeMin: p.playtime_min, launches: p.launches, versionStats: p.version_stats || {},
@@ -145,7 +145,9 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       if (bad) return { error: bad };
       if (String(password || '').length < 8) return { error: 'weak_password' };
       saveSession(await supa.signUp(String(email).trim(), password, nick));
-      return withCode(await state());
+      const st = await state();
+      // Gdy baza nie utworzyła profilu sama (np. brak triggera), dokańczamy go tym samym nickiem
+      return st.needsProfile ? api.createProfile({ nick }) : withCode(st);
     },
     async login({ email, password }) {
       saveSession(await supa.signIn(String(email).trim(), password));
@@ -169,6 +171,12 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       saveSession(null);
       store.write(QUEUE, store.read(QUEUE, []).filter(e => e.u !== uid));
       return { loggedIn: false };
+    },
+    async createProfile({ nick }) {
+      const bad = P.validateNick(nick);
+      if (bad) return { error: bad };
+      await authed(t => supa.rpc('create_my_profile', { p_nick: nick }, t));
+      return withCode(await state());
     },
     async nickFree({ nick }) {
       const bad = P.validateNick(nick);
@@ -218,7 +226,7 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
 }
 
 const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:login', logout: 'prof:logout', newCode: 'prof:newCode', reset: 'prof:reset',
-  remove: 'prof:delete', nickFree: 'prof:nickFree', cosmetics: 'prof:cosmetics', redeem: 'prof:redeem', pullSettings: 'prof:pullSettings', pushSettings: 'prof:pushSettings',
+  remove: 'prof:delete', createProfile: 'prof:createProfile', nickFree: 'prof:nickFree', cosmetics: 'prof:cosmetics', redeem: 'prof:redeem', pullSettings: 'prof:pullSettings', pushSettings: 'prof:pushSettings',
   modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace' };
 
 function register(ipcMain, api) {

@@ -47,6 +47,17 @@ const ok = m => console.log('PASS', m);
     assert.equal(await w.evaluate(() => document.getElementById('go').style.getPropertyValue('--fill')), '0%');
     ok('3 postęp pobierania w przycisku GRAJ');
 
+    const painted = () => w.evaluate(() => { const c = document.getElementById('fx'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
+    await w.waitForTimeout(800);
+    assert.ok(await painted() > 0, 'cząsteczki rysują się w tle');
+    await w.evaluate(() => { const f = document.getElementById('s-fx'); f.checked = false; f.dispatchEvent(new Event('change')); });
+    await w.waitForTimeout(300);
+    assert.equal(await painted(), 0, 'wyłączone ustawieniem');
+    await w.evaluate(() => { const f = document.getElementById('s-fx'); f.checked = true; f.dispatchEvent(new Event('change')); });
+    await w.waitForTimeout(500);
+    assert.ok(await painted() > 0, 'włączone z powrotem');
+    ok('7 latające cząsteczki w tle i ich wyłączanie');
+
     await w.evaluate(() => window.mibUnlock({ name: 'Peleryna Start', type: 'cape' }));
     await w.waitForTimeout(250);
     assert.ok(await w.$('#unlock'));

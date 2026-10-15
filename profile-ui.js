@@ -24,6 +24,8 @@
     email_confirm_required: 'Serwer MiB wymaga potwierdzenia e-maila, którego launcher nie obsługuje. Administrator musi wyłączyć „Confirm email” w Supabase (Authentication → Sign In / Providers).',
     signup_disabled: 'Zakładanie profili jest teraz wyłączone na serwerze MiB.',
     no_profile: 'Konto istnieje, ale w bazie nie ma profilu. Administrator musi uruchomić plik schema.sql w Supabase.',
+    schema_outdated: 'Baza serwera MiB jest nieaktualna. Administrator musi ponownie uruchomić plik schema.sql w Supabase.',
+    nick_invalid: 'Nick może zawierać tylko litery bez polskich znaków, cyfry i _.',
   };
   // Przy nieznanym błędzie pokazujemy też komunikat serwera, żeby dało się go przekazać
   const msg = (code, detail) => (ERR[code] ? tr(ERR[code]) : tr('Coś poszło nie tak. Spróbuj ponownie.') + ' (' + code + (detail && detail !== code ? ': ' + detail : '') + ')');
@@ -45,8 +47,8 @@
 
   // ===== Dolny blok paska bocznego =====
   function sidebar() {
-    $('plname').textContent = st.loggedIn ? st.nick : st.offline || st.loading ? T('Profil MiB') : T('Załóż profil MiB');
-    $('plsub').textContent = st.loggedIn ? st.mibId : st.loading ? T('Wczytywanie…') : st.offline ? T('Brak połączenia') : T('Kosmetyki i ustawienia');
+    $('plname').textContent = st.loggedIn ? st.nick : st.needsProfile ? T('Dokończ profil MiB') : st.offline || st.loading ? T('Profil MiB') : T('Załóż profil MiB');
+    $('plsub').textContent = st.loggedIn ? st.mibId : st.needsProfile ? T('Wybierz nick') : st.loading ? T('Wczytywanie…') : st.offline ? T('Brak połączenia') : T('Kosmetyki i ustawienia');
   }
   $('plbox').addEventListener('click', () => go('prof'));
   $('plbox').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go('prof'); } });
@@ -141,6 +143,8 @@
     busy = true; btn.disabled = true; err.textContent = '';
     try {
       const r = await call();
+      // Konto bez profilu: przechodzimy do wyboru nicku
+      if (r.needsProfile) { apply(r); return; }
       // Sukces tylko wtedy, gdy gracz naprawdę jest zalogowany
       if (r.error || !r.loggedIn) { err.textContent = msg(r.error || 'unknown', r.detail); return; }
       apply(r);
@@ -156,6 +160,21 @@
       h('p', { class: 'lead' }, T('Profil zapisuje Twoje kosmetyki, ustawienia launchera i kopię modów. Grać możesz też bez niego.')),
       tabs,
       tab === 'signup' ? formSignup() : tab === 'login' ? formLogin() : formReset(),
+    ];
+  }
+  function viewComplete() {
+    const nick = h('input', { id: 'pc-nick', maxlength: 16, autocomplete: 'off' }), err = errBox();
+    const submit = h('button', { class: 'b', id: 'pc-go', type: 'submit' }, T('Utwórz profil'));
+    return [
+      h('h2', {}, T('Dokończ profil MiB')),
+      h('p', { class: 'lead' }, T('Twoje konto istnieje, ale nie ma jeszcze profilu MiB. Wybierz nick, a launcher dokończy zakładanie.')),
+      h('form', { class: 'pform', on: { submit: async e => {
+        e.preventDefault();
+        const bad = MibProfile.validateNick(nick.value);
+        if (bad) { err.textContent = msg(bad); nick.focus(); return; }
+        await run(submit, err, () => mib.call('prof:createProfile', { nick: nick.value }), r => showCode(r.recoveryCode, r.mibId));
+      } } }, field('Nick MiB', nick, '3–16 znaków: litery, cyfry, _'), err,
+      h('div', { class: 'row' }, submit, h('button', { class: 'b ghost', type: 'button', on: { click: async () => apply(await mib.call('prof:logout')) } }, T('Wyloguj')))),
     ];
   }
   function viewOffline() {
@@ -189,7 +208,7 @@
   }
   function render() {
     const box = $('prof-box');
-    box.replaceChildren(...(st.loading ? [h('h2', {}, T('Profil MiB')), h('p', { class: 'mut' }, T('Wczytywanie…'))] : st.loggedIn ? viewIn() : st.offline ? viewOffline() : viewOut()));
+    box.replaceChildren(...(st.loading ? [h('h2', {}, T('Profil MiB')), h('p', { class: 'mut' }, T('Wczytywanie…'))] : st.loggedIn ? viewIn() : st.needsProfile ? viewComplete() : st.offline ? viewOffline() : viewOut()));
     if (st.loggedIn) mib.call('prof:cosmetics').then(l => { const e = $('pf-cos'); if (e) e.textContent = Array.isArray(l) ? T('Posiadane przedmioty') + ': ' + l.length : msg(l.error); });
   }
 
@@ -201,7 +220,7 @@
     if (!st.loggedIn) {
       box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('div', { class: 'empty-state' },
         h('p', {}, st.offline ? T('Brak połączenia z serwerem MiB. Kosmetyki pokażą się, gdy połączenie wróci.') : T('Peleryny i inne przedmioty zapisują się na profilu MiB. Załóż profil, żeby je zbierać.')),
-        st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T('Załóż profil MiB'))));
+        st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))));
       return;
     }
     const inp = h('input', { id: 'cos-code', placeholder: T('Kod prezentowy'), autocomplete: 'off', class: 'mono' }), err = errBox();
@@ -259,7 +278,7 @@
   // ===== Stan =====
   function apply(r) {
     const was = st.loggedIn;
-    st = r && (r.loggedIn || r.offline) ? r : { loggedIn: false };
+    st = r && (r.loggedIn || r.offline || r.needsProfile) ? r : { loggedIn: false };
     mibSync.profile = !!st.loggedIn;
     sidebar();
     if ($('p-prof').classList.contains('on')) render();
