@@ -48,6 +48,8 @@ select p.nick, p.num from private.admins a join public.profiles p on p.id = a.us
 ```
 
 W panelu: ogłoszenia, kosmetyki (z teksturą peleryny PNG 64×32), kody prezentowe, wyszukiwanie graczy (nadawanie i zabieranie przedmiotów, usuwanie kont) i statystyki.
+- Konta admina nie da się usunąć z launchera (ani własnym „Usuń profil”, ani z panelu) — tylko ręcznie w **Authentication → Users**, żeby nie stracić panelu przez przypadek.
+- Po uruchomieniu `schema.sql` sprawdź zapytaniem wyżej, czy adminem jest Twoje konto. Jeśli pod `MIB-000002` jest ktoś inny, napisz do Claude, zanim wydasz launcher.
 
 ## Status na Discordzie
 

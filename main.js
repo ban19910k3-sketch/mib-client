@@ -15,7 +15,7 @@ const jf = f => path.join(dir(), f);
 const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(jf(f), 'utf8')); } catch { return d; } };
 const wr = (f, v) => fs.writeFileSync(jf(f), JSON.stringify(v, null, 2));
 const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true });
-const logBuf = [];
+const logBuf = []; let logCount = 0;
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
 // Profil MiB (Supabase). Klucz publiczny — bezpieczny w launcherze; uprawnienia pilnuje baza.
 const SUPA_URL = process.env.MIB_SUPA_URL || 'https://pijyremkmhmnyvjusrhu.supabase.co', SUPA_KEY = 'sb_publishable_-Gfr_STF_qinPsxzdYFaDg_eXg4j1Al';
@@ -47,7 +47,7 @@ const prof = profileMain.createProfile({
 const modTimers = {};
 const modsChanged = gv => { clearTimeout(modTimers[gv]); modTimers[gv] = setTimeout(() => prof.modsChanged(gv).catch(() => {}), 1500); };
 profileMain.register(ipcMain, prof);
-const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };
+const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); logCount++; if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };
 
 // ===== Status na Discordzie =====
 // Numer aplikacji z https://discord.com/developers/applications (pusty = status wyłączony)
@@ -55,9 +55,12 @@ const DISCORD_CLIENT_ID = '';
 const presence = createPresence({ clientId: DISCORD_CLIENT_ID });
 const launcherSince = Date.now();
 function setPresence(game) {
-  const on = ({ ...defaults(), ...rd('settings.json', {}) }).discord !== false;
-  presence.set(on ? buildActivity(game ? { playing: true, version: game.version, since: game.since } : { playing: false, since: launcherSince }) : null);
+  try {
+    if (({ ...defaults(), ...rd('settings.json', {}) }).discord === false) return presence.off();
+    presence.set(buildActivity(game ? { playing: true, version: game.version, since: game.since } : { playing: false, since: launcherSince }));
+  } catch {} // status na Discordzie nigdy nie może zepsuć uruchamiania gry
 }
+ipcMain.handle('discord:enabled', () => presence.enabled);
 app.on('before-quit', () => presence.stop());
 
 app.whenReady().then(() => {
@@ -140,9 +143,9 @@ async function doLaunch(version) {
       const fin = r => { if (!done) { done = true; res(r); } };
       w.on('message', m => {
         if (m.t === 'log') send('log', m.d); else if (m.t === 'progress') send('progress', m.d);
-        else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root }; setPresence(gameInfo); startHud(m.pid); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
+        else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root, logFrom: logCount }; setPresence(gameInfo); startHud(m.pid); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
           send('started'); notify('MiB Client', 'Pobieranie zakończone — gra się uruchamia.'); win.minimize(); fin('ok'); }
-        else if (m.t === 'close') { launching = false; gamePid = null; prof.gameClosed(); stopHud(); send('closed', m.c); if (m.c !== 0 && gameInfo) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
+        else if (m.t === 'close') { launching = false; gamePid = null; prof.gameClosed(); stopHud(); send('closed', m.c); if (m.c !== 0 && gameInfo && !pendingRelaunch) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
           if (pendingRelaunch) { const v = pendingRelaunch; pendingRelaunch = null; send('relaunch'); setTimeout(() => doLaunch(v).then(r => { if (r !== 'ok') { send('log', r); notify('MiB Client', String(r).slice(0, 120)); send('closed', 1); } }), 600); } }
         else if (m.t === 'error') { launching = false; notify('MiB Client — błąd', String(m.d).slice(0, 120)); fin('Błąd: ' + m.d); }
       });
@@ -275,26 +278,43 @@ ipcMain.handle('repair', (_, gv) => {
 // ---- Raport błędu (bez tokenów i haseł) ----
 ipcMain.handle('report:build', (_, ver) => {
   const s = { ...defaults(), ...rd('settings.json', {}) }, os = require('os'); let mods = []; try { mods = fs.readdirSync(modsDir(ver)); } catch {}
-  const t = ['MiB Client ' + app.getVersion(), 'System: ' + process.platform + ' ' + os.release() + ' ' + process.arch, 'Wersja gry: ' + ver, 'Loader: ' + (instGet(ver).loader || 'brak'), 'RAM: ' + s.ram + ' MB', 'Java: ' + (s.java || 'automatyczna'), 'JVM: ' + s.jvm, 'Mody (' + mods.length + '): ' + mods.join(', '), '', '--- logi ---', ...logBuf].join('\n');
+  const t = ['MiB Client ' + app.getVersion(), 'System: ' + process.platform + ' ' + os.release() + ' ' + process.arch, 'Wersja gry: ' + ver, 'Loader: ' + (instGet(ver).loader || 'brak'), 'RAM: ' + s.ram + ' MB', 'Java: ' + (s.java || 'automatyczna'), 'JVM: ' + s.jvm, 'Mody (' + mods.length + '): ' + mods.join(', '), ...(lastCrash ? ['', '--- ostatnia awaria (kod ' + lastCrash.code + ') ---', lastCrash.report || '(brak raportu Minecrafta)'] : []), '', '--- logi ---', ...logBuf].join('\n');
   return san(t.split(os.homedir()).join('~'));
 });
 ipcMain.handle('report:save', async (_, txt) => { const r = await dialog.showSaveDialog(win, { defaultPath: 'mib-raport.txt' }); if (r.canceled) return false; fs.writeFileSync(r.filePath, String(txt)); return true; });
 // ===== Awaria gry: przyczyna z logu i najnowszego raportu awarii =====
+let lastCrash = null;
+// Koniec pliku (najwyżej max bajtów) — raport awarii bywa duży
+function readTail(file, max) {
+  const fd = fs.openSync(file, 'r');
+  try { const size = fs.fstatSync(fd).size, n = Math.min(size, max), b = Buffer.alloc(n); fs.readSync(fd, b, 0, n, size - n); return b.toString('utf8'); }
+  finally { fs.closeSync(fd); }
+}
 function reportCrash(code, game) {
   let report = '';
   try {
-    const d = path.join(game.root, 'crash-reports'), f = fs.readdirSync(d).map(n => path.join(d, n)).filter(n => fs.statSync(n).mtimeMs >= game.since).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
-    if (f) report = fs.readFileSync(f, 'utf8');
+    const d = path.join(game.root, 'crash-reports');
+    const newest = fs.readdirSync(d).map(n => ({ f: path.join(d, n), t: fs.statSync(path.join(d, n)).mtimeMs })).filter(x => x.t >= game.since).sort((a, b) => b.t - a.t)[0];
+    if (newest) report = readTail(newest.f, 64 * 1024);
   } catch {}
-  const log = logBuf.slice(-200).join('\n');
+  // tylko linie logu z tej sesji gry (nie z poprzednich uruchomień)
+  const log = logBuf.slice(-Math.min(200, Math.max(0, logCount - game.logFrom))).join('\n');
+  lastCrash = { code, report: report.slice(-6000) };
   send('crashed', { code, cause: diagnoseCrash(report + '\n' + log), report: !!report });
+  notify('MiB Client', 'Gra zamknęła się z błędem.');
+  if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 }
 
 // ===== Panel admina: wybór tekstury peleryny (PNG 64×32) =====
 ipcMain.handle('admin:pickTexture', async () => {
   const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'PNG', extensions: ['png'] }] });
   if (r.canceled) return null;
-  const buf = fs.readFileSync(r.filePaths[0]), info = pngInfo(buf);
+  let buf;
+  try {
+    if (fs.statSync(r.filePaths[0]).size > 100 * 1024) return { error: 'texture_too_big' };
+    buf = fs.readFileSync(r.filePaths[0]);
+  } catch { return { error: 'texture_not_png' }; }
+  const info = pngInfo(buf);
   if (!info) return { error: 'texture_not_png' };
   if (!validCapeSize(info.width, info.height)) return { error: 'texture_size', width: info.width, height: info.height };
   if (buf.length > 100 * 1024) return { error: 'texture_too_big' };

@@ -88,10 +88,12 @@ function createFake() {
             admin_player_cosmetics: () => st.owned.filter(o => o.user === body.p_user).map(o => ({ id: o.cosmetic, name: cosmetics[o.cosmetic].name, source: 'code', acquired_at: o.at })),
             admin_grant: () => { st.owned.push({ user: body.p_user, cosmetic: body.p_cosmetic, at: new Date().toISOString() }); return null; },
             admin_revoke: () => { st.owned = st.owned.filter(o => !(o.user === body.p_user && o.cosmetic === body.p_cosmetic)); return null; },
+            admin_delete_player: () => { if (st.users.find(u => u.id === body.p_user)?.num === 2) throw Object.assign(new Error('cannot_delete_admin'), { pg: true }); st.users = st.users.filter(u => u.id !== body.p_user); return null; },
             admin_save_cosmetic: () => { cosmetics[body.p_id] = { id: body.p_id, name: body.p_name, type: body.p_type, image_url: null, texture: body.p_texture || (cosmetics[body.p_id] || {}).texture || null }; return null; },
             admin_delete_cosmetic: () => { delete cosmetics[body.p_id]; return null; },
           };
-          return A[fn] ? json(res, 200, A[fn]()) : json(res, 404, { code: 'PGRST202', message: 'no function ' + fn });
+          if (!A[fn]) return json(res, 404, { code: 'PGRST202', message: 'no function ' + fn });
+          try { return json(res, 200, A[fn]()); } catch (e) { return json(res, 400, { code: 'P0001', message: e.message }); }
         }
         if (fn === 'create_my_profile') {
           if (!user.noProfile) return json(res, 400, { code: 'P0001', message: 'profile_exists' });

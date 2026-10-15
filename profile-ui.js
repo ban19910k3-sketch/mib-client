@@ -24,6 +24,7 @@
     email_confirm_required: 'Serwer MiB wymaga potwierdzenia e-maila, którego launcher nie obsługuje. Administrator musi wyłączyć „Confirm email” w Supabase (Authentication → Sign In / Providers).',
     signup_disabled: 'Zakładanie profili jest teraz wyłączone na serwerze MiB.',
     no_profile: 'Konto istnieje, ale w bazie nie ma profilu. Administrator musi uruchomić plik schema.sql w Supabase.',
+    admin_cannot_delete: 'Konta admina nie można usunąć w launcherze. Zrób to w Supabase (Authentication → Users).',
     schema_outdated: 'Baza serwera MiB jest nieaktualna. Administrator musi ponownie uruchomić plik schema.sql w Supabase.',
     nick_invalid: 'Nick może zawierać tylko litery bez polskich znaków, cyfry i _.',
   };
@@ -214,6 +215,9 @@
 
   // ===== Strona Kosmetyki =====
   const GLYPH = { cape: '▚', hat: '▀', wings: '▞' };
+  // Miniatura peleryny: zewnętrzna strona z tekstury Minecrafta (pole 10×16 od piksela 1,1), powiększona k razy
+  const capeThumb = (url, k) => h('span', { class: 'capeth', style: `width:${10 * k}px;height:${16 * k}px;background-image:url("${url}");background-size:${64 * k}px ${32 * k}px;background-position:-${k}px -${k}px` });
+  const itemImage = (c, k) => (c.imageUrl && c.type === 'cape' && c.imageUrl.startsWith('data:image/png') ? capeThumb(c.imageUrl, k) : c.imageUrl ? h('img', { src: c.imageUrl, alt: '' }) : GLYPH[c.type] || '◆');
   async function renderCos() {
     const box = $('cos-box');
     if (st.loading) return box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'mut' }, T('Wczytywanie…')));
@@ -239,7 +243,7 @@
     const list = await mib.call('prof:cosmetics');
     const grid = Array.isArray(list) && list.length
       ? h('div', { class: 'cos-grid' }, ...list.map(c => h('div', { class: 'cosi' },
-        c.imageUrl ? h('img', { src: c.imageUrl, alt: '' }) : h('i', { 'aria-hidden': 'true' }, GLYPH[c.type] || '◆'),
+        h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)),
         h('b', {}, c.name), h('small', { class: 'mut' }, T('Odebrano') + ' ' + fmtDate(c.acquiredAt)))))
       : h('p', { class: 'empty' }, Array.isArray(list) ? T('Nie masz jeszcze żadnych przedmiotów. Masz kod z konkursu? Wpisz go wyżej.') : msg(list.error));
     box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err, grid);
@@ -296,14 +300,14 @@
     if (document.documentElement.classList.contains('noanim')) return toast(T('Nowy przedmiot') + ': ' + item.name);
     const old = $('unlock'); if (old) old.remove();
     const o = h('div', { id: 'unlock', role: 'dialog', 'aria-label': T('Nowy przedmiot!') }, h('div', { class: 'ring' }),
-      h('div', { class: 'card2' }, h('i', {}, item.imageUrl ? h('img', { src: item.imageUrl, alt: '' }) : GLYPH[item.type] || '◆'), h('small', {}, T('Nowy przedmiot!')), h('b', {}, item.name)));
+      h('div', { class: 'card2' }, h('i', {}, itemImage(item, 6)), h('small', {}, T('Nowy przedmiot!')), h('b', {}, item.name)));
     const close = () => { o.classList.add('bye'); setTimeout(() => o.remove(), 250); };
     o.onclick = close;
     document.body.append(o);
     setTimeout(() => { if (o.isConnected) close(); }, 2200);
   };
   window.mibProfileUI = { modsShown, refresh };
-  window.mibUI = { h, msg, fmtDate };
+  window.mibUI = { h, msg, fmtDate, capeThumb };
   sidebar();
   render();
   refresh();

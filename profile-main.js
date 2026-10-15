@@ -186,7 +186,8 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     },
     // Ogłoszenia widzą wszyscy, także bez profilu (baza pokazuje tylko aktualne)
     announcements: () => supa.select('announcements', 'select=id,title,body,pinned,created_at&order=pinned.desc,created_at.desc&limit=10'),
-    allCosmetics: () => supa.select('cosmetics', 'select=id,name,type,texture&order=created_at.desc'),
+    // lite: bez tekstur (do list wyboru), żeby nie pobierać ich niepotrzebnie
+    allCosmetics: ({ lite } = {}) => supa.select('cosmetics', 'select=id,name,type' + (lite ? '' : ',texture') + '&order=created_at.desc'),
     async admin({ fn, args }) {
       if (!ADMIN_FNS.has(fn)) return { error: 'not_admin_fn' };
       return authed(t => supa.rpc(fn, args || {}, t));
@@ -197,8 +198,9 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       return { free: !!(await supa.rpc('nick_available', { p_nick: nick })) };
     },
     async cosmetics() {
-      const rows = await authed(t => supa.select('owned_cosmetics', 'select=source,acquired_at,cosmetics(id,name,type,image_url)&order=acquired_at.desc', t));
-      return rows.filter(r => r.cosmetics).map(r => ({ id: r.cosmetics.id, name: r.cosmetics.name, type: r.cosmetics.type, imageUrl: r.cosmetics.image_url, acquiredAt: r.acquired_at, source: r.source }));
+      const rows = await authed(t => supa.select('owned_cosmetics', 'select=source,acquired_at,cosmetics(id,name,type,image_url,texture)&order=acquired_at.desc', t));
+      // tekstura z panelu admina ma pierwszeństwo przed zewnętrznym obrazkiem
+      return rows.filter(r => r.cosmetics).map(r => ({ id: r.cosmetics.id, name: r.cosmetics.name, type: r.cosmetics.type, imageUrl: r.cosmetics.texture || r.cosmetics.image_url, acquiredAt: r.acquired_at, source: r.source }));
     },
     async redeem({ code }) {
       const r = await authed(t => supa.rpc('redeem_code', { p_code: String(code || '').trim().toUpperCase() }, t));

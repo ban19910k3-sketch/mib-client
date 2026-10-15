@@ -140,10 +140,17 @@ const ok = m => console.log('PASS', m);
     await shot('admin-stats.png');
     await w.click('[data-tab="players"]');
     await w.waitForFunction(() => /Tester_1/.test(document.getElementById('ap-res').textContent));
+    await w.click('#ap-res .arow:has-text("Tester_1")');
+    await w.waitForSelector('#ap-del');
+    assert.equal(await w.isDisabled('#ap-del'), true, 'najpierw trzeba wpisać nick');
+    await w.fill('#ap-del-nick', 'Tester_1');
+    await w.click('#ap-del');
+    await w.waitForFunction(() => !/Tester_1/.test(document.getElementById('ap-res').textContent));
+    assert.ok(!fake.st.users.some(u => u.nick === 'Tester_1'), 'konto usunięte na serwerze');
     await w.click('[data-tab="cos"]');
     await w.waitForSelector('#ac-list .cosi');
     await shot('admin-cos.png');
-    ok('(l) panel admina: kody, statystyki, gracze, kosmetyki');
+    ok('(l) panel admina: kody, statystyki, gracze (z usunięciem konta), kosmetyki');
 
     await new Promise(r => { fake.server.closeAllConnections && fake.server.closeAllConnections(); fake.server.close(r); });
     await w.click('.nav[data-p="prof"]');

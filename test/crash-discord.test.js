@@ -96,3 +96,72 @@ test('pngInfo and cape sizes', () => {
   assert.equal(validCapeSize(64, 64), false);
   assert.equal(validCapeSize(1024, 512), false);
 });
+
+// ===== Odporność klienta Discorda (po recenzji) =====
+function fakeDiscord2(file, { onHello } = {}) {
+  const st = { conns: 0, acts: [], socks: [] };
+  const server = net.createServer(sock => {
+    st.conns++; st.socks.push(sock);
+    let buf = Buffer.alloc(0);
+    sock.on('error', () => {});
+    sock.on('data', d => {
+      buf = Buffer.concat([buf, d]);
+      while (buf.length >= 8 && buf.length >= 8 + buf.readInt32LE(4)) {
+        const op = buf.readInt32LE(0), len = buf.readInt32LE(4), msg = JSON.parse(buf.subarray(8, 8 + len));
+        buf = buf.subarray(8 + len);
+        if (op === 0) { if (onHello) onHello(sock); else sock.write(encode(1, { cmd: 'DISPATCH', evt: 'READY', data: {} })); }
+        else st.acts.push(msg.args.activity);
+      }
+    });
+  });
+  return new Promise(r => server.listen(file, () => r({ server, st })));
+}
+const tmpPipe = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'dc-')); return { file: path.join(d, 'discord-ipc-0'), other: i => path.join(d, 'none-' + i) }; };
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+test('two quick set() calls open one connection', async () => {
+  const t = tmpPipe(), { server, st } = await fakeDiscord2(t.file);
+  const p = createPresence({ clientId: '1', pathFor: i => (i === 0 ? t.file : t.other(i)) });
+  p.set({ details: 'a' }); p.set({ details: 'b' });
+  await wait(300);
+  p.stop(); server.close();
+  assert.equal(st.conns, 1);
+  assert.equal(st.acts.at(-1).details, 'b');
+});
+
+test('a socket error after READY does not throw and reconnects', async () => {
+  const t = tmpPipe(), { server, st } = await fakeDiscord2(t.file);
+  const p = createPresence({ clientId: '1', pathFor: i => (i === 0 ? t.file : t.other(i)), retryMs: 100 });
+  p.set({ details: 'a' });
+  await wait(200);
+  st.socks[0].destroy();               // Discord zamknięty / zerwane połączenie
+  await wait(20);
+  assert.doesNotThrow(() => p.set({ details: 'b' }));
+  await wait(400);
+  p.stop(); server.close();
+  assert.equal(st.conns, 2, 'połączył się ponownie');
+  assert.equal(st.acts.at(-1).details, 'b');
+});
+
+test('a malformed frame length closes the socket instead of hanging', async () => {
+  const t = tmpPipe();
+  const { server, st } = await fakeDiscord2(t.file, { onHello: sock => { const h = Buffer.alloc(8); h.writeInt32LE(1, 0); h.writeInt32LE(-8, 4); sock.write(h); } });
+  const p = createPresence({ clientId: '1', pathFor: i => (i === 0 ? t.file : t.other(i)), retryMs: 10000 });
+  p.set({ details: 'a' });
+  await wait(300);
+  p.stop(); server.close();
+  assert.equal(st.acts.length, 0);
+});
+
+test('off() disconnects and does not reconnect', async () => {
+  const t = tmpPipe(), { server, st } = await fakeDiscord2(t.file);
+  const p = createPresence({ clientId: '1', pathFor: i => (i === 0 ? t.file : t.other(i)), retryMs: 50 });
+  p.set({ details: 'a' });
+  await wait(200);
+  p.off();
+  await wait(300);
+  const closed = st.socks.every(s => s.destroyed || s.readyState === 'closed' || !s.readable);
+  p.stop(); server.close();
+  assert.equal(st.conns, 1, 'bez ponownego łączenia');
+  assert.ok(closed, 'połączenie zamknięte');
+});

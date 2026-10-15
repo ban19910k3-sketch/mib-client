@@ -1,7 +1,7 @@
 // Panel admina (widoczny tylko dla konta admina; uprawnienia sprawdza baza).
 // Tylko po polsku — panel widzi wyłącznie właściciel.
 (() => {
-  const { h, msg, fmtDate } = window.mibUI;
+  const { h, msg, fmtDate, capeThumb } = window.mibUI;
   const ERR = {
     not_admin: 'To konto nie jest adminem.',
     cosmetic_id_invalid: 'ID przedmiotu: 2–32 znaki, tylko małe litery, cyfry i _ (np. cape_turniej).',
@@ -22,6 +22,17 @@
   const TYPES = { cape: 'Peleryna', hat: 'Czapka', wings: 'Skrzydła' };
   const copy = async t => { try { await navigator.clipboard.writeText(t); toast('Skopiowano'); } catch {} };
   let tab = 'ann';
+  // Jeden podgląd 3D na cały panel (każdy nowy SkinViewer zajmuje kontekst WebGL)
+  let capeCanvas = null, capeViewer = null;
+  function capePreview(dataUrl) {
+    if (!capeCanvas) capeCanvas = h('canvas', { width: 180, height: 220, class: 'cape3d', hidden: true });
+    try {
+      if (dataUrl && !capeViewer) { capeViewer = new skinview3d.SkinViewer({ canvas: capeCanvas, width: 180, height: 220 }); capeViewer.autoRotate = true; capeViewer.autoRotateSpeed = 0.8; capeViewer.controls.enableZoom = false; }
+      if (dataUrl) capeViewer.loadCape(dataUrl);
+      capeCanvas.hidden = !dataUrl;
+    } catch { capeCanvas.hidden = true; }
+    return capeCanvas;
+  }
 
   // ===== Ogłoszenia =====
   async function viewAnn(box) {
@@ -75,16 +86,10 @@
   async function viewCos(box) {
     const id = h('input', { id: 'ac-id', maxlength: 32, placeholder: 'np. cape_turniej' }), name = h('input', { id: 'ac-name', maxlength: 40, placeholder: 'np. Peleryna Turniejowa' });
     const type = h('select', { id: 'ac-type' }, ...Object.entries(TYPES).map(([k, v]) => h('option', { value: k }, v)));
-    const prevImg = h('img', { class: 'texprev', alt: '', hidden: true }), cv = h('canvas', { width: 180, height: 220, class: 'cape3d', hidden: true });
+    const prevImg = h('img', { class: 'texprev', alt: '', hidden: true }), cv = capePreview(null);
     const e = h('p', { class: 'err' }), save = h('button', { class: 'b', type: 'submit', id: 'ac-save' }, 'Zapisz przedmiot');
-    let texture = null, viewer = null;
-    function preview(dataUrl) {
-      prevImg.src = dataUrl; prevImg.hidden = !dataUrl;
-      try {
-        if (!viewer) { viewer = new skinview3d.SkinViewer({ canvas: cv, width: 180, height: 220 }); viewer.autoRotate = true; viewer.autoRotateSpeed = 0.8; viewer.controls.enableZoom = false; }
-        if (dataUrl) { viewer.loadCape(dataUrl); cv.hidden = false; } else cv.hidden = true;
-      } catch { cv.hidden = true; }
-    }
+    let texture = null, editing = false, known = new Set();
+    function preview(dataUrl) { prevImg.src = dataUrl || ''; prevImg.hidden = !dataUrl; capePreview(dataUrl); }
     const pick = h('button', { class: 'b ghost', type: 'button', on: { click: async () => {
       const r = await mib.call('admin:pickTexture');
       if (!r) return;
@@ -95,11 +100,12 @@
     async function load() {
       const l = await mib.call('prof:allCosmetics');
       if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
+      known = new Set(l.map(c => c.id));
       list.replaceChildren(...(l.length ? l.map(c => h('div', { class: 'cosi' },
-        c.texture ? h('img', { src: c.texture, alt: '' }) : h('i', {}, '◆'),
+        h('i', {}, c.texture && c.type === 'cape' ? capeThumb(c.texture, 5) : '◆'),
         h('b', {}, c.name), h('small', { class: 'mut' }, c.id + ', ' + (TYPES[c.type] || c.type)),
         h('div', { class: 'row' },
-          h('button', { class: 'b ghost', on: { click: () => { id.value = c.id; id.disabled = true; name.value = c.name; type.value = c.type; texture = null; preview(c.texture); save.textContent = 'Zapisz zmiany'; name.focus(); } } }, 'Edytuj'),
+          h('button', { class: 'b ghost', on: { click: () => { editing = true; id.value = c.id; id.disabled = true; name.value = c.name; type.value = c.type; texture = null; preview(c.texture); save.textContent = 'Zapisz zmiany'; name.focus(); } } }, 'Edytuj'),
           h('button', { class: 'b danger', on: { click: async () => {
             if (!confirm('Usunąć przedmiot „' + c.name + '”?')) return;
             const r = await call('admin_delete_cosmetic', { p_id: c.id });
@@ -109,11 +115,12 @@
     }
     const form = h('form', { class: 'pform', on: { submit: async ev => {
       ev.preventDefault();
+      if (!editing && known.has(id.value.trim())) { e.textContent = 'Przedmiot o takim ID już istnieje. Kliknij „Edytuj” przy nim, żeby go zmienić.'; return; }
       save.disabled = true;
       const r = await call('admin_save_cosmetic', { p_id: id.value.trim(), p_name: name.value, p_type: type.value, p_texture: texture });
       save.disabled = false;
       if (failed(r)) { e.textContent = err(r); return; }
-      toast('Przedmiot zapisany.'); e.textContent = ''; id.value = name.value = ''; id.disabled = false; texture = null; preview(null); save.textContent = 'Zapisz przedmiot'; load();
+      toast('Przedmiot zapisany.'); e.textContent = ''; id.value = name.value = ''; id.disabled = false; editing = false; texture = null; preview(null); save.textContent = 'Zapisz przedmiot'; load();
     } } },
     h('label', { class: 'sr' }, h('span', {}, 'ID (stałe)'), id), h('label', { class: 'sr' }, h('span', {}, 'Nazwa'), name),
     h('label', { class: 'sr' }, h('span', {}, 'Rodzaj'), type),
@@ -128,7 +135,7 @@
     const item = h('select', { id: 'ak-item' }), count = h('input', { type: 'number', min: 1, max: 100, value: 1, id: 'ak-count' });
     const uses = h('input', { type: 'number', min: 1, max: 100000, value: 1, id: 'ak-uses' }), days = h('input', { type: 'number', min: 1, max: 3650, placeholder: 'bez końca', id: 'ak-days' });
     const e = h('p', { class: 'err' }), out = h('div', { id: 'ak-out' }), list = h('div', { id: 'ak-list' });
-    const cos = await mib.call('prof:allCosmetics');
+    const cos = await mib.call('prof:allCosmetics', { lite: true });
     item.replaceChildren(...(Array.isArray(cos) ? cos.map(c => h('option', { value: c.id }, c.name)) : []));
     async function load() {
       const l = await call('admin_list_codes');
@@ -172,7 +179,7 @@
         : [h('p', { class: 'empty' }, 'Nikogo nie znaleziono.')]));
     }
     async function show(p) {
-      const [owned, cos] = await Promise.all([call('admin_player_cosmetics', { p_user: p.id }), mib.call('prof:allCosmetics')]);
+      const [owned, cos] = await Promise.all([call('admin_player_cosmetics', { p_user: p.id }), mib.call('prof:allCosmetics', { lite: true })]);
       if (failed(owned)) return toast(err(owned), 1);
       const pick = h('select', {}, ...(Array.isArray(cos) ? cos.filter(c => !owned.some(o => o.id === c.id)).map(c => h('option', { value: c.id }, c.name)) : []));
       detail.replaceChildren(h('div', { class: 'sec' },
@@ -184,12 +191,19 @@
           : [h('span', { class: 'mut' }, 'brak')]))),
         h('div', { class: 'sr' }, h('span', {}, 'Daj przedmiot'), h('span', { class: 'row' }, pick,
           h('button', { class: 'b', on: { click: async () => { if (!pick.value) return; const r = await call('admin_grant', { p_user: p.id, p_cosmetic: pick.value }); if (failed(r)) return toast(err(r), 1); toast('Przedmiot dodany.'); show(p); } } }, 'Daj'))),
-        h('div', { class: 'row', style: 'padding-top:10px' }, h('button', { class: 'b danger', on: { click: async () => {
-          if (prompt('Usunięcie konta jest nieodwracalne. Wpisz nick gracza (' + p.nick + '), żeby potwierdzić:') !== p.nick) return;
-          const r = await call('admin_delete_player', { p_user: p.id });
-          if (failed(r)) return toast(err(r), 1);
-          toast('Konto usunięte.'); detail.replaceChildren(); search();
-        } } }, 'Usuń konto'))));
+        delBox(p)));
+    }
+    // Usunięcie konta: potwierdzenie wpisaniem nicku (Electron nie obsługuje prompt())
+    function delBox(p) {
+      const conf = h('input', { id: 'ap-del-nick', placeholder: 'Wpisz nick: ' + p.nick, autocomplete: 'off' });
+      const del = h('button', { class: 'b danger', id: 'ap-del', disabled: true, on: { click: async () => {
+        del.disabled = true;
+        const r = await call('admin_delete_player', { p_user: p.id });
+        if (failed(r)) { del.disabled = false; return toast(err(r), 1); }
+        toast('Konto usunięte.'); detail.replaceChildren(); search();
+      } } }, 'Usuń konto');
+      conf.oninput = () => { del.disabled = conf.value !== p.nick; };
+      return h('div', { class: 'sr' }, h('span', {}, 'Usuń konto (nieodwracalne)'), h('span', { class: 'row' }, conf, del));
     }
     box.append(h('form', { class: 'row', on: { submit: ev => { ev.preventDefault(); search(); } } }, q, h('button', { class: 'b', type: 'submit' }, 'Szukaj')), res, detail);
     search();

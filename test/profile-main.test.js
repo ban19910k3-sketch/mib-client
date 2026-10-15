@@ -386,3 +386,19 @@ test('admin calls are limited to admin functions', async () => {
   assert.equal((await p.admin({ fn: 'delete_my_profile', args: {} })).error, 'not_admin_fn');
   assert.ok(!supa.calls.some(c => c[1] === 'delete_my_profile'));
 });
+
+test('owned cosmetics use the admin texture as the image', async () => {
+  const supa = fakeSupa({ select: async t => (t === 'profiles' ? [profileRow] : t === 'owned_cosmetics'
+    ? [{ source: 'code', acquired_at: 'x', cosmetics: { id: 'c', name: 'C', type: 'cape', image_url: null, texture: 'data:image/png;base64,AA' } }] : []) });
+  const { p } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.equal((await p.cosmetics())[0].imageUrl, 'data:image/png;base64,AA');
+});
+
+test('allCosmetics lite skips textures', async () => {
+  const { p, supa } = mk();
+  await p.allCosmetics({ lite: true });
+  await p.allCosmetics({});
+  const q = supa.calls.filter(c => c[1] === 'cosmetics').map(c => c[2]);
+  assert.ok(!q[0].includes('texture') && q[1].includes('texture'));
+});

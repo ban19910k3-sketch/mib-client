@@ -134,7 +134,7 @@ begin
   update private.gift_codes set used_count = used_count + 1 where code = g.code;
   insert into public.owned_cosmetics (user_id, cosmetic_id, source) values (v_uid, g.cosmetic_id, 'code');
   select * into c from public.cosmetics where id = g.cosmetic_id;
-  return json_build_object('cosmetic_id', c.id, 'name', c.name, 'type', c.type, 'image_url', c.image_url);
+  return json_build_object('cosmetic_id', c.id, 'name', c.name, 'type', c.type, 'image_url', coalesce(c.texture, c.image_url));
 end $$;
 
 -- ===== Kod odzyskiwania i reset hasła =====
@@ -259,6 +259,8 @@ create or replace function public.delete_my_profile() returns void
 language plpgsql security definer set search_path = '' as $$
 begin
   if auth.uid() is null then raise exception 'not_logged_in'; end if;
+  -- konto admina usuwa się tylko ręcznie w Supabase, żeby nie stracić panelu przez przypadek
+  if exists (select 1 from private.admins where user_id = auth.uid()) then raise exception 'admin_cannot_delete'; end if;
   delete from private.reset_attempts where email = (select lower(email) from auth.users where id = auth.uid());
   delete from auth.users where id = auth.uid();
 end $$;
@@ -285,6 +287,11 @@ create policy announcements_read on public.announcements for select to anon, aut
 create table if not exists private.admins (user_id uuid primary key references auth.users (id) on delete cascade);
 insert into private.admins (user_id)
   select id from public.profiles where num = 2 and not exists (select 1 from private.admins);
+do $$ begin
+  if not exists (select 1 from private.admins) then
+    raise notice 'Panel admina: brak profilu MIB-000002, admin nie został jeszcze przypisany.';
+  end if;
+end $$;
 
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = '' as $$
@@ -333,7 +340,7 @@ returns table (id uuid, num bigint, nick text, email text, created_at timestampt
 language plpgsql stable security definer set search_path = '' as $$
 declare
   q text := trim(coalesce(p_q, ''));
-  like_q text := '%' || replace(replace(trim(coalesce(p_q, '')), '\', '\\'), '%', '\%') || '%';
+  like_q text := '%' || replace(replace(replace(trim(coalesce(p_q, '')), '\', '\\'), '%', '\%'), '_', '\_') || '%';
 begin
   perform private.need_admin();
   return query

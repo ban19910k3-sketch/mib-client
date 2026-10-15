@@ -243,3 +243,4 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 .cape3d{align-self:flex-start;margin:4px 0 4px 236px}
 pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margin:6px 0 10px;font-size:14px;line-height:1.6;user-select:text}
 #admin-tab{display:flex;flex-direction:column;gap:10px;padding-top:8px}
+.capeth{display:block;image-rendering:pixelated;background-repeat:no-repeat}

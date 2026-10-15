@@ -196,6 +196,7 @@ begin
   -- gracze
   assert (select nick from public.admin_find_players('MIB-000001')) = 'Gracz_1', 'szukanie po ID';
   assert (select count(*) from public.admin_find_players('gracz_')) >= 1, 'szukanie po nicku';
+  assert (select count(*) from public.admin_find_players('gracz_x')) = 0, '_ nie jest wildcardem';
   assert (select count(*) from public.admin_find_players('a@test')) = 1, 'szukanie po e-mailu';
   assert (select count(*) from public.admin_find_players('100%')) = 0, 'procent nie jest wildcardem';
   perform public.admin_grant('11111111-1111-1111-1111-111111111111', 'cape_mib');
@@ -211,6 +212,7 @@ select pg_temp.expect_error($q$select public.admin_save_cosmetic('ok_id', 'x', '
 select pg_temp.expect_error($q$select public.admin_delete_cosmetic('cape_mib')$q$, 'cosmetic_in_use');
 select pg_temp.expect_error($q$select public.admin_create_codes('cape_mib', 500, 1, null)$q$, 'codes_invalid');
 select pg_temp.expect_error($q$select public.admin_delete_player('22222222-2222-2222-2222-222222222222')$q$, 'cannot_delete_admin');
+select pg_temp.expect_error($q$select public.delete_my_profile()$q$, 'admin_cannot_delete');
 reset role;
 set role anon;
 do $$ begin
