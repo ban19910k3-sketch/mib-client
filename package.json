@@ -1,6 +1,6 @@
 {
   "name": "mib-client",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "MiB Client - darmowy launcher Minecraft PvP",
   "main": "main.js",
   "author": "MiB",
@@ -23,6 +23,7 @@
       "preload.js",
       "worker.js",
       "index.html",
+      "style.css",
       "ui.js",
       "skinview3d.js",
       "overlay.html",

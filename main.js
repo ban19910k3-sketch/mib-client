@@ -165,7 +165,7 @@ async function ensureJava(major) {
 }
 
 // ---- Instalacja dodatków z Modrinth ----
-const UA = { headers: { 'User-Agent': 'MiB-Client/0.7.0' } };
+const UA = { headers: { 'User-Agent': 'MiB-Client/' + app.getVersion() } };
 const mr = async u => (await fetch('https://api.modrinth.com/v2' + u, UA)).json();
 const enc = o => encodeURIComponent(JSON.stringify(o));
 const rootDir = () => ({ ...defaults(), ...rd('settings.json', {}) }).root;
