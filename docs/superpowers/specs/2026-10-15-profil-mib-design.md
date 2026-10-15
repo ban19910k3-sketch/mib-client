@@ -43,7 +43,7 @@ Sklepu i płatności w tej wersji nie ma. Profil ma powstać teraz, żeby gracze
 
 ## Ograniczenia
 
-- Supabase w planie darmowym: wbudowana poczta wysyła tylko kilka maili na godzinę. Dlatego potwierdzanie e-maila przy rejestracji jest **wyłączone** (ustawienie w panelu Supabase). Mail idzie tylko przy resecie hasła.
+- Wbudowana poczta Supabase wysyła tylko kilka maili na godzinę i (od 2024) tylko do członków zespołu projektu, więc nie da się nią obsłużyć graczy. Potwierdzanie e-maila przy rejestracji jest **wyłączone** (ustawienie w panelu Supabase), a reset hasła nie może polegać na wbudowanej poczcie (patrz „Reset hasła”).
 - Launcher to Electron bez bundlera; interfejs ma `contextIsolation` i rozmawia z procesem głównym przez `window.mib.call(kanał, dane)`.
 - Wszystkie nowe napisy w UI muszą trafić też do słownika `EN` w `ui.js`.
 - Właściciel nie programuje. Wszystko, co trzeba zrobić w panelu Supabase, musi być opisane krok po kroku, a SQL ma się dać wkleić w SQL Editor jednym ruchem.
@@ -64,8 +64,10 @@ Sklepu i płatności w tej wersji nie ma. Profil ma powstać teraz, żeby gracze
 - **ID:** nadawane przez bazę przy tworzeniu profilu, kolejne liczby, wyświetlane jako `MIB-000127` (6 cyfr, więcej gdy zabraknie). Nigdy się nie zmienia i nie jest używane ponownie.
 - **Założyciel:** profil o numerze ≤ 1000 ma odznakę „Założyciel”, ustawianą przez bazę przy tworzeniu.
 - **Logowanie / wylogowanie:** e-mail + hasło. Wylogowanie usuwa sesję z dysku.
-- **Reset hasła:** „Nie pamiętam hasła” → Supabase wysyła maila z 6-cyfrowym kodem → gracz wpisuje kod i nowe hasło w launcherze. Wymaga szablonu maila z `{{ .Token }}` (instrukcja w README).
+- **Reset hasła:** DO USTALENIA z właścicielem (kod odzyskiwania pokazany przy rejestracji albo własny dostawca poczty).
 - **Zmiana nicku:** poza zakresem tej wersji.
+- **Usunięcie profilu:** przycisk „Usuń profil” (z potwierdzeniem wpisaniem nicku) usuwa konto i wszystkie dane gracza funkcją bazy. ID nie wraca do puli, miejsce Założyciela też nie. *(decyzja budowniczego: wymóg RODO, gracze to często niepełnoletni)*
+- **Ochrona przed masowym zakładaniem kont:** w tej wersji opieramy się na wbudowanych limitach Supabase (liczba rejestracji z jednego IP). Kody prezentowe tworzymy domyślnie na 1 użycie (dla konkretnego zwycięzcy), więc fałszywe konta niewiele dają. CAPTCHA można dodać później. Ryzyko, że ktoś botami zajmie część miejsc Założyciela, akceptujemy. *(decyzja budowniczego)*
 - Profil jest **niezależny od kont Microsoft**. Gracz może mieć kilka kont Minecraft w launcherze i jeden profil MiB.
 
 ### Kosmetyki i kody prezentowe
@@ -83,14 +85,30 @@ Sklepu i płatności w tej wersji nie ma. Profil ma powstać teraz, żeby gracze
 
 ### Kopia modów
 
-- Po każdej zmianie modów danej wersji (instalacja, usunięcie, włączenie/wyłączenie, aktualizacja) launcher, gdy gracz jest zalogowany, zapisuje na profilu listę modów tej wersji: wersja gry, loader, projekt i wersja z Modrinth, nazwa pliku, czy włączony. Mody rozpoznaje po sumie SHA-1 przez Modrinth (jak dziś robi to sprawdzanie aktualizacji).
+- Kopie są per wersja gry. Po każdej zmianie modów danej wersji (instalacja, usunięcie, włączenie/wyłączenie, aktualizacja) launcher, gdy gracz jest zalogowany, zapisuje na profilu listę modów tej wersji: wersja gry, loader, projekt i wersja z Modrinth, nazwa pliku, czy włączony. Mody rozpoznaje po sumie SHA-1 przez Modrinth (jak dziś robi to sprawdzanie aktualizacji).
 - Pliki spoza Modrinth nie trafiają do kopii; launcher pokazuje, ile ich pominął.
 - Na stronie **Moje mody**, gdy profil ma kopię dla wybranej wersji, jest przycisk „Przywróć mody z profilu (N)”. Pobiera brakujące mody (te same wersje, z kontrolą sum) i ustawia loader; nie usuwa niczego, co gracz już ma.
+- Ochrona kopii: jeśli profil ma kopię dla wersji, a ten komputer jeszcze jej nie przywrócił ani nie odrzucił, launcher **nie nadpisuje** tej kopii automatycznie. Pokazuje „Przywróć mody z profilu (N)” oraz „Zastąp kopię modami z tego komputera”. Dopiero po wyborze automatyczne zapisywanie dla tej wersji rusza. Stan „przejrzane” zapisuje się lokalnie per wersja. *(decyzja budowniczego)*
+- Jeśli loader z kopii różni się od loadera już ustawionego dla wersji na tym komputerze, przywracanie odmawia z czytelnym komunikatem. *(decyzja budowniczego)*
 
 ### Statystyki
 
 - Launcher liczy czas od uruchomienia gry do jej zamknięcia i liczbę uruchomień, osobno dla każdej wersji gry. Po zamknięciu gry wysyła sesję funkcją bazy (sesja dłuższa niż 24 h jest przycinana). Bez internetu sesje czekają lokalnie w kolejce.
 - Profil pokazuje: łączny czas gry, liczbę uruchomień, ulubioną wersję (najwięcej czasu), datę założenia.
+- Statystyki widzi tylko właściciel profilu. Nie ma rankingów ani nagród za czas gry, bo launcher sam zgłasza czas i da się go oszukać. Gdyby kiedyś miały być publiczne, trzeba zmienić sposób liczenia. *(decyzja budowniczego)*
+
+### Prywatność
+
+- Tekst „O programie i prywatność” (`LEGAL` w `ui.js`) obiecuje dziś, że launcher nie wysyła danych na własny serwer. Po tej zmianie to nieprawda, więc tekst trzeba poprawić (PL i EN). Nowe brzmienie: launcher bez profilu MiB dalej nic nie wysyła; **po założeniu profilu** na serwerze MiB (Supabase, UE – Frankfurt) zapisują się: e-mail, nick, ID, kosmetyki, ustawienia launchera, lista modów z Modrinth i czas gry; profil można w każdej chwili usunąć razem z danymi. Właściciel zatwierdza ten tekst razem z tym dokumentem.
+- Statystyki i kopia modów działają tylko po zalogowaniu do profilu, więc założenie profilu jest zgodą na nie.
+
+### Szczegóły techniczne ustalone przez budowniczego
+
+- Ustawienia zmieniane od razu (język, tło, animacja startowa, cząsteczki) są dziś w `localStorage` interfejsu; synchronizacja obejmuje je tak samo jak te z `settings.json`, z jednym znacznikiem czasu zmiany.
+- Przy pierwszym zalogowaniu na komputerze, gdy lokalne ustawienia nie mają znacznika czasu: jeśli profil ma ustawienia, wygrywa profil; jeśli nie ma, wysyłamy lokalne.
+- Obrazki kosmetyków: Supabase Storage (publiczny bucket) albo brak obrazka (ikona typu).
+- Logo w animacji splasha: animujemy SVG logo z paska bocznego nałożone na splash (logo w `splash.jpg` jest częścią obrazka).
+- `supabase/README.md` zawiera krok „przed startem”: jak usunąć testowe profile i wyzerować licznik ID, żeby testy właściciela nie zajęły numerów i miejsc Założyciela.
 
 ### Interfejs
 
