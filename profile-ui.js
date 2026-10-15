@@ -37,12 +37,12 @@
   const go = page => document.querySelector(`.nav[data-p="${page}"]`).click();
   const fmtDate = d => new Date(d).toLocaleDateString(LANG === 'en' ? 'en-GB' : 'pl-PL');
 
-  let st = { loggedIn: false }, tab = 'signup', busy = false;
+  let st = { loading: true }, tab = 'signup', busy = false;
 
   // ===== Dolny blok paska bocznego =====
   function sidebar() {
-    $('plname').textContent = st.loggedIn ? st.nick : st.offline ? T('Profil MiB') : T('Załóż profil MiB');
-    $('plsub').textContent = st.loggedIn ? st.mibId : st.offline ? T('Brak połączenia') : T('Kosmetyki i ustawienia');
+    $('plname').textContent = st.loggedIn ? st.nick : st.offline || st.loading ? T('Profil MiB') : T('Załóż profil MiB');
+    $('plsub').textContent = st.loggedIn ? st.mibId : st.loading ? T('Wczytywanie…') : st.offline ? T('Brak połączenia') : T('Kosmetyki i ustawienia');
   }
   $('plbox').addEventListener('click', () => go('prof'));
   $('plbox').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go('prof'); } });
@@ -119,6 +119,7 @@
       await run(submit, err, () => mib.call('prof:reset', { email: email.value, code: code.value, password: pass.value }), r => {
         toast(T('Hasło zmienione. Zapisz nowy kod odzyskiwania.'));
         showCode(r.recoveryCode);
+        if (r.recoveryError) toast(T('Nie udało się zapisać kodu odzyskiwania. Wygeneruj nowy na stronie profilu.'), 1);
       });
     } } },
     h('p', { class: 'mut' }, T('Wpisz e-mail profilu i kod odzyskiwania pokazany przy zakładaniu profilu. Stary kod przestanie działać, a launcher pokaże nowy.')),
@@ -177,7 +178,7 @@
   }
   function render() {
     const box = $('prof-box');
-    box.replaceChildren(...(st.loggedIn ? viewIn() : st.offline ? viewOffline() : viewOut()));
+    box.replaceChildren(...(st.loading ? [h('h2', {}, T('Profil MiB')), h('p', { class: 'mut' }, T('Wczytywanie…'))] : st.loggedIn ? viewIn() : st.offline ? viewOffline() : viewOut()));
     if (st.loggedIn) mib.call('prof:cosmetics').then(l => { const e = $('pf-cos'); if (e) e.textContent = Array.isArray(l) ? T('Posiadane przedmioty') + ': ' + l.length : msg(l.error); });
   }
 
@@ -185,6 +186,7 @@
   const GLYPH = { cape: '▚', hat: '▀', wings: '▞' };
   async function renderCos() {
     const box = $('cos-box');
+    if (st.loading) return box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'mut' }, T('Wczytywanie…')));
     if (!st.loggedIn) {
       box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('div', { class: 'empty-state' },
         h('p', {}, st.offline ? T('Brak połączenia z serwerem MiB. Kosmetyki pokażą się, gdy połączenie wróci.') : T('Peleryny i inne przedmioty zapisują się na profilu MiB. Załóż profil, żeby je zbierać.')),
@@ -219,18 +221,27 @@
     box.hidden = true;
     if (!st.loggedIn) return;
     const r = await mib.call('prof:modInfo', { gv });
-    if (!r || r.error || r.reviewed || !r.count || $('sel').value !== gv) return;
-    const restore = h('button', { class: 'b' }, T('Przywróć mody z profilu') + ' (' + r.count + ')');
+    if (!r || r.error || !r.count || $('sel').value !== gv) return;
+    const label = T(r.reviewed ? 'Przywróć brakujące mody' : 'Przywróć mody z profilu') + ' (' + r.count + ')';
+    const restore = h('button', { class: r.reviewed ? 'b ghost' : 'b' }, label);
     const replace = h('button', { class: 'b ghost' }, T('Zastąp kopię modami z tego komputera'));
     restore.onclick = async () => {
       restore.disabled = replace.disabled = true; restore.textContent = T('Pobieranie…');
       const x = await mib.call('prof:modRestore', { gv });
-      if (x.error) { toast(msg(x.error), 1); restore.disabled = replace.disabled = false; restore.textContent = T('Przywróć mody z profilu') + ' (' + r.count + ')'; return; }
+      if (x.error) { toast(msg(x.error), 1); restore.disabled = replace.disabled = false; restore.textContent = label; return; }
       toast(T('Przywrócono mody') + ': ' + x.added + (x.skipped ? ', ' + T('już były') + ': ' + x.skipped : '') + (x.failed ? ', ' + T('nie udało się') + ': ' + x.failed : ''), x.failed > 0);
       modsLoad();
     };
-    replace.onclick = async () => { if (!confirm(T('Zastąpić kopię na profilu modami z tego komputera?'))) return; await mib.call('prof:modReplace', { gv }); toast(T('Kopia modów zapisana na profilu.')); box.hidden = true; };
-    box.replaceChildren(h('p', {}, T('Na profilu jest kopia modów dla tej wersji') + ': ' + r.count + (r.skipped ? ' (' + T('bez plików spoza Modrinth') + ': ' + r.skipped + ')' : '') + '.'), h('div', { class: 'row' }, restore, replace));
+    replace.onclick = async () => {
+      if (!confirm(T('Zastąpić kopię na profilu modami z tego komputera?'))) return;
+      const x = await mib.call('prof:modReplace', { gv });
+      if (x && x.error) return toast(msg(x.error), 1);
+      toast(T('Kopia modów zapisana na profilu.'));
+      modsShown(gv);
+    };
+    const info = (r.reviewed ? T('Kopia modów na profilu') : T('Na profilu jest kopia modów dla tej wersji')) + ': ' + r.count + (r.skipped ? ' (' + T('bez plików spoza Modrinth') + ': ' + r.skipped + ')' : '') + '.';
+    box.classList.toggle('quiet', !!r.reviewed);
+    box.replaceChildren(h('p', {}, info), h('div', { class: 'row' }, restore, r.reviewed ? null : replace));
     box.hidden = false;
   }
 

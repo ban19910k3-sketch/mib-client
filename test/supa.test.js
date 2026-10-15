@@ -20,7 +20,8 @@ const mk = (...r) => { const fetch = fakeFetch(...r); return { s: createSupa({ u
 test('signUp sends nick as user data and maps the session', async () => {
   const { s, fetch } = mk({ status: 200, body: session });
   const r = await s.signUp('a@b.pl', 'haslo123', 'Gracz_1');
-  assert.deepEqual(r, { accessToken: 'AT', refreshToken: 'RT', expiresAt: 2000000000000, userId: 'U1' });
+  assert.equal(r.accessToken, 'AT'); assert.equal(r.refreshToken, 'RT'); assert.equal(r.userId, 'U1');
+  assert.ok(Math.abs(r.expiresAt - (Date.now() + 3600_000)) < 5000, 'ważność liczona od lokalnego zegara');
   const c = fetch.calls[0];
   assert.equal(c.url, 'https://x.supabase.co/auth/v1/signup');
   assert.equal(c.method, 'POST');
@@ -37,7 +38,7 @@ test('signIn, refresh and signOut use the right endpoints', async () => {
   assert.deepEqual(fetch.calls[0].body, { email: 'a@b.pl', password: 'haslo123' });
   assert.equal(fetch.calls[1].url, 'https://x.supabase.co/auth/v1/token?grant_type=refresh_token');
   assert.deepEqual(fetch.calls[1].body, { refresh_token: 'RT' });
-  assert.equal(fetch.calls[2].url, 'https://x.supabase.co/auth/v1/logout');
+  assert.equal(fetch.calls[2].url, 'https://x.supabase.co/auth/v1/logout?scope=local');
   assert.equal(fetch.calls[2].headers.Authorization, 'Bearer AT');
 });
 
@@ -78,4 +79,13 @@ test('error codes are normalized', async () => {
   assert.equal(await code(mk({ status: 401, body: { code: 'PGRST301', message: 'JWT expired' } }).s.rpc('x', {}, 'AT')), 'auth_expired');
   assert.equal(await code(mk(new TypeError('fetch failed')).s.signIn('a', 'b')), 'offline');
   assert.equal(await code(mk({ status: 503, body: {} }).s.signIn('a', 'b')), 'server_error');
+});
+
+test('a server that does not answer counts as offline', async () => {
+  const hang = (url, opts) => new Promise((_, rej) => opts.signal.addEventListener('abort', () => rej(opts.signal.reason)));
+  const s = createSupa({ url: 'https://x.supabase.co', key: 'PK', fetch: hang, timeoutMs: 50 });
+  const t0 = Date.now(), keepAlive = setTimeout(() => {}, 5000); // timer AbortSignal.timeout nie trzyma pętli zdarzeń
+  assert.equal(await code(s.signIn('a', 'b')), 'offline');
+  clearTimeout(keepAlive);
+  assert.ok(Date.now() - t0 < 2000);
 });

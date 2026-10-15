@@ -176,6 +176,7 @@ function fakeMods(o = {}) {
   const dl = [];
   return {
     dl,
+    root: () => o.root || '/gry',
     scan: () => o.files || [{ file: 'sodium.jar', on: true, sha1: 'h1' }, { file: 'own.jar', on: true, sha1: 'h2' }],
     identify: async () => ({ h1: { project_id: 'P1', id: 'V1' } }),
     loader: () => (o.loader === undefined ? 'fabric' : o.loader),
@@ -186,7 +187,7 @@ function fakeMods(o = {}) {
 }
 const withBackup = (row, extra = {}) => fakeSupa({ select: async t => (t === 'profiles' ? [profileRow] : t === 'mod_backups' ? (row ? [row] : []) : []), ...extra });
 const mkMods = (o = {}) => {
-  const store = memStore(), supa = o.supa || withBackup(o.row), mods = o.mods || fakeMods();
+  const store = o.store || memStore(), supa = o.supa || withBackup(o.row), mods = o.mods || fakeMods();
   let t = 1_000_000;
   const p = createProfile({ supa, store, safeStorage: safe(), randomBytes: n => Buffer.alloc(n, 7), now: () => t, mods });
   return { p, store, supa, mods };
@@ -250,4 +251,80 @@ test('restore sets the loader when the instance has none', async () => {
   await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
   await p.modRestore({ gv: '1.20.1' });
   assert.equal(o.setTo, 'fabric');
+});
+
+// ===== Poprawki po recenzji =====
+test('expired access token is refreshed and the call retried', async () => {
+  let first = true;
+  const supa = fakeSupa({ select: async t => { if (first) { first = false; throw new SupaError(401, 'auth_expired'); } return t === 'profiles' ? [profileRow] : []; } });
+  const { p } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' }).catch(() => {});
+  const st = await p.state();
+  assert.equal(st.loggedIn, true);
+  assert.ok(supa.calls.some(c => c[0] === 'refresh'), 'odświeżono token');
+});
+
+test('server errors in state are temporary, not a logout', async () => {
+  const supa = fakeSupa({ select: async () => { throw new SupaError(503, 'server_error'); } });
+  const { p, store } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.state(), { offline: true, error: 'server_error' });
+  assert.ok(store.files['mib-session.json'], 'sesja zostaje');
+});
+
+test('a session closing during a flush is not lost', async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const supa = fakeSupa({ rpc: async n => { if (n === 'add_play_session') await gate; return null; } });
+  const { p, store, tick } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  p.gameStarted('1.8.9'); tick(10 * 60000);
+  const first = p.gameClosed();          // zaczyna wysyłać i czeka na serwer
+  await new Promise(r => setImmediate(r));
+  p.gameStarted('1.21.1'); tick(30 * 60000);
+  const second = p.gameClosed();         // zamknięcie w trakcie wysyłania
+  release();
+  await Promise.all([first, second]);
+  const sent = supa.calls.filter(c => c[0] === 'rpc' && c[1] === 'add_play_session').map(c => c[2].p_version);
+  assert.deepEqual(sent.sort(), ['1.21.1', '1.8.9']);
+  assert.deepEqual(store.read('mib-stats-queue.json', []), []);
+});
+
+test('queued sessions go only to the profile that played them', async () => {
+  const store = memStore();
+  store.files['mib-stats-queue.json'] = [{ id: 'x', u: 'OTHER', v: '1.8.9', min: 50 }];
+  const { p, supa } = mk({ store });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.equal(supa.calls.filter(c => c[1] === 'add_play_session').length, 0);
+  assert.equal(store.read('mib-stats-queue.json', []).length, 1, 'wpis innego profilu czeka na swój profil');
+});
+
+test('a restored session records stats offline under the stored profile id', async () => {
+  const store = memStore();
+  store.files['mib-session.json'] = { t: Buffer.from('xRT9').toString('base64'), u: 'U7' };
+  const { p, tick } = mk({ store, supa: fakeSupa({ refresh: async () => { throw new SupaError(0, 'offline'); } }) });
+  p.gameStarted('1.8.9'); tick(15 * 60000);
+  await p.gameClosed();
+  const q = store.read('mib-stats-queue.json', []);
+  assert.equal(q.length, 1);
+  assert.equal(q[0].u, 'U7');
+  assert.equal(q[0].min, 15);
+});
+
+test('reviewed flag is per profile and game folder', async () => {
+  const store = memStore();
+  const a = mkMods({ row: remote, store });
+  await a.p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  await a.p.modReplace({ gv: '1.20.1' });
+  assert.equal((await a.p.modInfo({ gv: '1.20.1' })).reviewed, true);
+  // inny profil na tym samym komputerze
+  const b = mkMods({ row: remote, store, supa: withBackup(remote, { signIn: async () => ({ ...sess(), userId: 'U2' }) }) });
+  await b.p.login({ email: 'b@b.pl', password: 'tajnehaslo1' });
+  assert.equal((await b.p.modInfo({ gv: '1.20.1' })).reviewed, false);
+  await b.p.modsChanged('1.20.1');
+  assert.equal(b.supa.calls.filter(c => c[0] === 'upsert').length, 0, 'cudza kopia nie nadpisana');
+  // ten sam profil, inny katalog gry
+  const c = mkMods({ row: remote, store, mods: fakeMods({ root: '/inny' }) });
+  await c.p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.equal((await c.p.modInfo({ gv: '1.20.1' })).reviewed, false);
 });

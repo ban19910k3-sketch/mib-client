@@ -35,6 +35,17 @@ test('pickSynced', () => {
   assert.deepEqual(P.pickSynced({ bg: 'black', java: 'x', fx: '0' }), { bg: 'black', fx: '0' });
 });
 
+test('JVM arguments are never synced', () => {
+  assert.deepEqual(P.pickSynced({ jvm: '-javaagent:x.jar', ram: 2048 }), { ram: 2048 });
+});
+
+test('sanitizeSynced keeps only safe values', () => {
+  assert.deepEqual(P.sanitizeSynced({ ram: 4096, width: 1920, height: 1080, lang: 'en', bg: 'black', anim: 'off', fx: '0', priority: false, hideUpdates: true }),
+    { ram: 4096, width: 1920, height: 1080, lang: 'en', bg: 'black', anim: 'off', fx: '0', priority: false, hideUpdates: true });
+  assert.deepEqual(P.sanitizeSynced({ ram: '4096', width: 99999, height: -1, lang: 'de', bg: 'url(x)', jvm: '-javaagent:x', priority: 'yes', fx: 1 }), {});
+  assert.deepEqual(P.sanitizeSynced(null), {});
+});
+
 test('mergeSettings', () => {
   const r = at => ({ settings: {}, updatedAt: at });
   assert.equal(P.mergeSettings(null, r(5)), 'apply');

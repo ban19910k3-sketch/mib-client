@@ -220,3 +220,4 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 @keyframes ring{from{transform:scale(0);opacity:1}to{transform:scale(1.6);opacity:0}}
 @keyframes fadein{from{opacity:0}}@keyframes fadeout{to{opacity:0}}
 .noanim *,.noanim *::before,.noanim *::after{animation:none!important;transition:none!important}
+#mbk.quiet{background:none;border-color:var(--edge);padding:8px 12px}#mbk.quiet p{color:var(--m);margin-bottom:6px}

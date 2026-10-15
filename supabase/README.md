@@ -1,5 +1,7 @@
 # Profil MiB — ustawienie Supabase
 
+> Argumenty JVM celowo **nie** są synchronizowane z profilem: z profilu nie mogą przyjść flagi, które uruchomiłyby kod na komputerze gracza.
+
 Instrukcja dla właściciela projektu Supabase `mib-client` (`https://pijyremkmhmnyvjusrhu.supabase.co`).
 Zrób kroki 1–3 **przed** opublikowaniem wersji 0.8.0 na GitHubie. Bez nich profil w launcherze nie zadziała (granie działa normalnie).
 
@@ -29,7 +31,9 @@ Jeśli panel wygląda inaczej, szukaj w **Authentication** przełącznika „Con
 1. Uruchom launcher 0.8.0 (szkic wydania na GitHubie albo z kodu) i wejdź w **Profil MiB**.
 2. Załóż profil testowy, zapisz kod odzyskiwania, kliknij **Gotowe**.
 3. Kliknij **Wyloguj**, potem **Zaloguj się** → **Nie pamiętam hasła**, wpisz e-mail, kod i nowe hasło. Launcher powinien Cię zalogować i pokazać nowy kod.
-4. W Supabase: **Table Editor** → `profiles` — powinien być Twój profil z `num = 1`.
+4. Na drugim komputerze (albo po ponownym uruchomieniu launchera, jeśli przed resetem była tam zalogowana sesja) profil powinien poprosić o ponowne zalogowanie — to znaczy, że reset wylogowuje stare sesje.
+5. Na stronie profilu kliknij **Usuń profil** i potwierdź nickiem. W **Authentication → Users** konto powinno zniknąć.
+6. W Supabase: **Table Editor** → `profiles` — przed usunięciem był tam Twój profil z `num = 1`.
 
 ## Dodawanie kosmetyków
 
@@ -64,7 +68,8 @@ values ('START2026', 'cape_start', 50, now() + interval '7 days');
 select code, used_count, max_uses, expires_at from private.gift_codes;
 ```
 
-Kody wpisuj **wielkimi literami** — launcher sam zamienia to, co wpisze gracz, na wielkie litery.
+Kody zapisuj **wielkimi literami** (baza nie przyjmie małych) — launcher sam zamienia to, co wpisze gracz, na wielkie litery.
+Kod na wiele użyć rób długi i losowy (np. `MIB-7KQ2-XW9P`), żeby nikt go nie zgadł.
 
 ## Przed startem dla graczy
 
@@ -74,7 +79,8 @@ Jeśli w bazie są profile testowe, usuń je, żeby gracze dostali numery od `MI
 2. **SQL Editor**:
 
 ```sql
-alter table public.profiles alter column num restart with 1;
+-- numeracja zacznie się od najmniejszego wolnego numeru (od 1, jeśli w bazie nie ma żadnego profilu)
+select setval(pg_get_serial_sequence('public.profiles', 'num'), coalesce(max(num), 0) + 1, false) from public.profiles;
 ```
 
 ## Dobrze wiedzieć

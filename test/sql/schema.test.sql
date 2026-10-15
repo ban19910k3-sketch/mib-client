@@ -42,6 +42,7 @@ select pg_temp.expect_error($q$update public.profiles set nick = 'Inny'$q$, 'per
 select pg_temp.expect_error($q$update public.profiles set founder = true$q$, 'permission denied');
 select pg_temp.expect_error($q$insert into public.owned_cosmetics (user_id, cosmetic_id) values (auth.uid(), 'x')$q$, 'permission denied');
 update public.profiles set settings = '{"ram":4096}', settings_updated_at = 5;
+select pg_temp.expect_error($q$update public.profiles set settings = jsonb_build_object('x', repeat('a', 20000))$q$, 'check constraint');
 do $$ begin
   assert (select count(*) from public.profiles) = 1, 'widzi tylko swój profil';
   assert (select settings->>'ram' from public.profiles) = '4096', 'zapis ustawień';
@@ -52,6 +53,7 @@ reset role;
 insert into public.cosmetics (id, name) values ('cape_start', 'Peleryna Start'), ('cape_two', 'Peleryna Dwa');
 insert into private.gift_codes (code, cosmetic_id, max_uses) values ('TEST', 'cape_start', 1), ('MULTI', 'cape_two', 5);
 insert into private.gift_codes (code, cosmetic_id, expires_at) values ('OLD', 'cape_two', now() - interval '1 day');
+select pg_temp.expect_error($q$insert into private.gift_codes (code, cosmetic_id) values ('lower', 'cape_two')$q$, 'check constraint');
 set role authenticated;
 set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
 do $$ begin
@@ -96,6 +98,24 @@ do $$ begin
   end loop;
 end $$;
 select pg_temp.expect_error($q$select public.reset_password_with_code('b@test.pl', 'ZZZZZZZZZZZZZZZZ', 'haslohaslo')$q$, 'reset_locked');
+do $$ begin
+  assert not public.reset_password_with_code(repeat('x', 400) || '@test.pl', 'ZZZZZZZZZZZZZZZZ', 'haslohaslo'), 'za długi e-mail';
+end $$;
+reset role;
+do $$ begin
+  assert not exists (select 1 from private.reset_attempts where length(email) > 320), 'za długi e-mail nie jest zapisywany';
+end $$;
+-- licznik prób zeruje się po dobie
+update private.reset_attempts set fails = 4, locked_until = null, last_at = now() - interval '2 days' where email = 'b@test.pl';
+set role anon;
+do $$ begin
+  assert not public.reset_password_with_code('b@test.pl', 'ZZZZZZZZZZZZZZZZ', 'haslohaslo'), 'zła próba po dobie';
+end $$;
+reset role;
+do $$ begin
+  assert (select fails from private.reset_attempts where email = 'b@test.pl') = 1, 'licznik od nowa po dobie';
+end $$;
+set role anon;
 reset role;
 
 -- Statystyki
@@ -111,13 +131,23 @@ end $$;
 
 -- Kopia modów: tylko swoja
 insert into public.mod_backups (game_version, loader, mods) values ('1.20.1', 'fabric', '[{"project":"p"}]');
+select pg_temp.expect_error($q$insert into public.mod_backups (game_version) values ('zły; wpis')$q$, 'check constraint');
+select pg_temp.expect_error($q$insert into public.mod_backups (game_version, loader) values ('1.8.9', 'quilt')$q$, 'check constraint');
+do $$ begin
+  for i in 1..49 loop insert into public.mod_backups (game_version) values ('9.' || i); end loop;
+end $$;
+select pg_temp.expect_error($q$insert into public.mod_backups (game_version) values ('9.99')$q$, 'too_many_backups');
+delete from public.mod_backups where game_version like '9.%';
 reset role;
 set role authenticated;
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 do $$ begin assert (select count(*) from public.mod_backups) = 0, 'cudza kopia niewidoczna'; end $$;
 select pg_temp.expect_error($q$insert into public.mod_backups (user_id, game_version) values ('11111111-1111-1111-1111-111111111111', 'x')$q$, 'row-level security');
 
--- Usunięcie profilu
+-- Usunięcie profilu (razem z wpisem o próbach resetu)
+reset role;
+insert into private.reset_attempts (email, fails) values ('a@test.pl', 2) on conflict (email) do update set fails = 2;
+set role authenticated;
 set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
 select public.delete_my_profile();
 reset role;
@@ -125,4 +155,5 @@ do $$ begin
   assert not exists (select 1 from auth.users where id = '11111111-1111-1111-1111-111111111111'), 'konto usunięte';
   assert not exists (select 1 from public.profiles where id = '11111111-1111-1111-1111-111111111111'), 'profil usunięty';
   assert not exists (select 1 from public.mod_backups), 'kopia usunięta';
+  assert not exists (select 1 from private.reset_attempts where email = 'a@test.pl'), 'e-mail usunięty z prób resetu';
 end $$;

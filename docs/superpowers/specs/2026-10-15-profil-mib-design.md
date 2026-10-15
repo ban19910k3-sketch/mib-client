@@ -85,8 +85,9 @@ Sklepu i płatności w tej wersji nie ma. Profil ma powstać teraz, żeby gracze
 
 ### Synchronizacja ustawień
 
-- Synchronizowane: RAM, rozdzielczość, argumenty JVM, priorytet procesu, ukrywanie powiadomień o aktualizacjach, język, tło (bez własnego obrazka), animacja startowa, efekty cząsteczek.
+- Synchronizowane: RAM, rozdzielczość, priorytet procesu, ukrywanie powiadomień o aktualizacjach, język, tło (bez własnego obrazka), animacja startowa, efekty cząsteczek.
 - Niesynchronizowane: katalog gry, ścieżka Javy, ścieżka własnego tła (zależą od komputera).
+- **Argumenty JVM nie są synchronizowane** (zmiana po recenzji kodu): kto przejąłby profil gracza, mógłby wpisać flagi uruchamiające dowolny kod na każdym komputerze, na którym gracz się zaloguje. Wartości z profilu są dodatkowo sprawdzane (zakresy liczb, dozwolone wartości).
 - Zasada: wygrywa nowsza wersja (znacznik czasu zapisu). Po zalogowaniu launcher pobiera ustawienia z profilu i, jeśli są nowsze niż lokalne, stosuje je. Po kliknięciu „Zapisz” wysyła je na profil. Bez internetu zapis lokalny działa jak dziś, a wysłanie ponawia się przy następnej okazji.
 
 ### Kopia modów
@@ -140,3 +141,9 @@ Wszystkie zgodne z pikselowym stylem, krótkie (do ~400 ms poza splashem), wył�
 - Dokładne komunikaty błędów (po polsku, konkretne, z podpowiedzią co zrobić) i ich tłumaczenia.
 - Szczegóły wizualne w ramach obecnego systemu.
 - Testy: logika, którą da się sprawdzić bez sieci (walidacja nicku, format ID, łączenie ustawień, kolejka statystyk), ma testy; reszta jest sprawdzana zrzutami ekranu i ręcznie.
+
+## Znane ograniczenia (świadomie zostawione)
+
+- Kto ukradnie sesję (token) gracza, może wygenerować nowy kod odzyskiwania bez podawania hasła.
+- Ktoś znający e-mail gracza może celowo blokować mu reset hasła (5 złych prób = 15 minut blokady).
+- Czas gry zgłasza launcher, więc da się go zawyżyć; dlatego statystyki są prywatne i nic nie dają.

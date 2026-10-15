@@ -53,6 +53,14 @@ const ok = m => console.log('PASS', m);
     await shot('prof-in.png');
     ok('(c) profil z ID i odznaką Założyciel, ustawienia zsynchronizowane');
 
+    fake.st.backups.push({ user: fake.st.users[0].id, game_version: '1.8.9', loader: null, skipped: 1,
+      mods: [{ project: 'P1', version: 'V1', file: 'a.jar', on: true }, { project: 'P2', version: 'V2', file: 'b.jar', on: false }] });
+    await w.click('.nav[data-p="mods"]');
+    await w.waitForFunction(() => !document.getElementById('mbk').hidden && /Przywróć mody z profilu \(2\)/.test(document.getElementById('mbk').textContent));
+    assert.match(await w.textContent('#mbk'), /spoza Modrinth: 1/);
+    await shot('mods-backup.png');
+    ok('(h) baner kopii modów z profilu');
+
     await w.click('.nav[data-p="cos"]');
     await w.waitForSelector('#cos-code');
     await w.fill('#cos-code', ' start ');

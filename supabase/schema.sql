@@ -12,7 +12,7 @@ create table if not exists public.profiles (
   nick text not null,
   founder boolean not null default false,
   created_at timestamptz not null default now(),
-  settings jsonb,
+  settings jsonb check (settings is null or pg_column_size(settings) < 8192),
   settings_updated_at bigint,
   playtime_min integer not null default 0,
   launches integer not null default 0,
@@ -21,6 +21,7 @@ create table if not exists public.profiles (
 create unique index if not exists profiles_nick_lower on public.profiles (lower(nick));
 alter table public.profiles enable row level security;
 revoke all on public.profiles from public, anon, authenticated;
+revoke all on sequence public.profiles_num_seq from public, anon, authenticated;
 grant select on public.profiles to authenticated;
 grant update (settings, settings_updated_at) on public.profiles to authenticated;
 drop policy if exists profiles_select_own on public.profiles;
@@ -84,7 +85,7 @@ drop policy if exists owned_read_own on public.owned_cosmetics;
 create policy owned_read_own on public.owned_cosmetics for select to authenticated using (user_id = (select auth.uid()));
 
 create table if not exists private.gift_codes (
-  code text primary key,
+  code text primary key check (code = upper(code)),
   cosmetic_id text not null references public.cosmetics (id),
   max_uses integer not null default 1,
   used_count integer not null default 0,
@@ -128,8 +129,10 @@ create table if not exists private.recovery (
 create table if not exists private.reset_attempts (
   email text primary key,
   fails integer not null default 0,
-  locked_until timestamptz
+  locked_until timestamptz,
+  last_at timestamptz not null default now()
 );
+alter table private.reset_attempts add column if not exists last_at timestamptz not null default now();
 
 -- Ta sama normalizacja co normalizeRecoveryCode w lib/profile.js
 create or replace function private.norm_code(p text) returns text
@@ -160,6 +163,8 @@ declare
   v_fails integer;
 begin
   if length(coalesce(p_new_password, '')) < 8 then raise exception 'weak_password'; end if;
+  if length(v_email) > 320 then return false; end if;
+  delete from private.reset_attempts where last_at < now() - interval '7 days';
   if exists (select 1 from private.reset_attempts where email = v_email and locked_until > now()) then
     raise exception 'reset_locked';
   end if;
@@ -167,10 +172,11 @@ begin
     from auth.users u join private.recovery r on r.user_id = u.id
     where lower(u.email) = v_email;
   if v_hash is null or extensions.crypt(private.norm_code(p_code), v_hash) <> v_hash then
-    insert into private.reset_attempts as a (email, fails) values (v_email, 1)
+    -- licznik zeruje się po blokadzie albo po dobie bez prób
+    insert into private.reset_attempts as a (email, fails, last_at) values (v_email, 1, now())
       on conflict (email) do update set
-        fails = case when a.locked_until is not null then 1 else a.fails + 1 end,
-        locked_until = null
+        fails = case when a.locked_until is not null or a.last_at < now() - interval '1 day' then 1 else a.fails + 1 end,
+        locked_until = null, last_at = now()
       returning fails into v_fails;
     if v_fails >= 5 then
       update private.reset_attempts set fails = 0, locked_until = now() + interval '15 minutes' where email = v_email;
@@ -205,10 +211,10 @@ end $$;
 -- ===== Kopia modów =====
 create table if not exists public.mod_backups (
   user_id uuid not null default auth.uid() references public.profiles (id) on delete cascade,
-  game_version text not null,
-  loader text,
-  mods jsonb not null default '[]'::jsonb,
-  skipped integer not null default 0,
+  game_version text not null check (game_version ~ '^[0-9][0-9.]{0,15}$'),
+  loader text check (loader is null or loader in ('fabric', 'forge')),
+  mods jsonb not null default '[]'::jsonb check (jsonb_typeof(mods) = 'array' and jsonb_array_length(mods) <= 500 and pg_column_size(mods) < 131072),
+  skipped integer not null default 0 check (skipped between 0 and 10000),
   updated_at timestamptz not null default now(),
   primary key (user_id, game_version)
 );
@@ -219,11 +225,23 @@ drop policy if exists mod_backups_own on public.mod_backups;
 create policy mod_backups_own on public.mod_backups for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
+-- Najwyżej 50 kopii (wersji gry) na profil
+create or replace function public.limit_mod_backups() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if (select count(*) from public.mod_backups where user_id = new.user_id) >= 50 then raise exception 'too_many_backups'; end if;
+  return new;
+end $$;
+revoke all on function public.limit_mod_backups() from public, anon, authenticated;
+drop trigger if exists mod_backups_limit on public.mod_backups;
+create trigger mod_backups_limit before insert on public.mod_backups for each row execute function public.limit_mod_backups();
+
 -- ===== Usunięcie profilu (RODO) =====
 create or replace function public.delete_my_profile() returns void
 language plpgsql security definer set search_path = '' as $$
 begin
   if auth.uid() is null then raise exception 'not_logged_in'; end if;
+  delete from private.reset_attempts where email = (select lower(email) from auth.users where id = auth.uid());
   delete from auth.users where id = auth.uid();
 end $$;
 

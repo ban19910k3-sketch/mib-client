@@ -23,7 +23,12 @@ const prof = profileMain.createProfile({
   // Kopia modów: dostęp do plików instancji (funkcje niżej w pliku, wołane dopiero po starcie)
   mods: {
     scan: gv => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), sha1: crypto.createHash('sha1').update(fs.readFileSync(path.join(modsDir(gv), f))).digest('hex') })); } catch { return []; } },
-    identify: async hashes => (await fetch('https://api.modrinth.com/v2/version_files', { method: 'POST', headers: { 'Content-Type': 'application/json', ...UA.headers }, body: JSON.stringify({ hashes, algorithm: 'sha1' }) })).json(),
+    root: () => rootDir(),
+    async identify(hashes) {
+      const r = await fetch('https://api.modrinth.com/v2/version_files', { method: 'POST', headers: { 'Content-Type': 'application/json', ...UA.headers }, body: JSON.stringify({ hashes, algorithm: 'sha1' }), signal: AbortSignal.timeout(15000) });
+      if (!r.ok) throw new Error('modrinth ' + r.status); // np. 429: nie zapisujemy pustej kopii
+      return r.json();
+    },
     loader: gv => instGet(gv).loader || null,
     setLoader: (gv, loader) => instSet(gv, { loader }),
     exists: (gv, f) => fs.existsSync(path.join(modsDir(gv), f)) || fs.existsSync(path.join(modsDir(gv), f + '.disabled')),
@@ -35,7 +40,9 @@ const prof = profileMain.createProfile({
     },
   },
 });
-const modsChanged = gv => prof.modsChanged(gv).catch(() => {});
+// Kilka zmian pod rząd (np. „Aktualizuj wszystkie”) zapisuje kopię raz, 1,5 s po ostatniej
+const modTimers = {};
+const modsChanged = gv => { clearTimeout(modTimers[gv]); modTimers[gv] = setTimeout(() => prof.modsChanged(gv).catch(() => {}), 1500); };
 profileMain.register(ipcMain, prof);
 const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };
 
