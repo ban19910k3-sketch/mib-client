@@ -64,7 +64,13 @@ Sklepu i płatności w tej wersji nie ma. Profil ma powstać teraz, żeby gracze
 - **ID:** nadawane przez bazę przy tworzeniu profilu, kolejne liczby, wyświetlane jako `MIB-000127` (6 cyfr, więcej gdy zabraknie). Nigdy się nie zmienia i nie jest używane ponownie.
 - **Założyciel:** profil o numerze ≤ 1000 ma odznakę „Założyciel”, ustawianą przez bazę przy tworzeniu.
 - **Logowanie / wylogowanie:** e-mail + hasło. Wylogowanie usuwa sesję z dysku.
-- **Reset hasła:** DO USTALENIA z właścicielem (kod odzyskiwania pokazany przy rejestracji albo własny dostawca poczty).
+- **Reset hasła — kod odzyskiwania** (decyzja właściciela, „na razie”; później może dojść reset mailem przez własnego dostawcę poczty):
+  - Po rejestracji launcher losuje kod odzyskiwania (16 znaków bez mylących liter, w 4 grupach, np. `K7QM-2XPA-9TFD-W4HN`) i pokazuje go raz, z przyciskiem kopiowania i potwierdzeniem „Zapisałem kod”. W bazie leży tylko skrót kodu (bcrypt), nigdy sam kod.
+  - „Nie pamiętam hasła”: gracz wpisuje e-mail, kod i nowe hasło. Funkcja bazy wywoływana bez logowania sprawdza kod, ustawia nowe hasło, wylogowuje wszystkie stare sesje i unieważnia kod. Launcher od razu loguje gracza i pokazuje mu **nowy** kod.
+  - Ochrona przed zgadywaniem: po 5 błędnych próbach dla danego e-maila blokada na 15 minut. Odpowiedź przy błędzie nie zdradza, czy e-mail istnieje.
+  - Zalogowany gracz może na profilu wygenerować nowy kod (stary przestaje działać).
+  - Kto zgubi hasło i kod, traci dostęp do profilu; launcher mówi o tym wprost przy pokazywaniu kodu.
+  - Ustawienie hasła z poziomu bazy opiera się na tym, jak Supabase Auth przechowuje hasła (bcrypt w `auth.users`); budowniczy sprawdza to na prawdziwym projekcie i opisuje w README, jak to przetestować.
 - **Zmiana nicku:** poza zakresem tej wersji.
 - **Usunięcie profilu:** przycisk „Usuń profil” (z potwierdzeniem wpisaniem nicku) usuwa konto i wszystkie dane gracza funkcją bazy. ID nie wraca do puli, miejsce Założyciela też nie. *(decyzja budowniczego: wymóg RODO, gracze to często niepełnoletni)*
 - **Ochrona przed masowym zakładaniem kont:** w tej wersji opieramy się na wbudowanych limitach Supabase (liczba rejestracji z jednego IP). Kody prezentowe tworzymy domyślnie na 1 użycie (dla konkretnego zwycięzcy), więc fałszywe konta niewiele dają. CAPTCHA można dodać później. Ryzyko, że ktoś botami zajmie część miejsc Założyciela, akceptujemy. *(decyzja budowniczego)*
