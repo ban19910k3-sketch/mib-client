@@ -89,3 +89,14 @@ test('a server that does not answer counts as offline', async () => {
   clearTimeout(keepAlive);
   assert.ok(Date.now() - t0 < 2000);
 });
+
+test('email confirmation and disabled signups are reported clearly', async () => {
+  assert.equal(await code(mk({ status: 200, body: { id: 'U1', email: 'a@b.pl', confirmation_sent_at: 'x' } }).s.signUp('a', 'b', 'c')), 'email_confirm_required');
+  assert.equal(await code(mk({ status: 400, body: { error_code: 'email_not_confirmed', msg: 'Email not confirmed' } }).s.signIn('a', 'b')), 'email_confirm_required');
+  assert.equal(await code(mk({ status: 422, body: { error_code: 'signup_disabled' } }).s.signUp('a', 'b', 'c')), 'signup_disabled');
+});
+
+test('unknown errors keep the server message for the player to report', async () => {
+  try { await mk({ status: 400, body: { error_code: 'something_new', msg: 'Something new happened' } }).s.signIn('a', 'b'); assert.fail(); }
+  catch (e) { assert.equal(e.code, 'request_failed'); assert.equal(e.message, 'Something new happened'); }
+});

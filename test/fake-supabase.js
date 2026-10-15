@@ -23,6 +23,8 @@ function createFake() {
       const tok = (req.headers.authorization || '').replace('Bearer ', ''), uid = st.sessions[tok], user = st.users.find(u => u.id === uid);
       st.calls.push({ method: req.method, path: url.pathname, body });
       const p = url.pathname;
+      if (p === '/auth/v1/signup' && st.confirm) return json(res, 200, { id: crypto.randomUUID(), email: body.email, confirmation_sent_at: new Date().toISOString() });
+      if (p === '/auth/v1/token' && st.confirm && url.searchParams.get('grant_type') === 'password') return json(res, 400, { error_code: 'email_not_confirmed', msg: 'Email not confirmed' });
       if (p === '/auth/v1/signup') {
         const nick = body.data && body.data.nick;
         if (!/^[A-Za-z0-9_]{3,16}$/.test(nick || '') || st.users.some(u => u.nick.toLowerCase() === nick.toLowerCase())) return json(res, 500, { msg: 'Database error saving new user' });

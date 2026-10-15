@@ -3,7 +3,7 @@
 > Argumenty JVM celowo **nie** są synchronizowane z profilem: z profilu nie mogą przyjść flagi, które uruchomiłyby kod na komputerze gracza.
 
 Instrukcja dla właściciela projektu Supabase `mib-client` (`https://pijyremkmhmnyvjusrhu.supabase.co`).
-Zrób kroki 1–3 **przed** opublikowaniem wersji 0.8.0 na GitHubie. Bez nich profil w launcherze nie zadziała (granie działa normalnie).
+Zrób kroki 1–3 **przed** opublikowaniem wersji z profilem (0.8.x) na GitHubie. Bez nich profil w launcherze nie zadziała (granie działa normalnie).
 
 ## 1. Wklej bazę danych
 
@@ -28,12 +28,24 @@ Jeśli panel wygląda inaczej, szukaj w **Authentication** przełącznika „Con
 
 ## 3. Sprawdź, czy działa
 
-1. Uruchom launcher 0.8.0 (szkic wydania na GitHubie albo z kodu) i wejdź w **Profil MiB**.
-2. Załóż profil testowy, zapisz kod odzyskiwania, kliknij **Gotowe**.
+1. Uruchom najnowszy launcher 0.8.x (szkic wydania na GitHubie) i wejdź w **Profil MiB**.
+2. Załóż profil testowy. Powinno pokazać się okno „Konto założone!” z Twoim ID i kodem odzyskiwania. Zapisz kod, zaznacz potwierdzenie i kliknij **Dalej**.
 3. Kliknij **Wyloguj**, potem **Zaloguj się** → **Nie pamiętam hasła**, wpisz e-mail, kod i nowe hasło. Launcher powinien Cię zalogować i pokazać nowy kod.
 4. Na drugim komputerze (albo po ponownym uruchomieniu launchera, jeśli przed resetem była tam zalogowana sesja) profil powinien poprosić o ponowne zalogowanie — to znaczy, że reset wylogowuje stare sesje.
 5. Na stronie profilu kliknij **Usuń profil** i potwierdź nickiem. W **Authentication → Users** konto powinno zniknąć.
 6. W Supabase: **Table Editor** → `profiles` — przed usunięciem był tam Twój profil z `num = 1`.
+
+## Gdy nie da się założyć profilu albo zalogować
+
+Launcher pokazuje wtedy, co jest nie tak. Najczęstsze sytuacje:
+
+| Komunikat w launcherze | Co zrobić |
+|---|---|
+| „Serwer MiB wymaga potwierdzenia e-maila…” | Wyłącz **Confirm email** (krok 2). Konta założone, gdy było włączone, są „niepotwierdzone” i nie da się na nie zalogować: usuń je w **Authentication → Users** i załóż profil jeszcze raz. |
+| „Konto istnieje, ale w bazie nie ma profilu…” | Nie uruchomiono `schema.sql` (krok 1). Uruchom go, usuń to konto w **Authentication → Users** i załóż profil jeszcze raz. |
+| „Na ten e-mail jest już założony profil…” | Konto z tym e-mailem już istnieje (np. z wcześniejszej próby). Zaloguj się albo usuń je w **Authentication → Users**. |
+| „Ten nick jest już zajęty albo niedozwolony…” | Nick zajęty, ma złe znaki albo nie uruchomiono `schema.sql`. |
+| „Coś poszło nie tak… (kod: treść)” | Zrób zrzut ekranu — w nawiasie jest odpowiedź serwera. |
 
 ## Dodawanie kosmetyków
 

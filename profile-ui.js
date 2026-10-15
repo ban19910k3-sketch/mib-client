@@ -21,8 +21,12 @@
     already_owned: 'Masz już ten przedmiot.',
     loader_mismatch: 'Kopia używa innego loadera (Fabric/Forge) niż ta wersja na tym komputerze. Usuń mody tej wersji albo wybierz inną wersję gry.',
     not_logged_in: 'Zaloguj się do profilu MiB.',
+    email_confirm_required: 'Serwer MiB wymaga potwierdzenia e-maila, którego launcher nie obsługuje. Administrator musi wyłączyć „Confirm email” w Supabase (Authentication → Sign In / Providers).',
+    signup_disabled: 'Zakładanie profili jest teraz wyłączone na serwerze MiB.',
+    no_profile: 'Konto istnieje, ale w bazie nie ma profilu. Administrator musi uruchomić plik schema.sql w Supabase.',
   };
-  const msg = code => (ERR[code] ? tr(ERR[code]) : tr('Coś poszło nie tak. Spróbuj ponownie.') + ' (' + code + ')');
+  // Przy nieznanym błędzie pokazujemy też komunikat serwera, żeby dało się go przekazać
+  const msg = (code, detail) => (ERR[code] ? tr(ERR[code]) : tr('Coś poszło nie tak. Spróbuj ponownie.') + ' (' + code + (detail && detail !== code ? ': ' + detail : '') + ')');
   const h = (tag, attrs = {}, ...kids) => {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) {
@@ -48,8 +52,15 @@
   $('plbox').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go('prof'); } });
 
   // ===== Kod odzyskiwania =====
-  function showCode(code) {
-    if (!code) return;
+  // created: okno po założeniu konta — najpierw potwierdzenie sukcesu, potem kod
+  function showCode(code, created) {
+    $('rc-t').textContent = T(created ? 'Konto założone!' : 'Zapisz kod odzyskiwania');
+    $('rc-done').hidden = !created;
+    if (created) $('rc-done').textContent = T('Profil MiB został pomyślnie założony. Twoje ID:') + ' ' + created;
+    if (!code) {
+      if (created) toast(T('Profil MiB został pomyślnie założony. Twoje ID:') + ' ' + created);
+      return;
+    }
     $('rc-code').textContent = code;
     $('rc-ok').checked = false;
     $('rc-x').disabled = true;
@@ -92,8 +103,7 @@
       if (bad) { err.textContent = msg(bad); nick.focus(); return; }
       if (pass.value.length < 8) { err.textContent = msg('weak_password'); pass.focus(); return; }
       await run(submit, err, () => mib.call('prof:signup', { email: email.value, password: pass.value, nick: nick.value }), r => {
-        toast(T('Profil założony. Witaj w MiB!'));
-        showCode(r.recoveryCode);
+        showCode(r.recoveryCode, r.mibId);
         if (r.recoveryError) toast(T('Nie udało się zapisać kodu odzyskiwania. Wygeneruj nowy na stronie profilu.'), 1);
       });
     } } },
@@ -131,7 +141,8 @@
     busy = true; btn.disabled = true; err.textContent = '';
     try {
       const r = await call();
-      if (r.error) { err.textContent = msg(r.error); return; }
+      // Sukces tylko wtedy, gdy gracz naprawdę jest zalogowany
+      if (r.error || !r.loggedIn) { err.textContent = msg(r.error || 'unknown', r.detail); return; }
       apply(r);
       ok(r);
     } finally { busy = false; btn.disabled = false; }
@@ -149,7 +160,7 @@
   }
   function viewOffline() {
     return [h('div', { class: 'soon' }, h('h2', {}, T('Profil MiB')),
-      h('p', {}, T('Brak połączenia z serwerem MiB. Grać możesz normalnie, a profil wróci, gdy połączenie wróci.')), h('br'),
+      h('p', {}, st.error === 'no_profile' ? msg('no_profile') : T('Brak połączenia z serwerem MiB. Grać możesz normalnie, a profil wróci, gdy połączenie wróci.')), h('br'),
       h('button', { class: 'b', on: { click: refresh } }, T('Spróbuj ponownie')))];
   }
   function viewIn() {
@@ -171,7 +182,7 @@
       h('div', { class: 'sec' }, h('h3', {}, T('Konto')),
         h('p', { class: 'mut' }, T('Kod odzyskiwania pozwala ustawić nowe hasło, gdy je zapomnisz. Nowy kod unieważnia poprzedni.')),
         h('div', { class: 'row' },
-          h('button', { class: 'b ghost', on: { click: async () => { const r = await mib.call('prof:newCode'); if (r.error) toast(msg(r.error), 1); else showCode(r.recoveryCode); } } }, T('Nowy kod odzyskiwania')),
+          h('button', { class: 'b ghost', on: { click: async () => { const r = await mib.call('prof:newCode'); if (r.error) toast(msg(r.error, r.detail), 1); else showCode(r.recoveryCode); } } }, T('Nowy kod odzyskiwania')),
           h('button', { class: 'b ghost', on: { click: async () => { apply(await mib.call('prof:logout')); toast(T('Wylogowano z profilu MiB.')); } } }, T('Wyloguj')),
           h('button', { class: 'b danger', on: { click: () => { $('pdel-n').value = ''; $('pdel-go').disabled = true; $('pdel').classList.add('on'); $('pdel-n').focus(); } } }, T('Usuń profil')))),
     ];

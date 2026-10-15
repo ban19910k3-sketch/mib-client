@@ -211,7 +211,8 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
   // Każda metoda dla interfejsu: wynik albo {error}
   const safe = {};
   for (const [k, fn] of Object.entries(api)) {
-    safe[k] = k.startsWith('game') ? fn : async (...a) => { try { return await fn(...a); } catch (e) { return { error: e.code || 'unknown' }; } };
+    // detail: komunikat serwera, żeby gracz mógł go przekazać przy nieznanym błędzie
+    safe[k] = k.startsWith('game') ? fn : async (...a) => { try { return await fn(...a); } catch (e) { return { error: e.code || 'unknown', detail: String(e.message || '').slice(0, 200) }; } };
   }
   return safe;
 }

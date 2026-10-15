@@ -34,12 +34,24 @@ const ok = m => console.log('PASS', m);
     assert.equal(fake.st.calls.filter(c => c.path === '/auth/v1/signup').length, 0);
     ok('(f) zły nick zatrzymany przed wysłaniem');
 
+    // Supabase z włączonym „Confirm email”: jasny komunikat zamiast fałszywego sukcesu
+    fake.st.confirm = true;
     await w.fill('#pf-nick', 'Tester_1');
     await w.click('#pf-go');
+    await w.waitForFunction(() => /Confirm email/.test(document.querySelector('#prof-box .err').textContent));
+    assert.equal(await w.$('#rc.on'), null);
+    await shot('prof-confirm.png');
+    fake.st.confirm = false;
+    ok('(i) włączone potwierdzanie e-maila daje jasny komunikat');
+
+    await w.click('#pf-go');
     await w.waitForSelector('#rc.on');
+    assert.equal(await w.textContent('#rc-t'), 'Konto założone!');
+    assert.match(await w.textContent('#rc-done'), /pomyślnie założony.*MIB-000001/);
     const code = await w.textContent('#rc-code');
     assert.match(code, /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/);
     assert.equal(await w.isDisabled('#rc-x'), true);
+    await w.waitForTimeout(400); // animacja otwierania okna
     await shot('prof-code.png');
     await w.check('#rc-ok');
     assert.equal(await w.isDisabled('#rc-x'), false);

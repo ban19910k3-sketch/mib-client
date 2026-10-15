@@ -134,9 +134,9 @@ test('redeem normalizes the code and maps the result', async () => {
 test('errors become {error} and never throw', async () => {
   const supa = fakeSupa({ rpc: async () => { throw new SupaError(400, 'code_used_up'); } });
   const { p } = mk({ supa });
-  assert.deepEqual(await p.redeem({ code: 'X' }), { error: 'not_logged_in' });
+  assert.equal((await p.redeem({ code: 'X' })).error, 'not_logged_in');
   await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
-  assert.deepEqual(await p.redeem({ code: 'X' }), { error: 'code_used_up' });
+  assert.equal((await p.redeem({ code: 'X' })).error, 'code_used_up');
 });
 
 test('reset with a wrong code reports reset_failed, a good one logs in with a new code', async () => {
@@ -327,4 +327,17 @@ test('reviewed flag is per profile and game folder', async () => {
   const c = mkMods({ row: remote, store, mods: fakeMods({ root: '/inny' }) });
   await c.p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
   assert.equal((await c.p.modInfo({ gv: '1.20.1' })).reviewed, false);
+});
+
+test('signup that needs e-mail confirmation is an error, not a silent logout', async () => {
+  const supa = fakeSupa({ signUp: async () => { throw new SupaError(200, 'email_confirm_required'); } });
+  const { p, store } = mk({ supa });
+  assert.deepEqual(await p.signup({ email: 'a@b.pl', password: 'tajnehaslo1', nick: 'Gracz_1' }), { error: 'email_confirm_required', detail: 'email_confirm_required' });
+  assert.equal(store.files['mib-session.json'], undefined);
+});
+
+test('a missing profile row is reported as no_profile', async () => {
+  const supa = fakeSupa({ select: async () => [] });
+  const { p } = mk({ supa });
+  assert.deepEqual(await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' }), { offline: true, error: 'no_profile' });
 });
