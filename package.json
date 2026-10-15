@@ -21,6 +21,7 @@
     },
     "files": [
       "main.js",
+      "profile-main.js",
       "preload.js",
       "worker.js",
       "index.html",

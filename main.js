@@ -4,6 +4,8 @@ const path = require('path'), fs = require('fs');
 const { Client } = require('minecraft-launcher-core');
 const { autoUpdater } = require('electron-updater');
 const { Auth } = require('msmc');
+const { createSupa } = require('./lib/supa');
+const profileMain = require('./profile-main');
 let win, auth = null, launching = false;
 const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
@@ -12,6 +14,14 @@ const wr = (f, v) => fs.writeFileSync(jf(f), JSON.stringify(v, null, 2));
 const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true });
 const logBuf = [];
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
+// Profil MiB (Supabase). Klucz publiczny — bezpieczny w launcherze; uprawnienia pilnuje baza.
+const SUPA_URL = process.env.MIB_SUPA_URL || 'https://pijyremkmhmnyvjusrhu.supabase.co', SUPA_KEY = 'sb_publishable_-Gfr_STF_qinPsxzdYFaDg_eXg4j1Al';
+const prof = profileMain.createProfile({
+  supa: createSupa({ url: SUPA_URL, key: SUPA_KEY, fetch: (...a) => fetch(...a) }),
+  store: { read: rd, write: wr, remove: f => { try { fs.unlinkSync(jf(f)); } catch {} } },
+  safeStorage, randomBytes: crypto.randomBytes,
+});
+profileMain.register(ipcMain, prof);
 const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };
 
 app.whenReady().then(() => {
@@ -93,9 +103,9 @@ async function doLaunch(version) {
       const fin = r => { if (!done) { done = true; res(r); } };
       w.on('message', m => {
         if (m.t === 'log') send('log', m.d); else if (m.t === 'progress') send('progress', m.d);
-        else if (m.t === 'spawned') { gamePid = m.pid; startHud(m.pid); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
+        else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); startHud(m.pid); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
           send('started'); notify('MiB Client', 'Pobieranie zakończone — gra się uruchamia.'); win.minimize(); fin('ok'); }
-        else if (m.t === 'close') { launching = false; gamePid = null; stopHud(); send('closed', m.c);
+        else if (m.t === 'close') { launching = false; gamePid = null; prof.gameClosed(); stopHud(); send('closed', m.c);
           if (pendingRelaunch) { const v = pendingRelaunch; pendingRelaunch = null; send('relaunch'); setTimeout(() => doLaunch(v).then(r => { if (r !== 'ok') { send('log', r); notify('MiB Client', String(r).slice(0, 120)); send('closed', 1); } }), 600); } }
         else if (m.t === 'error') { launching = false; notify('MiB Client — błąd', String(m.d).slice(0, 120)); fin('Błąd: ' + m.d); }
       });
