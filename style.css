@@ -20,7 +20,7 @@
 }
 *{box-sizing:border-box;margin:0;font-family:"Segoe UI",system-ui,sans-serif}
 html,body{height:100%;background:var(--void);color:var(--t);overflow:hidden;user-select:none}
-h2,h3,#nick,.brand b,#sname,#news h4,.go,.big{font-family:Pixelify,"Segoe UI",sans-serif;font-weight:400}
+h2,h3,#nick,.brand b,#sname,#news h4,.go,.big{font-family:Pixelify,"Segoe UI",sans-serif;font-weight:400;font-variant-ligatures:none;font-feature-settings:"liga" 0,"clig" 0}
 h2{font-size:26px;line-height:1.1}h3{font-size:18px}
 :focus-visible{outline:2px solid var(--am-hi);outline-offset:2px}
 ::-webkit-scrollbar{width:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--edge2);border:3px solid var(--void)}
@@ -178,3 +178,26 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 .hint{font-size:11px;max-width:420px;text-align:center}
 
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* ===== Profil MiB i kosmetyki ===== */
+.pl{cursor:pointer}.pl:hover{background:var(--slab2)}.pl:hover b{color:var(--am-hi)}
+.lead{font-size:13px;color:#c9bad9;line-height:1.55;max-width:62ch}
+.mono{font-family:Consolas,"Cascadia Mono",monospace;letter-spacing:.06em}
+.seg{display:flex;gap:4px;border-bottom:2px solid var(--edge)}
+.seg button{background:none;border:0;color:var(--m);font-size:13px;font-weight:600;padding:9px 14px 8px;cursor:pointer;margin-bottom:-2px;border-bottom:2px solid transparent}
+.seg button:hover{color:var(--t)}.seg button.on{color:#fff;border-bottom-color:var(--am)}
+.pform{display:flex;flex-direction:column;gap:2px;padding-top:6px}
+.pform .row{padding-top:10px}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}.fld small{font-size:11px}
+.err{min-height:18px;font-size:12.5px;color:#ff9fb0;line-height:1.4}.err:empty{min-height:0}
+.phead{display:flex;align-items:baseline;gap:12px}.phead h2{font-size:32px}
+.tag.founder{font-size:11px;padding:3px 8px;background:#3b1d63;color:#f0dcff;box-shadow:inset 0 0 0 2px #7c3aed;vertical-align:4px}
+.idrow{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--am-hi)}
+.codebox{font:22px/1 Consolas,"Cascadia Mono",monospace;letter-spacing:.12em;text-align:center;padding:16px 10px;background:var(--void);border:2px solid var(--am-lo);clip-path:var(--px);color:#fff;user-select:all}
+.cos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding-top:6px}
+.cosi{display:flex;flex-direction:column;gap:4px;align-items:flex-start;background:var(--slab);border:2px solid var(--edge);clip-path:var(--px);padding:12px}
+.cosi i{display:grid;place-items:center;width:100%;height:84px;background:var(--slab2);font:normal 40px/1 sans-serif;color:var(--am-hi);margin-bottom:4px}
+.cosi img{width:100%;height:84px;object-fit:contain;image-rendering:pixelated;background:var(--slab2);margin-bottom:4px}
+.empty-state{display:flex;flex-direction:column;align-items:flex-start;gap:14px;font-size:13px;color:#c9bad9;line-height:1.55;max-width:52ch;padding-top:8px}
+#mbk p{font-size:13px;margin-bottom:10px}
+.ov label.ck{flex-direction:row;align-items:center;color:var(--t)}
