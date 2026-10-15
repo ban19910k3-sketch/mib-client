@@ -19,6 +19,7 @@
   --px4:polygon(4px 0,calc(100% - 4px) 0,calc(100% - 4px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 4px) calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,4px calc(100% - 4px),0 calc(100% - 4px),0 4px,4px 4px);
 }
 *{box-sizing:border-box;margin:0;font-family:"Segoe UI",system-ui,sans-serif}
+[hidden]{display:none!important} /* atrybut hidden zawsze wygrywa z display ze stylów */
 html,body{height:100%;background:var(--void);color:var(--t);overflow:hidden;user-select:none}
 h2,h3,#nick,.brand b,#sname,#news h4,.go,.big{font-family:Pixelify,"Segoe UI",sans-serif;font-weight:400;font-variant-ligatures:none;font-feature-settings:"liga" 0,"clig" 0}
 h2{font-size:26px;line-height:1.1}h3{font-size:18px}
@@ -227,3 +228,18 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 #fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
 #main{z-index:1}
 .noanim #fx{display:none}
+
+/* Ogłoszenia */
+.ann{padding:8px 0 10px;border-bottom:2px solid var(--edge)}.ann:last-child{border-bottom:0}
+.ann b{display:block;font-size:13px;color:var(--t)}.ann p{font-size:12px;color:#c9bad9;line-height:1.5;margin-top:3px;white-space:pre-line}
+.ann small{display:block;font-size:11px;color:var(--m);margin-top:4px}
+.ann.pin b::before{content:"";display:inline-block;width:6px;height:6px;background:var(--am);margin-right:7px;vertical-align:2px}
+#ann-all .ann{padding:12px 0}#ann-all .ann b{font-size:15px}#ann-all .ann p{font-size:13px}
+
+/* Panel admina */
+.arow{display:flex;align-items:center;gap:10px}.arow>div{flex:1;min-width:0}.arow .mut{display:block;margin-top:3px}
+.arow.click{cursor:pointer}.arow.click:hover{border-color:var(--edge2);background:var(--slab2)}
+.texprev{width:128px;height:64px;image-rendering:pixelated;background:var(--slab2);box-shadow:inset 0 0 0 2px var(--edge2)}
+.cape3d{align-self:flex-start;margin:4px 0 4px 236px}
+pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margin:6px 0 10px;font-size:14px;line-height:1.6;user-select:text}
+#admin-tab{display:flex;flex-direction:column;gap:10px;padding-top:8px}

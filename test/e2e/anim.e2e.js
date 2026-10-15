@@ -58,6 +58,14 @@ const ok = m => console.log('PASS', m);
     assert.ok(await painted() > 0, 'włączone z powrotem');
     ok('7 latające cząsteczki w tle i ich wyłączanie');
 
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('crashed', { code: 1, cause: 'memory', report: true }));
+    await w.waitForSelector('#crash.on');
+    assert.match(await w.textContent('#crash-t'), /zabrakło pamięci RAM/);
+    await w.waitForTimeout(300);
+    await w.screenshot({ path: path.join(OUT, 'crash.png') });
+    await w.click('#crash-x');
+    ok('8 okno awarii gry z przyczyną');
+
     await w.evaluate(() => window.mibUnlock({ name: 'Peleryna Start', type: 'cape' }));
     await w.waitForTimeout(250);
     assert.ok(await w.$('#unlock'));

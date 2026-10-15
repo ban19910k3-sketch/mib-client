@@ -189,7 +189,7 @@ begin
   perform public.admin_save_cosmetic('cape_mib', 'Peleryna MiB 2', 'cape', null);
   assert (select texture from public.cosmetics where id = 'cape_mib') is not null, 'edycja bez tekstury jej nie kasuje';
   -- kody
-  codes := array(select public.admin_create_codes('cape_mib', 3, 1, 7));
+  codes := array(select json_array_elements_text(public.admin_create_codes('cape_mib', 3, 1, 7)));
   assert array_length(codes, 1) = 3, '3 kody';
   assert codes[1] ~ '^MIB-[2-9A-HJKMNP-TV-Z]{4}-[2-9A-HJKMNP-TV-Z]{4}$', 'format kodu: ' || codes[1];
   assert (select count(*) from public.admin_list_codes() where cosmetic_id = 'cape_mib') = 3, 'lista kodów';

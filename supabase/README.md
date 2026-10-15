@@ -35,6 +35,31 @@ Jeśli panel wygląda inaczej, szukaj w **Authentication** przełącznika „Con
 5. Na stronie profilu kliknij **Usuń profil** i potwierdź nickiem. W **Authentication → Users** konto powinno zniknąć.
 6. W Supabase: **Table Editor** → `profiles` — przed usunięciem był tam Twój profil z `num = 1`.
 
+## Panel admina
+
+Panel admina widzi w launcherze tylko konto **MIB-000002**. Uprawnienia sprawdza baza, więc przerobiony launcher też nic nie zdziała.
+
+- Adminem zostaje profil, który ma numer `MIB-000002` **w chwili pierwszego uruchomienia** `schema.sql` z panelem (od wersji 0.9.0). Konto jest zapisywane na stałe — późniejsze wyzerowanie numeracji nie da panelu nikomu innemu.
+- Jeśli plik został uruchomiony, zanim istniał profil `MIB-000002`, załóż ten profil i uruchom `schema.sql` jeszcze raz.
+- Sprawdzenie, kto jest adminem (SQL Editor):
+
+```sql
+select p.nick, p.num from private.admins a join public.profiles p on p.id = a.user_id;
+```
+
+W panelu: ogłoszenia, kosmetyki (z teksturą peleryny PNG 64×32), kody prezentowe, wyszukiwanie graczy (nadawanie i zabieranie przedmiotów, usuwanie kont) i statystyki.
+
+## Status na Discordzie
+
+Żeby pod nickiem graczy na Discordzie pojawiało się „Gra w MiB Client”, potrzebna jest aplikacja Discorda (raz, za darmo):
+
+1. Wejdź na https://discord.com/developers/applications i zaloguj się.
+2. **New Application**, nazwa: `MiB Client` (tak będzie widoczna na Discordzie), zaakceptuj regulamin, **Create**.
+3. Skopiuj **Application ID** (długa liczba) i wyślij ją Claude — trafi do `DISCORD_CLIENT_ID` w `main.js`.
+4. Po lewej **Rich Presence → Art Assets → Add Image(s)**: wgraj logo MiB (kwadrat, najlepiej 512×512) i nazwij je dokładnie `mib`. **Save Changes**.
+
+Dopóki numer aplikacji nie jest wpisany, status na Discordzie jest wyłączony. Gracz może go też wyłączyć w Ustawieniach.
+
 ## Gdy nie da się założyć profilu albo zalogować
 
 Launcher pokazuje wtedy, co jest nie tak. Najczęstsze sytuacje:

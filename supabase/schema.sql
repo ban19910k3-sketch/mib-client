@@ -397,10 +397,12 @@ begin
   delete from public.cosmetics where id = p_id;
 end $$;
 
-create or replace function public.admin_create_codes(p_cosmetic text, p_count integer, p_max_uses integer, p_days integer) returns setof text
+drop function if exists public.admin_create_codes(text, integer, integer, integer);
+create or replace function public.admin_create_codes(p_cosmetic text, p_count integer, p_max_uses integer, p_days integer) returns json
 language plpgsql security definer set search_path = '' as $$
 declare
   v text;
+  out text[] := '{}';
 begin
   perform private.need_admin();
   if not exists (select 1 from public.cosmetics where id = p_cosmetic) then raise exception 'cosmetic_missing'; end if;
@@ -412,8 +414,9 @@ begin
     end loop;
     insert into private.gift_codes (code, cosmetic_id, max_uses, expires_at)
       values (v, p_cosmetic, p_max_uses, case when p_days is null then null else now() + make_interval(days => p_days) end);
-    return next v;
+    out := out || v;
   end loop;
+  return to_json(out);
 end $$;
 
 create or replace function public.admin_list_codes()

@@ -64,6 +64,7 @@ const ok = m => console.log('PASS', m);
     assert.ok(fake.st.users[0].settings, 'ustawienia wysłane na nowy profil');
     await shot('prof-in.png');
     ok('(c) profil z ID i odznaką Założyciel, ustawienia zsynchronizowane');
+    assert.equal(await w.isHidden('.nav[data-p="admin"]'), true, 'zwykły gracz nie widzi panelu admina');
 
     fake.st.backups.push({ user: fake.st.users[0].id, game_version: '1.8.9', loader: null, skipped: 1,
       mods: [{ project: 'P1', version: 'V1', file: 'a.jar', on: true }, { project: 'P2', version: 'V2', file: 'b.jar', on: false }] });
@@ -111,6 +112,38 @@ const ok = m => console.log('PASS', m);
     await w.check('#rc-ok'); await w.click('#rc-x');
     await w.waitForFunction(() => document.getElementById('plname').textContent === 'Sierota_1');
     ok('(j) konto bez profilu: wybór nicku dokańcza profil');
+
+    // Panel admina: Sierota_1 ma numer 2 (MIB-000002)
+    await w.waitForSelector('.nav[data-p="admin"]:not([hidden])');
+    await w.click('.nav[data-p="admin"]');
+    await w.waitForSelector('#ad-title');
+    await w.fill('#ad-title', 'Turniej w sobotę');
+    await w.fill('#ad-body', 'Start o 18:00 na serwerze MiB.');
+    await w.check('#ad-pin');
+    await w.click('#ad-save');
+    await w.waitForFunction(() => /Turniej w sobotę/.test(document.getElementById('ad-list').textContent));
+    await w.waitForTimeout(400);
+    await shot('admin-ann.png');
+    await w.click('.nav[data-p="home"]');
+    await w.waitForFunction(() => !document.getElementById('n-ann').hidden && /Turniej w sobotę/.test(document.getElementById('ann-home').textContent));
+    await shot('home-ann.png');
+    ok('(k) admin publikuje ogłoszenie, gracze widzą je na stronie głównej');
+
+    await w.click('.nav[data-p="admin"]');
+    await w.click('[data-tab="codes"]');
+    await w.waitForSelector('#ak-item option', { state: 'attached' });
+    await w.fill('#ak-count', '2');
+    await w.click('#ak-go');
+    await w.waitForFunction(() => (document.querySelector('#ak-out pre') || {}).textContent?.split('\n').length === 2);
+    await w.click('[data-tab="stats"]');
+    await w.waitForFunction(() => /Profile MiB/.test(document.getElementById('admin-tab').textContent));
+    await shot('admin-stats.png');
+    await w.click('[data-tab="players"]');
+    await w.waitForFunction(() => /Tester_1/.test(document.getElementById('ap-res').textContent));
+    await w.click('[data-tab="cos"]');
+    await w.waitForSelector('#ac-list .cosi');
+    await shot('admin-cos.png');
+    ok('(l) panel admina: kody, statystyki, gracze, kosmetyki');
 
     await new Promise(r => { fake.server.closeAllConnections && fake.server.closeAllConnections(); fake.server.close(r); });
     await w.click('.nav[data-p="prof"]');

@@ -6,12 +6,15 @@ const { autoUpdater } = require('electron-updater');
 const { Auth } = require('msmc');
 const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
+const { diagnoseCrash } = require('./lib/crash');
+const { buildActivity, createPresence } = require('./lib/discord');
+const { pngInfo, validCapeSize } = require('./lib/profile');
 let win, auth = null, launching = false;
 const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
 const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(jf(f), 'utf8')); } catch { return d; } };
 const wr = (f, v) => fs.writeFileSync(jf(f), JSON.stringify(v, null, 2));
-const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true });
+const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true });
 const logBuf = [];
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
 // Profil MiB (Supabase). Klucz publiczny — bezpieczny w launcherze; uprawnienia pilnuje baza.
@@ -46,7 +49,19 @@ const modsChanged = gv => { clearTimeout(modTimers[gv]); modTimers[gv] = setTime
 profileMain.register(ipcMain, prof);
 const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };
 
+// ===== Status na Discordzie =====
+// Numer aplikacji z https://discord.com/developers/applications (pusty = status wyłączony)
+const DISCORD_CLIENT_ID = '';
+const presence = createPresence({ clientId: DISCORD_CLIENT_ID });
+const launcherSince = Date.now();
+function setPresence(game) {
+  const on = ({ ...defaults(), ...rd('settings.json', {}) }).discord !== false;
+  presence.set(on ? buildActivity(game ? { playing: true, version: game.version, since: game.since } : { playing: false, since: launcherSince }) : null);
+}
+app.on('before-quit', () => presence.stop());
+
 app.whenReady().then(() => {
+  setPresence(null);
   win = new BrowserWindow({ width: 1100, height: 680, minWidth: 900, minHeight: 600, frame: false, backgroundColor: '#050007', icon: path.join(__dirname, 'icon.png'),
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.js') } });
   win.setMenu(null); win.loadFile('index.html');
@@ -56,7 +71,7 @@ app.on('window-all-closed', () => app.quit());
 
 ipcMain.on('win', (_, a) => { if (!win) return; a === 'min' ? win.minimize() : a === 'max' ? (win.isMaximized() ? win.unmaximize() : win.maximize()) : win.close(); });
 ipcMain.handle('settings:get', () => ({ ...defaults(), ...rd('settings.json', {}) }));
-ipcMain.handle('settings:set', (_, s) => { wr('settings.json', s); return true; });
+ipcMain.handle('settings:set', (_, s) => { wr('settings.json', s); setPresence(gameInfo); return true; });
 ipcMain.handle('pickdir', async () => { const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] }); return r.canceled ? null : r.filePaths[0]; });
 
 ipcMain.handle('versions', async () => {
@@ -102,7 +117,7 @@ ipcMain.handle('accounts:relaunch', async (_, id) => {
   catch { return 'Sesja tego konta wygasła — dodaj je ponownie w launcherze.'; }
 });
 
-let worker = null, gamePid = null, lastVersion = null, pendingRelaunch = null;
+let worker = null, gamePid = null, lastVersion = null, pendingRelaunch = null, gameInfo = null;
 const notify = (t, b) => { try { if (Notification.isSupported()) new Notification({ title: t, body: b, icon: path.join(__dirname, 'icon.png') }).show(); } catch {} };
 ipcMain.handle('launch', (_, arg) => doLaunch(arg.version));
 async function doLaunch(version) {
@@ -125,9 +140,9 @@ async function doLaunch(version) {
       const fin = r => { if (!done) { done = true; res(r); } };
       w.on('message', m => {
         if (m.t === 'log') send('log', m.d); else if (m.t === 'progress') send('progress', m.d);
-        else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); startHud(m.pid); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
+        else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root }; setPresence(gameInfo); startHud(m.pid); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
           send('started'); notify('MiB Client', 'Pobieranie zakończone — gra się uruchamia.'); win.minimize(); fin('ok'); }
-        else if (m.t === 'close') { launching = false; gamePid = null; prof.gameClosed(); stopHud(); send('closed', m.c);
+        else if (m.t === 'close') { launching = false; gamePid = null; prof.gameClosed(); stopHud(); send('closed', m.c); if (m.c !== 0 && gameInfo) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
           if (pendingRelaunch) { const v = pendingRelaunch; pendingRelaunch = null; send('relaunch'); setTimeout(() => doLaunch(v).then(r => { if (r !== 'ok') { send('log', r); notify('MiB Client', String(r).slice(0, 120)); send('closed', 1); } }), 600); } }
         else if (m.t === 'error') { launching = false; notify('MiB Client — błąd', String(m.d).slice(0, 120)); fin('Błąd: ' + m.d); }
       });
@@ -264,6 +279,28 @@ ipcMain.handle('report:build', (_, ver) => {
   return san(t.split(os.homedir()).join('~'));
 });
 ipcMain.handle('report:save', async (_, txt) => { const r = await dialog.showSaveDialog(win, { defaultPath: 'mib-raport.txt' }); if (r.canceled) return false; fs.writeFileSync(r.filePath, String(txt)); return true; });
+// ===== Awaria gry: przyczyna z logu i najnowszego raportu awarii =====
+function reportCrash(code, game) {
+  let report = '';
+  try {
+    const d = path.join(game.root, 'crash-reports'), f = fs.readdirSync(d).map(n => path.join(d, n)).filter(n => fs.statSync(n).mtimeMs >= game.since).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
+    if (f) report = fs.readFileSync(f, 'utf8');
+  } catch {}
+  const log = logBuf.slice(-200).join('\n');
+  send('crashed', { code, cause: diagnoseCrash(report + '\n' + log), report: !!report });
+}
+
+// ===== Panel admina: wybór tekstury peleryny (PNG 64×32) =====
+ipcMain.handle('admin:pickTexture', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'PNG', extensions: ['png'] }] });
+  if (r.canceled) return null;
+  const buf = fs.readFileSync(r.filePaths[0]), info = pngInfo(buf);
+  if (!info) return { error: 'texture_not_png' };
+  if (!validCapeSize(info.width, info.height)) return { error: 'texture_size', width: info.width, height: info.height };
+  if (buf.length > 100 * 1024) return { error: 'texture_too_big' };
+  return { dataUrl: 'data:image/png;base64,' + buf.toString('base64'), ...info };
+});
+
 ipcMain.handle('pickimg', async () => { const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Obrazy', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] }); return r.canceled ? null : r.filePaths[0]; });
 ipcMain.handle('notify', (_, { t, b }) => { notify(t, b); return true; });
 // ---- Loadery ----

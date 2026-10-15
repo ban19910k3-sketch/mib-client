@@ -280,6 +280,9 @@
     const was = st.loggedIn;
     st = r && (r.loggedIn || r.offline || r.needsProfile) ? r : { loggedIn: false };
     mibSync.profile = !!st.loggedIn;
+    // Panel admina tylko dla konta admina (i tak pilnuje tego baza)
+    document.querySelector('.nav[data-p="admin"]').hidden = !st.admin;
+    if (!st.admin && $('p-admin').classList.contains('on')) go('home');
     sidebar();
     if ($('p-prof').classList.contains('on')) render();
     if ($('p-cos').classList.contains('on')) renderCos();
@@ -300,6 +303,7 @@
     setTimeout(() => { if (o.isConnected) close(); }, 2200);
   };
   window.mibProfileUI = { modsShown, refresh };
+  window.mibUI = { h, msg, fmtDate };
   sidebar();
   render();
   refresh();

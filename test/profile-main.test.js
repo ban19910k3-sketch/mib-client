@@ -358,3 +358,31 @@ test('signup finishes the profile itself when the database trigger did not', asy
   assert.equal(r.loggedIn, true);
   assert.equal(r.nick, 'Gracz_9');
 });
+
+// ===== Panel admina i ogłoszenia =====
+test('state tells the UI whether the player is the admin', async () => {
+  const supa = fakeSupa({ rpc: async n => (n === 'is_admin' ? true : null) });
+  const { p } = mk({ supa });
+  assert.equal((await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' })).admin, true);
+  const { p: p2 } = mk();
+  assert.equal((await p2.login({ email: 'a@b.pl', password: 'tajnehaslo1' })).admin, false);
+});
+
+test('announcements are public and do not need a profile', async () => {
+  const rows = [{ id: 1, title: 'Turniej', body: 'Sobota', pinned: true, created_at: '2026-10-15' }];
+  const supa = fakeSupa({ select: async t => (t === 'announcements' ? rows : []) });
+  const { p } = mk({ supa });
+  assert.deepEqual(await p.announcements(), rows);
+  const call = supa.calls.find(c => c[1] === 'announcements');
+  assert.equal(call[3], undefined, 'bez tokenu gracza');
+  assert.match(call[2], /order=pinned\.desc,created_at\.desc/);
+});
+
+test('admin calls are limited to admin functions', async () => {
+  const supa = fakeSupa({ rpc: async (n, a) => ({ called: n, a }) });
+  const { p } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.admin({ fn: 'admin_stats', args: {} }), { called: 'admin_stats', a: {} });
+  assert.equal((await p.admin({ fn: 'delete_my_profile', args: {} })).error, 'not_admin_fn');
+  assert.ok(!supa.calls.some(c => c[1] === 'delete_my_profile'));
+});

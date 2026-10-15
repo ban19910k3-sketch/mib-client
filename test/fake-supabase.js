@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 function createFake() {
-  const st = { users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { ann: [], annId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -70,6 +70,29 @@ function createFake() {
           const c = cosmetics[code.cosmetic];
           return json(res, 200, { cosmetic_id: c.id, name: c.name, type: c.type, image_url: c.image_url });
         }
+        if (fn === 'is_admin') return json(res, 200, user.num === 2);
+        if (fn.startsWith('admin_')) {
+          if (user.num !== 2) return json(res, 400, { code: 'P0001', message: 'not_admin' });
+          const A = {
+            admin_list_announcements: () => st.ann,
+            admin_save_announcement: () => {
+              const a = { id: body.p_id || ++st.annId, title: body.p_title.trim(), body: body.p_body || '', pinned: !!body.p_pinned, visible_until: body.p_until, created_at: new Date().toISOString() };
+              st.ann = [...st.ann.filter(x => x.id !== a.id), a]; return a.id;
+            },
+            admin_delete_announcement: () => { st.ann = st.ann.filter(x => x.id !== body.p_id); return null; },
+            admin_stats: () => ({ profiles: st.users.length, new7: st.users.length, active7: 0, foundersLeft: 1000 - st.num, cosmetics: Object.keys(cosmetics).length, owned: st.owned.length, versions: [] }),
+            admin_create_codes: () => Array.from({ length: body.p_count }, (_, i) => { const c = 'MIB-TEST-' + String(Object.keys(st.codes).length + 1).padStart(4, '0'); st.codes[c] = { cosmetic: body.p_cosmetic, max: body.p_max_uses, used: 0 }; return c; }),
+            admin_list_codes: () => Object.entries(st.codes).map(([code, c]) => ({ code, cosmetic_id: c.cosmetic, cosmetic_name: cosmetics[c.cosmetic].name, used_count: c.used, max_uses: c.max, expires_at: null, created_at: new Date().toISOString() })),
+            admin_delete_code: () => { delete st.codes[body.p_code]; return null; },
+            admin_find_players: () => st.users.filter(u => !u.noProfile).map(u => ({ id: u.id, num: u.num, nick: u.nick, email: u.email, created_at: u.created, founder: u.num <= 1000, playtime_min: u.playtime || 0, launches: u.launches || 0 })),
+            admin_player_cosmetics: () => st.owned.filter(o => o.user === body.p_user).map(o => ({ id: o.cosmetic, name: cosmetics[o.cosmetic].name, source: 'code', acquired_at: o.at })),
+            admin_grant: () => { st.owned.push({ user: body.p_user, cosmetic: body.p_cosmetic, at: new Date().toISOString() }); return null; },
+            admin_revoke: () => { st.owned = st.owned.filter(o => !(o.user === body.p_user && o.cosmetic === body.p_cosmetic)); return null; },
+            admin_save_cosmetic: () => { cosmetics[body.p_id] = { id: body.p_id, name: body.p_name, type: body.p_type, image_url: null, texture: body.p_texture || (cosmetics[body.p_id] || {}).texture || null }; return null; },
+            admin_delete_cosmetic: () => { delete cosmetics[body.p_id]; return null; },
+          };
+          return A[fn] ? json(res, 200, A[fn]()) : json(res, 404, { code: 'PGRST202', message: 'no function ' + fn });
+        }
         if (fn === 'create_my_profile') {
           if (!user.noProfile) return json(res, 400, { code: 'P0001', message: 'profile_exists' });
           if (st.users.some(u => !u.noProfile && u.nick.toLowerCase() === String(body.p_nick).toLowerCase())) return json(res, 400, { code: 'P0001', message: 'nick_taken' });
@@ -79,6 +102,8 @@ function createFake() {
         if (fn === 'delete_my_profile') { st.users = st.users.filter(u => u.id !== user.id); return json(res, 204); }
         return json(res, 404, { message: 'no function ' + fn });
       }
+      if (p === '/rest/v1/announcements') return json(res, 200, st.ann.filter(a => !a.visible_until || new Date(a.visible_until) > new Date()).sort((a, b) => b.pinned - a.pinned || b.id - a.id));
+      if (p === '/rest/v1/cosmetics') return json(res, 200, Object.values(cosmetics));
       if (!user) return json(res, 401, { code: '42501', message: 'permission denied' });
       if (p === '/rest/v1/profiles') {
         if (req.method === 'PATCH') { user.settings = body.settings; user.settingsAt = body.settings_updated_at; return json(res, 204); }
