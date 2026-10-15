@@ -1,0 +1,68 @@
+{
+  "name": "mib-client",
+  "version": "0.7.2",
+  "description": "MiB Client - darmowy launcher Minecraft PvP",
+  "main": "main.js",
+  "author": "MiB",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "pl.mib.client",
+    "productName": "MiB Client",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "worker.js",
+      "index.html",
+      "ui.js",
+      "skinview3d.js",
+      "overlay.html",
+      "icon.png",
+      "splash.jpg",
+      "fonts/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "MiB-Client-Setup-${version}.exe",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ban19910k3-sketch",
+        "repo": "mib-client"
+      }
+    ],
+    "npmRebuild": false,
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**",
+      "node_modules/node-gyp-build/**"
+    ]
+  },
+  "dependencies": {
+    "@fontsource/pixelify-sans": "^5.2.5",
+    "adm-zip": "^0.5.16",
+    "electron-updater": "^6.3.9",
+    "minecraft-launcher-core": "^3.18.2",
+    "msmc": "^5.0.5",
+    "skinview3d": "^3.1.0",
+    "uiohook-napi": "^1.5.4"
+  }
+}
