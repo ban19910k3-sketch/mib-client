@@ -6,7 +6,8 @@
   "author": "MiB",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis --x64"
+    "dist": "electron-builder --win nsis --x64",
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "electron": "31.7.7",
@@ -29,7 +30,8 @@
       "overlay.html",
       "icon.png",
       "splash.jpg",
-      "fonts/*"
+      "fonts/*",
+      "lib/**"
     ],
     "win": {
       "target": "nsis",
