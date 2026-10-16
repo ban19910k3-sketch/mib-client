@@ -1,0 +1,8 @@
+subprojects {
+	group = 'pl.mibclient'
+	version = project.mod_version
+
+	repositories {
+		maven { url = 'https://repo1.maven.org/maven2/' }
+	}
+}

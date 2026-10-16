@@ -1,0 +1,21 @@
+// Część wspólna moda: czysta Java 8, bez zależności i bez klas Minecrafta (działa też na 1.8.9).
+plugins {
+	id 'java-library'
+}
+
+dependencies {
+	testImplementation platform('org.junit:junit-bom:5.11.4')
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 8
+	options.encoding = 'UTF-8'
+	options.compilerArgs << '-Xlint:-options'
+}
+
+test {
+	useJUnitPlatform()
+	testLogging { events 'failed'; exceptionFormat 'full' }
+}

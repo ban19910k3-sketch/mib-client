@@ -1,2 +1,7 @@
 node_modules/
 dist/
+mod/.gradle/
+mod/**/build/
+mod/**/run/
+mod/**/.gradle/
+mod-dist/

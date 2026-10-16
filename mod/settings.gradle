@@ -1,0 +1,19 @@
+pluginManagement {
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.fabricmc.net/'
+		}
+		mavenCentral()
+		gradlePluginPortal()
+	}
+}
+
+rootProject.name = 'mibclient'
+
+// Część wspólna (czysta Java 8) i kopie moda dla wersji gry.
+// -PcommonOnly: tylko część wspólna (np. tam, gdzie nie ma dostępu do repozytorium Fabric).
+include 'common'
+if (!startParameter.projectProperties.containsKey('commonOnly')) {
+	include 'fabric-1.21.11'
+}
