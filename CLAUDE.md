@@ -17,6 +17,13 @@ Darmowy launcher Minecraft PvP w Electronie (czysty HTML/JS, bez frameworka). Ro
 - `lib/crash.js` — przyczyny awarii gry; `lib/discord.js` — status na Discordzie przez lokalne IPC (numer aplikacji: `DISCORD_CLIENT_ID` w `main.js`).
 - Testy: `npm test` (logika), `bash test/sql/run.sh` jako użytkownik `postgres` (schemat na lokalnym Postgresie z atrapą Supabase), `xvfb-run -a node test/e2e/profile.e2e.js` i `test/e2e/anim.e2e.js` (Electron + atrapa `test/fake-supabase.js`). `MIB_SUPA_URL` podmienia adres Supabase.
 
+## Mod MiB w grze (od 0.12.0)
+
+- `mod/common` — cała logika i rysowanie (menu pod prawym Shiftem, HUD, edytor HUD, moduły), Java 8 bez klas Minecrafta. `mod/fabric-1.21.11` — tylko adaptery (Canvas, GameInfo, ekrany, mixiny). Nowe wersje gry = nowe cienkie kopie.
+- Testy części wspólnej: `cd mod && ./gradlew -PcommonOnly :common:test` (serwery Fabric są zablokowane w kontenerze, pełne budowanie tylko na GitHubie). CI `.github/workflows/mod.yml`: budowanie + test w prawdziwym kliencie ze zrzutami; błędy trafiają do adnotacji przebiegu.
+- Launcher: `lib/mibmod.js` (instalacja `mib-client-mod.jar`, Fabric API, Sodium, most kont), plik moda w instalatorze w `resources/mod` (budowany w `release.yml`), lokalnie w `mod-dist/`. Ustawienie `mibMod`.
+- Most z launcherem: pliki w `<instancja>/mib` (`accounts.json` bez tokenów, `switch-request.json`, `switch-result.json`), tam też `mod-config.json` z ustawieniami moda.
+
 ## Wydawanie aktualizacji
 
 1. Podbij `version` w `package.json`.

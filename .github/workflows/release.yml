@@ -15,12 +15,23 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Mod MiB do gry (menu pod prawym Shiftem) trafia do instalatora jako resources/mod
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Zbuduj mod MiB
+        shell: bash
+        run: |
+          cd mod && ./gradlew :fabric-1.21.11:build --no-daemon
+          mkdir -p ../mod-dist && cp fabric-1.21.11/build/libs/mib-mod-fabric-1.21.11.jar ../mod-dist/
       - run: npx electron-builder --win nsis --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

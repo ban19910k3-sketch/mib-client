@@ -56,6 +56,15 @@
         "repo": "mib-client"
       }
     ],
+    "extraResources": [
+      {
+        "from": "mod-dist",
+        "to": "mod",
+        "filter": [
+          "*.jar"
+        ]
+      }
+    ],
     "npmRebuild": false,
     "asarUnpack": [
       "node_modules/uiohook-napi/**",
