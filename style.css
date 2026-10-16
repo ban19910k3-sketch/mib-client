@@ -243,4 +243,13 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 .cape3d{align-self:flex-start;margin:4px 0 4px 236px}
 pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margin:6px 0 10px;font-size:14px;line-height:1.6;user-select:text}
 #admin-tab{display:flex;flex-direction:column;gap:10px;padding-top:8px}
+
+/* Pomysły graczy */
+.nav .cnt{margin-left:auto;font-style:normal;font-size:10px;line-height:1;color:#fff;background:var(--am);padding:3px 6px;clip-path:var(--px)}
+.idea .ihead{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.idea .ihead b{display:inline}.idea .ihead .tag{margin-left:0}
+.idea>p{font-size:13px;color:#d9cce6;line-height:1.55;margin:8px 0 2px;white-space:pre-line;overflow-wrap:anywhere;user-select:text}
+.idea .row{padding-top:8px}
+.idea.fresh{border-color:var(--am-lo);box-shadow:inset 3px 0 0 var(--am)}
+.tag.st-planned{background:#1d2b4a;color:#bcd3ff}.tag.st-done{background:#0f2a1c;color:#c8f7d4}.tag.st-rejected{background:#2a1520;color:#ffb3c4}.tag.st-seen{background:var(--slab2);color:var(--m)}
+#ideas-box .idea .ihead .tag:last-child,#ai-list .ihead .mut:last-child{margin-left:auto}
 .capeth{display:block;image-rendering:pixelated;background-repeat:no-repeat}

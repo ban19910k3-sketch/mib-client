@@ -173,6 +173,32 @@ select pg_temp.expect_error($q$select public.admin_stats()$q$, 'not_admin');
 select pg_temp.expect_error($q$select public.admin_save_announcement(null, 'x', '', false, null)$q$, 'not_admin');
 select pg_temp.expect_error($q$select public.admin_create_codes('cape_start', 1, 1, null)$q$, 'not_admin');
 select pg_temp.expect_error($q$select * from public.admin_find_players('')$q$, 'not_admin');
+
+-- Pomysły graczy
+select public.submit_idea('feature', '  Tryb ciemny w konsoli launchera  ');
+select pg_temp.expect_error($q$select public.submit_idea('feature', 'krótko')$q$, 'idea_short');
+select pg_temp.expect_error($q$select public.submit_idea('hack', 'Dłuższy pomysł gracza')$q$, 'idea_category');
+select pg_temp.expect_error($q$select public.submit_idea(null, 'Dłuższy pomysł gracza')$q$, 'idea_category');
+select pg_temp.expect_error($q$select public.submit_idea('bug', repeat('x', 1001))$q$, 'idea_long');
+do $$ begin
+  for i in 1..4 loop perform public.submit_idea('other', 'Pomysł numer ' || i || ' od gracza'); end loop;
+end $$;
+select pg_temp.expect_error($q$select public.submit_idea('other', 'Szósty pomysł tego dnia')$q$, 'idea_limit');
+select pg_temp.expect_error($q$insert into public.ideas (user_id, category, body) values (auth.uid(), 'other', 'Wpis z pominięciem limitu')$q$, 'permission denied');
+select pg_temp.expect_error($q$update public.ideas set status = 'done'$q$, 'permission denied');
+select pg_temp.expect_error($q$select * from public.admin_list_ideas()$q$, 'not_admin');
+select pg_temp.expect_error($q$select public.admin_set_idea_status(1, 'done')$q$, 'not_admin');
+do $$ begin
+  assert (select count(*) from public.ideas) = 5, 'gracz widzi swoje pomysły';
+  assert (select body from public.ideas order by id limit 1) = 'Tryb ciemny w konsoli launchera', 'treść bez spacji na brzegach';
+  assert (select status from public.ideas order by id limit 1) = 'new', 'nowy pomysł';
+end $$;
+reset role;
+set role anon;
+select pg_temp.expect_error($q$select public.submit_idea('feature', 'Pomysł bez profilu MiB')$q$, 'permission denied');
+select pg_temp.expect_error($q$select count(*) from public.ideas$q$, 'permission denied');
+reset role;
+set role authenticated;
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 do $$
 declare v bigint; codes text[];
@@ -206,7 +232,21 @@ begin
   -- statystyki
   assert (public.admin_stats() ->> 'profiles')::int = 2, 'liczba profili';
   assert (public.admin_stats() ->> 'foundersLeft')::int = 997, 'wolne miejsca Założyciela';
+  -- pomysły
+  assert (select count(*) from public.ideas) = 0, 'przez tabelę admin widzi tylko swoje pomysły';
+  assert public.admin_count_new_ideas() = 5, 'nowe pomysły';
+  assert (select count(*) from public.admin_list_ideas()) = 5, 'admin widzi pomysły graczy';
+  assert (select nick from public.admin_list_ideas() limit 1) = 'Gracz_1', 'z nickiem autora';
+  assert (select num from public.admin_list_ideas() limit 1) = 1, 'z numerem MIB autora';
+  perform public.admin_set_idea_status((select min(i.id) from public.admin_list_ideas() i), 'planned');
+  assert public.admin_count_new_ideas() = 4, 'zmieniony status';
+  assert (select status from public.admin_list_ideas() order by created_at, id limit 1) = 'planned', 'status zapisany';
+  assert (select status from public.admin_list_ideas() limit 1) = 'new', 'nowe na górze listy';
+  perform public.admin_delete_idea((select max(i.id) from public.admin_list_ideas() i));
+  assert (select count(*) from public.admin_list_ideas()) = 4, 'usunięty pomysł';
 end $$;
+select pg_temp.expect_error($q$select public.admin_set_idea_status(1, 'zrobione')$q$, 'idea_status_invalid');
+select pg_temp.expect_error($q$select public.admin_set_idea_status(999999, 'done')$q$, 'idea_missing');
 select pg_temp.expect_error($q$select public.admin_save_cosmetic('Zła Nazwa', 'x', 'cape', null)$q$, 'cosmetic_id_invalid');
 select pg_temp.expect_error($q$select public.admin_save_cosmetic('ok_id', 'x', 'cape', 'http://zly.link/x.png')$q$, 'check constraint');
 select pg_temp.expect_error($q$select public.admin_delete_cosmetic('cape_mib')$q$, 'cosmetic_in_use');
@@ -224,6 +264,10 @@ set role authenticated;
 set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
 select pg_temp.expect_error($q$insert into public.announcements (title) values ('hack')$q$, 'permission denied');
 select pg_temp.expect_error($q$update public.cosmetics set name = 'hack'$q$, 'permission denied');
+do $$ begin
+  assert (select count(*) from public.ideas) = 4, 'gracz widzi swoje pomysły po usunięciu jednego przez admina';
+  assert (select status from public.ideas order by id limit 1) = 'planned', 'gracz widzi status nadany przez admina';
+end $$;
 
 -- Kopia modów: tylko swoja
 insert into public.mod_backups (game_version, loader, mods) values ('1.20.1', 'fabric', '[{"project":"p"}]');
@@ -252,4 +296,11 @@ do $$ begin
   assert not exists (select 1 from public.profiles where id = '11111111-1111-1111-1111-111111111111'), 'profil usunięty';
   assert not exists (select 1 from public.mod_backups), 'kopia usunięta';
   assert not exists (select 1 from private.reset_attempts where email = 'a@test.pl'), 'e-mail usunięty z prób resetu';
+  assert (select count(*) from public.ideas where user_id is null) = 4, 'pomysły zostają, ale bez autora';
 end $$;
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin
+  assert (select nick from public.admin_list_ideas() limit 1) is null, 'admin nie widzi nicku usuniętego konta';
+end $$;
+reset role;

@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 function createFake() {
-  const st = { ann: [], annId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -71,6 +71,15 @@ function createFake() {
           return json(res, 200, { cosmetic_id: c.id, name: c.name, type: c.type, image_url: c.image_url });
         }
         if (fn === 'is_admin') return json(res, 200, user.num === 2);
+        if (fn === 'submit_idea') {
+          const b = String(body.p_body || '').trim(), err = m => json(res, 400, { code: 'P0001', message: m });
+          if (!['feature', 'cosmetic', 'bug', 'other'].includes(body.p_category)) return err('idea_category');
+          if (b.length < 10) return err('idea_short');
+          if (b.length > 1000) return err('idea_long');
+          if (st.ideas.filter(i => i.user === user.id).length >= 5) return err('idea_limit');
+          st.ideas.push({ id: ++st.ideaId, user: user.id, category: body.p_category, body: b, status: 'new', created_at: new Date().toISOString() });
+          return json(res, 200, st.ideaId);
+        }
         if (fn.startsWith('admin_')) {
           if (user.num !== 2) return json(res, 400, { code: 'P0001', message: 'not_admin' });
           const A = {
@@ -91,6 +100,11 @@ function createFake() {
             admin_delete_player: () => { if (st.users.find(u => u.id === body.p_user)?.num === 2) throw Object.assign(new Error('cannot_delete_admin'), { pg: true }); st.users = st.users.filter(u => u.id !== body.p_user); return null; },
             admin_save_cosmetic: () => { cosmetics[body.p_id] = { id: body.p_id, name: body.p_name, type: body.p_type, image_url: null, texture: body.p_texture || (cosmetics[body.p_id] || {}).texture || null }; return null; },
             admin_delete_cosmetic: () => { delete cosmetics[body.p_id]; return null; },
+            admin_list_ideas: () => st.ideas.map(i => { const u = st.users.find(x => x.id === i.user); return { id: i.id, nick: u ? u.nick : null, num: u ? u.num : null, category: i.category, body: i.body, status: i.status, created_at: i.created_at }; })
+              .sort((a, b) => (b.status === 'new') - (a.status === 'new') || b.id - a.id),
+            admin_count_new_ideas: () => st.ideas.filter(i => i.status === 'new').length,
+            admin_set_idea_status: () => { const i = st.ideas.find(x => x.id === body.p_id); if (!i) throw new Error('idea_missing'); i.status = body.p_status; return null; },
+            admin_delete_idea: () => { st.ideas = st.ideas.filter(x => x.id !== body.p_id); return null; },
           };
           if (!A[fn]) return json(res, 404, { code: 'PGRST202', message: 'no function ' + fn });
           try { return json(res, 200, A[fn]()); } catch (e) { return json(res, 400, { code: 'P0001', message: e.message }); }
@@ -111,6 +125,7 @@ function createFake() {
         if (req.method === 'PATCH') { user.settings = body.settings; user.settingsAt = body.settings_updated_at; return json(res, 204); }
         return json(res, 200, user.noProfile ? [] : [profileRow(user)]);
       }
+      if (p === '/rest/v1/ideas') return json(res, 200, st.ideas.filter(i => i.user === user.id).sort((a, b) => b.id - a.id).map(({ user: _, ...i }) => i));
       if (p === '/rest/v1/owned_cosmetics') return json(res, 200, st.owned.filter(o => o.user === user.id).map(o => ({ source: 'code', acquired_at: o.at, cosmetics: cosmetics[o.cosmetic] })));
       if (p === '/rest/v1/mod_backups') {
         if (req.method === 'POST') { st.backups = st.backups.filter(b => !(b.user === user.id && b.game_version === body.game_version)); st.backups.push({ ...body, user: user.id }); return json(res, 201); }

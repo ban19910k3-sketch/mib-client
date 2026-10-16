@@ -15,6 +15,7 @@
     texture_not_png: 'To nie jest plik PNG.',
     texture_size: 'Tekstura peleryny musi mieć 64×32 piksele (albo 128×64, 256×128, 512×256).',
     texture_too_big: 'Plik jest za duży (najwyżej 100 KB).',
+    idea_missing: 'Ten pomysł został już usunięty.',
   };
   const err = r => (r && ERR[r.error]) || msg(r && r.error || 'unknown', r && r.detail);
   const call = (fn, args) => mib.call('prof:admin', { fn, args });
@@ -80,6 +81,61 @@
     h('label', { class: 'ck' }, pin, 'Przypnij na górze'), e, h('div', { class: 'row' }, save, cancel));
     box.append(h('p', { class: 'lead' }, 'Ogłoszenia widzą wszyscy gracze na stronie głównej i w Aktualnościach, od razu, bez aktualizacji launchera.'), form, h('div', { class: 'sec' }, h('h3', {}, 'Opublikowane'), list));
     load();
+  }
+
+  // ===== Pomysły graczy =====
+  const IDEA_CAT = { feature: 'Nowa funkcja', cosmetic: 'Kosmetyk', bug: 'Błąd', other: 'Inne' };
+  const IDEA_ST = { new: 'Nowy', seen: 'Przeczytany', planned: 'W planach', done: 'Zrobione', rejected: 'Odrzucony' };
+  // Licznik nowych pomysłów przy „Panel admina” i na zakładce; raz na uruchomienie także powiadomienie
+  let fresh = 0, greeted = false;
+  async function badge() {
+    const n = await call('admin_count_new_ideas');
+    if (typeof n !== 'number') return;
+    fresh = n;
+    const nav = document.querySelector('.nav[data-p="admin"]');
+    let b = nav.querySelector('.cnt');
+    if (!b) { b = h('em', { class: 'cnt' }); nav.append(b); }
+    b.textContent = n > 99 ? '99+' : String(n);
+    b.hidden = !n;
+    const t = document.querySelector('[data-tab="ideas"]');
+    if (t) t.textContent = 'Pomysły' + (n ? ' (' + n + ')' : '');
+    if (n && !greeted) { greeted = true; toast('Nowe pomysły od graczy: ' + n + '. Zobacz w Panelu admina.'); }
+  }
+  window.mibAdminBadge = badge;
+  setInterval(() => { if (!document.querySelector('.nav[data-p="admin"]').hidden) badge(); }, 5 * 60 * 1000);
+
+  async function viewIdeas(box) {
+    const filter = h('select', { id: 'ai-filter' }, h('option', { value: '' }, 'Wszystkie'), ...Object.entries(IDEA_ST).map(([k, v]) => h('option', { value: k }, v)));
+    const list = h('div', { id: 'ai-list' });
+    let all = [];
+    function show() {
+      const l = filter.value ? all.filter(i => i.status === filter.value) : all;
+      list.replaceChildren(...(l.length ? l.map(i => {
+        const status = h('select', { 'aria-label': 'Status pomysłu', on: { change: async () => {
+          const r = await call('admin_set_idea_status', { p_id: i.id, p_status: status.value });
+          if (failed(r)) { status.value = i.status; return toast(err(r), 1); }
+          i.status = status.value; toast('Status: ' + IDEA_ST[i.status] + '.'); show(); badge();
+        } } }, ...Object.entries(IDEA_ST).map(([k, v]) => h('option', { value: k, selected: k === i.status }, v)));
+        return h('div', { class: 'card idea' + (i.status === 'new' ? ' fresh' : '') },
+          h('div', { class: 'ihead' }, h('b', {}, i.nick || 'konto usunięte'), i.num ? h('span', { class: 'mono mut' }, window.MibProfile.formatMibId(i.num)) : null,
+            h('em', { class: 'tag' }, IDEA_CAT[i.category] || i.category), h('span', { class: 'mut' }, fmtDate(i.created_at))),
+          h('p', {}, i.body),
+          h('div', { class: 'row', style: 'align-items:center' }, status,
+            h('button', { class: 'b ghost', on: { click: () => copy(i.body) } }, 'Kopiuj'),
+            h('button', { class: 'b danger', on: { click: async () => {
+              if (!confirm('Usunąć ten pomysł?')) return;
+              const r = await call('admin_delete_idea', { p_id: i.id });
+              if (failed(r)) return toast(err(r), 1);
+              all = all.filter(x => x.id !== i.id); show(); badge();
+            } } }, 'Usuń')));
+      }) : [h('p', { class: 'empty' }, all.length ? 'Brak pomysłów z tym statusem.' : 'Gracze nie wysłali jeszcze żadnych pomysłów.')]));
+    }
+    filter.onchange = show;
+    box.append(h('p', { class: 'lead' }, 'Pomysły z zakładki Pomysły. Nowe są na górze. Gracz widzi status, który tu ustawisz.'),
+      h('div', { class: 'row', style: 'align-items:center' }, h('span', { class: 'mut' }, 'Pokaż:'), filter), list);
+    const l = await call('admin_list_ideas');
+    if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
+    all = l; show(); badge();
   }
 
   // ===== Kosmetyki =====
@@ -221,11 +277,11 @@
       ...(r.versions.length ? r.versions.map(v => row(v.version, window.MibProfile.formatPlaytime(v.min) + ', uruchomień: ' + v.runs)) : [h('p', { class: 'empty' }, 'Brak danych o grze.')])));
   }
 
-  const TABS = [['ann', 'Ogłoszenia', viewAnn], ['cos', 'Kosmetyki', viewCos], ['codes', 'Kody', viewCodes], ['players', 'Gracze', viewPlayers], ['stats', 'Statystyki', viewStats]];
+  const TABS = [['ann', 'Ogłoszenia', viewAnn], ['ideas', 'Pomysły', viewIdeas], ['cos', 'Kosmetyki', viewCos], ['codes', 'Kody', viewCodes], ['players', 'Gracze', viewPlayers], ['stats', 'Statystyki', viewStats]];
   function render() {
     const box = $('admin-box'), body = h('div', { id: 'admin-tab' });
     box.replaceChildren(h('h2', {}, 'Panel admina'),
-      h('div', { class: 'seg', role: 'tablist' }, ...TABS.map(([k, l]) => h('button', { class: tab === k ? 'on' : '', type: 'button', 'data-tab': k, on: { click: () => { tab = k; render(); } } }, l))),
+      h('div', { class: 'seg', role: 'tablist' }, ...TABS.map(([k, l]) => h('button', { class: tab === k ? 'on' : '', type: 'button', 'data-tab': k, on: { click: () => { tab = k; render(); } } }, l + (k === 'ideas' && fresh ? ' (' + fresh + ')' : '')))),
       body);
     TABS.find(t => t[0] === tab)[2](body);
   }

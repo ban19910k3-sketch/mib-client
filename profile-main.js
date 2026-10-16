@@ -7,7 +7,8 @@ const QUEUE_MAX = 200;
 // Funkcje panelu admina; baza i tak sprawdza, czy wywołuje je admin
 const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_cosmetics', 'admin_grant', 'admin_revoke', 'admin_delete_player',
   'admin_save_cosmetic', 'admin_delete_cosmetic', 'admin_create_codes', 'admin_list_codes', 'admin_delete_code',
-  'admin_list_announcements', 'admin_save_announcement', 'admin_delete_announcement']);
+  'admin_list_announcements', 'admin_save_announcement', 'admin_delete_announcement',
+  'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea']);
 
 function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods }) {
   let sess = null, restored = false, game = null, flushing = null, seq = 0;
@@ -206,6 +207,13 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       const r = await authed(t => supa.rpc('redeem_code', { p_code: String(code || '').trim().toUpperCase() }, t));
       return { id: r.cosmetic_id, name: r.name, type: r.type, imageUrl: r.image_url };
     },
+    async submitIdea({ category, body }) {
+      const bad = P.validateIdea({ category, body });
+      if (bad) return { error: bad };
+      const id = await authed(t => supa.rpc('submit_idea', { p_category: category, p_body: String(body).trim() }, t));
+      return { ok: true, id };
+    },
+    myIdeas: () => authed(t => supa.select('ideas', 'select=id,category,body,status,created_at&order=created_at.desc&limit=20', t)),
     async pullSettings() {
       const [p] = await authed(t => supa.select('profiles', 'select=settings,settings_updated_at&id=eq.' + sess.userId, t));
       return p && p.settings ? { settings: p.settings, updatedAt: Number(p.settings_updated_at) || 0 } : null;
@@ -242,7 +250,7 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
 
 const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:login', logout: 'prof:logout', newCode: 'prof:newCode', reset: 'prof:reset',
   remove: 'prof:delete', createProfile: 'prof:createProfile', nickFree: 'prof:nickFree', announcements: 'prof:announcements', allCosmetics: 'prof:allCosmetics', admin: 'prof:admin', cosmetics: 'prof:cosmetics', redeem: 'prof:redeem', pullSettings: 'prof:pullSettings', pushSettings: 'prof:pushSettings',
-  modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace' };
+  modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace', submitIdea: 'prof:submitIdea', myIdeas: 'prof:myIdeas' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

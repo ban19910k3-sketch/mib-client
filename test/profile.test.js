@@ -74,6 +74,15 @@ test('formatPlaytime', () => {
   assert.equal(P.formatPlaytime(185), '3 h 05 min');
 });
 
+test('validateIdea', () => {
+  assert.equal(P.validateIdea({ category: 'feature', body: 'Dodajcie tryb ciemny do konsoli' }), null);
+  assert.equal(P.validateIdea({ category: 'feature', body: '   krótko   ' }), 'idea_short');
+  assert.equal(P.validateIdea({ category: 'bug', body: 'x'.repeat(1001) }), 'idea_long');
+  assert.equal(P.validateIdea({ category: 'hack', body: 'Dodajcie tryb ciemny do konsoli' }), 'idea_category');
+  assert.equal(P.validateIdea({}), 'idea_category');
+  assert.deepEqual(P.IDEA_CATEGORIES, ['feature', 'cosmetic', 'bug', 'other']);
+});
+
 test('backupDecision', () => {
   assert.equal(P.backupDecision({ hasRemote: true, reviewed: false }), 'hold');
   assert.equal(P.backupDecision({ hasRemote: true, reviewed: true }), 'push');

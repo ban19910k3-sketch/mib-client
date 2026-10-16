@@ -27,6 +27,10 @@
     admin_cannot_delete: 'Konta admina nie można usunąć w launcherze. Zrób to w Supabase (Authentication → Users).',
     schema_outdated: 'Baza serwera MiB jest nieaktualna. Administrator musi ponownie uruchomić plik schema.sql w Supabase.',
     nick_invalid: 'Nick może zawierać tylko litery bez polskich znaków, cyfry i _.',
+    idea_short: 'Pomysł musi mieć co najmniej 10 znaków.',
+    idea_long: 'Pomysł może mieć najwyżej 1000 znaków.',
+    idea_category: 'Wybierz, czego dotyczy pomysł.',
+    idea_limit: 'Na dziś to już 5 pomysłów. Następne wyślesz jutro.',
   };
   // Przy nieznanym błędzie pokazujemy też komunikat serwera, żeby dało się go przekazać
   const msg = (code, detail) => (ERR[code] ? tr(ERR[code]) : tr('Coś poszło nie tak. Spróbuj ponownie.') + ' (' + code + (detail && detail !== code ? ': ' + detail : '') + ')');
@@ -249,6 +253,51 @@
     box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err, grid);
   }
 
+  // ===== Strona Pomysły =====
+  const IDEA_CAT = { feature: 'Nowa funkcja', cosmetic: 'Kosmetyk', bug: 'Błąd do naprawy', other: 'Inne' };
+  const IDEA_ST = { new: 'Wysłany', seen: 'Przeczytany', planned: 'W planach', done: 'Zrobione', rejected: 'Odrzucony' };
+  async function renderIdeas() {
+    const box = $('ideas-box');
+    const head = [h('h2', {}, T('Pomysły')), h('p', { class: 'lead' }, T('Masz pomysł, co dodać albo poprawić w MiB Client? Napisz go tutaj, a trafi prosto do twórcy launchera.'))];
+    if (st.loading) return box.replaceChildren(...head, h('p', { class: 'mut' }, T('Wczytywanie…')));
+    if (!st.loggedIn) {
+      box.replaceChildren(...head, h('div', { class: 'empty-state' },
+        h('p', {}, st.offline ? T('Brak połączenia z serwerem MiB. Pomysł wyślesz, gdy połączenie wróci.') : T('Pomysły wysyła się z profilu MiB, dzięki temu nie ma spamu. Załóż profil, żeby napisać swój.')),
+        st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))));
+      return;
+    }
+    const cat = h('select', { id: 'id-cat' }, ...Object.entries(IDEA_CAT).map(([k, v]) => h('option', { value: k }, T(v))));
+    const body = h('textarea', { id: 'id-body', maxlength: 1000, placeholder: T('Opisz swój pomysł…') });
+    const count = h('small', { class: 'mut' }, '0 / 1000');
+    body.addEventListener('input', () => { count.textContent = body.value.trim().length + ' / 1000'; });
+    const err = errBox(), send = h('button', { class: 'b', id: 'id-send', type: 'submit' }, T('Wyślij pomysł'));
+    const list = h('div', { id: 'id-list' }, h('p', { class: 'mut' }, T('Wczytywanie…')));
+    async function loadMine() {
+      const l = await mib.call('prof:myIdeas');
+      if (!Array.isArray(l)) return list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
+      list.replaceChildren(...(l.length ? l.map(i => h('div', { class: 'card idea' },
+        h('div', { class: 'ihead' }, h('em', { class: 'tag' }, T(IDEA_CAT[i.category] || i.category)), h('span', { class: 'mut' }, fmtDate(i.created_at)),
+          h('em', { class: 'tag st-' + i.status }, T(IDEA_ST[i.status] || i.status))),
+        h('p', {}, i.body))) : [h('p', { class: 'empty' }, T('Nie masz jeszcze wysłanych pomysłów.'))]));
+    }
+    const form = h('form', { class: 'pform', on: { submit: async e => {
+      e.preventDefault();
+      const bad = MibProfile.validateIdea({ category: cat.value, body: body.value });
+      if (bad) { err.textContent = msg(bad); body.focus(); return; }
+      send.disabled = true; err.textContent = '';
+      const r = await mib.call('prof:submitIdea', { category: cat.value, body: body.value });
+      send.disabled = false;
+      if (r.error) { err.textContent = msg(r.error, r.detail); return; }
+      body.value = ''; count.textContent = '0 / 1000';
+      toast(T('Dzięki! Pomysł wysłany.'));
+      loadMine();
+    } } },
+    field('Czego dotyczy', cat), field('Pomysł', body, 'Od 10 do 1000 znaków. Najwyżej 5 pomysłów dziennie.'), err,
+    h('div', { class: 'row', style: 'align-items:center;justify-content:space-between' }, send, count));
+    box.replaceChildren(...head, form, h('div', { class: 'sec' }, h('h3', {}, T('Twoje pomysły')), list));
+    loadMine();
+  }
+
   // ===== Kopia modów na stronie Moje mody =====
   async function modsShown(gv) {
     const box = $('mbk');
@@ -287,14 +336,17 @@
     // Panel admina tylko dla konta admina (i tak pilnuje tego baza)
     document.querySelector('.nav[data-p="admin"]').hidden = !st.admin;
     if (!st.admin && $('p-admin').classList.contains('on')) go('home');
+    if (st.admin && window.mibAdminBadge) mibAdminBadge();
     sidebar();
     if ($('p-prof').classList.contains('on')) render();
     if ($('p-cos').classList.contains('on')) renderCos();
+    if ($('p-ideas').classList.contains('on')) renderIdeas();
     if (st.loggedIn && !was) { mibSync.pull(); if (window.mibWave) mibWave(); }
   }
   async function refresh() { apply(await mib.call('prof:state')); }
   document.querySelector('.nav[data-p="prof"]').addEventListener('click', () => { render(); refresh(); });
   document.querySelector('.nav[data-p="cos"]').addEventListener('click', renderCos);
+  document.querySelector('.nav[data-p="ideas"]').addEventListener('click', renderIdeas);
   // Efekt odblokowania nowego kosmetyku
   window.mibUnlock = item => {
     if (document.documentElement.classList.contains('noanim')) return toast(T('Nowy przedmiot') + ': ' + item.name);

@@ -281,6 +281,42 @@ drop policy if exists announcements_read on public.announcements;
 create policy announcements_read on public.announcements for select to anon, authenticated
   using (visible_until is null or visible_until > now());
 
+-- ===== Pomysły graczy =====
+-- Po usunięciu konta pomysł zostaje, ale bez autora (user_id = null)
+create table if not exists public.ideas (
+  id bigint generated always as identity primary key,
+  user_id uuid references auth.users (id) on delete set null,
+  category text not null check (category in ('feature', 'cosmetic', 'bug', 'other')),
+  body text not null check (length(body) between 10 and 1000),
+  status text not null default 'new' check (status in ('new', 'seen', 'planned', 'done', 'rejected')),
+  created_at timestamptz not null default now()
+);
+create index if not exists ideas_user_created on public.ideas (user_id, created_at);
+alter table public.ideas enable row level security;
+revoke all on public.ideas from public, anon, authenticated;
+grant select on public.ideas to authenticated;
+drop policy if exists ideas_read_own on public.ideas;
+create policy ideas_read_own on public.ideas for select to authenticated using (user_id = (select auth.uid()));
+
+-- Wysłać pomysł może tylko gracz z profilem, najwyżej 5 na dobę
+create or replace function public.submit_idea(p_category text, p_body text) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v bigint;
+begin
+  if v_uid is null then raise exception 'not_logged_in'; end if;
+  -- blokada wiersza profilu: równoległe wysyłki tego samego gracza nie ominą limitu
+  perform 1 from public.profiles where id = v_uid for update;
+  if not found then raise exception 'no_profile'; end if;
+  if p_category is null or p_category not in ('feature', 'cosmetic', 'bug', 'other') then raise exception 'idea_category'; end if;
+  if length(trim(coalesce(p_body, ''))) < 10 then raise exception 'idea_short'; end if;
+  if length(trim(p_body)) > 1000 then raise exception 'idea_long'; end if;
+  if (select count(*) from public.ideas where user_id = v_uid and created_at > now() - interval '1 day') >= 5 then raise exception 'idea_limit'; end if;
+  insert into public.ideas (user_id, category, body) values (v_uid, p_category, trim(p_body)) returning id into v;
+  return v;
+end $$;
+
 -- ===== Panel admina =====
 -- Admin jest zapisany jako konto (nie numer MIB): przy pierwszym uruchomieniu tego pliku zostaje nim profil MIB-000002.
 -- Późniejsze uruchomienia niczego tu nie zmieniają, nawet gdy numeracja zostanie wyzerowana.
@@ -474,6 +510,41 @@ begin
   delete from public.announcements where id = p_id;
 end $$;
 
+-- nowe pomysły na górze; nick i num są puste, gdy autor usunął konto
+create or replace function public.admin_list_ideas()
+returns table (id bigint, nick text, num bigint, category text, body text, status text, created_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return query
+    select i.id, p.nick, p.num, i.category, i.body, i.status, i.created_at
+    from public.ideas i left join public.profiles p on p.id = i.user_id
+    order by i.status = 'new' desc, i.created_at desc limit 300;
+end $$;
+
+create or replace function public.admin_count_new_ideas() returns integer
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return (select count(*) from public.ideas where status = 'new');
+end $$;
+
+create or replace function public.admin_set_idea_status(p_id bigint, p_status text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  if p_status is null or p_status not in ('new', 'seen', 'planned', 'done', 'rejected') then raise exception 'idea_status_invalid'; end if;
+  update public.ideas set status = p_status where id = p_id;
+  if not found then raise exception 'idea_missing'; end if;
+end $$;
+
+create or replace function public.admin_delete_idea(p_id bigint) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  delete from public.ideas where id = p_id;
+end $$;
+
 -- ===== Uprawnienia do funkcji =====
 revoke all on function public.nick_available(text) from public, anon, authenticated;
 revoke all on function public.redeem_code(text) from public, anon, authenticated;
@@ -482,6 +553,7 @@ revoke all on function public.reset_password_with_code(text, text, text) from pu
 revoke all on function public.add_play_session(text, integer) from public, anon, authenticated;
 revoke all on function public.delete_my_profile() from public, anon, authenticated;
 revoke all on function public.create_my_profile(text) from public, anon, authenticated;
+revoke all on function public.submit_idea(text, text) from public, anon, authenticated;
 revoke all on function private.make_profile(uuid, text) from public, anon, authenticated;
 revoke all on function private.norm_code(text) from public, anon, authenticated;
 grant execute on function public.nick_available(text) to anon, authenticated;
@@ -491,6 +563,7 @@ grant execute on function public.set_recovery_code(text) to authenticated;
 grant execute on function public.add_play_session(text, integer) to authenticated;
 grant execute on function public.delete_my_profile() to authenticated;
 grant execute on function public.create_my_profile(text) to authenticated;
+grant execute on function public.submit_idea(text, text) to authenticated;
 
 -- panel admina: wywołać może każdy zalogowany, ale każda funkcja sama sprawdza, czy to admin
 revoke all on function private.need_admin() from public, anon, authenticated;

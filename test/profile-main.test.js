@@ -395,6 +395,35 @@ test('owned cosmetics use the admin texture as the image', async () => {
   assert.equal((await p.cosmetics())[0].imageUrl, 'data:image/png;base64,AA');
 });
 
+// ===== Pomysły graczy =====
+test('submitIdea checks the idea before sending and trims it', async () => {
+  const supa = fakeSupa({ rpc: async n => (n === 'submit_idea' ? 5 : null) });
+  const { p } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.equal((await p.submitIdea({ category: 'feature', body: 'za mało' })).error, 'idea_short');
+  assert.ok(!supa.calls.some(c => c[1] === 'submit_idea'), 'zły pomysł nie trafia na serwer');
+  assert.deepEqual(await p.submitIdea({ category: 'cosmetic', body: '  Peleryna z ogniem dla zwycięzców  ' }), { ok: true, id: 5 });
+  const call = supa.calls.find(c => c[1] === 'submit_idea');
+  assert.deepEqual(call[2], { p_category: 'cosmetic', p_body: 'Peleryna z ogniem dla zwycięzców' });
+  assert.equal(call[3], 'AT1', 'z tokenem gracza');
+});
+
+test('ideas need a profile', async () => {
+  const { p, supa } = mk();
+  assert.equal((await p.submitIdea({ category: 'other', body: 'Jakiś dłuższy pomysł' })).error, 'not_logged_in');
+  assert.equal((await p.myIdeas()).error, 'not_logged_in');
+  assert.ok(!supa.calls.some(c => c[1] === 'submit_idea' || c[1] === 'ideas'));
+});
+
+test('myIdeas lists the player own ideas, newest first', async () => {
+  const rows = [{ id: 2, category: 'bug', body: 'Błąd przy starcie gry', status: 'new', created_at: '2026-10-16' }];
+  const supa = fakeSupa({ select: async t => (t === 'profiles' ? [profileRow] : t === 'ideas' ? rows : []) });
+  const { p } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.myIdeas(), rows);
+  assert.match(supa.calls.find(c => c[1] === 'ideas')[2], /order=created_at\.desc/);
+});
+
 test('allCosmetics lite skips textures', async () => {
   const { p, supa } = mk();
   await p.allCosmetics({ lite: true });

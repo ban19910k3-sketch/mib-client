@@ -12,7 +12,7 @@ Zrób kroki 1–3 **przed** opublikowaniem wersji z profilem (0.8.x) na GitHubie
 3. Otwórz plik [`schema.sql`](schema.sql), skopiuj **całą** zawartość i wklej w okno zapytania.
 4. Kliknij **Run**. Na dole powinno pojawić się „Success. No rows returned”.
 
-Ten krok **powtarzaj przy każdej aktualizacji launchera, która zmienia ten plik** (np. 0.8.2 dodała dokańczanie profilu). Nie usuwa danych graczy.
+Ten krok **powtarzaj przy każdej aktualizacji launchera, która zmienia ten plik** (np. 0.8.2 dodała dokańczanie profilu, 0.10.0 pomysły graczy). Nie usuwa danych graczy.
 
 ## 2. Wyłącz potwierdzanie e-maila
 
@@ -47,7 +47,8 @@ Panel admina widzi w launcherze tylko konto **MIB-000002**. Uprawnienia sprawdza
 select p.nick, p.num from private.admins a join public.profiles p on p.id = a.user_id;
 ```
 
-W panelu: ogłoszenia, kosmetyki (z teksturą peleryny PNG 64×32), kody prezentowe, wyszukiwanie graczy (nadawanie i zabieranie przedmiotów, usuwanie kont) i statystyki.
+W panelu: ogłoszenia, pomysły graczy, kosmetyki (z teksturą peleryny PNG 64×32), kody prezentowe, wyszukiwanie graczy (nadawanie i zabieranie przedmiotów, usuwanie kont) i statystyki.
+- **Pomysły** (od 0.10.0): gracze z profilem MiB wysyłają je z zakładki **Pomysły** (najwyżej 5 na dobę). Liczba nowych pomysłów świeci się przy „Panel admina”. Ustaw status (Przeczytany, W planach, Zrobione, Odrzucony), a gracz zobaczy go przy swoim pomyśle. Po usunięciu konta pomysł zostaje, ale bez nicku.
 - Konta admina nie da się usunąć z launchera (ani własnym „Usuń profil”, ani z panelu) — tylko ręcznie w **Authentication → Users**, żeby nie stracić panelu przez przypadek.
 - Po uruchomieniu `schema.sql` sprawdź zapytaniem wyżej, czy adminem jest Twoje konto. Jeśli pod `MIB-000002` jest ktoś inny, napisz do Claude, zanim wydasz launcher.
 
