@@ -59,7 +59,7 @@ Każda wersja gry potrzebuje osobnej kopii moda. Wspólna część (lista moduł
 
 ## Menu (makieta A)
 
-Wzór: `menu-A.png` z rozmowy. Ta sama kompozycja w grze:
+Wzór: [`2026-10-16-mib-mod-menu-A.png`](2026-10-16-mib-mod-menu-A.png), wybrany przez właściciela. Ta sama kompozycja w grze:
 
 - **Panel na środku ekranu**, gra za nim przyciemniona.
 - **Lewa kolumna:**
@@ -100,6 +100,17 @@ Wzór: `menu-A.png` z rozmowy. Ta sama kompozycja w grze:
 - Zmiana w grze zapisuje się od razu. Uszkodzony plik nie psuje gry: mod startuje z ustawieniami domyślnymi, a zepsuty plik odkłada obok.
 - Opcja, której jakaś wersja nie ma, jest pomijana na tej wersji, ale nie jest kasowana z pliku.
 
+## Wydajność i zgodność z innymi modami (decyzja Claude'a)
+
+- **1.21+:**
+  - mod działa razem z Sodium i Iris;
+  - launcher sam dokłada Sodium z Modrinth przy instalacji moda MiB, bo prawie każdy gracz PvP go używa, a Dawn też daje „więcej FPS od razu”. Wyłącza się to tym samym przełącznikiem „Mod MiB w grze”.
+- **1.8.9 i 1.12.2:**
+  - mod działa z OptiFine i bez niego;
+  - launcher nie dokłada OptiFine, bo licencja OptiFine zabrania jego rozpowszechniania. Gracz wgrywa go sam.
+- **Zoom:** gdy jest OptiFine, Zoom MiB przejmuje klawisz C, a zoom OptiFine nie dubluje przybliżenia.
+- **Moduły rysujące świat** (Brightness, Block overlay, Custom fog, Motion blur, Item physic, Hitbox, Zoom) są sprawdzane z Sodium/Iris na 1.21+ i z OptiFine na 1.8.9.
+
 ## Ochrona przed banem
 
 - Mod ma wbudowaną listę serwerów i modułów, których te serwery zabraniają. Przykład: wolne rozglądanie się (Perspective, Snaplook) na serwerach, które go zakazują.
@@ -120,7 +131,10 @@ Wzór: `menu-A.png` z rozmowy. Ta sama kompozycja w grze:
   - źródła moda leżą w tym samym repozytorium (katalog `mod/`);
   - mody budują się na GitHubie w tym samym workflow co launcher, przed instalatorem;
   - gotowe pliki trafiają do instalatora.
-- **Etapy:** każdy etap modułów to nowa wersja launchera, którą właściciel publikuje sam („Publish release”).
+- **Etapy:**
+  - każdy etap modułów to nowa wersja launchera, którą właściciel publikuje sam („Publish release”);
+  - w etapie 1 każda wersja gry wychodzi osobno (najpierw 1.21.11, potem 1.8.9, potem 1.12.2), żeby właściciel szybciej dostał coś do sprawdzenia (decyzja Claude'a);
+  - na wersjach, na których moda jeszcze nie ma, działa stara nakładka.
 - **Testy (Minecrafta nie da się uruchomić tam, gdzie pracuje Claude):**
   - logika wspólna (ustawienia, układ HUD, wyszukiwarka, ochrona serwerowa) ma testy uruchamiane przy każdym budowaniu;
   - tam, gdzie loader na to pozwala (Fabric 1.21.11), automatyczny test na GitHubie uruchamia grę, otwiera menu i edytor HUD i robi zrzuty ekranu. Claude ogląda je przed oddaniem etapu;
@@ -128,7 +142,7 @@ Wzór: `menu-A.png` z rozmowy. Ta sama kompozycja w grze:
 
 ## Moduły
 
-Kolumna „Co robi” to interpretacja Claude'a, bo strona Dawn Client nie była dostępna. Opisy oznaczone (?) są najbardziej niepewne. Właściciel może poprawić każdy opis w dowolnym momencie. Kolumna „Wersje”: „wszystkie” to 1.8.9, 1.12.2 i 1.21+. Ograniczenia wynikają z tego, czego dana wersja gry nie ma.
+Kolumna „Co robi” to interpretacja Claude'a, bo strona Dawn Client nie była dostępna. Opisy oznaczone (?) są najbardziej niepewne. Wszystkie są w etapie 4, więc do tego czasu właściciel może je poprawić. Przed rozpoczęciem etapu 4 Claude jeszcze raz pyta o moduły z (?). Kolumna „Wersje”: „wszystkie” to 1.8.9, 1.12.2 i 1.21+. Ograniczenia wynikają z tego, czego dana wersja gry nie ma.
 
 Etapy:
 - **Etap 1** to fundament (menu, edytor HUD, zapis, integracja z launcherem) i 16 prostych modułów.
