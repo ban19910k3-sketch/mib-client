@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "hosts": ["hypixel.net"],
+      "block": ["perspective", "snaplook"],
+      "why": "Hypixel zakazuje wolnego rozglądania się (freelook/perspective); Lunar Client też je tam wyłącza. Zoom, jasność, toggle sprint i własny celownik są dozwolone (https://www.lunarclient.com/news/is-lunar-client-an-approved-mod-on-hypixel-network)."
+    }
+  ]
+}
