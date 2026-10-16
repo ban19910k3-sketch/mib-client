@@ -270,9 +270,10 @@
     const r = await call('admin_stats');
     if (failed(r)) return box.append(h('p', { class: 'err' }, err(r)));
     const row = (l, v) => h('div', { class: 'sr' }, h('span', {}, l), h('b', {}, String(v)));
-    box.append(h('div', { class: 'sec' }, h('h3', {}, 'Gracze'),
-      row('Profile MiB', r.profiles), row('Nowe w ostatnich 7 dniach', r.new7), row('Grali w ostatnich 7 dniach', r.active7), row('Wolne miejsca Założyciela', r.foundersLeft)),
-    h('div', { class: 'sec' }, h('h3', {}, 'Kosmetyki'), row('Przedmioty w katalogu', r.cosmetics), row('Przedmioty u graczy', r.owned)),
+    const tile = (l, v) => h('div', { class: 'stat' }, h('b', {}, String(v)), h('span', {}, l));
+    box.append(h('div', { class: 'sec' }, h('h3', {}, 'Gracze'), h('div', { class: 'stats' },
+      tile('Profile MiB', r.profiles), tile('Nowe w ostatnich 7 dniach', r.new7), tile('Grali w ostatnich 7 dniach', r.active7), tile('Wolne miejsca Założyciela', r.foundersLeft))),
+    h('div', { class: 'sec' }, h('h3', {}, 'Kosmetyki'), h('div', { class: 'stats' }, tile('Przedmioty w katalogu', r.cosmetics), tile('Przedmioty u graczy', r.owned))),
     h('div', { class: 'sec' }, h('h3', {}, 'Najpopularniejsze wersje'),
       ...(r.versions.length ? r.versions.map(v => row(v.version, window.MibProfile.formatPlaytime(v.min) + ', uruchomień: ' + v.runs)) : [h('p', { class: 'empty' }, 'Brak danych o grze.')])));
   }

@@ -2,6 +2,9 @@
    ametystowy fiolet jako jedyny akcent. Poświata tylko na splashu i przycisku GRAJ. */
 @font-face{font-family:Pixelify;src:url(fonts/pixelify-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2C60-2C7F,U+A720-A7FF}
 @font-face{font-family:Pixelify;src:url(fonts/pixelify-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+/* Geist: tekst interfejsu, ten sam na każdym komputerze (font zmienny, grubości 100–900) */
+@font-face{font-family:Geist;font-weight:100 900;src:url(fonts/geist-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:Geist;font-weight:100 900;src:url(fonts/geist-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 
 :root{
   --void:#07020c;      /* tło */
@@ -18,11 +21,14 @@
   --px:polygon(2px 0,calc(100% - 2px) 0,calc(100% - 2px) 2px,100% 2px,100% calc(100% - 2px),calc(100% - 2px) calc(100% - 2px),calc(100% - 2px) 100%,2px 100%,2px calc(100% - 2px),0 calc(100% - 2px),0 2px,2px 2px);
   --px4:polygon(4px 0,calc(100% - 4px) 0,calc(100% - 4px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 4px) calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,4px calc(100% - 4px),0 calc(100% - 4px),0 4px,4px 4px);
 }
-*{box-sizing:border-box;margin:0;font-family:"Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;font-family:Geist,"Segoe UI",system-ui,sans-serif}
 [hidden]{display:none!important} /* atrybut hidden zawsze wygrywa z display ze stylów */
 html,body{height:100%;background:var(--void);color:var(--t);overflow:hidden;user-select:none}
-h2,h3,#nick,.brand b,#sname,#news h4,.go,.big{font-family:Pixelify,"Segoe UI",sans-serif;font-weight:400;font-variant-ligatures:none;font-feature-settings:"liga" 0,"clig" 0}
+h2,h3,#nick,.brand b,#sname,#news h4,.go,.big{font-family:Pixelify,Geist,sans-serif;font-weight:400;font-variant-ligatures:none;font-feature-settings:"liga" 0,"clig" 0}
 h2{font-size:26px;line-height:1.1}h3{font-size:18px}
+h2,h3{text-wrap:balance}p,.lead,.lg{text-wrap:pretty}
+/* liczby w kolumnach i statystykach nie skaczą przy zmianie wartości */
+.meta b,.tm em,.mrow .mut,.sr b,.idrow,.big,.ann small,.hc .mut,.stat b,.nav .cnt{font-variant-numeric:tabular-nums}
 :focus-visible{outline:2px solid var(--am-hi);outline-offset:2px}
 ::-webkit-scrollbar{width:10px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--edge2);border:3px solid var(--void)}
 ::-webkit-scrollbar-thumb:hover{background:var(--am-lo)}
@@ -45,6 +51,7 @@ h2{font-size:26px;line-height:1.1}h3{font-size:18px}
 /* ===== Szkielet ===== */
 #app{position:fixed;inset:0;display:flex;opacity:0;transition:opacity .8s;background:radial-gradient(ellipse at 70% -10%,#1d0733,transparent 60%),var(--void)}
 #app.on{opacity:1}
+#app::before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-conic-gradient(rgba(214,176,255,.022) 0 25%,transparent 0 50%) 0 0/4px 4px}
 #prog{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--am);width:0;z-index:6}
 
 #top{position:absolute;top:0;left:0;right:0;height:44px;display:flex;align-items:center;justify-content:flex-end;gap:2px;padding-right:6px;-webkit-app-region:drag;z-index:10}
@@ -60,9 +67,9 @@ h2{font-size:26px;line-height:1.1}h3{font-size:18px}
 .brand{display:flex;align-items:center;gap:10px;margin:2px 6px 22px}.brand svg{width:40px;flex:none}
 .brand b{display:block;font-size:19px;line-height:1}
 .brand small{display:block;color:var(--m);font-size:11px;margin-top:4px}
-.nav{position:relative;display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--m);cursor:pointer;font-size:14px}
-.nav svg{width:18px;height:18px;flex:none}
-.nav:hover{color:#fff;background:rgba(58,34,86,.35)}
+.nav{position:relative;display:flex;align-items:center;gap:11px;width:100%;padding:7px 12px;border:0;background:none;color:var(--m);cursor:pointer;font:inherit;font-size:14px;text-align:left;transition:color .15s,background-color .15s}
+.nav svg{width:24px;height:24px;flex:none;shape-rendering:crispEdges}
+.nav:hover{color:#fff;background:rgba(58,34,86,.35)}.nav:active{transform:translateY(1px)}
 .nav.act{color:#fff;background:var(--slab2);font-weight:600}
 .nav.act svg{color:var(--am-hi)}
 #side .sp{flex:1}
@@ -90,7 +97,7 @@ h2{font-size:26px;line-height:1.1}h3{font-size:18px}
 .go:hover{background:#9750f5}
 .go:active{box-shadow:inset 0 5px 0 #5b1fb0,inset 0 -2px 0 #b77dff;padding:14px 40px 8px}
 .go:disabled{cursor:default;background:#3a2256;box-shadow:inset 0 3px 0 #4b2f6b,inset 0 -5px 0 #241238;text-shadow:none;color:var(--am-hi)}
-.go small{display:block;margin-top:6px;font:12px "Segoe UI",sans-serif;letter-spacing:0;opacity:.8;text-shadow:none}
+.go small{display:block;margin-top:6px;font:12px Geist,"Segoe UI",sans-serif;letter-spacing:0;opacity:.8;text-shadow:none}
 .play select{font-size:14px;padding:0 12px;min-width:92px}
 #cancel{align-self:center}
 .meta{display:flex;gap:22px;font-size:12px;color:var(--m)}
@@ -116,7 +123,8 @@ input:focus,textarea:focus,select:focus{border-color:var(--am)}
 input::placeholder{color:#6f5f82}
 input[type=checkbox]{appearance:none;flex:none;width:16px;height:16px;padding:0;margin:0;cursor:pointer;vertical-align:-3px;clip-path:none}
 input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-shadow:inset 0 0 0 2px var(--slab2)}
-.b{background:var(--am-lo);color:#fff;border:0;clip-path:var(--px);padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:inset 0 2px 0 #8f52ec,inset 0 -3px 0 #4c1694;white-space:nowrap}
+.b{background:var(--am-lo);color:#fff;border:0;clip-path:var(--px);padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:inset 0 2px 0 #8f52ec,inset 0 -3px 0 #4c1694;white-space:nowrap;transition:background-color .15s,box-shadow .15s,color .15s}
+.b:not(:disabled):active{transform:translateY(1px)}
 .b:hover{background:#7c3aed}.b:disabled{opacity:.5;cursor:default}
 .b.ghost{background:var(--slab2);box-shadow:inset 0 0 0 2px var(--edge2);color:var(--t)}.b.ghost:hover{box-shadow:inset 0 0 0 2px var(--am-lo)}
 .b.danger{background:#3a0f1f;box-shadow:inset 0 0 0 2px #5c1a30;color:#ffb3c0}.b.danger:hover{background:#5c1a30}
@@ -128,11 +136,12 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 .box>*{flex-shrink:0}
 .box>label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--m)}
 .box>label span{display:flex;align-items:center;gap:8px;cursor:pointer}
+.box>label.ck{flex-direction:row;gap:10px;color:var(--t)}
 #p-hub .box,#p-mods .box{height:100%;overflow:hidden}
 #hres,#mlist{flex:1 1 auto;min-height:0;overflow:auto;padding-right:4px}
 .card{background:var(--slab);border:2px solid var(--edge);clip-path:var(--px);padding:10px 14px;margin-bottom:6px}.card b{display:block}
 .hc{display:flex;gap:12px;align-items:center}
-.card.hc:hover{border-color:var(--edge2);background:var(--slab2)}
+.card.hc{transition:background-color .15s,border-color .15s}.card.hc:hover{border-color:var(--am-lo);background:var(--slab2)}
 .hc img{background:var(--slab2);flex:none}
 .hc .mut{display:block;margin-top:3px;line-height:1.4}
 .tag{font-style:normal;font-weight:400;font-size:10px;color:var(--am-hi);background:#2a1545;padding:1px 6px;margin-left:8px;vertical-align:2px}
@@ -157,7 +166,7 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 .ov label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--m)}
 #mdl select{padding:9px}
 .lg{font-size:12.5px;color:#c9bad9;line-height:1.6;max-height:50vh;overflow:auto;user-select:text}.lg p{margin-bottom:8px}.lg b{color:var(--t)}
-#upd pre{background:var(--void);border:2px solid var(--edge);padding:10px;max-height:160px;overflow:auto;font:12px "Segoe UI";white-space:pre-wrap;color:#c9bad9;user-select:text}
+#upd pre{background:var(--void);border:2px solid var(--edge);padding:10px;max-height:160px;overflow:auto;font:12px Geist,"Segoe UI";white-space:pre-wrap;color:#c9bad9;user-select:text}
 #upd .pb{height:8px;background:var(--edge);display:none}#upd .pb i{display:block;height:100%;width:0;background:var(--am)}
 #upd label{flex-direction:row!important;align-items:center;gap:8px}
 
@@ -170,7 +179,8 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 .ai.add{border-top:2px solid var(--edge);margin-top:4px;color:var(--am-hi)}
 
 #toasts{position:fixed;right:16px;bottom:16px;z-index:50;display:flex;flex-direction:column;gap:8px}
-.toast{background:var(--slab2);border-left:4px solid var(--am);padding:10px 14px;max-width:340px;font-size:12.5px;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.toast{background:var(--slab2);border:2px solid var(--edge2);border-left:4px solid var(--am);clip-path:var(--px);padding:10px 14px;max-width:340px;font-size:12.5px;line-height:1.4;animation:toastin .2s steps(4) both}
+@keyframes toastin{from{opacity:0;transform:translateX(18px)}}
 .toast.err{border-left-color:var(--bad)}
 
 #con{position:fixed;left:220px;right:0;bottom:0;height:200px;background:#040008;border-top:2px solid var(--edge2);color:#c4a8e0;font:11px Consolas,monospace;overflow:auto;padding:8px;display:none;white-space:pre-wrap;z-index:5;user-select:text}
@@ -197,14 +207,18 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 .cos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding-top:6px}
 .cosi{display:flex;flex-direction:column;gap:4px;align-items:flex-start;background:var(--slab);border:2px solid var(--edge);clip-path:var(--px);padding:12px}
 .cosi i{display:grid;place-items:center;width:100%;height:84px;background:var(--slab2);font:normal 40px/1 sans-serif;color:var(--am-hi);margin-bottom:4px}
+.cosi .row{flex-wrap:wrap;gap:6px}.cosi .b{padding:6px 12px}
 .cosi img{width:100%;height:84px;object-fit:contain;image-rendering:pixelated;background:var(--slab2);margin-bottom:4px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;padding-top:4px}
+.stat{display:flex;flex-direction:column;gap:5px;background:var(--slab);border:2px solid var(--edge);clip-path:var(--px);padding:12px 14px 13px}
+.stat b{font-size:22px;font-weight:600;line-height:1.1;letter-spacing:-.01em;color:var(--t)}.stat span{font-size:12px;color:var(--m)}
 .empty-state{display:flex;flex-direction:column;align-items:flex-start;gap:14px;font-size:13px;color:#c9bad9;line-height:1.55;max-width:52ch;padding-top:8px}
 #mbk p{font-size:13px;margin-bottom:10px}
 .ov label.ck{flex-direction:row;align-items:center;color:var(--t)}
 
 /* ===== Animacje ===== */
 #side{position:relative}
-#navind{position:absolute;left:10px;top:0;width:4px;height:22px;background:var(--am);box-shadow:0 0 10px var(--am);transition:transform .18s cubic-bezier(.3,.7,.2,1);pointer-events:none}
+#navind{position:absolute;left:10px;top:0;width:4px;height:24px;background:var(--am);box-shadow:0 0 10px var(--am);transition:transform .18s cubic-bezier(.3,.7,.2,1);pointer-events:none}
 .page.on{animation:pagein .16s ease-out}
 @keyframes pagein{from{opacity:0;transform:translateY(6px)}}
 .ov.on .m,#upd.on .m{animation:popin .24s steps(4) both}
@@ -216,7 +230,7 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 #unlock .card2{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;animation:popin .3s steps(5) .1s both}
 #unlock i{display:grid;place-items:center;width:110px;height:110px;background:var(--slab2);clip-path:var(--px4);font:normal 56px/1 sans-serif;color:var(--am-hi);box-shadow:inset 0 0 0 3px var(--am-lo)}
 #unlock i img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
-#unlock small{color:var(--am-hi);font-size:12px}#unlock b{font:400 24px Pixelify,"Segoe UI",sans-serif;font-variant-ligatures:none}
+#unlock small{color:var(--am-hi);font-size:12px}#unlock b{font:400 24px Pixelify,Geist,sans-serif;font-variant-ligatures:none}
 #unlock.bye{animation:fadeout .25s both}
 @keyframes ring{from{transform:scale(0);opacity:1}to{transform:scale(1.6);opacity:0}}
 @keyframes fadein{from{opacity:0}}@keyframes fadeout{to{opacity:0}}

@@ -188,18 +188,18 @@
       h('button', { class: 'b', on: { click: refresh } }, T('Spróbuj ponownie')))];
   }
   function viewIn() {
-    const stat = (l, v) => h('div', { class: 'sr' }, h('span', {}, T(l)), h('b', {}, v));
+    const stat = (l, v) => h('div', { class: 'stat' }, h('b', {}, v), h('span', {}, T(l)));
     const fav = MibProfile.favouriteVersion(st.versionStats);
     return [
       h('div', { class: 'phead' },
         h('h2', {}, st.nick), st.founder ? h('em', { class: 'tag founder', title: T('Jeden z pierwszych 1000 profili MiB') }, T('Założyciel')) : null),
       h('div', { class: 'idrow' }, h('span', { class: 'mono', id: 'pf-id' }, st.mibId),
         h('button', { class: 'b ghost', on: { click: async () => { try { await navigator.clipboard.writeText(st.mibId); toast(T('Skopiowano')); } catch {} } } }, T('Kopiuj ID'))),
-      h('div', { class: 'sec' }, h('h3', {}, T('Statystyki')),
+      h('div', { class: 'sec' }, h('h3', {}, T('Statystyki')), h('div', { class: 'stats' },
         stat('Czas gry przez MiB', MibProfile.formatPlaytime(st.playtimeMin || 0)),
         stat('Uruchomienia gry', String(st.launches || 0)),
         stat('Ulubiona wersja', fav || '—'),
-        stat('Profil od', fmtDate(st.createdAt))),
+        stat('Profil od', fmtDate(st.createdAt)))),
       h('div', { class: 'sec' }, h('h3', {}, T('Kosmetyki')),
         h('div', { class: 'row', style: 'align-items:center;justify-content:space-between' },
           h('span', { class: 'mut', id: 'pf-cos' }, '…'), h('button', { class: 'b ghost', on: { click: () => go('cos') } }, T('Przejdź do kosmetyków')))),
@@ -289,7 +289,7 @@
       send.disabled = false;
       if (r.error) { err.textContent = msg(r.error, r.detail); return; }
       body.value = ''; count.textContent = '0 / 1000';
-      toast(T('Dzięki! Pomysł wysłany.'));
+      toast(T('Dzięki, pomysł wysłany.'));
       loadMine();
     } } },
     field('Czego dotyczy', cat), field('Pomysł', body, 'Od 10 do 1000 znaków. Najwyżej 5 pomysłów dziennie.'), err,
