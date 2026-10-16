@@ -23,9 +23,10 @@ public class MibClientGameTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		TestInput input = context.getInput();
-		input.resizeWindow(1280, 720);
+		// świat wczytuje się w małym oknie (renderowanie programowe na CI jest wolne), zrzuty robimy w 1280×720
 		try (TestSingleplayerContext sp = context.worldBuilder().create()) {
 			sp.getClientWorld().waitForChunksRender();
+			input.resizeWindow(1280, 720);
 			context.waitTicks(20);
 			context.takeScreenshot("00-game");
 
