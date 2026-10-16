@@ -3,7 +3,7 @@
 log="$1"
 cut -c1-300 "$log" | grep -vE "^ALSA|^\s+at |Picked up JAVA_TOOL_OPTIONS|World loading finished" > short.txt
 {
-  grep -E "error:|warning: \[|What went wrong|^> |Caused by|Exception|AssertionError|Mixin|FAILED|Could not|cannot find|\[ERROR\]|/ERROR\]|/WARN\]" short.txt | head -120
+  grep -E "MIB-TEST|error:|warning: \[|What went wrong|^> |Caused by|Exception|AssertionError|Mixin|FAILED|Could not|cannot find|\[ERROR\]|/ERROR\]|/WARN\]" short.txt | head -120
   echo "----- ostatnie stany wczytywania świata -----"
   grep "World loading finished" "$log" | cut -c1-300 | tail -3
   echo "----- koniec logu -----"

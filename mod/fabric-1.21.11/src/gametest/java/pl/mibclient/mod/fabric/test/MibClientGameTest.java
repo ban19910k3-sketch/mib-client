@@ -23,8 +23,14 @@ public class MibClientGameTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		TestInput input = context.getInput();
+		long t0 = System.nanoTime();
+		context.waitTicks(100);
+		System.out.println("[MIB-TEST] 100 ticków na ekranie tytułowym: " + (System.nanoTime() - t0) / 1_000_000 + " ms, fps "
+				+ context.computeOnClient(c -> c.getCurrentFps()) + ", rdzenie " + Runtime.getRuntime().availableProcessors());
+		t0 = System.nanoTime();
 		// świat wczytuje się w małym oknie (renderowanie programowe na CI jest wolne), zrzuty robimy w 1280×720
 		try (TestSingleplayerContext sp = context.worldBuilder().create()) {
+			System.out.println("[MIB-TEST] świat wczytany po " + (System.nanoTime() - t0) / 1_000_000 + " ms");
 			sp.getClientWorld().waitForChunksRender();
 			input.resizeWindow(1280, 720);
 			context.waitTicks(20);

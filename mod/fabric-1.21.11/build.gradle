@@ -32,6 +32,11 @@ fabricApi {
 	}
 }
 
+// Na CI (renderowanie programowe, 4 rdzenie) synchronizacja pakietów i łączenie stosów wywołań spowalniają wczytywanie świata
+tasks.matching { it.name == 'runClientGameTest' }.configureEach {
+	jvmArgs '-Dfabric.client.gametest.disableNetworkSynchronizer=true', '-Dfabric.client.gametest.disableJoinAsyncStackTraces=true'
+}
+
 processResources {
 	def version = project.version
 	inputs.property 'version', version
