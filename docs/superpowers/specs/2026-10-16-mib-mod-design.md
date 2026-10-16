@@ -1,6 +1,6 @@
 # Mod MiB: menu pod prawym Shiftem i 87 modułów (projekt)
 
-Data: 2026-10-16. Status: do zatwierdzenia przez właściciela.
+Data: 2026-10-16. Status: zatwierdzony przez właściciela 2026-10-16.
 
 ## Po co
 
