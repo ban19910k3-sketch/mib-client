@@ -1,0 +1,13 @@
+{
+	"schemaVersion": 1,
+	"id": "mibclient-gametest",
+	"version": "1.0.0",
+	"name": "MiB Client gametest",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": ["pl.mibclient.mod.fabric.test.MibClientGameTest"]
+	},
+	"depends": {
+		"mibclient": "*"
+	}
+}

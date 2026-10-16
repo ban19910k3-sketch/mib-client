@@ -1,0 +1,56 @@
+// Kopia moda MiB dla Minecraft 1.21.11 (Fabric). Część wspólna (../common) kompiluje się razem z nią.
+plugins {
+	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+}
+
+base {
+	archivesName = 'mib-mod-fabric-1.21.11'
+}
+
+sourceSets {
+	main {
+		java.srcDir '../common/src/main/java'
+		resources.srcDir '../common/src/main/resources'
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+// Automatyczny test gry (src/gametest): uruchamia klienta, otwiera menu i robi zrzuty ekranu
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = 'mibclient-gametest'
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}
+
+processResources {
+	def version = project.version
+	inputs.property 'version', version
+	filesMatching('fabric.mod.json') {
+		expand 'version': version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+	it.options.encoding = 'UTF-8'
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+// Stała nazwa pliku: launcher kopiuje go do mods jako mib-client-mod.jar
+remapJar {
+	archiveFileName = 'mib-mod-fabric-1.21.11.jar'
+}
