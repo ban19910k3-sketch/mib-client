@@ -28,7 +28,7 @@ public final class ModuleCatalog {
 		List<Setting<?>> l = new ArrayList<Setting<?>>(Arrays.asList(own));
 		l.add(bool("background", "Tło", "Background", true));
 		l.add(bool("shadow", "Cień tekstu", "Text shadow", true));
-		l.add(new ColorSetting("color", "Kolor tekstu", "Text colour", Theme.TEXT));
+		l.add(new ColorSetting("color", "Kolor tekstu", "Text colour", 0xFFFFFFFF));
 		return l;
 	}
 

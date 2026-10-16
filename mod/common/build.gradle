@@ -17,5 +17,8 @@ tasks.withType(JavaCompile).configureEach {
 
 test {
 	useJUnitPlatform()
+	// obrazki podglądu: -Ppreview=<katalog>
+	systemProperty 'mib.preview', (project.findProperty('preview') ?: '')
+	systemProperty 'java.awt.headless', 'true'
 	testLogging { events 'failed'; exceptionFormat 'full' }
 }

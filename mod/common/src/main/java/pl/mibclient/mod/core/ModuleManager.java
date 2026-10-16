@@ -64,6 +64,12 @@ public final class ModuleManager {
 		if (isOn(id) != before) fire(id, isOn(id));
 	}
 
+	/** Po zmianie opcji modułu: zapis i powiadomienie (np. Toggle sprint stosuje nowe opcje od razu). */
+	public void touched(String id) {
+		config.save();
+		if (def(id) != null) fire(id, isOn(id));
+	}
+
 	public void setBlocked(Set<String> ids) {
 		List<String> was = new ArrayList<String>();
 		for (ModuleDef m : modules) if (isOn(m.id)) was.add(m.id);

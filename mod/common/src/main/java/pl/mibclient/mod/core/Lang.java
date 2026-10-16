@@ -25,6 +25,7 @@ public final class Lang {
 		put("menu.edit_hud", "Edytuj HUD", "Edit HUD");
 		put("menu.accounts", "Zmień konto", "Switch account");
 		put("menu.blocked", "Zablokowane na tym serwerze", "Blocked on this server");
+		put("menu.blocked_short", "Zablokowane", "Blocked");
 		put("menu.back", "Wstecz", "Back");
 		put("menu.place", "Ustaw na ekranie", "Place on screen");
 		put("menu.empty", "Nie znaleziono modułów", "No modules found");
