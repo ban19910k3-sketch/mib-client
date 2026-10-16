@@ -60,10 +60,10 @@ public final class ModuleCatalog {
 				bool("biome", "Pokaż biom", "Show biome", true),
 				new IntSetting("decimals", "Miejsca po przecinku", "Decimal places", 0, 0, 1, 1))),
 		new ModuleDef("server_address", "Server address", Category.HUD, "Adres serwera na HUD", "Server address on the HUD",
-			"cloud-server", false, at(Anchor.TOP_LEFT, 4, 144), hud(
+			"cloud-server", false, at(Anchor.TOP_LEFT, 4, 160), hud(
 				bool("port", "Pokaż port", "Show port", false))),
 		new ModuleDef("playtime", "Playtime", Category.HUD, "Czas tej sesji gry", "Time played this session",
-			"hourglass", false, at(Anchor.TOP_LEFT, 4, 160), hud()),
+			"hourglass", false, at(Anchor.TOP_LEFT, 4, 176), hud()),
 		new ModuleDef("direction", "Direction", Category.HUD, "Kompas N/E/S/W u góry ekranu", "N/E/S/W compass at the top of the screen",
 			"compass", false, at(Anchor.TOP, 0, 4), hud(
 				new ChoiceSetting("style", "Wygląd", "Style", "strip", new String[] {"strip", "letter"},
@@ -83,7 +83,7 @@ public final class ModuleCatalog {
 				new ChoiceSetting("layout", "Układ", "Layout", "vertical", new String[] {"vertical", "horizontal"},
 					new String[] {"Pionowo", "Poziomo"}, new String[] {"Vertical", "Horizontal"}))),
 		new ModuleDef("toggle_sprint", "Toggle sprint", Category.PVP, "Bieg i skradanie bez trzymania klawisza",
-			"Sprint and sneak without holding the key", "zap", false, at(Anchor.TOP_LEFT, 4, 176), hud(
+			"Sprint and sneak without holding the key", "zap", false, at(Anchor.TOP_LEFT, 4, 192), hud(
 				bool("sprint", "Przełączany bieg", "Toggle sprint", true),
 				bool("sneak", "Przełączane skradanie", "Toggle sneak", false),
 				bool("show", "Pokaż stan na ekranie", "Show status on screen", true))),

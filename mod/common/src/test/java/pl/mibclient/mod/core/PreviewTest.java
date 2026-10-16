@@ -74,4 +74,31 @@ class PreviewTest {
 		menu(out, "menu-en", 1920, 1080, v);
 		Lang.setGame("pl_pl");
 	}
+
+	@Test
+	void renderHud() throws Exception {
+		File out = out();
+		Lang.setGame("pl_pl");
+		ModuleManager mm = new ModuleManager(Config.load(new File(dir, "h.json")), ModuleCatalog.STAGE1);
+		for (ModuleDef d : mm.all()) if (d.hud && !mm.isOn(d.id)) mm.toggle(d.id);
+		FakeGameInfo g = new FakeGameInfo();
+		g.keys.add(GameInfo.Key.FORWARD);
+		g.keys.add(GameInfo.Key.ATTACK);
+		for (int i = 0; i < 11; i++) g.left.click(g.now - i * 50);
+		g.effects.add(new GameInfo.Effect("Siła", 1, 1800, false, "s"));
+		g.effects.add(new GameInfo.Effect("Szybkość", 0, 600, false, "p"));
+		g.gear.add(new GameInfo.Gear("h", 363, 20, false));
+		g.gear.add(new GameInfo.Gear("c", 528, 400, false));
+		g.gear.add(new GameInfo.Gear("s", 1561, 0, true));
+		g.sprintToggled = g.sprinting = true;
+		HudView hud = new HudView(mm);
+		PreviewCanvas c = new PreviewCanvas(1280, 720, 2);
+		c.gameBackground(640, 360);
+		hud.render(c, g, 640, 360, null, false);
+		c.save(new File(out, "hud-game.png"));
+		PreviewCanvas e = new PreviewCanvas(1280, 720, 2);
+		e.gameBackground(640, 360);
+		hud.render(e, g, 640, 360, new HudEditorModel(mm), true);
+		e.save(new File(out, "hud-editor.png"));
+	}
 }
