@@ -9,12 +9,13 @@ const profileMain = require('./profile-main');
 const { diagnoseCrash } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
 const { pngInfo, validCapeSize } = require('./lib/profile');
+const mibmod = require('./lib/mibmod');
 let win, auth = null, launching = false;
 const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
 const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(jf(f), 'utf8')); } catch { return d; } };
 const wr = (f, v) => fs.writeFileSync(jf(f), JSON.stringify(v, null, 2));
-const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true });
+const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true });
 const logBuf = []; let logCount = 0;
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
 // Profil MiB (Supabase). Klucz publiczny — bezpieczny w launcherze; uprawnienia pilnuje baza.
@@ -25,7 +26,7 @@ const prof = profileMain.createProfile({
   safeStorage, randomBytes: crypto.randomBytes,
   // Kopia modów: dostęp do plików instancji (funkcje niżej w pliku, wołane dopiero po starcie)
   mods: {
-    scan: gv => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), sha1: crypto.createHash('sha1').update(fs.readFileSync(path.join(modsDir(gv), f))).digest('hex') })); } catch { return []; } },
+    scan: gv => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f) && !mibmod.isMibFile(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), sha1: crypto.createHash('sha1').update(fs.readFileSync(path.join(modsDir(gv), f))).digest('hex') })); } catch { return []; } },
     root: () => rootDir(),
     async identify(hashes) {
       const r = await fetch('https://api.modrinth.com/v2/version_files', { method: 'POST', headers: { 'Content-Type': 'application/json', ...UA.headers }, body: JSON.stringify({ hashes, algorithm: 'sha1' }), signal: AbortSignal.timeout(15000) });
@@ -114,11 +115,13 @@ ipcMain.handle('accounts:list', () => { const a = accLoad(); return a.list.map(x
 ipcMain.handle('accounts:switch', async (_, id) => { try { return await switchAccount(id); } catch { return { error: 'Sesja wygasła — dodaj to konto ponownie.' }; } });
 ipcMain.handle('accounts:remove', (_, id) => { const a = accLoad(); a.list = a.list.filter(x => x.id !== id); if (a.active === id) { a.active = null; auth = null; } accSave(a); return true; });
 // Zmiana konta z menu w grze: Minecraft nie pozwala zmienić sesji w trakcie gry, więc gra jest zamykana i uruchamiana ponownie na nowym koncie
-ipcMain.handle('accounts:relaunch', async (_, id) => {
-  if (!launching || !gamePid || !lastVersion) return 'Gra nie jest uruchomiona.';
-  try { const r = await switchAccount(id); send('account:changed', r); pendingRelaunch = lastVersion; try { process.kill(gamePid); } catch {} return 'Zmieniam konto na ' + r.name + ' — gra uruchomi się ponownie…'; }
-  catch { return 'Sesja tego konta wygasła — dodaj je ponownie w launcherze.'; }
-});
+async function relaunchWithAccount(id) {
+  if (!launching || !gamePid || !lastVersion) throw new Error('Gra nie jest uruchomiona.');
+  let r; try { r = await switchAccount(id); } catch { throw new Error('Sesja tego konta wygasła — dodaj je ponownie w launcherze.'); }
+  send('account:changed', r); pendingRelaunch = lastVersion; try { process.kill(gamePid); } catch {}
+  return 'Zmieniam konto na ' + r.name + ' — gra uruchomi się ponownie…';
+}
+ipcMain.handle('accounts:relaunch', async (_, id) => { try { return await relaunchWithAccount(id); } catch (e) { return e.message; } });
 
 let worker = null, gamePid = null, lastVersion = null, pendingRelaunch = null, gameInfo = null;
 const notify = (t, b) => { try { if (Notification.isSupported()) new Notification({ title: t, body: b, icon: path.join(__dirname, 'icon.png') }).show(); } catch {} };
@@ -134,6 +137,12 @@ async function doLaunch(version) {
     const javaPath = s.java || await ensureJava(await javaMajor(version));
     const opts = { authorization: auth.mclc(), root, version: { number: version, type: 'release' }, javaPath, memory: { max: s.ram + 'M', min: Math.min(512, s.ram) + 'M' },
       window: { width: s.width, height: s.height }, customArgs: s.jvm ? s.jvm.split(/\s+/).filter(Boolean) : [] };
+    // Mod MiB (menu pod prawym Shiftem): przy błędzie gra startuje bez niego
+    let mibDir = null;
+    try {
+      const m = await mibmod.prepareMibMod({ gv: version, inst: instGet(version), settings: s, modsDir: modsDir(version), resDir: modResDir(), ensureDep, log: t => send('log', t) });
+      if (m.active) { if (!instGet(version).loader) instSet(version, { loader: m.loader }); opts.customArgs.push(...m.jvmArgs); mibDir = path.join(root, 'mib'); }
+    } catch (e) { send('log', 'Mod MiB pominięty: ' + e.message); }
     const loader = instGet(version).loader;
     if (loader === 'fabric') { send('log', 'Przygotowywanie Fabric…'); opts.version.custom = await ensureFabric(root, version); }
     if (loader === 'forge') { send('log', 'Przygotowywanie Forge…'); opts.forge = await ensureForge(root, version); }
@@ -143,7 +152,7 @@ async function doLaunch(version) {
       const fin = r => { if (!done) { done = true; res(r); } };
       w.on('message', m => {
         if (m.t === 'log') send('log', m.d); else if (m.t === 'progress') send('progress', m.d);
-        else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root, logFrom: logCount }; setPresence(gameInfo); startHud(m.pid); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
+        else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root, logFrom: logCount }; setPresence(gameInfo); startHud(m.pid, mibDir); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
           send('started'); notify('MiB Client', 'Pobieranie zakończone — gra się uruchamia.'); win.minimize(); fin('ok'); }
         else if (m.t === 'close') { launching = false; gamePid = null; prof.gameClosed(); stopHud(); send('closed', m.c); if (m.c !== 0 && gameInfo && !pendingRelaunch) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
           if (pendingRelaunch) { const v = pendingRelaunch; pendingRelaunch = null; send('relaunch'); setTimeout(() => doLaunch(v).then(r => { if (r !== 'ok') { send('log', r); notify('MiB Client', String(r).slice(0, 120)); send('closed', 1); } }), 600); } }
@@ -238,6 +247,15 @@ async function getFile(v, dest, done) {
       if (dv && !done.includes(path.basename(dv.files[0].filename))) await getFile(dv, dest, done); } catch {}
   }
 }
+// Zależność moda MiB (np. Fabric API): najnowsza wersja z Modrinth dla tej wersji gry i loadera
+async function ensureDep(slug, gv, loader) {
+  const vs = await mr('/project/' + encodeURIComponent(slug) + '/version?game_versions=' + enc([gv]) + '&loaders=' + enc([loader]));
+  if (!Array.isArray(vs) || !vs.length) throw new Error('brak wersji ' + slug + ' dla ' + gv);
+  const done = []; done.gv = gv; done.loader = loader;
+  await getFile(vs[0], modsDir(gv), done); modsChanged(gv);
+}
+// Plik moda MiB: w instalatorze w resources/mod, w trybie deweloperskim w mod-dist (kopia z mod/fabric-1.21.11/build/libs)
+const modResDir = () => app.isPackaged ? path.join(process.resourcesPath, 'mod') : path.join(__dirname, 'mod-dist');
 // Loader (Fabric/Forge) wybierany automatycznie przy instalacji pierwszego moda i zapamiętany dla wersji gry
 ipcMain.handle('hub:install', async (_, { slug, gv }) => {
   try {
@@ -254,12 +272,13 @@ ipcMain.handle('hub:install', async (_, { slug, gv }) => {
 });
 // ---- Zarządzanie zainstalowanymi modami ----
 const safe = f => f === path.basename(f);
-ipcMain.handle('mods:list', (_, gv) => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), size: fs.statSync(path.join(modsDir(gv), f)).size })); } catch { return []; } });
-ipcMain.handle('mods:toggle', (_, { gv, file }) => { if (!safe(file)) return false; const d = modsDir(gv); fs.renameSync(path.join(d, file), path.join(d, file.endsWith('.disabled') ? file.slice(0, -9) : file + '.disabled')); modsChanged(gv); return true; });
-ipcMain.handle('mods:delete', (_, { gv, file }) => { if (!safe(file)) return false; fs.unlinkSync(path.join(modsDir(gv), file)); modsChanged(gv); return true; });
+// Plik moda MiB należy do launchera: widoczny na liście, ale bez wyłączania, usuwania i aktualizacji z Modrinth
+ipcMain.handle('mods:list', (_, gv) => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), size: fs.statSync(path.join(modsDir(gv), f)).size, mib: mibmod.isMibFile(f) })); } catch { return []; } });
+ipcMain.handle('mods:toggle', (_, { gv, file }) => { if (!safe(file) || mibmod.isMibFile(file)) return false; const d = modsDir(gv); fs.renameSync(path.join(d, file), path.join(d, file.endsWith('.disabled') ? file.slice(0, -9) : file + '.disabled')); modsChanged(gv); return true; });
+ipcMain.handle('mods:delete', (_, { gv, file }) => { if (!safe(file) || mibmod.isMibFile(file)) return false; fs.unlinkSync(path.join(modsDir(gv), file)); modsChanged(gv); return true; });
 ipcMain.handle('mods:updates', async (_, gv) => {
   try {
-    const d = modsDir(gv), hs = {}; for (const f of fs.readdirSync(d).filter(x => x.endsWith('.jar'))) hs[crypto.createHash('sha1').update(fs.readFileSync(path.join(d, f))).digest('hex')] = f;
+    const d = modsDir(gv), hs = {}; for (const f of fs.readdirSync(d).filter(x => x.endsWith('.jar') && !mibmod.isMibFile(x))) hs[crypto.createHash('sha1').update(fs.readFileSync(path.join(d, f))).digest('hex')] = f;
     if (!Object.keys(hs).length) return [];
     const ld = instGet(gv).loader, r = await fetch('https://api.modrinth.com/v2/version_files/update', { method: 'POST', headers: { 'Content-Type': 'application/json', 'User-Agent': 'MiB-Client' }, body: JSON.stringify({ hashes: Object.keys(hs), algorithm: 'sha1', loaders: ld ? [ld] : ['fabric', 'forge'], game_versions: [gv] }) });
     const j = await r.json(), out = [];
@@ -268,7 +287,7 @@ ipcMain.handle('mods:updates', async (_, gv) => {
   } catch { return []; }
 });
 ipcMain.handle('mods:update', async (_, { gv, file, id }) => {
-  try { if (!safe(file)) return 'błąd'; const v = await mr('/version/' + id), done = []; done.gv = gv; done.loader = instGet(gv).loader;
+  try { if (!safe(file) || mibmod.isMibFile(file)) return 'błąd'; const v = await mr('/version/' + id), done = []; done.gv = gv; done.loader = instGet(gv).loader;
     await getFile(v, modsDir(gv), done); if (done[0] !== file) fs.unlinkSync(path.join(modsDir(gv), file)); modsChanged(gv); return 'ok'; } catch (e) { return e.message; }
 });
 ipcMain.handle('repair', (_, gv) => {
@@ -340,8 +359,14 @@ async function ensureForge(root, mc) {
   throw new Error('nie udało się pobrać instalatora Forge');
 }
 // ---- Nakładka HUD (Right Shift) ----
-let ov = null, fgProc = null, menuOpen = false, fg = true, hooked = false;
-function startHud(pid) {
+// Z modem MiB menu jest w samej grze: launcher tylko obsługuje zmianę konta przez pliki w <gra>/mib (bez starej nakładki)
+let ov = null, fgProc = null, menuOpen = false, fg = true, hooked = false, bridge = null;
+function startHud(pid, mibDir) {
+  if (mibDir) {
+    try { bridge = mibmod.createBridge({ dir: mibDir, accounts: accLoad, onSwitch: relaunchWithAccount }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
+    catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
+    return;
+  }
   try {
     const { uIOhook, UiohookKey: K } = require('uiohook-napi');
     const d = screen.getPrimaryDisplay().bounds;
@@ -361,6 +386,7 @@ function startHud(pid) {
 }
 function toggleMenu() { menuOpen = !menuOpen; if (!ov || ov.isDestroyed()) return; ov.setIgnoreMouseEvents(!menuOpen); ov.webContents.send('menu', menuOpen); }
 function stopHud() {
+  if (bridge) { bridge.stop(); bridge = null; }
   try { if (hooked) { require('uiohook-napi').uIOhook.stop(); hooked = false; } } catch {}
   try { if (fgProc) fgProc.kill(); } catch {} fgProc = null; menuOpen = false;
   if (ov && !ov.isDestroyed()) ov.close(); ov = null;

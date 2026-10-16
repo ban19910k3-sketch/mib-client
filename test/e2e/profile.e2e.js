@@ -184,6 +184,15 @@ const ok = m => console.log('PASS', m);
     await shot('admin-cos.png');
     ok('(l) panel admina: kody, statystyki, gracze (z usunięciem konta), kosmetyki');
 
+    await w.click('.nav[data-p="set"]');
+    assert.equal(await w.isChecked('#s-mib'), true, 'mod MiB domyślnie włączony');
+    await w.uncheck('#s-mib');
+    await w.click('#s-save');
+    await w.waitForFunction(() => document.getElementById('s-msg').textContent !== '');
+    assert.equal((await w.evaluate(() => mib.call('settings:get'))).mibMod, false);
+    await w.check('#s-mib'); await w.click('#s-save');
+    ok('(p) ustawienie „Mod MiB w grze” zapisuje się');
+
     await new Promise(r => { fake.server.closeAllConnections && fake.server.closeAllConnections(); fake.server.close(r); });
     await w.click('.nav[data-p="prof"]');
     await w.waitForFunction(() => /Brak połączenia z serwerem MiB/.test(document.getElementById('prof-box').textContent), null, { timeout: 15000 });
