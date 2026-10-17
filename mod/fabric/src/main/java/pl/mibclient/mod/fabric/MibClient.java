@@ -117,13 +117,17 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		//#endif
 	}
 
-	/** Kod klawisza przypisanego w ustawieniach sterowania. */
-	public static int boundKey(KeyMapping k) {
+	/** Klawisz przypisany w ustawieniach sterowania. */
+	public static InputConstants.Key boundKeyOf(KeyMapping k) {
 		//#if MC >= 26.1
-		return KeyMappingHelper.getBoundKeyOf(k).getValue();
+		return KeyMappingHelper.getBoundKeyOf(k);
 		//#else
-		return KeyBindingHelper.getBoundKeyOf(k).getValue();
+		return KeyBindingHelper.getBoundKeyOf(k);
 		//#endif
+	}
+
+	public static int boundKey(KeyMapping k) {
+		return boundKeyOf(k).getValue();
 	}
 
 	private void tick(Minecraft c) {
@@ -133,10 +137,10 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			applySprint();
 		}
 		while (menuKey.consumeClick()) {
-			if (c.screen == null) c.setScreen(new MenuScreen(this, null));
+			if (Input.screen(c) == null) Input.open(c, new MenuScreen(this, null));
 		}
 		zoom.setBase(intOpt("zoom", "factor"));
-		boolean zooming = modules.isOn("zoom") && zoomKey.isDown() && c.screen == null;
+		boolean zooming = modules.isOn("zoom") && Input.screen(c) == null && Input.held(c, zoomKey);
 		zoom.setHeld(zooming);
 		if (zooming && boolOpt("zoom", "cinematic") && cinematicBefore == null) {
 			cinematicBefore = c.options.smoothCamera;
@@ -150,7 +154,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	private void renderHud(MibGraphics g) {
 		Minecraft c = Minecraft.getInstance();
-		if (c.screen instanceof HudEditorScreen) return;
+		if (Input.screen(c) instanceof HudEditorScreen) return;
 		hud.render(new FabricCanvas(g, c.font), info, g.guiWidth(), g.guiHeight(), null, false);
 	}
 
@@ -192,7 +196,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public void onMouseButton(int button, int action) {
 		hooks.add("click");
 		Minecraft c = Minecraft.getInstance();
-		if (action != InputConstants.PRESS || c.screen != null || c.player == null) return;
+		if (action != InputConstants.PRESS || Input.screen(c) != null || c.player == null) return;
 		long now = System.currentTimeMillis();
 		if (button == InputConstants.MOUSE_BUTTON_LEFT) left.click(now);
 		else if (button == InputConstants.MOUSE_BUTTON_RIGHT) right.click(now);
@@ -201,7 +205,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	/** Kółko podczas zoomu zmienia przybliżenie zamiast slotu; true = zdarzenie zużyte. */
 	public boolean onScroll(double vertical) {
 		Minecraft c = Minecraft.getInstance();
-		if (c.screen != null || !zoom.active() || !boolOpt("zoom", "scroll") || vertical == 0) return false;
+		if (Input.screen(c) != null || !zoom.active() || !boolOpt("zoom", "scroll") || vertical == 0) return false;
 		zoom.scroll(Math.signum(vertical));
 		return true;
 	}
@@ -249,7 +253,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	@Override
 	public void openHudEditor(String moduleId) {
-		Minecraft.getInstance().setScreen(new HudEditorScreen(this));
+		Input.open(Minecraft.getInstance(), new HudEditorScreen(this));
 	}
 
 	/** Konta z launchera; plik czytany najwyżej co 2 s, bo menu pyta o nie w każdej klatce. */
@@ -291,7 +295,12 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		private int ticks, step;
 
 		void tick(Minecraft c) {
-			if (step == 0 && (c.getOverlay() != null || c.screen == null)) return;
+			//#if MC >= 26.2
+			boolean loading = false;
+			//#else
+			boolean loading = c.getOverlay() != null;
+			//#endif
+			if (step == 0 && (loading || Input.screen(c) == null)) return;
 			if (++ticks < 40) return;
 			ticks = 0;
 			switch (step++) {
@@ -301,14 +310,14 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 					} catch (ClassNotFoundException e) {
 						throw new IllegalStateException(e);
 					}
-					c.setScreen(new MenuScreen(MibClient.this, null));
+					Input.open(c, new MenuScreen(MibClient.this, null));
 					break;
 				case 1:
-					System.out.println("[MIB-SMOKE] menu " + (c.screen instanceof MenuScreen && ((MenuScreen) c.screen).frames() > 0));
+					System.out.println("[MIB-SMOKE] menu " + (Input.screen(c) instanceof MenuScreen m && m.frames() > 0));
 					openHudEditor(null);
 					break;
 				case 2:
-					System.out.println("[MIB-SMOKE] hud " + (c.screen instanceof HudEditorScreen && ((HudEditorScreen) c.screen).frames() > 0));
+					System.out.println("[MIB-SMOKE] hud " + (Input.screen(c) instanceof HudEditorScreen h && h.frames() > 0));
 					System.out.println("[MIB-SMOKE] ok");
 					c.stop();
 					break;

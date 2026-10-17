@@ -14,6 +14,7 @@ import pl.mibclient.mod.core.MenuView;
 import pl.mibclient.mod.core.ModuleDef;
 import pl.mibclient.mod.core.ModuleManager;
 import pl.mibclient.mod.fabric.HudEditorScreen;
+import pl.mibclient.mod.fabric.Input;
 import pl.mibclient.mod.fabric.MenuScreen;
 import pl.mibclient.mod.fabric.MibClient;
 
@@ -41,7 +42,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 
 			input.pressKey(InputConstants.KEY_RSHIFT);
 			context.waitTicks(5);
-			check(context.computeOnClient(c -> c.screen instanceof MenuScreen), "prawy Shift nie otworzył menu");
+			check(context.computeOnClient(c -> Input.screen(c) instanceof MenuScreen), "prawy Shift nie otworzył menu");
 			context.takeScreenshot("01-menu");
 
 			click(context, "pill:cps");
@@ -63,7 +64,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			});
 			context.waitTicks(3);
 			click(context, "edit_hud");
-			check(context.computeOnClient(c -> c.screen instanceof HudEditorScreen), "„Edytuj HUD” nie otworzył edytora");
+			check(context.computeOnClient(c -> Input.screen(c) instanceof HudEditorScreen), "„Edytuj HUD” nie otworzył edytora");
 			context.takeScreenshot("05-hud-editor");
 			dragFps(context, input);
 
@@ -92,7 +93,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			// prawy Shift: pisanie z nim wielkich liter nie zamyka menu, samo naciśnięcie zamyka
 			input.pressKey(InputConstants.KEY_RSHIFT);
 			context.waitTicks(5);
-			check(context.computeOnClient(c -> c.screen instanceof MenuScreen), "prawy Shift nie otworzył menu drugi raz");
+			check(context.computeOnClient(c -> Input.screen(c) instanceof MenuScreen), "prawy Shift nie otworzył menu drugi raz");
 			input.holdKey(InputConstants.KEY_RSHIFT);
 			input.typeChars("CPS");
 			input.releaseKey(InputConstants.KEY_RSHIFT);
@@ -100,10 +101,15 @@ public class MibClientGameTest implements FabricClientGameTest {
 			check(context.computeOnClient(c -> view(c) != null && "cps".equalsIgnoreCase(view(c).query())), "pisanie z prawym Shiftem zamknęło menu albo zgubiło tekst");
 			input.pressKey(InputConstants.KEY_RSHIFT);
 			context.waitTicks(3);
-			check(context.computeOnClient(c -> c.screen == null), "prawy Shift nie zamknął menu");
+			check(context.computeOnClient(c -> Input.screen(c) == null), "prawy Shift nie zamknął menu");
 
 			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik)
-			for (String h : new String[] {"fov", "gamma", "click", "crosshair"}) {
+			//#if MC >= 26.1
+			String[] hooks = {"fov", "click", "crosshair"};
+			//#else
+			String[] hooks = {"fov", "gamma", "click", "crosshair"};
+			//#endif
+			for (String h : hooks) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
 		}
@@ -115,14 +121,14 @@ public class MibClientGameTest implements FabricClientGameTest {
 	}
 
 	private static MenuView view(Minecraft c) {
-		return c.screen instanceof MenuScreen ? ((MenuScreen) c.screen).view() : null;
+		return Input.screen(c) instanceof MenuScreen ? ((MenuScreen) Input.screen(c)).view() : null;
 	}
 
 	/** Klik w środek elementu menu (jednostki menu × piksele okna na jednostkę). */
 	private void click(ClientGameTestContext context, String name) {
 		double[] p = context.computeOnClient(c -> {
-			if (!(c.screen instanceof MenuScreen)) return null;
-			MenuScreen s = (MenuScreen) c.screen;
+			if (!(Input.screen(c) instanceof MenuScreen)) return null;
+			MenuScreen s = (MenuScreen) Input.screen(c);
 			int[] r = s.view().hitRect(name);
 			if (r == null) return null;
 			int k = s.menuScale();

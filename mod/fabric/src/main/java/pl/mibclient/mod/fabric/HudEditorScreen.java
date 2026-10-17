@@ -67,7 +67,7 @@ public final class HudEditorScreen extends Screen {
 		}
 		if (mib.editor.mouseDown(x, y, Input.button(button))) {
 			String id = mib.editor.settingsRequest();
-			if (id != null) minecraft.setScreen(new MenuScreen(mib, id));
+			if (id != null) Input.open(minecraft, new MenuScreen(mib, id));
 			return true;
 		}
 		return false;
@@ -122,7 +122,7 @@ public final class HudEditorScreen extends Screen {
 	@Override
 	public void onClose() {
 		mib.editor.mouseUp();
-		minecraft.setScreen(new MenuScreen(mib, null));
+		Input.open(minecraft, new MenuScreen(mib, null));
 	}
 
 	@Override

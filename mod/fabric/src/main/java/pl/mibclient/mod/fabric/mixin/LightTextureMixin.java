@@ -1,3 +1,4 @@
+//#if MC < 26.1
 package pl.mibclient.mod.fabric.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
@@ -18,3 +19,12 @@ public abstract class LightTextureMixin {
 		return g != null ? g : original;
 	}
 }
+//#else
+package pl.mibclient.mod.fabric.mixin;
+
+/** Od 26.1 jasność liczy się w LightmapRenderState — wstawka dla tych wersji jeszcze w przygotowaniu (nie ma jej w mibclient.mixins.json). */
+final class LightTextureMixin {
+	private LightTextureMixin() {
+	}
+}
+//#endif

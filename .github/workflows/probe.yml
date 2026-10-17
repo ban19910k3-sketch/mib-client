@@ -1,0 +1,19 @@
+# Podgląd klas Minecrafta (pomoc przy dopisywaniu nowych wersji gry): uruchamia się po zmianie .github/probe.txt.
+name: Podgląd klas gry
+
+on:
+  push:
+    paths: ['.github/probe.txt', '.github/probe.sh', '.github/workflows/probe.yml']
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      - run: bash .github/probe.sh

@@ -7,7 +7,9 @@
 		"AbstractClientPlayerMixin",
 		"GameRendererMixin",
 		"GuiMixin",
+		//#if MC < 26.1
 		"LightTextureMixin",
+		//#endif
 		"MouseHandlerMixin"
 	],
 	"injectors": {

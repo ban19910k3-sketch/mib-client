@@ -171,6 +171,6 @@ public final class FabricGameInfo implements GameInfo {
 
 	@Override
 	public boolean hideHud() {
-		return mc().options.hideGui;
+		return Input.hudHidden(mc());
 	}
 }
