@@ -61,10 +61,13 @@ public interface GameInfo {
 
 	/** Istota, na którą patrzysz albo którą ostatnio uderzyłeś (Damage indicator). */
 	final class Target {
+		/** Id istoty w świecie (jak w CombatTracker). */
+		public final int id;
 		public final String name;
 		public final float health, maxHealth;
 
-		public Target(String name, float health, float maxHealth) {
+		public Target(int id, String name, float health, float maxHealth) {
+			this.id = id;
 			this.name = name;
 			this.health = health;
 			this.maxHealth = maxHealth;

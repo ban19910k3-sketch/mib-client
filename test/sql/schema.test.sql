@@ -325,9 +325,12 @@ reset role;
 -- Gracze MiB w grze: obecność potwierdzona przez Mojanga, peleryna tylko posiadana i założona
 insert into extensions.fake_mojang values ('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '33333333333333333333333333333333');
 set role anon;
-select pg_temp.expect_error($q$select public.mib_hello('Gracz', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')$q$, 'not_verified');
+do $$ begin
+  assert (public.mib_hello('Gracz', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb') ->> 'error') = 'not_verified', 'Mojang nie potwierdził';
+end $$;
 select pg_temp.expect_error($q$select public.mib_hello('Zły nick', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')$q$, 'name_invalid');
 select pg_temp.expect_error($q$select public.mib_hello('Gracz', 'x')$q$, 'server_id_invalid');
+select pg_temp.expect_error($q$select public.mib_hello('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')$q$, 'server_id_invalid');
 select pg_temp.expect_error($q$select count(*) from private.mib_players$q$, 'permission denied');
 select public.mib_hello('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') ->> 'token' as tok \gset
 do $$ begin
@@ -361,7 +364,19 @@ delete from public.owned_cosmetics where user_id = '22222222-2222-2222-2222-2222
 do $$ begin
   assert (select cape from public.mib_who(null, array['Gracz'])) is null, 'zabrana peleryna znika';
 end $$;
--- limit pytań do Mojanga
+do $$ begin
+  assert (select count(*) from private.hello_log) = 3, 'nieudane próby też liczą się do limitu';
+end $$;
+-- limit pytań do Mojanga z jednego adresu
+delete from private.hello_log;
+set request.headers = '{"x-forwarded-for": "1.2.3.4, 10.0.0.1"}';
+insert into private.hello_log (ip) select '1.2.3.4' from generate_series(1, 10);
+set role anon;
+select pg_temp.expect_error($q$select public.mib_hello('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')$q$, 'busy');
+reset role;
+reset request.headers;
+delete from private.hello_log;
+-- limit pytań do Mojanga dla wszystkich
 insert into private.hello_log select now() from generate_series(1, 120);
 set role anon;
 select pg_temp.expect_error($q$select public.mib_hello('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')$q$, 'busy');

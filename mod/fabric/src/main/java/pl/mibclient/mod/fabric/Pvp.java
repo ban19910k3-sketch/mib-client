@@ -15,7 +15,7 @@ import pl.mibclient.mod.core.modules.Meters;
 
 /**
  * Moduły PvP i liczniki etapu 2 po stronie gry: uderzenia (MultiPlayerGameModeMixin), trafienia i obrażenia celu,
- * własne obrażenia i skoki (co tick), totemy (LivingEntityMixin), TPS (ClientPacketListenerMixin), prędkość.
+ * własne obrażenia i skoki (co tick), totemy i TPS (ClientPacketListenerMixin), prędkość.
  */
 public final class Pvp {
 	public final CombatTracker combat = new CombatTracker();

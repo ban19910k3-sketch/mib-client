@@ -10,7 +10,6 @@
 		"GameRendererMixin",
 		"GuiMixin",
 		"LightTextureMixin",
-		"LivingEntityMixin",
 		"MouseHandlerMixin",
 		"MultiPlayerGameModeMixin",
 		"PlayerMixin",

@@ -34,6 +34,8 @@ public final class Players {
 	/** Tekstury peleryn innych graczy: id peleryny -> tekstura (null = pliku nie da się wczytać) i data pliku. */
 	private final Map<String, MibId> capes = new HashMap<>();
 	private final Map<String, Long> capeStamps = new HashMap<>();
+	/** Kiedy ostatnio sprawdzono brakujący plik peleryny (getSkin woła się co klatkę). */
+	private final Map<String, Long> capeMissingAt = new HashMap<>();
 	private int ticks;
 
 	Players(MibClient mib) {
@@ -118,8 +120,14 @@ public final class Players {
 		MibPlayers.Entry e = list.find(id, name);
 		if (e == null || e.cape == null) return null;
 		if (capes.containsKey(e.cape)) return capes.get(e.cape);
+		long now = System.currentTimeMillis();
+		if (now - capeMissingAt.getOrDefault(e.cape, 0L) < 2000) return null;
 		File f = mib.bridge.capeFile(e.cape);
-		if (f == null) return null; // launcher jeszcze nie pobrał
+		if (f == null) { // launcher jeszcze nie pobrał
+			capeMissingAt.put(e.cape, now);
+			return null;
+		}
+		capeMissingAt.remove(e.cape);
 		MibId t = null;
 		try {
 			t = MibClient.registerTexture("cape/p_" + e.cape, Files.readAllBytes(f.toPath()));

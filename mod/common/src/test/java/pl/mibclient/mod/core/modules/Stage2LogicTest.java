@@ -35,10 +35,14 @@ class Stage2LogicTest {
 		CombatTracker t = new CombatTracker();
 		t.onAttack(3, 2.5, 0);
 		t.onTargetHurt(3, -1, 50);
-		assertEquals(-1, t.lastDamage(60), 1e-6);
+		assertEquals(-1, t.lastDamage(3, 60), 1e-6);
 		t.onTargetHealthDrop(3, 3.5f, 100);
-		assertEquals(3.5f, t.lastDamage(150), 1e-6);
-		assertEquals(-1, t.lastDamage(6000), 1e-6);
+		assertEquals(3.5f, t.lastDamage(3, 150), 1e-6);
+		assertEquals(-1, t.lastDamage(4, 150), 1e-6, "obrażenia innej istoty nie są pokazywane");
+		t.onAttack(4, 2.5, 200);
+		t.onTargetHealthDrop(4, 9f, 210);
+		assertEquals(3.5f, t.lastDamage(3, 300), 1e-6, "spadek zdrowia innej istoty bez trafienia nie zmienia obrażeń");
+		assertEquals(-1, t.lastDamage(3, 6000), 1e-6);
 	}
 
 	@Test
@@ -86,6 +90,11 @@ class Stage2LogicTest {
 		assertEquals((20 + 10 + 20) / 3.0, t.tps(), 1e-9, "najwyżej 20");
 		t.reset();
 		assertEquals(-1, t.tps(), 1e-9);
+		t.onTime(0, 0);
+		t.onTime(20, 30_000);
+		assertEquals(-1, t.tps(), 1e-9, "po pauzie tylko nowy punkt odniesienia");
+		t.onTime(40, 31_000);
+		assertEquals(20, t.tps(), 1e-9);
 	}
 
 	@Test

@@ -19,7 +19,8 @@ public final class Meters {
 		public void onTime(long gameTime, long now) {
 			if (lastGameTime >= 0 && gameTime > lastGameTime) {
 				long dt = now - lastAt, dg = gameTime - lastGameTime;
-				if (dt >= 300 && dg <= 1200) {
+				// po długiej przerwie (pauza w grze jednoosobowej, zawieszenie) tylko nowy punkt odniesienia
+				if (dt >= 300 && dt <= 10000 && dg <= 1200) {
 					samples[next] = Math.min(20.0, dg * 1000.0 / dt);
 					next = (next + 1) % samples.length;
 					n = Math.min(n + 1, samples.length);

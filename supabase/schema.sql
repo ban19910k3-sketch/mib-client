@@ -357,7 +357,10 @@ create table if not exists private.mib_players (
 );
 create index if not exists mib_players_name on private.mib_players (lower(name));
 create table if not exists private.hello_log (at timestamptz not null default now());
+alter table private.hello_log add column if not exists ip text not null default '';
 
+-- Wynik: {uuid, name, token} albo {error}. Błędy po zapisie w hello_log są zwracane, nie rzucane — rzucony wyjątek
+-- cofnąłby wpis i limit liczyłby tylko udane próby.
 create or replace function public.mib_hello(p_name text, p_server_id text) returns json
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -366,23 +369,28 @@ declare
   v_uuid uuid;
   v_name text;
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
+  v_ip text := coalesce(trim(split_part(nullif(current_setting('request.headers', true), '')::json ->> 'x-forwarded-for', ',', 1)), '');
 begin
   if p_name is null or p_name !~ '^[A-Za-z0-9_]{1,16}$' then raise exception 'name_invalid'; end if;
-  if p_server_id is null or p_server_id !~ '^[0-9a-f]{16,40}$' then raise exception 'server_id_invalid'; end if;
-  -- wspólny limit pytań do Mojanga: zalew zapytań nie zablokuje bazy u Mojanga
+  -- dokładnie 32 znaki szesnastkowe, jak losowy serverId launchera (skrót z logowania na zwykły serwer prawie nigdy tak nie wygląda)
+  if p_server_id is null or p_server_id !~ '^[0-9a-f]{32}$' then raise exception 'server_id_invalid'; end if;
+  -- limity pytań do Mojanga: 120 na minutę dla wszystkich i 10 na minutę z jednego adresu
   delete from private.hello_log where at < now() - interval '1 minute';
   if (select count(*) from private.hello_log) >= 120 then raise exception 'busy'; end if;
-  insert into private.hello_log default values;
-  perform extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '2500');
-  select r.status, r.content into v_status, v_body
-    from extensions.http_get('https://sessionserver.mojang.com/session/minecraft/hasJoined?username=' || p_name || '&serverId=' || p_server_id) r;
-  if v_status is distinct from 200 then raise exception 'not_verified'; end if;
+  if v_ip <> '' and (select count(*) from private.hello_log where ip = v_ip) >= 10 then raise exception 'busy'; end if;
+  insert into private.hello_log (ip) values (v_ip);
   begin
-    v_uuid := (v_body::json ->> 'id')::uuid;
-    v_name := v_body::json ->> 'name';
-  exception when others then raise exception 'not_verified';
+    perform extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '2500');
+    select r.status, r.content into v_status, v_body
+      from extensions.http_get('https://sessionserver.mojang.com/session/minecraft/hasJoined?username=' || p_name || '&serverId=' || p_server_id) r;
+    if v_status = 200 then
+      v_uuid := (v_body::json ->> 'id')::uuid;
+      v_name := v_body::json ->> 'name';
+    end if;
+  exception when others then
+    return json_build_object('error', 'mojang_unavailable');
   end;
-  if v_uuid is null or v_name is null then raise exception 'not_verified'; end if;
+  if v_uuid is null or v_name is null then return json_build_object('error', 'not_verified'); end if;
   delete from private.mib_players where seen_at < now() - interval '30 days';
   insert into private.mib_players (uuid, name, user_id, token_hash, seen_at)
     values (v_uuid, v_name, auth.uid(), encode(extensions.digest(v_token, 'sha256'), 'hex'), now())
@@ -390,7 +398,7 @@ begin
   return json_build_object('uuid', v_uuid, 'name', v_name, 'token', v_token);
 end $$;
 
--- Gra dalej działa (p_online) albo została zamknięta; false = zły token (launcher zgłasza się od nowa)
+-- Gra dalej działa (p_online) albo została zamknięta; false = zły token (konto zgłoszone od nowa, np. z innego komputera)
 create or replace function public.mib_ping(p_uuid uuid, p_token text, p_online boolean) returns boolean
 language plpgsql security definer set search_path = '' as $$
 begin

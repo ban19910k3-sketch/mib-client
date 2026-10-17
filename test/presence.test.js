@@ -105,3 +105,32 @@ test('modModuleOn: ustawienie modułu z mod-config.json', () => {
   fs.writeFileSync(path.join(dir, 'mod-config.json'), '{zepsuty');
   assert.strictEqual(m.modModuleOn(dir, 'mib_badge', true), true);
 });
+
+test('stop w trakcie zgłaszania: spóźnione zgłoszenie od razu się wylogowuje; ping false kończy odświeżanie', async () => {
+  let release;
+  const api = fakeApi({ async mibHello(a) { api.calls.push(['hello', a]); await new Promise(r => { release = r; }); return { uuid: 'u1', token: 't1' }; } });
+  const p = createMibPresence({ fetch: async () => ({ status: 204 }), api, randomBytes: n => Buffer.alloc(n) });
+  const started = p.start({ access_token: 'x', uuid: 'u', name: 'Gracz' });
+  await new Promise(r => setImmediate(r));
+  await p.stop();
+  release();
+  assert.strictEqual(await started, false);
+  assert.strictEqual(p.active, false);
+  assert.deepStrictEqual(api.calls.at(-1), ['ping', { uuid: 'u1', token: 't1', online: false }]);
+
+  const api2 = fakeApi({ async mibPing(a) { api2.calls.push(['ping', a]); return false; } });
+  const q = createMibPresence({ fetch: async () => ({ status: 204 }), api: api2, randomBytes: n => Buffer.alloc(n), pingMs: 5 });
+  await q.start({ access_token: 'x', uuid: 'u', name: 'Gracz' });
+  await new Promise(r => setTimeout(r, 40));
+  assert.strictEqual(q.active, false, 'token zastąpiony: koniec odświeżania');
+  const pings = api2.calls.filter(c => c[0] === 'ping').length;
+  await new Promise(r => setTimeout(r, 30));
+  assert.strictEqual(api2.calls.filter(c => c[0] === 'ping').length, pings);
+});
+
+test('players: błąd pobierania tekstur nie blokuje listy graczy', async () => {
+  const dir = tmp();
+  const p = createMibPresence({ fetch: async () => ({}), api: fakeApi({ async capeTextures() { throw new Error('offline'); } }), randomBytes: n => Buffer.alloc(n) });
+  const rows = await p.players({ ids: ['33333333-3333-4333-8333-333333333333'], names: [] }, path.join(dir, 'capes'));
+  assert.strictEqual(rows.length, 2);
+});

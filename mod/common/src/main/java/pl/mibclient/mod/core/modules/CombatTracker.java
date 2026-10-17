@@ -26,6 +26,7 @@ public final class CombatTracker {
 	private double attackReach = -1, reach = -1;
 	private int combo;
 	private float damage = -1;
+	private int damageTarget = Integer.MIN_VALUE;
 
 	private long hurtTick = NEVER, jumpTick = NEVER, jumpShownAt = NEVER;
 	private Integer jumpDelta;
@@ -63,12 +64,13 @@ public final class CombatTracker {
 		combo = now - comboAt <= COMBO_MS ? combo + 1 : 1;
 		comboAt = now;
 		damage = healthLost;
+		damageTarget = entityId;
 		return true;
 	}
 
 	/** Zdrowie celu spadło już po trafieniu (dane o zdrowiu przychodzą chwilę później niż obrażenia). */
 	public void onTargetHealthDrop(int entityId, float lost, long now) {
-		if (entityId == targetId && now - hitAt <= 1000 && lost > 0) damage = Math.max(damage, 0) + lost;
+		if (entityId == damageTarget && now - hitAt <= 1000 && lost > 0) damage = Math.max(damage, 0) + lost;
 	}
 
 	/** My dostaliśmy obrażenia: koniec combo, zaczyna się okno jump resetu. */
@@ -117,6 +119,7 @@ public final class CombatTracker {
 		combo = 0;
 		reach = -1;
 		damage = -1;
+		damageTarget = Integer.MIN_VALUE;
 		targetId = Integer.MIN_VALUE;
 		jumpDelta = null;
 		jumpShownAt = NEVER;
@@ -132,9 +135,9 @@ public final class CombatTracker {
 		return reach;
 	}
 
-	/** Obrażenia z ostatniego trafienia albo -1, gdy nieznane. */
-	public float lastDamage(long now) {
-		return now - hitAt <= 5000 ? damage : -1;
+	/** Obrażenia z ostatniego trafienia w tę istotę albo -1 (inna istota, dawno albo nieznane). */
+	public float lastDamage(int entityId, long now) {
+		return entityId == damageTarget && now - hitAt <= 5000 ? damage : -1;
 	}
 
 	public boolean hitMarker(long now) {

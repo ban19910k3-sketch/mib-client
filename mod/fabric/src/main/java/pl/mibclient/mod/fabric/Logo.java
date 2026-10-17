@@ -62,10 +62,13 @@ public final class Logo {
 		List<AbstractWidget> widgets = Screens.getButtons(screen);
 		//#endif
 		int top = Integer.MAX_VALUE;
+		AbstractWidget title = null;
 		for (AbstractWidget w : widgets) {
-			if (hideTitle && w instanceof StringWidget && w.getMessage().equals(screen.getTitle())) w.visible = false;
+			if (w instanceof StringWidget && w.getMessage().equals(screen.getTitle())) title = w;
 			else if (w.visible && w.getWidth() >= 90) top = Math.min(top, w.getY());
 		}
+		// bez przycisków (pauza przez F3+Esc) napis zostaje — nie ma miejsca na logo
+		if (hideTitle && title != null && top != Integer.MAX_VALUE) title.visible = false;
 		return top;
 	}
 

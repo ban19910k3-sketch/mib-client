@@ -156,11 +156,11 @@ public final class HudView {
 			GameInfo.Target t = g.target();
 			if (t == null) {
 				if (!editor) return Collections.emptyList();
-				t = new GameInfo.Target("Steve", 14.5f, 20);
+				t = new GameInfo.Target(Integer.MIN_VALUE, "Steve", 14.5f, 20);
 			}
 			List<String> l = new ArrayList<String>();
 			l.add(t.name);
-			float dmg = cb == null ? -1 : cb.lastDamage(now);
+			float dmg = cb == null ? -1 : cb.lastDamage(t.id, now);
 			l.add("\u2764 " + Formats.hp(t.health) + "/" + Formats.hp(t.maxHealth)
 					+ (bool(d, st, "damage") && dmg > 0 ? "  -" + Formats.hp(dmg) : ""));
 			return l;

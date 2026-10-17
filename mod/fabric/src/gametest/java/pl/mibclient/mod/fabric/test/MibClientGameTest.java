@@ -93,7 +93,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 
 			// walka: uderzenie świni w miejscu gracza liczy trafienie, zasięg i combo (zombie płonie w dzień, a wtedy
 			// chwilowa nietykalność po obrażeniach od ognia gubi uderzenie; obok gracza istota mogłaby utknąć w bloku)
-			sp.getServer().runCommand("execute as @p at @p run summon minecraft:pig ~ ~ ~ {NoAI:1b,Silent:1b}");
+			sp.getServer().runCommand("execute as @p at @p run summon minecraft:pig ~ ~ ~ {NoAI:1b,Silent:1b,Tags:[\"mib\"]}");
 			context.waitTicks(10);
 			context.runOnClient(c -> {
 				if (!MibClient.get().modules.isOn("hit_indicator")) MibClient.get().modules.toggle("hit_indicator");
@@ -109,6 +109,11 @@ public class MibClientGameTest implements FabricClientGameTest {
 			check(context.computeOnClient(c -> MibClient.get().pvp.combat.reach() >= 0), "trafienie nie zostało policzone (zasięg)");
 			context.takeScreenshot("06c-pvp");
 			check(context.computeOnClient(c -> MibClient.get().pvp.meters.tps.tps() > 0), "brak pomiaru TPS");
+			// Totem: świnia z totemem w ręce dostaje śmiertelne obrażenia i zużywa totem
+			sp.getServer().runCommand("item replace entity @e[tag=mib,limit=1] weapon.mainhand with minecraft:totem_of_undying");
+			sp.getServer().runCommand("damage @e[tag=mib,limit=1] 100");
+			context.waitTicks(10);
+			check(MibClient.hooks.contains("totem"), "zużyty totem nie został policzony");
 			// logo MiB przed nickiem (własna postać zawsze gra w MiB)
 			check(context.computeOnClient(c -> c.player.getDisplayName().getString().startsWith("\uE000")), "brak logo MiB przed nickiem");
 

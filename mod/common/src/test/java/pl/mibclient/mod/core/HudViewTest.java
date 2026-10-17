@@ -171,7 +171,7 @@ class HudViewTest {
 	void stage2ModulesShowGameData() {
 		for (String id : new String[] {"hearts", "saturation", "speed_meter", "tps", "combo_display", "reach_display", "damage_indicator", "totem", "pack_display", "attack_indicator"}) enable(id);
 		g.absorption = 4;
-		g.target = new GameInfo.Target("Notch", 12, 20);
+		g.target = new GameInfo.Target(1, "Notch", 12, 20);
 		g.combat.onAttack(1, 3.14159, g.now - 100);
 		g.combat.onTargetHurt(1, 2.5f, g.now - 50);
 		g.inventory.add(new GameInfo.Stack("minecraft:totem_of_undying", 2, "totem"));

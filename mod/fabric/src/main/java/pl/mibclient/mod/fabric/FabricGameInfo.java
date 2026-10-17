@@ -248,7 +248,7 @@ public final class FabricGameInfo implements GameInfo {
 	public Target target() {
 		LivingEntity t = mc().crosshairPickEntity instanceof LivingEntity le ? le : mib.pvp.lastTarget();
 		if (t == null || !t.isAlive()) return null;
-		return new Target(t.getName().getString(), t.getHealth(), t.getMaxHealth());
+		return new Target(t.getId(), t.getName().getString(), t.getHealth(), t.getMaxHealth());
 	}
 
 	@Override

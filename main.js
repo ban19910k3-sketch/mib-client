@@ -144,6 +144,9 @@ async function doLaunch(version) {
   const srv = { shared: jf('servers.dat'), instance: root, instancesDir: path.join(s.root, 'instances') };
   serverList.before(srv);
   launching = true;
+  // gra się nie uruchomiła: zgłoszony gracz MiB przestaje być widoczny jako grający
+  let presenceOn = false, spawned = false;
+  const endPresence = () => { if (presenceOn && !spawned) { presenceOn = false; mibPresence.stop().catch(() => {}); } };
   try {
     const javaPath = s.java || await ensureJava(await javaMajor(version));
     const opts = { authorization: auth.mclc(), root, version: { number: version, type: 'release' }, javaPath, memory: { max: s.ram + 'M', min: Math.min(512, s.ram) + 'M' },
@@ -170,25 +173,26 @@ async function doLaunch(version) {
     if (loader === 'forge') { send('log', 'Przygotowywanie Forge…'); opts.forge = await ensureForge(root, version); }
     // logo MiB przed nickiem: zgłoszenie konta przed startem gry (gra w tym czasie nie łączy się jeszcze z żadnym serwerem)
     if (mibDir && mibmod.modModuleOn(mibDir, 'mib_badge', true)) {
+      presenceOn = true;
       try { await Promise.race([mibPresence.start(auth.mclc()), new Promise((_, rej) => setTimeout(() => rej(new Error('brak odpowiedzi')), 6000))]); }
       catch (e) { send('log', 'Logo MiB przy nicku chwilowo niedostępne (' + san(e.message) + ').'); }
     }
-    if (!launching) return 'Anulowano.';
+    if (!launching) { endPresence(); return 'Anulowano.'; }
     return await new Promise(res => {
       const w = utilityProcess.fork(path.join(__dirname, 'worker.js')); worker = w; let done = false;
       const fin = r => { if (!done) { done = true; res(r); } };
       w.on('message', m => {
         if (m.t === 'log') send('log', m.d); else if (m.t === 'progress') send('progress', m.d);
-        else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root, logFrom: logCount }; setPresence(gameInfo); startHud(m.pid, mibDir, gameAcc); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
+        else if (m.t === 'spawned') { spawned = true; gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root, logFrom: logCount }; setPresence(gameInfo); startHud(m.pid, mibDir, gameAcc); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
           send('started'); notify('MiB Client', 'Pobieranie zakończone — gra się uruchamia.'); win.minimize(); fin('ok'); }
         else if (m.t === 'close') { launching = false; gamePid = null; serverList.after(srv); prof.gameClosed(); stopHud(); mibPresence.stop().catch(() => {}); send('closed', m.c); if (m.c !== 0 && gameInfo && !pendingRelaunch) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
           if (pendingRelaunch) { const v = pendingRelaunch; pendingRelaunch = null; send('relaunch'); setTimeout(() => doLaunch(v).then(r => { if (r !== 'ok') { send('log', r); notify('MiB Client', String(r).slice(0, 120)); send('closed', 1); } }), 600); } }
-        else if (m.t === 'error') { launching = false; notify('MiB Client — błąd', String(m.d).slice(0, 120)); fin('Błąd: ' + m.d); }
+        else if (m.t === 'error') { launching = false; endPresence(); notify('MiB Client — błąd', String(m.d).slice(0, 120)); fin('Błąd: ' + m.d); }
       });
-      w.on('exit', () => { const was = launching; launching = false; worker = null; stopHud(); fin(was ? 'Uruchamianie przerwane.' : 'Anulowano.'); });
+      w.on('exit', () => { const was = launching; launching = false; worker = null; stopHud(); endPresence(); fin(was ? 'Uruchamianie przerwane.' : 'Anulowano.'); });
       w.postMessage(opts);
     });
-  } catch (e) { launching = false; notify('MiB Client — błąd', String(e.message).slice(0, 120)); return 'Błąd: ' + e.message; }
+  } catch (e) { launching = false; endPresence(); notify('MiB Client — błąd', String(e.message).slice(0, 120)); return 'Błąd: ' + e.message; }
 }
 ipcMain.handle('cancel', () => { launching = false; if (worker) worker.kill(); return true; });
 
