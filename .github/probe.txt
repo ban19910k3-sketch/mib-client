@@ -1,8 +1,84 @@
-# <wersja> class <klasa>  |  <wersja> calls <tekst> in <pakiet>  |  <wersja> members <klasa> <regex>   (wynik: adnotacje przebiegu "Podgląd klas gry")
-26.1 members net.minecraft.client.player.AbstractClientPlayer [Ss]kin
-26.3 members net.minecraft.client.player.AbstractClientPlayer [Ss]kin
-26.3 class net.minecraft.world.entity.player.PlayerSkin
-26.3 members net.minecraft.core.ClientAsset$ResourceTexture ResourceTexture\(
-26.3 members net.minecraft.client.renderer.texture.DynamicTexture DynamicTexture\(
-26.3 members net.minecraft.client.renderer.texture.TextureManager register
-26.3 members com.mojang.blaze3d.platform.NativeImage static .*read
+# <wersja> class <klasa>  |  <wersja> calls <tekst> in <pakiet>  |  <wersja> members <klasa> <regex>  |  <wersja> code <klasa> <regex>   (wynik: adnotacje przebiegu "Podgląd klas gry")
+1.21 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)\(
+1.21 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)\(
+1.21 class net.minecraft.client.gui.components.LogoRenderer
+1.21 class net.minecraft.client.gui.components.SplashRenderer
+1.21 calls getDisplayName in net.minecraft.client.renderer.entity
+1.21 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
+1.21 members net.minecraft.client.gui.screens.inventory.InventoryScreen [Ee]ntity
+1.21.5 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)\(
+1.21.5 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)\(
+1.21.5 class net.minecraft.client.gui.components.LogoRenderer
+1.21.5 class net.minecraft.client.gui.components.SplashRenderer
+1.21.5 calls getDisplayName in net.minecraft.client.renderer.entity
+1.21.5 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
+1.21.5 members net.minecraft.client.gui.screens.inventory.InventoryScreen [Ee]ntity
+1.21.6 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)\(
+1.21.6 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)\(
+1.21.6 class net.minecraft.client.gui.components.LogoRenderer
+1.21.6 class net.minecraft.client.gui.components.SplashRenderer
+1.21.6 calls getDisplayName in net.minecraft.client.renderer.entity
+1.21.6 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
+1.21.6 members net.minecraft.client.gui.screens.inventory.InventoryScreen [Ee]ntity
+1.21.11 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)\(
+1.21.11 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)\(
+1.21.11 class net.minecraft.client.gui.components.LogoRenderer
+1.21.11 class net.minecraft.client.gui.components.SplashRenderer
+1.21.11 calls getDisplayName in net.minecraft.client.renderer.entity
+1.21.11 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
+1.21.11 members net.minecraft.client.gui.screens.inventory.InventoryScreen [Ee]ntity
+26.1 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)\(
+26.1 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)\(
+26.1 class net.minecraft.client.gui.components.LogoRenderer
+26.1 class net.minecraft.client.gui.components.SplashRenderer
+26.1 calls getDisplayName in net.minecraft.client.renderer.entity
+26.1 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
+26.1 members net.minecraft.client.gui.screens.inventory.InventoryScreen [Ee]ntity
+26.2 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)\(
+26.2 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)\(
+26.2 class net.minecraft.client.gui.components.LogoRenderer
+26.2 class net.minecraft.client.gui.components.SplashRenderer
+26.2 calls getDisplayName in net.minecraft.client.renderer.entity
+26.2 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
+26.2 members net.minecraft.client.gui.screens.inventory.InventoryScreen [Ee]ntity
+26.3 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)\(
+26.3 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)\(
+26.3 class net.minecraft.client.gui.components.LogoRenderer
+26.3 class net.minecraft.client.gui.components.SplashRenderer
+26.3 calls getDisplayName in net.minecraft.client.renderer.entity
+26.3 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
+26.3 members net.minecraft.client.gui.screens.inventory.InventoryScreen [Ee]ntity
+26.1 members net.minecraft.client.gui.screens.TitleScreen .
+26.1 members net.minecraft.client.gui.components.PlayerTabOverlay .
+26.1 members net.minecraft.network.chat.Style [Ff]ont
+26.1 members net.minecraft.world.entity.player.Player getDisplayName|getAttackStrengthScale|getFoodData|getInventory|getAbsorptionAmount|getScoreboardName|getGameProfile
+26.1 members net.minecraft.world.entity.LivingEntity handleEntityEvent|getHealth|getMaxHealth|getAbsorptionAmount|hurtTime|getArmorValue|getItemBySlot
+26.1 members net.minecraft.world.entity.Entity getDisplayName|getUUID|getDeltaMovement|onGround|position\(|getBoundingBox|getEyePosition|distanceTo
+26.1 members net.minecraft.client.multiplayer.ClientPacketListener handleSetTime|getOnlinePlayers|getPlayerInfo|getListedOnlinePlayers|handleEntityEvent
+26.1 members net.minecraft.client.multiplayer.MultiPlayerGameMode attack
+26.1 members net.minecraft.client.multiplayer.PlayerInfo getProfile|getLatency|getTabListDisplayName
+26.1 members net.minecraft.client.resources.sounds.SimpleSoundInstance forUI
+26.1 members net.minecraft.sounds.SoundEvents EXPERIENCE_ORB_PICKUP|ARROW_HIT_PLAYER|NOTE_BLOCK_PLING
+26.1 members net.minecraft.server.packs.repository.PackRepository getSelected
+26.1 members net.minecraft.server.packs.repository.Pack getTitle|getId|getDescription|location
+26.1 members net.minecraft.world.food.FoodData get
+26.1 members net.minecraft.world.entity.player.Inventory getContainerSize|getItem|getNonEquipment|getSelected
+26.1 members net.minecraft.client.Minecraft getResourcePackRepository|getSoundManager|crosshairPickEntity|hitResult|getCurrentFps|getConnection
+26.1 class net.minecraft.network.chat.FontDescription
+26.3 members net.minecraft.client.gui.screens.TitleScreen .
+26.3 members net.minecraft.client.gui.components.PlayerTabOverlay .
+26.3 members net.minecraft.network.chat.Style [Ff]ont
+26.3 members net.minecraft.world.entity.player.Player getDisplayName|getAttackStrengthScale|getFoodData|getInventory|getAbsorptionAmount|getScoreboardName|getGameProfile
+26.3 members net.minecraft.world.entity.LivingEntity handleEntityEvent|getHealth|getMaxHealth|getAbsorptionAmount|hurtTime|getArmorValue|getItemBySlot
+26.3 members net.minecraft.world.entity.Entity getDisplayName|getUUID|getDeltaMovement|onGround|position\(|getBoundingBox|getEyePosition|distanceTo
+26.3 members net.minecraft.client.multiplayer.ClientPacketListener handleSetTime|getOnlinePlayers|getPlayerInfo|getListedOnlinePlayers|handleEntityEvent
+26.3 members net.minecraft.client.multiplayer.MultiPlayerGameMode attack
+26.3 members net.minecraft.client.multiplayer.PlayerInfo getProfile|getLatency|getTabListDisplayName
+26.3 members net.minecraft.client.resources.sounds.SimpleSoundInstance forUI
+26.3 members net.minecraft.sounds.SoundEvents EXPERIENCE_ORB_PICKUP|ARROW_HIT_PLAYER|NOTE_BLOCK_PLING
+26.3 members net.minecraft.server.packs.repository.PackRepository getSelected
+26.3 members net.minecraft.server.packs.repository.Pack getTitle|getId|getDescription|location
+26.3 members net.minecraft.world.food.FoodData get
+26.3 members net.minecraft.world.entity.player.Inventory getContainerSize|getItem|getNonEquipment|getSelected
+26.3 members net.minecraft.client.Minecraft getResourcePackRepository|getSoundManager|crosshairPickEntity|hitResult|getCurrentFps|getConnection
+26.3 class net.minecraft.network.chat.FontDescription
