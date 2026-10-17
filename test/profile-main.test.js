@@ -395,6 +395,24 @@ test('owned cosmetics use the admin texture as the image', async () => {
   assert.equal((await p.cosmetics())[0].imageUrl, 'data:image/png;base64,AA');
 });
 
+test('cosmetics marks the equipped item and keeps its texture', async () => {
+  const supa = fakeSupa({ select: async t => (t === 'profiles' ? [{ ...profileRow, equipped: { cape: 'c2' } }] : t === 'owned_cosmetics'
+    ? [{ cosmetics: { id: 'c1', name: 'A', type: 'cape', texture: 'data:image/png;base64,AA' } }, { cosmetics: { id: 'c2', name: 'B', type: 'cape', image_url: 'https://x/b.png' } }] : []) });
+  const { p } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  const c = await p.cosmetics();
+  assert.deepEqual(c.map(x => [x.id, x.equipped, x.texture]), [['c1', false, 'data:image/png;base64,AA'], ['c2', true, null]]);
+});
+
+test('equip sends the type and id (null takes it off)', async () => {
+  const supa = fakeSupa({ rpc: async (n, a) => (n === 'equip_cosmetic' ? (a.p_id ? { [a.p_type]: a.p_id } : {}) : null) });
+  const { p } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.equip({ type: 'cape', id: 'c1' }), { ok: true, equipped: { cape: 'c1' } });
+  assert.deepEqual(await p.equip({ type: 'cape', id: null }), { ok: true, equipped: {} });
+  assert.deepEqual(supa.calls.filter(c => c[1] === 'equip_cosmetic').map(c => c[2]), [{ p_type: 'cape', p_id: 'c1' }, { p_type: 'cape', p_id: null }]);
+});
+
 // ===== Pomysły graczy =====
 test('submitIdea checks the idea before sending and trims it', async () => {
   const supa = fakeSupa({ rpc: async n => (n === 'submit_idea' ? 5 : null) });

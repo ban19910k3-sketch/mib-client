@@ -13,7 +13,7 @@ function createFake() {
     return { access_token: at, refresh_token: rt, expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: u.id, email: u.email } };
   };
   const norm = c => String(c || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
-  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {} });
+  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {} });
 
   const server = http.createServer((req, res) => {
     let raw = '';
@@ -114,6 +114,13 @@ function createFake() {
           if (st.users.some(u => !u.noProfile && u.nick.toLowerCase() === String(body.p_nick).toLowerCase())) return json(res, 400, { code: 'P0001', message: 'nick_taken' });
           user.nick = body.p_nick; user.noProfile = false; user.num = ++st.num;
           return json(res, 204);
+        }
+        if (fn === 'equip_cosmetic') {
+          const c = cosmetics[body.p_id];
+          if (body.p_id && (!c || c.type !== body.p_type || !st.owned.some(o => o.user === user.id && o.cosmetic === body.p_id))) return json(res, 400, { code: 'P0001', message: 'not_owned' });
+          user.equipped = { ...(user.equipped || {}) };
+          if (body.p_id) user.equipped[body.p_type] = body.p_id; else delete user.equipped[body.p_type];
+          return json(res, 200, user.equipped);
         }
         if (fn === 'delete_my_profile') { st.users = st.users.filter(u => u.id !== user.id); return json(res, 204); }
         return json(res, 404, { message: 'no function ' + fn });

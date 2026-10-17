@@ -76,6 +76,23 @@ select pg_temp.expect_error($q$select public.redeem_code('OLD')$q$, 'code_expire
 do $$ begin assert (select count(*) from public.owned_cosmetics) = 0, 'drugi gracz nie widzi cudzych kosmetyków'; end $$;
 reset role;
 
+-- Zakładanie kosmetyków: tylko własne, tylko pasujący typ, zdejmowanie
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+do $$ begin
+  assert (public.equip_cosmetic('cape', 'cape_start') ->> 'cape') = 'cape_start', 'zakładanie peleryny';
+  assert (select equipped ->> 'cape' from public.profiles) = 'cape_start', 'zapisane na profilu';
+  assert (public.equip_cosmetic('cape', 'cape_two') ->> 'cape') = 'cape_two', 'zmiana peleryny';
+  assert (public.equip_cosmetic('cape', null) ->> 'cape') is null, 'zdejmowanie';
+end $$;
+select pg_temp.expect_error($q$select public.equip_cosmetic('hat', 'cape_two')$q$, 'not_owned');
+select pg_temp.expect_error($q$select public.equip_cosmetic('cape', 'nie_ma')$q$, 'not_owned');
+select pg_temp.expect_error($q$select public.equip_cosmetic('xyz', null)$q$, 'cosmetic_type_invalid');
+select pg_temp.expect_error($q$update public.profiles set equipped = '{"cape":"cape_two"}'$q$, 'permission denied');
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select pg_temp.expect_error($q$select public.equip_cosmetic('cape', 'cape_start')$q$, 'not_owned');
+reset role;
+
 -- Kod odzyskiwania i reset hasła
 set role authenticated;
 set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';

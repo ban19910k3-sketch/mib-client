@@ -89,6 +89,15 @@ const ok = m => console.log('PASS', m);
     await w.waitForFunction(() => /odebrany|Masz już/.test(document.querySelector('#cos-box .err').textContent));
     ok('(d) kod prezentowy dodaje przedmiot, drugi raz daje czytelny błąd');
 
+    await w.click('.cosi .b');
+    await w.waitForFunction(() => /Założona/.test(document.querySelector('.cosi').textContent) && document.querySelector('.cosi .b').textContent === 'Zdejmij');
+    assert.deepEqual(fake.st.users[0].equipped, { cape: 'cape_start' });
+    await shot('cos-equipped.png');
+    await w.click('.cosi .b');
+    await w.waitForFunction(() => document.querySelector('.cosi .b').textContent === 'Załóż');
+    assert.deepEqual(fake.st.users[0].equipped, {});
+    ok('(q) peleryna: Załóż i Zdejmij');
+
     await w.click('.nav[data-p="ideas"]');
     await w.waitForSelector('#id-body');
     await w.fill('#id-body', 'za mało');

@@ -199,9 +199,18 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       return { free: !!(await supa.rpc('nick_available', { p_nick: nick })) };
     },
     async cosmetics() {
-      const rows = await authed(t => supa.select('owned_cosmetics', 'select=source,acquired_at,cosmetics(id,name,type,image_url,texture)&order=acquired_at.desc', t));
+      const [rows, [p]] = await Promise.all([
+        authed(t => supa.select('owned_cosmetics', 'select=source,acquired_at,cosmetics(id,name,type,image_url,texture)&order=acquired_at.desc', t)),
+        authed(t => supa.select('profiles', 'select=equipped&id=eq.' + sess.userId, t)).catch(() => [])]);
+      const eq = (p && p.equipped) || {};
       // tekstura z panelu admina ma pierwszeństwo przed zewnętrznym obrazkiem
-      return rows.filter(r => r.cosmetics).map(r => ({ id: r.cosmetics.id, name: r.cosmetics.name, type: r.cosmetics.type, imageUrl: r.cosmetics.texture || r.cosmetics.image_url, acquiredAt: r.acquired_at, source: r.source }));
+      return rows.filter(r => r.cosmetics).map(r => ({ id: r.cosmetics.id, name: r.cosmetics.name, type: r.cosmetics.type, imageUrl: r.cosmetics.texture || r.cosmetics.image_url,
+        texture: r.cosmetics.texture || null, acquiredAt: r.acquired_at, source: r.source, equipped: eq[r.cosmetics.type] === r.cosmetics.id }));
+    },
+    // Założenie (id) albo zdjęcie (id = null) kosmetyku danego typu; baza sprawdza, czy gracz go ma
+    async equip({ type, id }) {
+      const equipped = await authed(t => supa.rpc('equip_cosmetic', { p_type: type, p_id: id || null }, t));
+      return { ok: true, equipped: equipped || {} };
     },
     async redeem({ code }) {
       const r = await authed(t => supa.rpc('redeem_code', { p_code: String(code || '').trim().toUpperCase() }, t));
@@ -250,7 +259,7 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
 
 const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:login', logout: 'prof:logout', newCode: 'prof:newCode', reset: 'prof:reset',
   remove: 'prof:delete', createProfile: 'prof:createProfile', nickFree: 'prof:nickFree', announcements: 'prof:announcements', allCosmetics: 'prof:allCosmetics', admin: 'prof:admin', cosmetics: 'prof:cosmetics', redeem: 'prof:redeem', pullSettings: 'prof:pullSettings', pushSettings: 'prof:pushSettings',
-  modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace', submitIdea: 'prof:submitIdea', myIdeas: 'prof:myIdeas' };
+  equip: 'prof:equip', modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace', submitIdea: 'prof:submitIdea', myIdeas: 'prof:myIdeas' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

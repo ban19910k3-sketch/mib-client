@@ -15,6 +15,7 @@
     offline: 'Brak połączenia z serwerem MiB. Sprawdź internet.',
     server_error: 'Serwer MiB ma chwilowy problem. Spróbuj za kilka minut.',
     code_invalid: 'Nie ma takiego kodu. Sprawdź jego pisownię.',
+    not_owned: 'Nie masz tego przedmiotu.',
     code_expired: 'Ten kod już wygasł.',
     code_used_up: 'Ten kod został już wykorzystany.',
     code_already_used: 'Ten kod został już odebrany na Twoim profilu.',
@@ -246,9 +247,15 @@
     } } }, inp, btn);
     const list = await mib.call('prof:cosmetics');
     const grid = Array.isArray(list) && list.length
-      ? h('div', { class: 'cos-grid' }, ...list.map(c => h('div', { class: 'cosi' },
+      ? h('div', { class: 'cos-grid' }, ...list.map(c => h('div', { class: 'cosi' + (c.equipped ? ' on' : '') },
         h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)),
-        h('b', {}, c.name), h('small', { class: 'mut' }, T('Odebrano') + ' ' + fmtDate(c.acquiredAt)))))
+        h('b', {}, c.name), h('small', { class: 'mut' }, c.equipped ? '✓ ' + T('Założona — widać ją w grze') : T('Odebrano') + ' ' + fmtDate(c.acquiredAt)),
+        c.type === 'cape' ? h('button', { class: c.equipped ? 'b ghost' : 'b', type: 'button', on: { click: async e => {
+          e.currentTarget.disabled = true;
+          const r = await mib.call('prof:equip', { type: c.type, id: c.equipped ? null : c.id });
+          if (r.error) toast(msg(r.error), 1);
+          renderCos();
+        } } }, T(c.equipped ? 'Zdejmij' : 'Załóż')) : null)))
       : h('p', { class: 'empty' }, Array.isArray(list) ? T('Nie masz jeszcze żadnych przedmiotów. Masz kod z konkursu? Wpisz go wyżej.') : msg(list.error));
     box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err, grid);
   }
