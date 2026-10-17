@@ -27,6 +27,7 @@ jobs:
     needs: versions
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         mc: ${{ fromJson(needs.versions.outputs.list) }}
     steps:
@@ -36,8 +37,19 @@ jobs:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v6
-      - working-directory: mod
-        run: ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:build --no-daemon
+      # druga próba po chwilowym błędzie pobierania (np. limit zapytań repozytorium)
+      - name: Zbuduj mod
+        shell: bash
+        working-directory: mod
+        run: |
+          set -o pipefail
+          ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:build --no-daemon 2>&1 | tee build.log \
+            || { sleep 30; ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:build --no-daemon --refresh-dependencies 2>&1 | tee build.log; }
+      - name: Błędy jako adnotacje
+        if: failure()
+        shell: bash
+        working-directory: mod
+        run: bash ../.github/workflows/annotate.sh build.log
       - uses: actions/upload-artifact@v7
         with:
           name: mod-${{ matrix.mc }}
