@@ -10,6 +10,7 @@ const { diagnoseCrash } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
 const { pngInfo, validCapeSize } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
+const serverList = require('./lib/servers');
 let win, auth = null, launching = false;
 const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
@@ -136,6 +137,9 @@ async function doLaunch(version) {
   if (!auth) return 'Najpierw zaloguj się kontem Microsoft (kliknij konto u góry).';
   const s = { ...defaults(), ...rd('settings.json', {}) };
   const root = path.join(s.root, 'instances', version); fs.mkdirSync(root, { recursive: true });
+  // lista serwerów wspólna dla wszystkich wersji gry, z kopią w folderze launchera (nie ginie po aktualizacji ani zmianie wersji)
+  const srv = { shared: jf('servers.dat'), instance: root, instancesDir: path.join(s.root, 'instances') };
+  serverList.before(srv);
   launching = true;
   try {
     const javaPath = s.java || await ensureJava(await javaMajor(version));
@@ -160,7 +164,7 @@ async function doLaunch(version) {
         if (m.t === 'log') send('log', m.d); else if (m.t === 'progress') send('progress', m.d);
         else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root, logFrom: logCount }; setPresence(gameInfo); startHud(m.pid, mibDir, gameAcc); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
           send('started'); notify('MiB Client', 'Pobieranie zakończone — gra się uruchamia.'); win.minimize(); fin('ok'); }
-        else if (m.t === 'close') { launching = false; gamePid = null; prof.gameClosed(); stopHud(); send('closed', m.c); if (m.c !== 0 && gameInfo && !pendingRelaunch) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
+        else if (m.t === 'close') { launching = false; gamePid = null; serverList.after(srv); prof.gameClosed(); stopHud(); send('closed', m.c); if (m.c !== 0 && gameInfo && !pendingRelaunch) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
           if (pendingRelaunch) { const v = pendingRelaunch; pendingRelaunch = null; send('relaunch'); setTimeout(() => doLaunch(v).then(r => { if (r !== 'ok') { send('log', r); notify('MiB Client', String(r).slice(0, 120)); send('closed', 1); } }), 600); } }
         else if (m.t === 'error') { launching = false; notify('MiB Client — błąd', String(m.d).slice(0, 120)); fin('Błąd: ' + m.d); }
       });
