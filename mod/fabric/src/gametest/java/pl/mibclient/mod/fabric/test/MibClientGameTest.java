@@ -133,8 +133,8 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.setScreen(() -> null);
 			context.waitTicks(2);
 
-			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik)
-			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "freelook", "cape"}) {
+			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik, logo i ekran tytułowy)
+			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape"}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
 		}

@@ -9,7 +9,8 @@
 		"GameRendererMixin",
 		"GuiMixin",
 		"LightTextureMixin",
-		"MouseHandlerMixin"
+		"MouseHandlerMixin",
+		"TitleScreenMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
