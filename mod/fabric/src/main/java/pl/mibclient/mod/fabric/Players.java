@@ -53,7 +53,7 @@ public final class Players {
 		return mib.modules.isOn("mib_badge");
 	}
 
-	static UUID id(GameProfile p) {
+	public static UUID id(GameProfile p) {
 		//#if MC >= 1.21.9
 		return p.id();
 		//#else
@@ -61,7 +61,7 @@ public final class Players {
 		//#endif
 	}
 
-	static String name(GameProfile p) {
+	public static String name(GameProfile p) {
 		//#if MC >= 1.21.9
 		return p.name();
 		//#else
