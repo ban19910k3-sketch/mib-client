@@ -10,8 +10,11 @@ cd mod
 out=../probe-out.txt; : > "$out"
 for v in $(awk -v only="$1" '!/^#/ && NF && (only == "" || $1 == only) {print $1}' ../.github/probe.txt | sort -u); do
   ./gradlew -q -Pmc="$v" ":mc-$v:help" > /dev/null 2>&1 || true
-  jar=$(find ~/.gradle/caches/fabric-loom .gradle -name 'minecraft-client.jar' -path "*/$v/*" 2>/dev/null | head -1)
-  [ -n "$jar" ] || jar=$(find ~/.gradle/caches .gradle -name "*.jar" -path "*minecraft*" 2>/dev/null | grep -F "$v" | grep -vE 'sources|mappings|intermediary' | head -1)
+  # jary gry z nazwami Mojanga (1.21.x: po przemapowaniu przez Loom, części client i common; 26.x: oryginalny jar)
+  jar=""
+  for j in $(find ~/.gradle/caches .gradle */.gradle -name '*.jar' \( -path "*/$v/*" -o -path "*/$v-*" \) 2>/dev/null | grep -iE 'minecraft' | grep -vE 'sources|intermediary'); do
+    if unzip -Z1 "$j" 2>/dev/null | grep -qE '^net/minecraft/(client/Minecraft|world/entity/Entity)\.class$'; then jar="$jar${jar:+:}$j"; fi
+  done
   echo "##### $v ($jar)" >> "$out"
   while read -r ver kind rest; do
     [ "$ver" = "$v" ] || continue
@@ -21,7 +24,7 @@ for v in $(awk -v only="$1" '!/^#/ && NF && (only == "" || $1 == only) {print $1
     elif [ "$kind" = calls ]; then
       text=${rest% in *}; pkg=${rest##* in }
       echo "=== wywołania '$text' w $pkg" >> "$out"
-      unzip -Z1 "$jar" | grep -E "^${pkg//.//}([/\$].*)?\.class$" | sed 's/\.class$//; s#/#.#g' > /tmp/classes.txt
+      for j in ${jar//:/ }; do unzip -Z1 "$j"; done | grep -E "^${pkg//.//}([/\$].*)?\.class$" | sed 's/\.class$//; s#/#.#g' > /tmp/classes.txt
       xargs -a /tmp/classes.txt -n 400 javap -c -p -cp "$jar" 2>/dev/null | awk -v t="$text" '
         /^[a-z ]*(class|interface|enum|record) / { cls = $0; sub(/ *\{$/, "", cls); sub(/ (extends|implements|permits) .*/, "", cls); n = split(cls, w, " "); cls = w[n]; next }
         /^  [^ ].*\(.*\).*;$/ { m = $0; next }
