@@ -200,6 +200,23 @@ class MenuViewTest {
 	}
 
 	@Test
+	void cosmeticsPageScrollsAndListsCapesFirst() {
+		List<Cosmetics.Item> list = new ArrayList<Cosmetics.Item>();
+		list.add(new Cosmetics.Item("h0", "Korona", "hat", false, null));
+		for (int i = 1; i <= 14; i++) list.add(new Cosmetics.Item("c" + i, "Peleryna " + i, "cape", i == 14, null));
+		cosmetics = new Cosmetics(true, list);
+		click("cosmetics");
+		render();
+		assertNotNull(v.hitRect("cos:c1"), "peleryny na górze, przed czapką");
+		assertNull(v.hitRect("cos:c14"), "założona peleryna niżej, poza ekranem");
+		for (int i = 0; i < 20; i++) v.mouseScrolled(-1);
+		render();
+		assertNotNull(v.hitRect("cos:c14"), "po przewinięciu da się ją zdjąć");
+		click("cos:c14");
+		assertEquals(Collections.singletonList("equip:cape:null"), calls);
+	}
+
+	@Test
 	void blockedModuleShowsLockAndIgnoresClicks() {
 		mm.setBlocked(Collections.singleton("zoom"));
 		for (char ch : "zoom".toCharArray()) v.charTyped(ch);

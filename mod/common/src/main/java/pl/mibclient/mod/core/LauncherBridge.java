@@ -54,9 +54,31 @@ public final class LauncherBridge {
 		}
 	}
 
-	/** Kosmetyki z cosmetics.json albo null, gdy launcher jeszcze ich nie zapisał. */
+	private byte[] cosBytes;
+	private Cosmetics cosParsed;
+
+	/** Kosmetyki z cosmetics.json albo null, gdy launcher jeszcze ich nie zapisał (plik parsowany tylko po zmianie). */
 	public Cosmetics cosmetics() {
-		Object v = read("cosmetics.json");
+		byte[] b;
+		try {
+			File f = new File(dir, "cosmetics.json");
+			b = f.isFile() ? Files.readAllBytes(f.toPath()) : null;
+		} catch (IOException e) {
+			b = null;
+		}
+		if (java.util.Arrays.equals(b, cosBytes)) return cosParsed;
+		cosBytes = b;
+		cosParsed = b == null ? null : parseCosmetics(b);
+		return cosParsed;
+	}
+
+	private static Cosmetics parseCosmetics(byte[] bytes) {
+		Object v;
+		try {
+			v = Json.parse(new String(bytes, StandardCharsets.UTF_8));
+		} catch (RuntimeException e) {
+			return null;
+		}
 		if (!(v instanceof Map)) return null;
 		Map<?, ?> m = (Map<?, ?>) v;
 		if (!Boolean.TRUE.equals(m.get("loggedIn"))) return Cosmetics.LOGGED_OUT;

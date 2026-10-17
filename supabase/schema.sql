@@ -298,7 +298,6 @@ grant select on public.ideas to authenticated;
 drop policy if exists ideas_read_own on public.ideas;
 create policy ideas_read_own on public.ideas for select to authenticated using (user_id = (select auth.uid()));
 
--- Wysłać pomysł może tylko gracz z profilem, najwyżej 5 na dobę
 -- Założone kosmetyki (od 0.13.0): {"cape": "<id>"}; zmienia je tylko equip_cosmetic, który sprawdza, czy gracz ma ten przedmiot
 alter table public.profiles add column if not exists equipped jsonb not null default '{}'::jsonb;
 create or replace function public.equip_cosmetic(p_type text, p_id text) returns jsonb
@@ -321,6 +320,7 @@ begin
   return v;
 end $$;
 
+-- Wysłać pomysł może tylko gracz z profilem, najwyżej 5 na dobę
 create or replace function public.submit_idea(p_category text, p_body text) returns bigint
 language plpgsql security definer set search_path = '' as $$
 declare

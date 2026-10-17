@@ -29,6 +29,13 @@ test('missingDeps: wyłączony plik liczy się jako obecny', () => {
   assert.deepStrictEqual(m.missingDeps(T, []).map(d => d.slug), ['fabric-api', 'sodium']);
 });
 
+test('cmpVersion: liczbowo, nie jak tekst', () => {
+  assert.strictEqual(m.cmpVersion('0.19.10', '0.19.5'), 1);
+  assert.strictEqual(m.cmpVersion('0.16.14', m.MIN_LOADER), -1);
+  assert.strictEqual(m.cmpVersion('0.19.5', '0.19.5'), 0);
+  assert.strictEqual(m.cmpVersion('1.0', '0.99.99'), 1);
+});
+
 test('isMibFile', () => {
   assert.strictEqual(m.isMibFile('mib-client-mod.jar'), true);
   assert.strictEqual(m.isMibFile('mib-client-mod.jar.disabled'), true);
@@ -95,7 +102,7 @@ const COS = { loggedIn: true, items: [
   { id: 'c2', name: 'Link', type: 'cape', equipped: false, texture: 'https://evil.example/x.png' },
   { id: 'h1', name: 'Czapka', type: 'hat', equipped: false }] };
 
-test('cosmeticsPayload: tylko tekstury PNG w base64, bez adresów zewnętrznych', () => {
+test('cosmeticsPayload: tylko tekstura założonej peleryny (PNG w base64), bez adresów zewnętrznych', () => {
   assert.deepStrictEqual(JSON.parse(m.cosmeticsPayload(COS)).items, [
     { id: 'c1', name: 'Fiolet', type: 'cape', equipped: true, png: 'QUJD' },
     { id: 'c2', name: 'Link', type: 'cape', equipped: false, png: null },

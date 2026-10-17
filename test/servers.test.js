@@ -40,3 +40,47 @@ test('before/after: wspólna lista dla wszystkich wersji gry', () => {
   s.after({ shared, instance: v3 });
   assert.deepStrictEqual(ips(fs.readFileSync(shared)), ['a.pl', 'b.pl', 'c.pl']);
 });
+
+test('NBT: nazwy z emoji i NUL zapisane jak w Javie (zmodyfikowane UTF-8)', () => {
+  const buf = file([entry('🔥 PvP\u0000', 'pvp.pl')]);
+  const name = Buffer.from([0xed, 0xa0, 0xbd, 0xed, 0xb4, 0xa5, 0x20, 0x50, 0x76, 0x50, 0xc0, 0x80]);
+  assert.ok(buf.includes(name), 'emoji jako dwie połówki po 3 bajty, NUL jako C0 80');
+  assert.ok(s.write(s.parse(buf)).equals(buf));
+  assert.strictEqual(s.parse(buf).v[0].v.items[0][0].v, '🔥 PvP\u0000');
+});
+
+test('before: serwery dodane, gdy launcher był zamknięty, nie giną', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'srv-')), inst = path.join(base, 'instances'), shared = path.join(base, 'l', 'servers.dat'), v = path.join(inst, '1.21.4');
+  fs.mkdirSync(v, { recursive: true });
+  fs.writeFileSync(path.join(v, 'servers.dat'), file([entry('A', 'a.pl')]));
+  s.before({ shared, instance: v, instancesDir: inst });
+  // gra działa dalej po zamknięciu launchera: gracz dodaje serwer, after() się nie wykonuje
+  fs.writeFileSync(path.join(v, 'servers.dat'), file([entry('A', 'a.pl'), entry('B', 'b.pl')]));
+  s.before({ shared, instance: v, instancesDir: inst });
+  assert.deepStrictEqual(ips(fs.readFileSync(path.join(v, 'servers.dat'))), ['a.pl', 'b.pl']);
+  assert.deepStrictEqual(ips(fs.readFileSync(shared)), ['a.pl', 'b.pl']);
+});
+
+test('before: ucięta wspólna lista jest odbudowana z instancji', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'srv-')), inst = path.join(base, 'instances'), shared = path.join(base, 'l', 'servers.dat'), v = path.join(inst, '26.1');
+  fs.mkdirSync(v, { recursive: true }); fs.mkdirSync(path.dirname(shared), { recursive: true });
+  const good = file([entry('A', 'a.pl'), entry('B', 'b.pl')]);
+  fs.writeFileSync(path.join(v, 'servers.dat'), good);
+  fs.writeFileSync(shared, good.subarray(0, 20));
+  s.before({ shared, instance: v, instancesDir: inst });
+  assert.deepStrictEqual(ips(fs.readFileSync(path.join(v, 'servers.dat'))), ['a.pl', 'b.pl']);
+  assert.deepStrictEqual(ips(fs.readFileSync(shared)), ['a.pl', 'b.pl']);
+});
+
+test('before: nowy folder gry — jego listy dołączają do wspólnej', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'srv-')), shared = path.join(base, 'l', 'servers.dat');
+  const a = path.join(base, 'gra1', 'instances'), b = path.join(base, 'gra2', 'instances');
+  fs.mkdirSync(path.join(a, '1.21'), { recursive: true }); fs.mkdirSync(path.join(b, '26.3'), { recursive: true });
+  fs.writeFileSync(path.join(a, '1.21', 'servers.dat'), file([entry('A', 'a.pl')]));
+  s.before({ shared, instance: path.join(a, '1.21'), instancesDir: a });
+  fs.writeFileSync(path.join(b, '26.3', 'servers.dat'), file([entry('C', 'c.pl')]));
+  s.before({ shared, instance: path.join(b, '26.3'), instancesDir: b });
+  assert.deepStrictEqual(ips(fs.readFileSync(path.join(b, '26.3', 'servers.dat'))), ['a.pl', 'c.pl']);
+  assert.ok(fs.existsSync(path.join(b, '26.3', 'servers.dat.bak')), 'kopia listy przed nadpisaniem');
+});
+

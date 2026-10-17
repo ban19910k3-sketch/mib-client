@@ -154,7 +154,16 @@ async function doLaunch(version) {
       if (m.active) { opts.customArgs.push(...m.jvmArgs); mibDir = dirMib; }
     } catch (e) { send('log', 'Mod MiB pominięty: ' + e.message); }
     const loader = instGet(version).loader;
-    if (loader === 'fabric') { send('log', 'Przygotowywanie Fabric…'); opts.version.custom = await ensureFabric(root, version); }
+    if (loader === 'fabric') {
+      send('log', 'Przygotowywanie Fabric…'); opts.version.custom = await ensureFabric(root, version);
+      // bez internetu może zostać tylko stary loader: mod MiB wymaga nowszego, więc gra startuje bez niego
+      if (mibDir && mibmod.cmpVersion(fabricLoaderOf(opts.version.custom), mibmod.MIN_LOADER) < 0) {
+        try { fs.unlinkSync(path.join(modsDir(version), mibmod.MOD_FILE)); } catch {}
+        opts.customArgs = opts.customArgs.filter(a => !a.startsWith('-Dmib.dir='));
+        mibDir = null;
+        send('log', 'Brak połączenia z serwerem Fabric, a pobrany Fabric jest za stary dla moda MiB — gra uruchomi się bez niego.');
+      }
+    }
     if (loader === 'forge') { send('log', 'Przygotowywanie Forge…'); opts.forge = await ensureForge(root, version); }
     if (!launching) return 'Anulowano.';
     return await new Promise(res => {
@@ -353,6 +362,8 @@ ipcMain.handle('admin:pickTexture', async () => {
 ipcMain.handle('pickimg', async () => { const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Obrazy', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] }); return r.canceled ? null : r.filePaths[0]; });
 ipcMain.handle('notify', (_, { t, b }) => { notify(t, b); return true; });
 // ---- Loadery ----
+// Wersja loadera z nazwy profilu Fabric, np. fabric-loader-0.19.5-1.21.4 -> 0.19.5
+const fabricLoaderOf = id => (String(id).match(/^fabric-loader-([\d.]+)-/) || [])[1] || '0';
 async function ensureFabric(root, mc) {
   try {
     const list = await (await fetch('https://meta.fabricmc.net/v2/versions/loader/' + mc)).json();
@@ -363,8 +374,8 @@ async function ensureFabric(root, mc) {
   } catch (e) {
     // serwer Fabric niedostępny: gra startuje na wcześniej pobranym Fabricu
     const vd = path.join(root, 'versions');
-    const have = (() => { try { return fs.readdirSync(vd).filter(n => n.startsWith('fabric-loader-') && n.endsWith('-' + mc) && fs.existsSync(path.join(vd, n, n + '.json'))).sort(); } catch { return []; } })();
-    if (have.length) return have[have.length - 1];
+    const have = (() => { try { return fs.readdirSync(vd).filter(n => n.startsWith('fabric-loader-') && n.endsWith('-' + mc) && fs.existsSync(path.join(vd, n, n + '.json'))); } catch { return []; } })();
+    if (have.length) return have.sort((a, b) => mibmod.cmpVersion(fabricLoaderOf(a), fabricLoaderOf(b))).pop();
     throw e;
   }
 }

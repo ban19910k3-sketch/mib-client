@@ -39,7 +39,7 @@ public final class MenuView {
 	private String query = "";
 	private Category category;
 	private String selected;
-	private int scroll, settingsScroll, maxSettingsScroll;
+	private int scroll, settingsScroll, maxSettingsScroll, cosScroll, maxCosScroll;
 	private MenuLayout layout;
 
 	public MenuView(ModuleManager modules, MenuActions actions) {
@@ -325,9 +325,15 @@ public final class MenuView {
 				((Setting.IntSetting) m.setting("size")).get(st), ((Setting.IntSetting) m.setting("thickness")).get(st),
 				((Setting.IntSetting) m.setting("gap")).get(st), ((Setting.BoolSetting) m.setting("dot")).get(st),
 				((Setting.BoolSetting) m.setting("outline")).get(st));
-		c.push(2f, cx, cy);
+		// ×2, a duży celownik pomniejszony, żeby zmieścił się w okienku
+		int ext = 1;
+		for (int[] r : rects) ext = Math.max(ext, Math.max(Math.max(-r[0], r[2]), Math.max(-r[1], r[3])));
+		float k = Math.min(2f, (s / 2f - 4) / ext);
+		c.scissor(x + 2, y + 2, x + s - 2, y + s - 2);
+		c.push(k, cx, cy);
 		for (int[] r : rects) c.fill(cx + r[0], cy + r[1], cx + r[2], cy + r[3], r[4] == 1 ? 0xFF000000 : color);
 		c.pop();
+		c.unscissor();
 	}
 
 	private void settings(Canvas c, int mx, int my) {
@@ -515,9 +521,22 @@ public final class MenuView {
 			return;
 		}
 		c.text(Lang.t("cos.hint"), ct[0], ct[1] + 22, Theme.MUTED, false);
-		int bottom = ct[1] + ct[3] - 16;
-		for (final Cosmetics.Item it : cs.items) {
-			if (y + 20 > bottom) break;
+		// peleryny (te da się założyć w grze) na górze, lista przewijana kółkiem
+		List<Cosmetics.Item> items = new ArrayList<Cosmetics.Item>();
+		for (Cosmetics.Item it : cs.items) if ("cape".equals(it.type)) items.add(it);
+		for (Cosmetics.Item it : cs.items) if (!"cape".equals(it.type)) items.add(it);
+		String msg = actions.cosmeticMessage();
+		int top = y, bottom = ct[1] + ct[3] - (msg != null ? 22 : 2);
+		maxCosScroll = Math.max(0, items.size() * 24 - 4 - (bottom - top));
+		cosScroll = Math.max(0, Math.min(maxCosScroll, cosScroll));
+		c.scissor(ct[0], top, ct[0] + ct[2], bottom);
+		y = top - cosScroll;
+		for (final Cosmetics.Item it : items) {
+			if (y + 20 <= top || y >= bottom) {
+				y += 24;
+				continue;
+			}
+			boolean clickable = y >= top && y + 20 <= bottom;
 			Shapes.panel(c, ct[0], y, ct[2], 20, Theme.SLAB, it.equipped ? Theme.AM_LO : Theme.EDGE);
 			String kind = Lang.t("cos." + ("hat".equals(it.type) || "wings".equals(it.type) ? it.type : "cape"));
 			c.text(Shapes.ellipsize(c, it.name, ct[2] - 150, false), ct[0] + 8, y + 6, Theme.TEXT, false);
@@ -533,7 +552,7 @@ public final class MenuView {
 					String on = Lang.t("cos.on");
 					c.text(on, b[0] - 6 - c.textWidth(on), y + 6, Theme.AM_HI, false);
 				}
-				hits.add(new Hit("cos:" + it.id, b, new Runnable() {
+				if (clickable) hits.add(new Hit("cos:" + it.id, b, new Runnable() {
 					@Override
 					public void run() {
 						actions.equip(it.type, it.equipped ? null : it.id);
@@ -542,9 +561,10 @@ public final class MenuView {
 			}
 			y += 24;
 		}
-		String msg = actions.cosmeticMessage();
+		c.unscissor();
+		y = bottom + 2;
 		if (msg != null) for (String l : Shapes.wrap(c, msg, ct[2], 2)) {
-			c.text(l, ct[0], y + 4, msg.equals(Lang.t("cos.working")) ? Theme.AM_HI : Theme.BAD, false);
+			c.text(l, ct[0], y, msg.equals(Lang.t("cos.working")) ? Theme.AM_HI : Theme.BAD, false);
 			y += 10;
 		}
 	}
@@ -571,6 +591,10 @@ public final class MenuView {
 	public boolean mouseScrolled(double amount) {
 		if (page == Page.SETTINGS) {
 			settingsScroll = Math.max(0, Math.min(maxSettingsScroll, settingsScroll - (int) Math.round(amount * 18)));
+			return true;
+		}
+		if (page == Page.COSMETICS) {
+			cosScroll = Math.max(0, Math.min(maxCosScroll, cosScroll - (int) Math.round(amount * 24)));
 			return true;
 		}
 		if (page != Page.GRID || layout == null) return false;

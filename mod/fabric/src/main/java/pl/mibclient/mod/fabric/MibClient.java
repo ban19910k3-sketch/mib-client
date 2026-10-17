@@ -332,6 +332,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public void applyCape(String key, byte[] png) {
 		if (Objects.equals(key, capeKey)) return;
 		capeKey = key;
+		if (capeTexture != null) Minecraft.getInstance().getTextureManager().release(capeTexture);
 		capeTexture = null;
 		if (png == null) return;
 		try {
