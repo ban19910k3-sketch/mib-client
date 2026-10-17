@@ -47,6 +47,26 @@ class LauncherBridgeTest {
 	}
 
 	@Test
+	void cosmeticsAndEquipRequest() throws Exception {
+		LauncherBridge b = new LauncherBridge(dir);
+		assertNull(b.cosmetics(), "launcher jeszcze nic nie zapisał");
+		write("cosmetics.json", "{\"loggedIn\":false,\"items\":[]}");
+		assertFalse(b.cosmetics().loggedIn);
+		write("cosmetics.json", "{\"loggedIn\":true,\"items\":[{\"id\":\"c1\",\"name\":\"Fiolet\",\"type\":\"cape\",\"equipped\":true,\"png\":\"QUJD\"},"
+				+ "{\"id\":\"c2\",\"name\":\"Złota\",\"type\":\"cape\",\"png\":null},{\"name\":\"bez id\"}]}");
+		Cosmetics c = b.cosmetics();
+		assertTrue(c.loggedIn);
+		assertEquals(2, c.items.size());
+		assertEquals("c1", c.equippedCape().id);
+		assertEquals("QUJD", c.equippedCape().png);
+		b.requestEquip("cape", null);
+		String req = new String(Files.readAllBytes(new File(dir, "cosmetic-request.json").toPath()), StandardCharsets.UTF_8);
+		assertTrue(req.startsWith("{\"type\":\"cape\",\"id\":null,\"at\":"), req);
+		write("cosmetic-result.json", "{\"ok\":false,\"message\":\"Brak sieci\",\"at\":" + (System.currentTimeMillis() + 5) + "}");
+		assertEquals("Brak sieci", b.cosmeticFailure(System.currentTimeMillis() - 1000));
+	}
+
+	@Test
 	void failureOnlyWhenNewer() throws Exception {
 		LauncherBridge b = new LauncherBridge(dir);
 		assertNull(b.failure(0));

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -19,7 +20,8 @@ class MenuViewTest {
 	RecordingCanvas c;
 	List<Account> accounts = new ArrayList<Account>();
 	List<String> calls = new ArrayList<String>();
-	String message;
+	String message, cosMessage;
+	Cosmetics cosmetics;
 
 	@BeforeEach
 	void setUp() {
@@ -45,6 +47,22 @@ class MenuViewTest {
 			@Override
 			public String switchMessage() {
 				return message;
+			}
+
+			@Override
+			public Cosmetics cosmetics() {
+				return cosmetics;
+			}
+
+			@Override
+			public void equip(String type, String id) {
+				calls.add("equip:" + type + ":" + id);
+				cosMessage = Lang.t("cos.working");
+			}
+
+			@Override
+			public String cosmeticMessage() {
+				return cosMessage;
 			}
 		});
 		c = new RecordingCanvas();
@@ -158,6 +176,27 @@ class MenuViewTest {
 		assertEquals(Collections.singletonList("switch:a2"), calls);
 		render();
 		assertTrue(c.hasText("Zmieniam konto… gra uruchomi się ponownie."));
+	}
+
+	@Test
+	void cosmeticsPageEquipsAndTakesOffCapes() {
+		render();
+		assertNull(v.hitRect("cosmetics"), "bez launchera nie ma przycisku Kosmetyki");
+		cosmetics = Cosmetics.LOGGED_OUT;
+		click("cosmetics");
+		assertEquals(MenuView.Page.COSMETICS, v.page());
+		render();
+		assertTrue(c.hasText("Załóż profil MiB w launcherze, żeby zbierać peleryny."));
+		cosmetics = new Cosmetics(true, Arrays.asList(new Cosmetics.Item("c1", "Fiolet", "cape", true, "QUJD"),
+				new Cosmetics.Item("c2", "Złota", "cape", false, null), new Cosmetics.Item("h1", "Korona", "hat", false, null)));
+		render();
+		assertTrue(c.hasText("Założona") && c.hasText("Zdejmij") && c.hasText("Załóż") && c.hasText("Wkrótce w grze"));
+		assertNull(v.hitRect("cos:h1"), "czapki na razie tylko w launcherze");
+		click("cos:c2");
+		click("cos:c1");
+		assertEquals(Arrays.asList("equip:cape:c2", "equip:cape:null"), calls);
+		render();
+		assertTrue(c.hasText("Zmieniam…"));
 	}
 
 	@Test

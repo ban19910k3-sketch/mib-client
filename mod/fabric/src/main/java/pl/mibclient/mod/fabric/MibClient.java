@@ -3,7 +3,9 @@ package pl.mibclient.mod.fabric;
 import com.mojang.blaze3d.platform.InputConstants;
 import java.io.File;
 import java.util.Collections;
+import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import net.fabricmc.api.ClientModInitializer;
@@ -15,10 +17,14 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.MibGraphics;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.MibId;
 import pl.mibclient.mod.core.Account;
 import pl.mibclient.mod.core.Config;
+import pl.mibclient.mod.core.Cosmetics;
 import pl.mibclient.mod.core.HudEditorModel;
 import pl.mibclient.mod.core.HudView;
 import pl.mibclient.mod.core.Lang;
@@ -76,6 +82,11 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	private List<Account> accountsCache = Collections.emptyList();
 	private long accountsReadAt, switchAt, failureCheckedAt;
 	private String switchMessage;
+	/** Kosmetyki z launchera (czytane najwyżej co 2 s) i zarejestrowana tekstura założonej peleryny. */
+	private Cosmetics cosCache;
+	private long cosReadAt, equipAt, cosFailCheckedAt;
+	private String cosMessage, capeKey;
+	private MibId capeTexture;
 	private final SmokeTest smoke = System.getProperty("mib.smoketest") != null ? new SmokeTest() : null;
 
 	@Override
@@ -157,6 +168,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			cinematicBefore = null;
 		}
 		tickFreelook(c);
+		tickCape(c);
 		if (smoke != null) smoke.tick(c);
 	}
 
@@ -295,6 +307,86 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			st.setOption("prev_sneak", null);
 			config.save();
 		}
+	}
+
+	// ===== Kosmetyki =====
+
+	/** Założona peleryna z launchera trafia do tekstury gry (tylko gdy się zmieni). */
+	private void tickCape(Minecraft c) {
+		Cosmetics cs = cosmetics();
+		Cosmetics.Item cape = cs == null ? null : cs.equippedCape();
+		if (cape == null || cape.png == null) {
+			if (capeKey != null && !capeKey.startsWith("test:")) applyCape(null, null);
+			return;
+		}
+		String key = cape.id + ":" + cape.png.hashCode();
+		if (key.equals(capeKey)) return;
+		try {
+			applyCape(key, Base64.getDecoder().decode(cape.png));
+		} catch (IllegalArgumentException e) {
+			applyCape(null, null);
+		}
+	}
+
+	/** Rejestruje teksturę peleryny (PNG 64×32) albo ją zdejmuje (png = null). Publiczne dla testu gry. */
+	public void applyCape(String key, byte[] png) {
+		if (Objects.equals(key, capeKey)) return;
+		capeKey = key;
+		capeTexture = null;
+		if (png == null) return;
+		try {
+			NativeImage img = NativeImage.read(png);
+			MibId id = MibId.fromNamespaceAndPath("mibclient", "cape/" + Integer.toHexString(key.hashCode()));
+			//#if MC >= 1.21.5
+			Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> "mibclient cape", img));
+			//#else
+			Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(img));
+			//#endif
+			capeTexture = id;
+		} catch (Exception e) {
+			capeTexture = null;
+		}
+	}
+
+	/** Tekstura peleryny MiB dla tego gracza albo null (tylko własna postać — peleryny innych graczy w przyszłości). */
+	public MibId capeFor(AbstractClientPlayer player) {
+		if (capeTexture == null || player != Minecraft.getInstance().player) return null;
+		hooks.add("cape");
+		return capeTexture;
+	}
+
+	@Override
+	public Cosmetics cosmetics() {
+		if (bridge == null) return null;
+		long now = System.currentTimeMillis();
+		if (now - cosReadAt > 2000) {
+			Cosmetics c = bridge.cosmetics();
+			if (c != null) cosCache = c;
+			else if (cosCache == null) cosCache = Cosmetics.LOGGED_OUT;
+			cosReadAt = now;
+		}
+		return cosCache;
+	}
+
+	@Override
+	public void equip(String type, String id) {
+		if (bridge == null) return;
+		equipAt = System.currentTimeMillis();
+		bridge.requestEquip(type, id);
+		cosMessage = Lang.t("cos.working");
+		cosReadAt = 0;
+	}
+
+	@Override
+	public String cosmeticMessage() {
+		long now = System.currentTimeMillis();
+		if (bridge != null && equipAt > 0 && now - cosFailCheckedAt > 500) {
+			cosFailCheckedAt = now;
+			String f = bridge.cosmeticFailure(equipAt - 1);
+			if (f != null) cosMessage = Lang.t("cos.failed", f);
+			else if (now - equipAt > 4000 && Lang.t("cos.working").equals(cosMessage)) cosMessage = null;
+		}
+		return cosMessage;
 	}
 
 	// ===== MenuActions =====

@@ -15,7 +15,7 @@ import pl.mibclient.mod.core.Setting.IntSetting;
  * Rysuje przez Canvas w jednostkach menu; kliknięcia trafiają w te same prostokąty, które zostały narysowane.
  */
 public final class MenuView {
-	public enum Page { GRID, SETTINGS, ACCOUNTS }
+	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS }
 
 	public static final int KEY_ESCAPE = 256, KEY_BACKSPACE = 259;
 	private static final int FAINT = 0xFF6F5F82, WHITE = 0xFFFFFFFF;
@@ -125,6 +125,7 @@ public final class MenuView {
 		sidebar(c, mx, my);
 		if (page == Page.SETTINGS && modules.def(selected) != null) settings(c, mx, my);
 		else if (page == Page.ACCOUNTS) accounts(c, mx, my);
+		else if (page == Page.COSMETICS) cosmetics(c, mx, my);
 		else {
 			page = Page.GRID;
 			grid(c, vis, mx, my);
@@ -165,9 +166,10 @@ public final class MenuView {
 			}));
 		}
 
+		int slot = 0;
 		boolean acc = !actions.accounts().isEmpty();
 		if (acc) {
-			int[] r = layout.sidebarButton(0);
+			int[] r = layout.sidebarButton(slot++);
 			button(c, r, "users", Lang.t("menu.accounts"), false, in(r, mx, my));
 			hits.add(new Hit("accounts", r, new Runnable() {
 				@Override
@@ -176,7 +178,17 @@ public final class MenuView {
 				}
 			}));
 		}
-		int[] e = layout.sidebarButton(acc ? 1 : 0);
+		if (actions.cosmetics() != null) {
+			int[] r = layout.sidebarButton(slot++);
+			button(c, r, "archive", Lang.t("menu.cosmetics"), false, in(r, mx, my));
+			hits.add(new Hit("cosmetics", r, new Runnable() {
+				@Override
+				public void run() {
+					page = Page.COSMETICS;
+				}
+			}));
+		}
+		int[] e = layout.sidebarButton(slot);
 		button(c, e, "move", Lang.t("menu.edit_hud"), true, in(e, mx, my));
 		hits.add(new Hit("edit_hud", e, new Runnable() {
 			@Override
@@ -484,6 +496,55 @@ public final class MenuView {
 		String msg = actions.switchMessage();
 		if (msg != null) for (String l : Shapes.wrap(c, msg, ct[2], 3)) {
 			c.text(l, ct[0], y + 4, msg.equals(Lang.t("acc.working")) ? Theme.AM_HI : Theme.BAD, false);
+			y += 10;
+		}
+	}
+
+	/** Kosmetyki z profilu MiB: peleryny można zakładać i zdejmować, reszta jest na razie tylko w launcherze. */
+	private void cosmetics(Canvas c, int mx, int my) {
+		int[] ct = layout.content;
+		header(c, Lang.t("menu.cosmetics"), mx, my);
+		Cosmetics cs = actions.cosmetics();
+		int y = ct[1] + 40;
+		if (cs == null || !cs.loggedIn || cs.items.isEmpty()) {
+			int ty = ct[1] + 22;
+			for (String l : Shapes.wrap(c, Lang.t(cs == null || !cs.loggedIn ? "cos.login" : "cos.empty"), ct[2], 3)) {
+				c.text(l, ct[0], ty, Theme.MUTED, false);
+				ty += 10;
+			}
+			return;
+		}
+		c.text(Lang.t("cos.hint"), ct[0], ct[1] + 22, Theme.MUTED, false);
+		int bottom = ct[1] + ct[3] - 16;
+		for (final Cosmetics.Item it : cs.items) {
+			if (y + 20 > bottom) break;
+			Shapes.panel(c, ct[0], y, ct[2], 20, Theme.SLAB, it.equipped ? Theme.AM_LO : Theme.EDGE);
+			String kind = Lang.t("cos." + ("hat".equals(it.type) || "wings".equals(it.type) ? it.type : "cape"));
+			c.text(Shapes.ellipsize(c, it.name, ct[2] - 150, false), ct[0] + 8, y + 6, Theme.TEXT, false);
+			c.text(kind, ct[0] + ct[2] - 140, y + 6, FAINT, false);
+			if (!"cape".equals(it.type)) {
+				String t = Lang.t("cos.soon");
+				c.text(t, ct[0] + ct[2] - 8 - c.textWidth(t), y + 6, Theme.MUTED, false);
+			} else {
+				String t = Lang.t(it.equipped ? "cos.unequip" : "cos.equip");
+				int[] b = {ct[0] + ct[2] - 4 - (c.textWidth(t) + 16), y + 2, c.textWidth(t) + 16, 16};
+				button(c, b, null, t, !it.equipped, in(b, mx, my));
+				if (it.equipped) {
+					String on = Lang.t("cos.on");
+					c.text(on, b[0] - 6 - c.textWidth(on), y + 6, Theme.AM_HI, false);
+				}
+				hits.add(new Hit("cos:" + it.id, b, new Runnable() {
+					@Override
+					public void run() {
+						actions.equip(it.type, it.equipped ? null : it.id);
+					}
+				}));
+			}
+			y += 24;
+		}
+		String msg = actions.cosmeticMessage();
+		if (msg != null) for (String l : Shapes.wrap(c, msg, ct[2], 2)) {
+			c.text(l, ct[0], y + 4, msg.equals(Lang.t("cos.working")) ? Theme.AM_HI : Theme.BAD, false);
 			y += 10;
 		}
 	}

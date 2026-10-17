@@ -14,4 +14,18 @@ public interface MenuActions {
 
 	/** Komunikat po próbie zmiany konta albo null. */
 	String switchMessage();
+
+	/** Kosmetyki z profilu MiB albo null, gdy gra działa bez launchera (przycisk „Kosmetyki” jest wtedy schowany). */
+	default Cosmetics cosmetics() {
+		return null;
+	}
+
+	/** Zakłada (id) albo zdejmuje (id = null) kosmetyk danego typu. */
+	default void equip(String type, String id) {
+	}
+
+	/** Komunikat po próbie zmiany kosmetyku albo null. */
+	default String cosmeticMessage() {
+		return null;
+	}
 }

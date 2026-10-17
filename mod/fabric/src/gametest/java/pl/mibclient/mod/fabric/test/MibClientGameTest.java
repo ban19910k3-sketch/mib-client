@@ -2,6 +2,7 @@ package pl.mibclient.mod.fabric.test;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.TestInput;
@@ -21,6 +22,9 @@ import pl.mibclient.mod.fabric.MibClient;
 
 /** Automatyczny test w prawdziwym kliencie: menu, wyszukiwarka, ustawienia, edytor HUD, HUD, zoom, celownik + zrzuty. */
 public class MibClientGameTest implements FabricClientGameTest {
+	/** Peleryna 64×32 do testu (fioletowa z białym kwadratem). */
+	private static final String CAPE_PNG = "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAcklEQVR42u3UMQ2AMBBG4b9NBZBQAyADE3hAB2N11AMmkAEGIMEBrAwMLAxc37ddctPL5dzY7ac+kOba6QeCJDXxeLW8bpWs8Spc8QHCfRim9nEp9wsXQAACEMD+E7T87LgAAhCAAAQgAAEAAAAAAIB0ATapC/N+AwboAAAAAElFTkSuQmCC";
+
 	private final List<String> errors = new ArrayList<>();
 
 	@Override
@@ -105,6 +109,9 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(3);
 			check(context.computeOnClient(c -> Input.screen(c) == null), "prawy Shift nie zamknął menu");
 
+			// peleryna MiB (jak po założeniu w menu Kosmetyki) — widać ją na zrzucie z kamery 360°
+			context.runOnClient(c -> MibClient.get().applyCape("test:cape", Base64.getDecoder().decode(CAPE_PNG)));
+
 			// Perspective: kamera 360° pod lewym Altem, po puszczeniu wraca widok z oczu
 			context.runOnClient(c -> {
 				if (!MibClient.get().modules.isOn("perspective")) MibClient.get().modules.toggle("perspective");
@@ -127,7 +134,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(2);
 
 			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik)
-			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "freelook"}) {
+			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "freelook", "cape"}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
 		}

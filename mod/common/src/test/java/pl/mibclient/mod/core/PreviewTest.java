@@ -39,6 +39,12 @@ class PreviewTest {
 			public String switchMessage() {
 				return null;
 			}
+
+			@Override
+			public Cosmetics cosmetics() {
+				return new Cosmetics(true, Arrays.asList(new Cosmetics.Item("c1", "Peleryna Founder", "cape", true, null),
+						new Cosmetics.Item("c2", "Peleryna Fiolet", "cape", false, null), new Cosmetics.Item("h1", "Korona MiB", "hat", false, null)));
+			}
 		};
 	}
 
@@ -69,6 +75,10 @@ class PreviewTest {
 		int[] r = v.hitRect("accounts");
 		v.mouseClicked(r[0] + 1, r[1] + 1, 0);
 		menu(out, "menu-accounts", 1280, 720, v);
+		v.render(new RecordingCanvas(), 640, 360, -1, -1);
+		int[] k = v.hitRect("cosmetics");
+		v.mouseClicked(k[0] + 1, k[1] + 1, 0);
+		menu(out, "menu-cosmetics", 1280, 720, v);
 		Lang.setGame("en_us");
 		v.keyPressed(MenuView.KEY_ESCAPE);
 		menu(out, "menu-en", 1920, 1080, v);

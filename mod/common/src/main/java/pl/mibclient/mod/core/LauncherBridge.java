@@ -40,7 +40,11 @@ public final class LauncherBridge {
 		Map<String, Object> m = new LinkedHashMap<String, Object>();
 		m.put("id", id);
 		m.put("at", System.currentTimeMillis());
-		File f = new File(dir, "switch-request.json"), tmp = new File(dir, "switch-request.json.tmp");
+		write("switch-request.json", m);
+	}
+
+	private void write(String name, Map<String, Object> m) {
+		File f = new File(dir, name), tmp = new File(dir, name + ".tmp");
 		try {
 			Files.createDirectories(dir.toPath());
 			Files.write(tmp.toPath(), Json.write(m).getBytes(StandardCharsets.UTF_8));
@@ -50,9 +54,44 @@ public final class LauncherBridge {
 		}
 	}
 
+	/** Kosmetyki z cosmetics.json albo null, gdy launcher jeszcze ich nie zapisał. */
+	public Cosmetics cosmetics() {
+		Object v = read("cosmetics.json");
+		if (!(v instanceof Map)) return null;
+		Map<?, ?> m = (Map<?, ?>) v;
+		if (!Boolean.TRUE.equals(m.get("loggedIn"))) return Cosmetics.LOGGED_OUT;
+		List<Cosmetics.Item> out = new ArrayList<Cosmetics.Item>();
+		if (m.get("items") instanceof List) for (Object o : (List<?>) m.get("items")) {
+			if (!(o instanceof Map)) continue;
+			Map<?, ?> x = (Map<?, ?>) o;
+			if (!(x.get("id") instanceof String) || !(x.get("name") instanceof String) || !(x.get("type") instanceof String)) continue;
+			out.add(new Cosmetics.Item((String) x.get("id"), (String) x.get("name"), (String) x.get("type"), Boolean.TRUE.equals(x.get("equipped")),
+					x.get("png") instanceof String ? (String) x.get("png") : null));
+		}
+		return new Cosmetics(true, out);
+	}
+
+	/** Prośba do launchera: załóż (id) albo zdejmij (id = null) kosmetyk danego typu. */
+	public void requestEquip(String type, String id) {
+		Map<String, Object> m = new LinkedHashMap<String, Object>();
+		m.put("type", type);
+		m.put("id", id);
+		m.put("at", System.currentTimeMillis());
+		write("cosmetic-request.json", m);
+	}
+
+	/** Komunikat o nieudanej zmianie kosmetyku zapisany później niż sinceMs albo null. */
+	public String cosmeticFailure(long sinceMs) {
+		return failureIn("cosmetic-result.json", sinceMs);
+	}
+
 	/** Komunikat o nieudanej zmianie konta zapisany później niż sinceMs albo null. */
 	public String failure(long sinceMs) {
-		Object v = read("switch-result.json");
+		return failureIn("switch-result.json", sinceMs);
+	}
+
+	private String failureIn(String file, long sinceMs) {
+		Object v = read(file);
 		if (!(v instanceof Map)) return null;
 		Map<?, ?> m = (Map<?, ?>) v;
 		Object at = m.get("at"), msg = m.get("message");
