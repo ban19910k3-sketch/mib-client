@@ -1,9 +1,7 @@
 # <wersja> class <klasa>  |  <wersja> calls <tekst> in <pakiet>  |  <wersja> members <klasa> <regex>   (wynik: adnotacje przebiegu "Podgląd klas gry")
-26.3 calls title/minecraft in net.minecraft.client
-26.3 calls title/edition in net.minecraft.client
-26.3 members net.minecraft.client.gui.components.LogoRenderer .
-26.3 calls LogoRenderer. in net.minecraft.client.gui.screens.TitleScreen
-26.3 members net.minecraft.client.Camera setup|setRotation|alignWithEntity|move|detached|Rotation|update
-26.3 calls Entity.turn in net.minecraft.client.MouseHandler
-26.1 members net.minecraft.client.Camera setup|setRotation|alignWithEntity|move|detached|Rotation|update
-26.1 calls turn( in net.minecraft.client.MouseHandler
+26.1 calls .turn:(DD)V in net.minecraft.client
+26.3 calls .turn:(DD)V in net.minecraft.client
+26.1 calls setRotation:(FF)V in net.minecraft.client.Camera
+26.3 calls setRotation:(FF)V in net.minecraft.client.Camera
+26.3 calls CameraType in net.minecraft.client.Options
+26.3 members net.minecraft.client.Options CameraType|cameraType
