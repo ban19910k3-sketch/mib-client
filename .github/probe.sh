@@ -20,7 +20,7 @@ for v in $(awk '!/^#/ && NF {print $1}' ../.github/probe.txt | sort -u); do
       echo "=== wywołania '$text' w $pkg" >> "$out"
       unzip -Z1 "$jar" | grep -E "^${pkg//.//}/.*\.class$" | sed 's/\.class$//; s#/#.#g' > /tmp/classes.txt
       xargs -a /tmp/classes.txt -n 400 javap -c -p -cp "$jar" 2>/dev/null | awk -v t="$text" '
-        /^[a-z ]*(class|interface|enum|record) / { cls = $0; sub(/ (extends|implements|permits) .*/, "", cls); n = split(cls, w, " "); cls = w[n]; next }
+        /^[a-z ]*(class|interface|enum|record) / { cls = $0; sub(/ *\{$/, "", cls); sub(/ (extends|implements|permits) .*/, "", cls); n = split(cls, w, " "); cls = w[n]; next }
         /^  [^ ].*\(.*\).*;$/ { m = $0; next }
         index($0, t) { key = cls " :: " m; if (!(key in seen)) { seen[key] = 1; print key } }' | head -60 >> "$out"
     fi

@@ -1,5 +1,3 @@
 # <wersja> class <klasa>  |  <wersja> calls <tekst> in <pakiet>   (wynik: adnotacje przebiegu "Podgląd klas gry")
-26.1 calls Options.gamma in net.minecraft.client
-26.3 calls Options.gamma in net.minecraft.client
-26.1 class net.minecraft.client.renderer.state.LightmapRenderState
-26.3 class net.minecraft.client.renderer.state.LightmapRenderState
+26.1 calls Options.gamma in net.minecraft.client.renderer
+26.3 calls Options.gamma in net.minecraft.client.renderer
