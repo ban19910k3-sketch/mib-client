@@ -1,3 +1,8 @@
-# <wersja> class <klasa>  |  <wersja> calls <tekst> in <pakiet>   (wynik: adnotacje przebiegu "Podgląd klas gry")
-26.1 calls Options.gamma in net.minecraft.client.renderer
-26.3 calls Options.gamma in net.minecraft.client.renderer
+# <wersja> class <klasa>  |  <wersja> calls <tekst> in <pakiet>  |  <wersja> members <klasa> <regex>   (wynik: adnotacje przebiegu "Podgląd klas gry")
+26.1 calls Options.fov in net.minecraft.client
+26.3 calls Options.fov in net.minecraft.client
+26.1 members net.minecraft.client.player.AbstractClientPlayer float|fov
+26.3 members net.minecraft.client.player.AbstractClientPlayer float|fov
+26.1 members net.minecraft.client.renderer.GameRenderer fov|float
+26.3 calls blitSprite in net.minecraft.client.gui.Hud
+26.3 calls RenderPipeline; in net.minecraft.client.renderer.RenderPipelines
