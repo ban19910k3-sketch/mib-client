@@ -297,6 +297,27 @@ public final class MenuView {
 		c.fill(on ? x + 12 : x + 2, y + 2, on ? x + 18 : x + 8, y + 8, on ? WHITE : FAINT);
 	}
 
+	static final int PREVIEW = 64;
+
+	/** Podgląd celownika na tle nieba, w powiększeniu ×2 (jak w grze przy dużej skali GUI). */
+	private void crosshairPreview(Canvas c, ModuleDef m, ModuleState st, int x, int y) {
+		int s = PREVIEW;
+		Shapes.panel(c, x, y, s, s + 12, Theme.SLAB, Theme.EDGE2);
+		c.fill(x + 2, y + 2, x + s - 2, y + s / 2, 0xFF7BA4E0);
+		c.fill(x + 2, y + s / 2, x + s - 2, y + s - 2, 0xFF5E8F3A);
+		String t = Lang.t("menu.preview");
+		c.text(t, x + (s - c.textWidth(t)) / 2, y + s + 1, Theme.MUTED, false);
+		int cx = x + s / 2, cy = y + s / 2;
+		int color = ((Setting.ColorSetting) m.setting("color")).get(st);
+		java.util.List<int[]> rects = pl.mibclient.mod.core.modules.CrosshairShape.rects(((Setting.ChoiceSetting) m.setting("shape")).get(st),
+				((Setting.IntSetting) m.setting("size")).get(st), ((Setting.IntSetting) m.setting("thickness")).get(st),
+				((Setting.IntSetting) m.setting("gap")).get(st), ((Setting.BoolSetting) m.setting("dot")).get(st),
+				((Setting.BoolSetting) m.setting("outline")).get(st));
+		c.push(2f, cx, cy);
+		for (int[] r : rects) c.fill(cx + r[0], cy + r[1], cx + r[2], cy + r[3], r[4] == 1 ? 0xFF000000 : color);
+		c.pop();
+	}
+
 	private void settings(Canvas c, int mx, int my) {
 		final ModuleDef m = modules.def(selected);
 		final ModuleState st = modules.state(m.id);
@@ -322,16 +343,20 @@ public final class MenuView {
 		for (int i = 0; i < desc.length; i++) c.text(desc[i], ct[0], ct[1] + 22 + i * 10, Theme.MUTED, false);
 
 		int top = ct[1] + 46, bottom = ct[1] + ct[3] - 22;
+		// Custom crosshair: podgląd celownika obok ustawień, zmienia się od razu
+		boolean preview = "custom_crosshair".equals(m.id);
+		int listRight = preview ? right - PREVIEW - 8 : right;
 		int listH = m.settings.size() * 18;
 		maxSettingsScroll = Math.max(0, listH - (bottom - top));
 		settingsScroll = Math.max(0, Math.min(maxSettingsScroll, settingsScroll));
-		c.scissor(ct[0], top, right, bottom);
+		c.scissor(ct[0], top, listRight, bottom);
 		for (int i = 0; i < m.settings.size(); i++) {
 			int y = top + i * 18 - settingsScroll;
 			if (y + 18 <= top || y >= bottom) continue;
-			row(c, m, st, m.settings.get(i), y, ct[0], right, mx, my, y >= top && y + 18 <= bottom);
+			row(c, m, st, m.settings.get(i), y, ct[0], listRight, mx, my, y >= top && y + 18 <= bottom);
 		}
 		c.unscissor();
+		if (preview) crosshairPreview(c, m, st, right - PREVIEW, top);
 
 		if (m.hud) {
 			String t = Lang.t("menu.place");

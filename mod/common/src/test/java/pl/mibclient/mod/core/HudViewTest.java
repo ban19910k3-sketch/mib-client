@@ -100,12 +100,14 @@ class HudViewTest {
 		g.effects.add(new GameInfo.Effect("Siła", 0, 600, false, "strength"));
 		g.effects.add(new GameInfo.Effect("Regeneracja", 2, 0, true, "regen"));
 		g.gear.add(new GameInfo.Gear("helmet", 100, 90, false));
-		g.gear.add(new GameInfo.Gear("sword", 0, 0, true));
+		g.gear.add(new GameInfo.Gear("sword", 250, 10, true));
+		g.gear.add(new GameInfo.Gear("apple", 0, 0, true));
 		hud.render(c, g, 480, 270, null, false);
 		assertTrue(c.hasText("Siła  0:30"));
 		assertTrue(c.hasText("Regeneracja III  ∞"));
 		assertTrue(c.items.contains("effect:strength"));
 		assertTrue(c.items.contains("helmet") && c.items.contains("sword"));
+		assertFalse(c.items.contains("apple"), "jedzenie (bez wytrzymałości) nie trafia do Armor status");
 		assertEquals(Theme.RED, c.text("10").color, "prawie zniszczona zbroja na czerwono");
 	}
 
@@ -128,8 +130,9 @@ class HudViewTest {
 		g.sprintToggled = true;
 		g.sprinting = true;
 		hud.render(c, g, 480, 270, null, false);
-		assertTrue(c.hasText("X 120  Y 64  Z -39  N"));
-		assertTrue(c.hasText("Równiny"));
+		assertTrue(c.hasText("X: 120") && c.hasText("Y: 64") && c.hasText("Z: -39"), "X, Y i Z w osobnych liniach");
+		assertFalse(c.hasText("Równiny"), "domyślnie bez biomu, same współrzędne");
+		assertTrue(c.text("Y: 64").y > c.text("X: 120").y && c.text("Z: -39").y > c.text("Y: 64").y, "Y pod X, Z pod Y");
 		assertTrue(c.hasText("14:05"));
 		assertTrue(c.hasText("Czas gry: 1:05:09"));
 		assertTrue(c.hasText("N"), "pasek kompasu z literą N na środku");

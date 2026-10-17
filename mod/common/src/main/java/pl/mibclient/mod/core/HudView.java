@@ -1,6 +1,7 @@
 package pl.mibclient.mod.core;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -85,9 +86,8 @@ public final class HudView {
 			return one("Ping: " + (p < 0 ? 24 : p) + " ms");
 		}
 		if ("coordinates".equals(id)) {
-			List<String> l = new ArrayList<String>();
-			String xyz = Formats.coords(g.x(), g.y(), g.z(), integer(d, st, "decimals"));
-			l.add(bool(d, st, "facing") ? xyz + "  " + Formats.facing(g.yaw()) : xyz);
+			List<String> l = new ArrayList<String>(Arrays.asList(Formats.coordLines(g.x(), g.y(), g.z(), integer(d, st, "decimals"))));
+			if (bool(d, st, "facing")) l.add(Formats.facing(g.yaw()));
 			if (bool(d, st, "biome") && g.biome() != null) l.add(g.biome());
 			return l;
 		}
@@ -196,7 +196,8 @@ public final class HudView {
 
 	private int[] armor(int[] at, Canvas c, ModuleDef d, ModuleState st, GameInfo g, boolean editor) {
 		List<GameInfo.Gear> list = new ArrayList<GameInfo.Gear>();
-		for (GameInfo.Gear x : g.gear()) if (!x.held || bool(d, st, "held")) list.add(x);
+		// tylko rzeczy, które się zużywają (bez jedzenia, bloków itp.)
+		for (GameInfo.Gear x : g.gear()) if (x.max > 0 && (!x.held || bool(d, st, "held"))) list.add(x);
 		if (list.isEmpty()) {
 			if (!editor) return new int[] {0, 0};
 			return textBox(at, c, d, st, one(d.name), colorOpt(d, st, "color"));

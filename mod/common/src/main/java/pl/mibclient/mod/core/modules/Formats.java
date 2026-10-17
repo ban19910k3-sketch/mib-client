@@ -19,6 +19,15 @@ public final class Formats {
 		return FACING[(int) Math.round(n / 45.0) % 8];
 	}
 
+	/** Trzy linie: X, pod nim Y, pod nim Z. Bez miejsc po przecinku pozycja bloku (jak F3), inaczej dokładna. */
+	public static String[] coordLines(double x, double y, double z, int decimals) {
+		return new String[] {"X: " + num(x, decimals), "Y: " + num(y, decimals), "Z: " + num(z, decimals)};
+	}
+
+	private static String num(double v, int decimals) {
+		return decimals <= 0 ? String.valueOf((long) Math.floor(v)) : String.format(Locale.ROOT, "%." + decimals + "f", v);
+	}
+
 	/** Bez miejsc po przecinku pokazuje pozycję bloku (jak F3), inaczej dokładną. */
 	public static String coords(double x, double y, double z, int decimals) {
 		if (decimals <= 0) return "X " + (long) Math.floor(x) + "  Y " + (long) Math.floor(y) + "  Z " + (long) Math.floor(z);

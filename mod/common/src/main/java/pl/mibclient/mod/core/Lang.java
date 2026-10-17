@@ -28,6 +28,7 @@ public final class Lang {
 		put("menu.blocked_short", "Zablokowane", "Blocked");
 		put("menu.back", "Wstecz", "Back");
 		put("menu.place", "Ustaw na ekranie", "Place on screen");
+		put("menu.preview", "Podgląd", "Preview");
 		put("menu.empty", "Nie znaleziono modułów", "No modules found");
 		put("menu.key_hint", "Klawisz zmienisz w Sterowaniu Minecrafta", "Change the key in Minecraft Controls");
 		put("acc.active", "aktywne", "active");

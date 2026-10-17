@@ -54,16 +54,16 @@ public final class ModuleCatalog {
 		new ModuleDef("ping", "Ping", Category.HUD, "Opóźnienie do serwera", "Latency to the server",
 			"wifi", false, at(Anchor.TOP_LEFT, 4, 112), hud(
 				bool("quality_color", "Kolor wg jakości", "Colour by quality", true))),
-		new ModuleDef("coordinates", "Coordinates", Category.HUD, "Pozycja X Y Z, kierunek i biom", "X Y Z position, facing and biome",
+		new ModuleDef("coordinates", "Coordinates", Category.HUD, "Pozycja X, Y i Z pod sobą", "X, Y and Z position, one under another",
 			"map-pin", false, at(Anchor.TOP_LEFT, 4, 128), hud(
-				bool("facing", "Pokaż kierunek", "Show facing", true),
-				bool("biome", "Pokaż biom", "Show biome", true),
+				bool("facing", "Pokaż kierunek", "Show facing", false),
+				bool("biome", "Pokaż biom", "Show biome", false),
 				new IntSetting("decimals", "Miejsca po przecinku", "Decimal places", 0, 0, 1, 1))),
 		new ModuleDef("server_address", "Server address", Category.HUD, "Adres serwera na HUD", "Server address on the HUD",
-			"cloud-server", false, at(Anchor.TOP_LEFT, 4, 160), hud(
+			"cloud-server", false, at(Anchor.TOP_LEFT, 4, 170), hud(
 				bool("port", "Pokaż port", "Show port", false))),
 		new ModuleDef("playtime", "Playtime", Category.HUD, "Czas tej sesji gry", "Time played this session",
-			"hourglass", false, at(Anchor.TOP_LEFT, 4, 176), hud()),
+			"hourglass", false, at(Anchor.TOP_LEFT, 4, 186), hud()),
 		new ModuleDef("direction", "Direction", Category.HUD, "Kompas N/E/S/W u góry ekranu", "N/E/S/W compass at the top of the screen",
 			"compass", false, at(Anchor.TOP, 0, 4), hud(
 				new ChoiceSetting("style", "Wygląd", "Style", "strip", new String[] {"strip", "letter"},
@@ -76,14 +76,14 @@ public final class ModuleCatalog {
 			"potion", false, at(Anchor.RIGHT, 4, 0), hud(
 				bool("icons", "Pokaż ikony", "Show icons", true),
 				bool("names", "Pokaż nazwy", "Show names", true))),
-		new ModuleDef("armor_status", "Armor status", Category.HUD, "Założona zbroja i trzymany przedmiot z wytrzymałością",
-			"Worn armour and held item with durability", "shield", false, at(Anchor.BOTTOM_RIGHT, 4, 4), hud(
+		new ModuleDef("armor_status", "Armor status", Category.HUD, "Zbroja i trzymany przedmiot z wytrzymałością (tylko rzeczy, które się zużywają)",
+			"Worn armour and held item with durability (only items that wear out)", "shield", false, at(Anchor.BOTTOM_RIGHT, 4, 4), hud(
 				bool("held", "Pokaż przedmiot w ręce", "Show held item", true),
 				bool("percent", "Wytrzymałość w procentach", "Durability as percentage", false),
 				new ChoiceSetting("layout", "Układ", "Layout", "vertical", new String[] {"vertical", "horizontal"},
 					new String[] {"Pionowo", "Poziomo"}, new String[] {"Vertical", "Horizontal"}))),
 		new ModuleDef("toggle_sprint", "Toggle sprint", Category.PVP, "Bieg i skradanie bez trzymania klawisza",
-			"Sprint and sneak without holding the key", "zap", false, at(Anchor.TOP_LEFT, 4, 192), hud(
+			"Sprint and sneak without holding the key", "zap", false, at(Anchor.TOP_LEFT, 4, 202), hud(
 				bool("sprint", "Przełączany bieg", "Toggle sprint", true),
 				bool("sneak", "Przełączane skradanie", "Toggle sneak", false),
 				bool("show", "Pokaż stan na ekranie", "Show status on screen", true))),
