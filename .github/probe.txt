@@ -1,37 +1,11 @@
 # <wersja> class <klasa>  |  <wersja> calls <tekst> in <pakiet>  |  <wersja> members <klasa> <regex>  |  <wersja> code <klasa> <regex>   (wynik: adnotacje przebiegu "Podgląd klas gry")
-1.21 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)[(]
-1.21 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)[(]
-1.21 code net.minecraft.client.gui.components.LogoRenderer (renderLogo|extractRenderState)[(]
-1.21.2 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)[(]
-1.21.2 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)[(]
-1.21.2 code net.minecraft.client.gui.components.LogoRenderer (renderLogo|extractRenderState)[(]
-1.21.5 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)[(]
-1.21.5 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)[(]
-1.21.5 code net.minecraft.client.gui.components.LogoRenderer (renderLogo|extractRenderState)[(]
-1.21.6 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)[(]
-1.21.6 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)[(]
-1.21.6 code net.minecraft.client.gui.components.LogoRenderer (renderLogo|extractRenderState)[(]
-1.21.9 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)[(]
-1.21.9 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)[(]
-1.21.9 code net.minecraft.client.gui.components.LogoRenderer (renderLogo|extractRenderState)[(]
-1.21.11 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)[(]
-1.21.11 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)[(]
-1.21.11 code net.minecraft.client.gui.components.LogoRenderer (renderLogo|extractRenderState)[(]
-26.1 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)[(]
-26.1 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)[(]
-26.1 code net.minecraft.client.gui.components.LogoRenderer (renderLogo|extractRenderState)[(]
-26.3 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState|init)[(]
-26.3 code net.minecraft.client.gui.screens.PauseScreen (createPauseMenu|render|extractRenderState|init)[(]
-26.3 code net.minecraft.client.gui.components.LogoRenderer (renderLogo|extractRenderState)[(]
-1.21 class net.minecraft.client.gui.components.SplashRenderer
-1.21 class net.minecraft.client.gui.components.LogoRenderer
-1.21 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
-1.21.6 class net.minecraft.client.gui.components.SplashRenderer
-1.21.6 class net.minecraft.client.gui.components.LogoRenderer
-1.21.6 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
-1.21.8 class net.minecraft.client.gui.components.SplashRenderer
-1.21.8 class net.minecraft.client.gui.components.LogoRenderer
-1.21.8 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
-1.21.9 class net.minecraft.client.gui.components.SplashRenderer
-1.21.9 class net.minecraft.client.gui.components.LogoRenderer
-1.21.9 code net.minecraft.client.gui.components.PlayerTabOverlay getNameForDisplay
+1.21 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState)[(]
+1.21.2 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState)[(]
+1.21.5 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState)[(]
+1.21.6 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState)[(]
+1.21.9 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState)[(]
+1.21.11 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState)[(]
+26.1 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState)[(]
+26.3 code net.minecraft.client.gui.screens.TitleScreen (render|extractRenderState)[(]
+26.3 members net.minecraft.client.gui.components.AbstractWidget visible|getMessage|getY|getX|getWidth|getHeight|setY
+1.21 members net.minecraft.client.gui.components.AbstractWidget visible|getMessage|getY|getX|getWidth|getHeight|setY
