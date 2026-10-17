@@ -22,7 +22,7 @@ Darmowy launcher Minecraft PvP w Electronie (czysty HTML/JS, bez frameworka). Ro
 - `mod/common` — cała logika i rysowanie (menu pod prawym Shiftem, HUD, edytor HUD, moduły), Java 8 bez klas Minecrafta. `mod/fabric-1.21.11` — tylko adaptery (Canvas, GameInfo, ekrany, mixiny). Nowe wersje gry = nowe cienkie kopie.
 - Testy części wspólnej: `cd mod && ./gradlew -PcommonOnly :common:test` (serwery Fabric są zablokowane w kontenerze, pełne budowanie tylko na GitHubie). CI `.github/workflows/mod.yml`: budowanie + test w prawdziwym kliencie ze zrzutami; błędy trafiają do adnotacji przebiegu.
 - Launcher: `lib/mibmod.js` (instalacja `mib-client-mod.jar`, Fabric API, Sodium, most kont), plik moda w instalatorze w `resources/mod` (budowany w `release.yml`), lokalnie w `mod-dist/`. Ustawienie `mibMod`.
-- Most z launcherem: pliki w `<instancja>/mib` (`accounts.json` bez tokenów, `switch-request.json`, `switch-result.json`), tam też `mod-config.json` z ustawieniami moda.
+- Most z launcherem: pliki we wspólnym `<folder gry z ustawień>/mib` (`accounts.json` bez tokenów, `switch-request.json`, `switch-result.json`), tam też `mod-config.json` — jedne ustawienia moda dla wszystkich wersji. Co MiB dodał do instancji (Sodium, Fabric API, loader), zapisuje w `mib-instance.json` i cofa po wyłączeniu przełącznika.
 
 ## Wydawanie aktualizacji
 

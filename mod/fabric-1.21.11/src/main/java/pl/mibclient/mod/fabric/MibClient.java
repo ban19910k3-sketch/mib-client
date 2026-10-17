@@ -8,7 +8,6 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -78,9 +77,6 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		zoomKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.mibclient.zoom", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_C, cat));
 
 		HudElementRegistry.addLast(Identifier.of("mibclient", "hud"), (ctx, tick) -> renderHud(ctx));
-		HudElementRegistry.replaceElement(VanillaHudElements.CROSSHAIR, original -> (ctx, tick) -> {
-			if (!drawCrosshair(ctx)) original.render(ctx, tick);
-		});
 		ClientTickEvents.END_CLIENT_TICK.register(this::tick);
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			ServerInfo s = client.getCurrentServerEntry();
@@ -168,9 +164,9 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		return true;
 	}
 
-	private boolean drawCrosshair(DrawContext ctx) {
-		MinecraftClient c = MinecraftClient.getInstance();
-		if (!modules.isOn("custom_crosshair") || !c.options.getPerspective().isFirstPerson()) return false;
+	/** Celownik z Custom crosshair zamiast obrazka z gry (wołane z InGameHudMixin); false = rysuje gra. */
+	public boolean drawCrosshair(DrawContext ctx) {
+		if (!modules.isOn("custom_crosshair")) return false;
 		ModuleDef d = modules.def("custom_crosshair");
 		ModuleState st = modules.state("custom_crosshair");
 		String shape = ((Setting.ChoiceSetting) d.setting("shape")).get(st);

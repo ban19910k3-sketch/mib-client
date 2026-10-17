@@ -84,6 +84,19 @@ public class MibClientGameTest implements FabricClientGameTest {
 			});
 			context.waitTicks(3);
 			context.takeScreenshot("08-crosshair");
+
+			// prawy Shift: pisanie z nim wielkich liter nie zamyka menu, samo naciśnięcie zamyka
+			input.pressKey(GLFW.GLFW_KEY_RIGHT_SHIFT);
+			context.waitTicks(5);
+			check(context.computeOnClient(c -> c.currentScreen instanceof MenuScreen), "prawy Shift nie otworzył menu drugi raz");
+			input.holdKey(GLFW.GLFW_KEY_RIGHT_SHIFT);
+			input.typeChars("CPS");
+			input.releaseKey(GLFW.GLFW_KEY_RIGHT_SHIFT);
+			context.waitTicks(3);
+			check(context.computeOnClient(c -> view(c) != null && "cps".equalsIgnoreCase(view(c).query())), "pisanie z prawym Shiftem zamknęło menu albo zgubiło tekst");
+			input.pressKey(GLFW.GLFW_KEY_RIGHT_SHIFT);
+			context.waitTicks(3);
+			check(context.computeOnClient(c -> c.currentScreen == null), "prawy Shift nie zamknął menu");
 		}
 		if (!errors.isEmpty()) throw new AssertionError(String.join("; ", errors));
 	}

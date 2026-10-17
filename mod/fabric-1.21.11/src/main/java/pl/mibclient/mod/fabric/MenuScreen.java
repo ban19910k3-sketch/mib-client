@@ -15,6 +15,8 @@ import pl.mibclient.mod.core.MenuView;
 public final class MenuScreen extends Screen {
 	private final MibClient mib;
 	private final MenuView view;
+	/** Klawisz menu wciśnięty w tym ekranie; zamyka menu dopiero po puszczeniu, jeśli w międzyczasie nic nie wpisano (prawy Shift to też Shift do wielkich liter). */
+	private boolean menuKeyDown, typedWhileHeld;
 
 	public MenuScreen(MibClient mib, String settingsFor) {
 		super(Text.literal("MiB Client"));
@@ -69,8 +71,9 @@ public final class MenuScreen extends Screen {
 	@Override
 	public boolean keyPressed(KeyInput input) {
 		int key = input.getKeycode();
-		if (key == KeyBindingHelper.getBoundKeyOf(mib.menuKey).getCode() && view.page() == MenuView.Page.GRID) {
-			close();
+		if (isMenuKey(key)) {
+			menuKeyDown = true;
+			typedWhileHeld = false;
 			return true;
 		}
 		if (view.keyPressed(key)) return true;
@@ -78,8 +81,23 @@ public final class MenuScreen extends Screen {
 	}
 
 	@Override
+	public boolean keyReleased(KeyInput input) {
+		if (isMenuKey(input.getKeycode()) && menuKeyDown) {
+			menuKeyDown = false;
+			if (!typedWhileHeld) close();
+			return true;
+		}
+		return super.keyReleased(input);
+	}
+
+	private boolean isMenuKey(int key) {
+		return key == KeyBindingHelper.getBoundKeyOf(mib.menuKey).getCode();
+	}
+
+	@Override
 	public boolean charTyped(CharInput input) {
 		if (!input.isValidChar()) return false;
+		if (menuKeyDown) typedWhileHeld = true;
 		boolean used = false;
 		for (char ch : input.asString().toCharArray()) used |= view.charTyped(ch);
 		return used || super.charTyped(input);

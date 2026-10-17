@@ -116,9 +116,13 @@ ipcMain.handle('accounts:switch', async (_, id) => { try { return await switchAc
 ipcMain.handle('accounts:remove', (_, id) => { const a = accLoad(); a.list = a.list.filter(x => x.id !== id); if (a.active === id) { a.active = null; auth = null; } accSave(a); return true; });
 // Zmiana konta z menu w grze: Minecraft nie pozwala zmienić sesji w trakcie gry, więc gra jest zamykana i uruchamiana ponownie na nowym koncie
 async function relaunchWithAccount(id) {
-  if (!launching || !gamePid || !lastVersion) throw new Error('Gra nie jest uruchomiona.');
+  const pid = gamePid;
+  if (!launching || !pid || !lastVersion) throw new Error('Gra nie jest uruchomiona.');
   let r; try { r = await switchAccount(id); } catch { throw new Error('Sesja tego konta wygasła — dodaj je ponownie w launcherze.'); }
-  send('account:changed', r); pendingRelaunch = lastVersion; try { process.kill(gamePid); } catch {}
+  send('account:changed', r);
+  // gracz mógł sam zamknąć grę w trakcie odświeżania sesji: wtedy bez ponownego uruchamiania
+  if (!launching || gamePid !== pid) return 'Konto zmienione na ' + r.name + '.';
+  pendingRelaunch = lastVersion; try { process.kill(pid); } catch {}
   return 'Zmieniam konto na ' + r.name + ' — gra uruchomi się ponownie…';
 }
 ipcMain.handle('accounts:relaunch', async (_, id) => { try { return await relaunchWithAccount(id); } catch (e) { return e.message; } });
@@ -137,11 +141,13 @@ async function doLaunch(version) {
     const javaPath = s.java || await ensureJava(await javaMajor(version));
     const opts = { authorization: auth.mclc(), root, version: { number: version, type: 'release' }, javaPath, memory: { max: s.ram + 'M', min: Math.min(512, s.ram) + 'M' },
       window: { width: s.width, height: s.height }, customArgs: s.jvm ? s.jvm.split(/\s+/).filter(Boolean) : [] };
-    // Mod MiB (menu pod prawym Shiftem): przy błędzie gra startuje bez niego
+    // Mod MiB (menu pod prawym Shiftem): przy błędzie gra startuje bez niego. Ustawienia moda i most kont są wspólne dla wszystkich wersji gry.
     let mibDir = null;
+    const gameAcc = String((auth.profile && (auth.profile.id || auth.profile.name)) || 'unknown');
     try {
-      const m = await mibmod.prepareMibMod({ gv: version, inst: instGet(version), settings: s, modsDir: modsDir(version), resDir: modResDir(), ensureDep, log: t => send('log', t) });
-      if (m.active) { if (!instGet(version).loader) instSet(version, { loader: m.loader }); opts.customArgs.push(...m.jvmArgs); mibDir = path.join(root, 'mib'); }
+      const dirMib = path.join(s.root, 'mib');
+      const m = await mibmod.prepareMibMod({ gv: version, inst: instGet(version), settings: s, modsDir: modsDir(version), resDir: modResDir(), mibDir: dirMib, ensureDep, setInst: o => instSet(version, o), log: t => send('log', t) });
+      if (m.active) { opts.customArgs.push(...m.jvmArgs); mibDir = dirMib; }
     } catch (e) { send('log', 'Mod MiB pominięty: ' + e.message); }
     const loader = instGet(version).loader;
     if (loader === 'fabric') { send('log', 'Przygotowywanie Fabric…'); opts.version.custom = await ensureFabric(root, version); }
@@ -152,7 +158,7 @@ async function doLaunch(version) {
       const fin = r => { if (!done) { done = true; res(r); } };
       w.on('message', m => {
         if (m.t === 'log') send('log', m.d); else if (m.t === 'progress') send('progress', m.d);
-        else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root, logFrom: logCount }; setPresence(gameInfo); startHud(m.pid, mibDir); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
+        else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root, logFrom: logCount }; setPresence(gameInfo); startHud(m.pid, mibDir, gameAcc); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
           send('started'); notify('MiB Client', 'Pobieranie zakończone — gra się uruchamia.'); win.minimize(); fin('ok'); }
         else if (m.t === 'close') { launching = false; gamePid = null; prof.gameClosed(); stopHud(); send('closed', m.c); if (m.c !== 0 && gameInfo && !pendingRelaunch) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
           if (pendingRelaunch) { const v = pendingRelaunch; pendingRelaunch = null; send('relaunch'); setTimeout(() => doLaunch(v).then(r => { if (r !== 'ok') { send('log', r); notify('MiB Client', String(r).slice(0, 120)); send('closed', 1); } }), 600); } }
@@ -344,11 +350,19 @@ ipcMain.handle('pickimg', async () => { const r = await dialog.showOpenDialog(wi
 ipcMain.handle('notify', (_, { t, b }) => { notify(t, b); return true; });
 // ---- Loadery ----
 async function ensureFabric(root, mc) {
-  const list = await (await fetch('https://meta.fabricmc.net/v2/versions/loader/' + mc)).json();
-  if (!list.length) throw new Error('Fabric nie obsługuje wersji ' + mc);
-  const lv = (list.find(x => x.loader.stable) || list[0]).loader.version;
-  const j = await (await fetch('https://meta.fabricmc.net/v2/versions/loader/' + mc + '/' + lv + '/profile/json')).json();
-  const d = path.join(root, 'versions', j.id); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, j.id + '.json'), JSON.stringify(j)); return j.id;
+  try {
+    const list = await (await fetch('https://meta.fabricmc.net/v2/versions/loader/' + mc)).json();
+    if (!list.length) throw new Error('Fabric nie obsługuje wersji ' + mc);
+    const lv = (list.find(x => x.loader.stable) || list[0]).loader.version;
+    const j = await (await fetch('https://meta.fabricmc.net/v2/versions/loader/' + mc + '/' + lv + '/profile/json')).json();
+    const d = path.join(root, 'versions', j.id); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, j.id + '.json'), JSON.stringify(j)); return j.id;
+  } catch (e) {
+    // serwer Fabric niedostępny: gra startuje na wcześniej pobranym Fabricu
+    const vd = path.join(root, 'versions');
+    const have = (() => { try { return fs.readdirSync(vd).filter(n => n.startsWith('fabric-loader-') && n.endsWith('-' + mc) && fs.existsSync(path.join(vd, n, n + '.json'))).sort(); } catch { return []; } })();
+    if (have.length) return have[have.length - 1];
+    throw e;
+  }
 }
 async function ensureForge(root, mc) {
   const pr = (await (await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json')).json()).promos || {}, v = pr[mc + '-recommended'] || pr[mc + '-latest'];
@@ -361,9 +375,10 @@ async function ensureForge(root, mc) {
 // ---- Nakładka HUD (Right Shift) ----
 // Z modem MiB menu jest w samej grze: launcher tylko obsługuje zmianę konta przez pliki w <gra>/mib (bez starej nakładki)
 let ov = null, fgProc = null, menuOpen = false, fg = true, hooked = false, bridge = null;
-function startHud(pid, mibDir) {
+function startHud(pid, mibDir, gameAcc) {
   if (mibDir) {
-    try { bridge = mibmod.createBridge({ dir: mibDir, accounts: accLoad, onSwitch: relaunchWithAccount }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
+    // „aktywne” dla menu w grze to konto, na którym gra działa (nie to wybrane później w oknie launchera)
+    try { bridge = mibmod.createBridge({ dir: mibDir, accounts: () => ({ ...accLoad(), active: gameAcc }), onSwitch: relaunchWithAccount }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
     return;
   }

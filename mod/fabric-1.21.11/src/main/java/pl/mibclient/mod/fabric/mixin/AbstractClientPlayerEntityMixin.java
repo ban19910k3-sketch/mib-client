@@ -7,11 +7,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import pl.mibclient.mod.fabric.MibClient;
 
-/** FOV changer: bez zmiany pola widzenia przy biegu i miksturach. */
+/** FOV changer: bez zmiany pola widzenia przy biegu i miksturach; luneta i napinanie łuku działają jak w grze. */
 @Mixin(AbstractClientPlayerEntity.class)
 public abstract class AbstractClientPlayerEntityMixin {
 	@Inject(method = "getFovMultiplier", at = @At("HEAD"), cancellable = true)
 	private void mib$fixedFov(boolean firstPerson, float fovEffectScale, CallbackInfoReturnable<Float> cir) {
-		if (MibClient.get().fixedFovMultiplier()) cir.setReturnValue(1.0f);
+		if (!((AbstractClientPlayerEntity) (Object) this).isUsingItem() && MibClient.get().fixedFovMultiplier()) cir.setReturnValue(1.0f);
 	}
 }
