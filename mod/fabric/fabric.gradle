@@ -1,0 +1,103 @@
+// Kopia moda MiB dla jednej wersji gry (katalog versions/<wersja>). Źródło adaptera jest jedno (fabric/src)
+// z blokami //#if MC >= x.y.z, które MibPp (buildSrc) wycina pod tę wersję do build/pp. Część wspólna (common)
+// kompiluje się razem z nim.
+def mc = project.minecraft_version
+def unobf = MibPp.cmp(mc, '26.1') >= 0          // od 26.1: bez remapowania, Java 25
+def javaVer = unobf ? 25 : 21
+def hasGametest = MibPp.cmp(mc, '1.21.4') >= 0  // Fabric API ma test klienta od 1.21.4
+
+base {
+	archivesName = "mib-mod-fabric-$mc"
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${mc}"
+	if (unobf) {
+		implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+		implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	} else {
+		mappings loom.officialMojangMappings()
+		modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+		modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	}
+}
+
+// Automatyczny test gry (fabric/src/gametest): uruchamia klienta, otwiera menu i robi zrzuty ekranu
+if (hasGametest) {
+	fabricApi {
+		configureTests {
+			createSourceSet = true
+			modId = 'mibclient-gametest'
+			enableGameTests = false
+			enableClientGameTests = true
+			eula = true
+		}
+	}
+	// Na CI (renderowanie programowe) synchronizacja pakietów i łączenie stosów wywołań spowalniają wczytywanie świata
+	tasks.matching { it.name == 'runClientGameTest' }.configureEach {
+		jvmArgs '-Dfabric.client.gametest.disableNetworkSynchronizer=true', '-Dfabric.client.gametest.disableJoinAsyncStackTraces=true'
+	}
+}
+
+// Starsze wersje bez testu klienta: -Psmoke uruchamia grę, mod sam otwiera menu i edytor HUD, wypisuje [MIB-SMOKE] i zamyka grę
+if (project.hasProperty('smoke')) {
+	loom {
+		runs {
+			client {
+				vmArg '-Dmib.smoketest=true'
+			}
+		}
+	}
+}
+
+def ppDir = layout.buildDirectory.dir('pp').get().asFile
+def ppSrc = rootProject.file('fabric/src')
+tasks.register('mibPreprocess') {
+	inputs.dir(ppSrc)
+	inputs.property('mc', mc)
+	outputs.dir(ppDir)
+	doLast {
+		MibPp.tree(ppSrc, ppDir, mc)
+	}
+}
+
+sourceSets {
+	main {
+		java.srcDirs = [new File(ppDir, 'main/java'), rootProject.file('common/src/main/java')]
+		resources.srcDirs = [new File(ppDir, 'main/resources'), rootProject.file('common/src/main/resources')]
+	}
+}
+if (hasGametest) {
+	sourceSets {
+		gametest {
+			java.srcDirs = [new File(ppDir, 'gametest/java')]
+			resources.srcDirs = [new File(ppDir, 'gametest/resources')]
+		}
+	}
+}
+tasks.matching { it.name in ['compileJava', 'processResources', 'compileGametestJava', 'processGametestResources', 'sourcesJar'] }.configureEach {
+	dependsOn 'mibPreprocess'
+}
+
+processResources {
+	def props = [version: project.version, mc: mc, java: javaVer]
+	inputs.properties(props)
+	filesMatching(['fabric.mod.json', 'mibclient.mixins.json']) {
+		expand props
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = javaVer
+	it.options.encoding = 'UTF-8'
+}
+
+java {
+	sourceCompatibility = JavaVersion.toVersion(javaVer)
+	targetCompatibility = JavaVersion.toVersion(javaVer)
+}
+
+// Stała nazwa pliku: launcher kopiuje go do mods jako mib-client-mod.jar
+tasks.named(unobf ? 'jar' : 'remapJar') {
+	archiveFileName = "mib-mod-fabric-${mc}.jar"
+}

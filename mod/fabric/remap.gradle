@@ -1,0 +1,6 @@
+// Wersje 1.21–1.21.11: gra zaciemniona, Loom remapuje ją na oficjalne nazwy Mojanga.
+plugins {
+	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+}
+
+apply from: rootProject.file('fabric/fabric.gradle')

@@ -12,7 +12,40 @@ permissions:
   contents: write
 
 jobs:
+  # lista wersji gry = katalogi mod/versions/<wersja>
+  versions:
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.v.outputs.list }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: v
+        run: echo "list=$(ls mod/versions | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+
+  # mod MiB do gry (menu pod prawym Shiftem), osobny plik dla każdej wersji gry
+  mod:
+    needs: versions
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        mc: ${{ fromJson(needs.versions.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      - working-directory: mod
+        run: ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:build --no-daemon
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mod-${{ matrix.mc }}
+          path: mod/versions/${{ matrix.mc }}/build/libs/mib-mod-fabric-${{ matrix.mc }}.jar
+          if-no-files-found: error
+
   build:
+    needs: mod
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -21,17 +54,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Mod MiB do gry (menu pod prawym Shiftem) trafia do instalatora jako resources/mod
-      - uses: actions/setup-java@v5
+      # pliki moda trafiają do instalatora jako resources/mod
+      - uses: actions/download-artifact@v4
         with:
-          distribution: temurin
-          java-version: 25
-      - uses: gradle/actions/setup-gradle@v6
-      - name: Zbuduj mod MiB
-        shell: bash
-        run: |
-          cd mod && ./gradlew :fabric-1.21.11:build --no-daemon
-          mkdir -p ../mod-dist && cp fabric-1.21.11/build/libs/mib-mod-fabric-1.21.11.jar ../mod-dist/
+          pattern: mod-*
+          merge-multiple: true
+          path: mod-dist
       - run: npx electron-builder --win nsis --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

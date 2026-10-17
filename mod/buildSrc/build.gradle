@@ -1,0 +1,9 @@
+// Narzędzia budowania moda: preprocesor kopii dla wersji gry (MibPp).
+plugins {
+	id 'groovy'
+}
+
+dependencies {
+	implementation gradleApi()
+	implementation localGroovy()
+}

@@ -11,9 +11,19 @@ pluginManagement {
 
 rootProject.name = 'mibclient'
 
-// Część wspólna (czysta Java 8) i kopie moda dla wersji gry.
-// -PcommonOnly: tylko część wspólna (np. tam, gdzie nie ma dostępu do repozytorium Fabric).
+// Część wspólna (czysta Java 8) i kopie moda dla wersji gry: versions/<wersja>/gradle.properties,
+// wszystkie budowane z jednego źródła mod/fabric (fabric/fabric.gradle przez remap.gradle albo native.gradle).
+// -Pmc=1.21.4 (albo kilka po przecinku): tylko te wersje. -PcommonOnly: tylko część wspólna
+// (np. tam, gdzie nie ma dostępu do repozytorium Fabric).
 include 'common'
 if (!startParameter.projectProperties.containsKey('commonOnly')) {
-	include 'fabric-1.21.11'
+	def all = new File(settingsDir, 'versions').listFiles().findAll { new File(it, 'gradle.properties').isFile() }*.name.sort()
+	def want = startParameter.projectProperties.get('mc')?.tokenize(',') ?: all
+	want.each { v ->
+		if (!all.contains(v)) throw new GradleException("Nieznana wersja gry: $v (dostępne: ${all.join(', ')})")
+		include "mc-$v"
+		project(":mc-$v").projectDir = new File(settingsDir, "versions/$v")
+		// do 1.21.11 gra jest zaciemniona (Loom z remapowaniem na nazwy Mojanga), od 26.1 już nie
+		project(":mc-$v").buildFileName = v.startsWith('1.') ? '../../fabric/remap.gradle' : '../../fabric/native.gradle'
+	}
 }

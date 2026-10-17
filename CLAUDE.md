@@ -19,9 +19,10 @@ Darmowy launcher Minecraft PvP w Electronie (czysty HTML/JS, bez frameworka). Ro
 
 ## Mod MiB w grze (od 0.12.0)
 
-- `mod/common` — cała logika i rysowanie (menu pod prawym Shiftem, HUD, edytor HUD, moduły), Java 8 bez klas Minecrafta. `mod/fabric-1.21.11` — tylko adaptery (Canvas, GameInfo, ekrany, mixiny). Nowe wersje gry = nowe cienkie kopie.
-- Testy części wspólnej: `cd mod && ./gradlew -PcommonOnly :common:test` (serwery Fabric są zablokowane w kontenerze, pełne budowanie tylko na GitHubie). CI `.github/workflows/mod.yml`: budowanie + test w prawdziwym kliencie ze zrzutami; błędy trafiają do adnotacji przebiegu.
-- Launcher: `lib/mibmod.js` (instalacja `mib-client-mod.jar`, Fabric API, Sodium, most kont), plik moda w instalatorze w `resources/mod` (budowany w `release.yml`), lokalnie w `mod-dist/`. Ustawienie `mibMod`.
+- `mod/common` — cała logika i rysowanie (menu pod prawym Shiftem, HUD, edytor HUD, moduły), Java 8 bez klas Minecrafta.
+- `mod/fabric/src` — jeden adapter (Canvas, GameInfo, ekrany, mixiny) na nazwach Mojanga dla wszystkich wersji 1.21–26.3. Różnice między wersjami w blokach `//#if MC >= 1.21.9` … `//#else` … `//#endif`; słowa `MibGraphics`, `MibId`, `MibHud` zamieniają się na klasy danej wersji (`mod/buildSrc/.../MibPp.groovy`). Wersje gry: katalogi `mod/versions/<wersja>/gradle.properties` (Minecraft + Fabric API); nowa wersja = nowy katalog + wpis w `VERSIONS` w `lib/mibmod.js`.
+- Testy: `cd mod && ./gradlew -PcommonOnly :common:test mibPpCheck` (serwery Fabric są zablokowane w kontenerze, pełne budowanie tylko na GitHubie). CI `.github/workflows/mod.yml`: każda wersja osobno — budowanie i test w prawdziwym kliencie (od 1.21.4 test Fabric ze zrzutami, starsze `-Psmoke`); błędy trafiają do adnotacji przebiegu.
+- Launcher: `lib/mibmod.js` (instalacja `mib-client-mod.jar`, Fabric API, Sodium, most kont), pliki moda w instalatorze w `resources/mod` (budowane w `release.yml`), lokalnie w `mod-dist/`. Ustawienie `mibMod`.
 - Most z launcherem: pliki we wspólnym `<folder gry z ustawień>/mib` (`accounts.json` bez tokenów, `switch-request.json`, `switch-result.json`), tam też `mod-config.json` — jedne ustawienia moda dla wszystkich wersji. Co MiB dodał do instancji (Sodium, Fabric API, loader), zapisuje w `mib-instance.json` i cofa po wyłączeniu przełącznika.
 
 ## Wydawanie aktualizacji

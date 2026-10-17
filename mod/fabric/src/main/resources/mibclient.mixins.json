@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "pl.mibclient.mod.fabric.mixin",
+	"compatibilityLevel": "JAVA_${java}",
+	"client": [
+		"AbstractClientPlayerMixin",
+		"GameRendererMixin",
+		"GuiMixin",
+		"LightTextureMixin",
+		"MouseHandlerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

@@ -6,3 +6,12 @@ subprojects {
 		maven { url = 'https://repo1.maven.org/maven2/' }
 	}
 }
+
+// Sprawdzenie bloków //#if dla wszystkich wersji gry (bez dostępu do Fabric): ./gradlew -PcommonOnly mibPpCheck
+tasks.register('mibPpCheck') {
+	doLast {
+		file('versions').listFiles().findAll { it.isDirectory() }.each { v ->
+			MibPp.tree(file('fabric/src'), file("build/ppcheck/${v.name}"), v.name)
+		}
+	}
+}

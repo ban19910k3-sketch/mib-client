@@ -1,0 +1,6 @@
+// Wersje od 26.1: gra bez zaciemniania (nazwy Mojanga od razu), Java 25.
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+apply from: rootProject.file('fabric/fabric.gradle')

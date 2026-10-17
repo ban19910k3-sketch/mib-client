@@ -15,6 +15,14 @@ test('planMod: kiedy wgrać mod MiB', () => {
   assert.deepStrictEqual(m.planMod({ gv: '1.21.11', loader: null, enabled: true, jarExists: false }), { use: false, reason: 'missing_jar' });
 });
 
+test('TARGETS: wszystkie wersje od 1.21 do 26.3, te same co mod/versions', () => {
+  const dirs = fs.readdirSync(path.join(__dirname, '..', 'mod', 'versions')).sort();
+  assert.deepStrictEqual([...m.VERSIONS].sort(), dirs);
+  for (const v of m.VERSIONS) assert.strictEqual(m.TARGETS[v].jar, 'mib-mod-fabric-' + v + '.jar');
+  for (const v of ['1.21', '1.21.5', '1.21.11', '26.1', '26.3']) assert.strictEqual(m.planMod({ gv: v, loader: null, enabled: true, jarExists: true }).use, true);
+  for (const v of ['1.20.6', '1.8.9', '26.4']) assert.strictEqual(m.planMod({ gv: v, loader: null, enabled: true, jarExists: true }).reason, 'unsupported');
+});
+
 test('missingDeps: wyłączony plik liczy się jako obecny', () => {
   assert.deepStrictEqual(m.missingDeps(T, ['fabric-api-0.141.6+1.21.11.jar']).map(d => d.slug), ['sodium']);
   assert.deepStrictEqual(m.missingDeps(T, ['sodium-fabric-0.6.13+mc1.21.11.jar.disabled', 'fabric-api-x.jar']), []);
