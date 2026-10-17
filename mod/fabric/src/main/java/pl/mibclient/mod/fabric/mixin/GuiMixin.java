@@ -8,7 +8,9 @@ import net.minecraft.resources.MibId;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import pl.mibclient.mod.fabric.MibClient;
-//#if MC >= 1.21.6
+//#if MC >= 26.3
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+//#elif MC >= 1.21.6
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 //#elif MC >= 1.21.2
 import java.util.function.Function;
@@ -21,7 +23,13 @@ import net.minecraft.client.renderer.RenderType;
  */
 @Mixin(MibHud.class)
 public abstract class GuiMixin {
-	//#if MC >= 26.1
+	//#if MC >= 26.3
+	@WrapOperation(method = "extractCrosshair", at = @At(value = "INVOKE",
+			target = "Lnet/minecraft/client/gui/MibGraphics;blitSprite(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;Lnet/minecraft/resources/MibId;IIII)V"))
+	private void mib$crosshair(MibGraphics g, RenderPipeline pipeline, MibId id, int x, int y, int w, int h, Operation<Void> original) {
+		if (!isCrosshair(id) || !MibClient.get().drawCrosshair(g)) original.call(g, pipeline, id, x, y, w, h);
+	}
+	//#elif MC >= 26.1
 	@WrapOperation(method = "extractCrosshair", at = @At(value = "INVOKE",
 			target = "Lnet/minecraft/client/gui/MibGraphics;blitSprite(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/resources/MibId;IIII)V"))
 	private void mib$crosshair(MibGraphics g, RenderPipeline pipeline, MibId id, int x, int y, int w, int h, Operation<Void> original) {
