@@ -56,7 +56,7 @@ jobs:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v6
-      - run: sudo apt-get update && sudo apt-get install -y xvfb
+      - run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers
       - name: Zbuduj
         shell: bash
         working-directory: mod
@@ -72,6 +72,9 @@ jobs:
             timeout 900 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew -Pmc=${{ matrix.mc }} -Psmoke :mc-${{ matrix.mc }}:runClient --stacktrace 2>&1 | tee test.log
             grep -q "\[MIB-SMOKE\] menu true" test.log && grep -q "\[MIB-SMOKE\] hud true" test.log && grep -q "\[MIB-SMOKE\] ok" test.log \
               || { echo "::error::Test uruchomienia nie przeszedł"; exit 1; }
+          elif [[ "${{ matrix.mc }}" =~ ^26\.([3-9]|[1-9][0-9]) ]]; then
+            # od 26.3 gra używa SDL: test bez xvfb, jak w CI samego Fabric
+            timeout 1500 ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:runClientGameTest --stacktrace 2>&1 | tee test.log
           else
             timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:runClientGameTest --stacktrace 2>&1 | tee test.log
           fi
