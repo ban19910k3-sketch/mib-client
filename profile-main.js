@@ -216,6 +216,21 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       const r = await authed(t => supa.rpc('redeem_code', { p_code: String(code || '').trim().toUpperCase() }, t));
       return { id: r.cosmetic_id, name: r.name, type: r.type, imageUrl: r.image_url };
     },
+    // ===== Gracze MiB w grze (logo przed nickiem, peleryny innych) =====
+    // Zgłoszenie konta Minecrafta (potwierdza je Mojang); z profilem MiB baza łączy konto z profilem (peleryna)
+    async mibHello({ name, serverId }) {
+      let t = null;
+      try { t = await token(); } catch {}
+      return supa.rpc('mib_hello', { p_name: name, p_server_id: serverId }, t || undefined);
+    },
+    mibPing: ({ uuid, token: tok, online }) => supa.rpc('mib_ping', { p_uuid: uuid, p_token: tok, p_online: online !== false }),
+    mibWho: ({ ids, names }) => supa.rpc('mib_who', { p_ids: ids || [], p_names: names || [] }),
+    // Tekstury peleryn (tabela cosmetics jest publiczna); id tylko z bezpiecznych znaków
+    async capeTextures({ ids }) {
+      const ok = (ids || []).filter(id => /^[a-z0-9_]{2,32}$/.test(id));
+      if (!ok.length) return [];
+      return supa.select('cosmetics', 'select=id,texture&type=eq.cape&id=in.(' + ok.join(',') + ')');
+    },
     async submitIdea({ category, body }) {
       const bad = P.validateIdea({ category, body });
       if (bad) return { error: bad };

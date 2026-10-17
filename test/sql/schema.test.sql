@@ -321,3 +321,49 @@ do $$ begin
   assert (select nick from public.admin_list_ideas() limit 1) is null, 'admin nie widzi nicku usuniętego konta';
 end $$;
 reset role;
+
+-- Gracze MiB w grze: obecność potwierdzona przez Mojanga, peleryna tylko posiadana i założona
+insert into extensions.fake_mojang values ('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '33333333333333333333333333333333');
+set role anon;
+select pg_temp.expect_error($q$select public.mib_hello('Gracz', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')$q$, 'not_verified');
+select pg_temp.expect_error($q$select public.mib_hello('Zły nick', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')$q$, 'name_invalid');
+select pg_temp.expect_error($q$select public.mib_hello('Gracz', 'x')$q$, 'server_id_invalid');
+select pg_temp.expect_error($q$select count(*) from private.mib_players$q$, 'permission denied');
+select public.mib_hello('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') ->> 'token' as tok \gset
+do $$ begin
+  assert (select count(*) from public.mib_who(array['33333333-3333-3333-3333-333333333333']::uuid[], null)) = 1, 'gracz MiB widoczny po UUID';
+  assert (select name from public.mib_who(null, array['GRACZ'])) = 'Gracz', 'po nicku, bez wielkości liter';
+  assert (select count(*) from public.mib_who(array['44444444-4444-4444-4444-444444444444']::uuid[], array['ktos'])) = 0, 'inni gracze nie';
+  assert (select cape from public.mib_who(null, array['Gracz'])) is null, 'bez profilu MiB bez peleryny';
+  assert not public.mib_ping('33333333-3333-3333-3333-333333333333', 'zly', true), 'zły token';
+end $$;
+select public.mib_ping('33333333-3333-3333-3333-333333333333', :'tok', false);
+do $$ begin
+  assert (select count(*) from public.mib_who(null, array['Gracz'])) = 0, 'po zamknięciu gry niewidoczny';
+end $$;
+select public.mib_ping('33333333-3333-3333-3333-333333333333', :'tok', true);
+do $$ begin
+  assert (select count(*) from public.mib_who(null, array['Gracz'])) = 1, 'po sygnale znowu widoczny';
+end $$;
+reset role;
+-- zalogowany gracz z założoną peleryną
+insert into public.owned_cosmetics (user_id, cosmetic_id) values ('22222222-2222-2222-2222-222222222222', 'cape_two') on conflict do nothing;
+update public.profiles set equipped = '{"cape":"cape_two"}' where id = '22222222-2222-2222-2222-222222222222';
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select public.mib_hello('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') ->> 'token' as tok2 \gset
+do $$ begin
+  assert (select cape from public.mib_who(null, array['Gracz'])) = 'cape_two', 'peleryna gracza MiB';
+  assert not public.mib_ping('33333333-3333-3333-3333-333333333333', 'zly', true), 'stary token po ponownym zgłoszeniu nie działa';
+end $$;
+reset role;
+delete from public.owned_cosmetics where user_id = '22222222-2222-2222-2222-222222222222' and cosmetic_id = 'cape_two';
+do $$ begin
+  assert (select cape from public.mib_who(null, array['Gracz'])) is null, 'zabrana peleryna znika';
+end $$;
+-- limit pytań do Mojanga
+insert into private.hello_log select now() from generate_series(1, 120);
+set role anon;
+select pg_temp.expect_error($q$select public.mib_hello('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')$q$, 'busy');
+reset role;
+delete from private.hello_log;

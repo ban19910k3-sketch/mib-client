@@ -11,6 +11,7 @@ const { buildActivity, createPresence } = require('./lib/discord');
 const { pngInfo, validCapeSize } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
+const { createMibPresence } = require('./lib/presence');
 let win, auth = null, launching = false;
 const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
@@ -49,6 +50,8 @@ const prof = profileMain.createProfile({
 const modTimers = {};
 const modsChanged = gv => { clearTimeout(modTimers[gv]); modTimers[gv] = setTimeout(() => prof.modsChanged(gv).catch(() => {}), 1500); };
 profileMain.register(ipcMain, prof);
+// Gracze MiB w grze: logo MiB przed nickiem i peleryny innych graczy MiB (lib/presence.js)
+const mibPresence = createMibPresence({ fetch: (...a) => fetch(...a), api: prof, randomBytes: crypto.randomBytes });
 const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); logCount++; if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };
 
 // ===== Status na Discordzie =====
@@ -165,6 +168,11 @@ async function doLaunch(version) {
       }
     }
     if (loader === 'forge') { send('log', 'Przygotowywanie Forge…'); opts.forge = await ensureForge(root, version); }
+    // logo MiB przed nickiem: zgłoszenie konta przed startem gry (gra w tym czasie nie łączy się jeszcze z żadnym serwerem)
+    if (mibDir && mibmod.modModuleOn(mibDir, 'mib_badge', true)) {
+      try { await Promise.race([mibPresence.start(auth.mclc()), new Promise((_, rej) => setTimeout(() => rej(new Error('brak odpowiedzi')), 6000))]); }
+      catch (e) { send('log', 'Logo MiB przy nicku chwilowo niedostępne (' + san(e.message) + ').'); }
+    }
     if (!launching) return 'Anulowano.';
     return await new Promise(res => {
       const w = utilityProcess.fork(path.join(__dirname, 'worker.js')); worker = w; let done = false;
@@ -173,7 +181,7 @@ async function doLaunch(version) {
         if (m.t === 'log') send('log', m.d); else if (m.t === 'progress') send('progress', m.d);
         else if (m.t === 'spawned') { gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root, logFrom: logCount }; setPresence(gameInfo); startHud(m.pid, mibDir, gameAcc); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
           send('started'); notify('MiB Client', 'Pobieranie zakończone — gra się uruchamia.'); win.minimize(); fin('ok'); }
-        else if (m.t === 'close') { launching = false; gamePid = null; serverList.after(srv); prof.gameClosed(); stopHud(); send('closed', m.c); if (m.c !== 0 && gameInfo && !pendingRelaunch) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
+        else if (m.t === 'close') { launching = false; gamePid = null; serverList.after(srv); prof.gameClosed(); stopHud(); mibPresence.stop().catch(() => {}); send('closed', m.c); if (m.c !== 0 && gameInfo && !pendingRelaunch) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
           if (pendingRelaunch) { const v = pendingRelaunch; pendingRelaunch = null; send('relaunch'); setTimeout(() => doLaunch(v).then(r => { if (r !== 'ok') { send('log', r); notify('MiB Client', String(r).slice(0, 120)); send('closed', 1); } }), 600); } }
         else if (m.t === 'error') { launching = false; notify('MiB Client — błąd', String(m.d).slice(0, 120)); fin('Błąd: ' + m.d); }
       });
@@ -403,7 +411,9 @@ function startHud(pid, mibDir, gameAcc) {
           const l = await prof.cosmetics();
           return Array.isArray(l) ? { loggedIn: true, items: l } : null;
         },
-        onEquip: async (type, id) => { const r = await prof.equip({ type, id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się zmienić kosmetyku.'); } }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
+        onEquip: async (type, id) => { const r = await prof.equip({ type, id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się zmienić kosmetyku.'); },
+        // gracze MiB z listy Tab (logo przed nickiem) i tekstury ich peleryn w <gra>/mib/capes
+        players: req => mibPresence.players(req, path.join(mibDir, 'capes')) }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
     return;
   }

@@ -339,6 +339,79 @@ begin
   return v;
 end $$;
 
+-- ===== Gracze MiB w grze (od 0.14.0): logo MiB przed nickiem i peleryny innych graczy =====
+-- Launcher potwierdza konto Minecrafta tak jak serwer gry: zgłasza się w sesji Mojanga z losowym serverId,
+-- a baza pyta Mojanga (hasJoined), czy to konto naprawdę to zrobiło. Token Minecrafta nie trafia do bazy.
+-- Potem launcher co kilka minut odświeża obecność swoim tokenem obecności (w bazie tylko jego skrót).
+do $$ begin
+  create extension if not exists http with schema extensions;
+exception when others then
+  raise notice 'rozszerzenie http niedostępne: %', sqlerrm;
+end $$;
+create table if not exists private.mib_players (
+  uuid uuid primary key,
+  name text not null,
+  user_id uuid references auth.users (id) on delete set null,
+  token_hash text not null,
+  seen_at timestamptz not null default now()
+);
+create index if not exists mib_players_name on private.mib_players (lower(name));
+create table if not exists private.hello_log (at timestamptz not null default now());
+
+create or replace function public.mib_hello(p_name text, p_server_id text) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_status integer;
+  v_body text;
+  v_uuid uuid;
+  v_name text;
+  v_token text := encode(extensions.gen_random_bytes(24), 'hex');
+begin
+  if p_name is null or p_name !~ '^[A-Za-z0-9_]{1,16}$' then raise exception 'name_invalid'; end if;
+  if p_server_id is null or p_server_id !~ '^[0-9a-f]{16,40}$' then raise exception 'server_id_invalid'; end if;
+  -- wspólny limit pytań do Mojanga: zalew zapytań nie zablokuje bazy u Mojanga
+  delete from private.hello_log where at < now() - interval '1 minute';
+  if (select count(*) from private.hello_log) >= 120 then raise exception 'busy'; end if;
+  insert into private.hello_log default values;
+  perform extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '2500');
+  select r.status, r.content into v_status, v_body
+    from extensions.http_get('https://sessionserver.mojang.com/session/minecraft/hasJoined?username=' || p_name || '&serverId=' || p_server_id) r;
+  if v_status is distinct from 200 then raise exception 'not_verified'; end if;
+  begin
+    v_uuid := (v_body::json ->> 'id')::uuid;
+    v_name := v_body::json ->> 'name';
+  exception when others then raise exception 'not_verified';
+  end;
+  if v_uuid is null or v_name is null then raise exception 'not_verified'; end if;
+  delete from private.mib_players where seen_at < now() - interval '30 days';
+  insert into private.mib_players (uuid, name, user_id, token_hash, seen_at)
+    values (v_uuid, v_name, auth.uid(), encode(extensions.digest(v_token, 'sha256'), 'hex'), now())
+    on conflict (uuid) do update set name = excluded.name, user_id = excluded.user_id, token_hash = excluded.token_hash, seen_at = now();
+  return json_build_object('uuid', v_uuid, 'name', v_name, 'token', v_token);
+end $$;
+
+-- Gra dalej działa (p_online) albo została zamknięta; false = zły token (launcher zgłasza się od nowa)
+create or replace function public.mib_ping(p_uuid uuid, p_token text, p_online boolean) returns boolean
+language plpgsql security definer set search_path = '' as $$
+begin
+  update private.mib_players set seen_at = case when p_online then now() else now() - interval '1 hour' end
+    where uuid = p_uuid and token_hash = encode(extensions.digest(coalesce(p_token, ''), 'sha256'), 'hex');
+  return found;
+end $$;
+
+-- Którzy z podanych graczy grają teraz w MiB (sygnał w ostatnich 10 minutach) i jaką pelerynę mają założoną.
+-- Nicki są dla serwerów bez kont Microsoft (tam UUID gracza w grze jest inny niż prawdziwy).
+create or replace function public.mib_who(p_ids uuid[], p_names text[]) returns table (uuid uuid, name text, cape text)
+language sql stable security definer set search_path = '' as $$
+  select m.uuid, m.name,
+    (select o.cosmetic_id from public.owned_cosmetics o
+      where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'cape'))
+  from private.mib_players m left join public.profiles p on p.id = m.user_id
+  where m.seen_at > now() - interval '10 minutes'
+    and (m.uuid = any ((coalesce(p_ids, '{}'::uuid[]))[1:200])
+      or lower(m.name) = any (select lower(x) from unnest((coalesce(p_names, '{}'::text[]))[1:200]) x));
+$$;
+
 -- ===== Panel admina =====
 -- Admin jest zapisany jako konto (nie numer MIB): przy pierwszym uruchomieniu tego pliku zostaje nim profil MIB-000002.
 -- Późniejsze uruchomienia niczego tu nie zmieniają, nawet gdy numeracja zostanie wyzerowana.
@@ -577,6 +650,9 @@ revoke all on function public.delete_my_profile() from public, anon, authenticat
 revoke all on function public.create_my_profile(text) from public, anon, authenticated;
 revoke all on function public.submit_idea(text, text) from public, anon, authenticated;
 revoke all on function public.equip_cosmetic(text, text) from public, anon, authenticated;
+revoke all on function public.mib_hello(text, text) from public, anon, authenticated;
+revoke all on function public.mib_ping(uuid, text, boolean) from public, anon, authenticated;
+revoke all on function public.mib_who(uuid[], text[]) from public, anon, authenticated;
 revoke all on function private.make_profile(uuid, text) from public, anon, authenticated;
 revoke all on function private.norm_code(text) from public, anon, authenticated;
 grant execute on function public.nick_available(text) to anon, authenticated;
@@ -588,6 +664,9 @@ grant execute on function public.delete_my_profile() to authenticated;
 grant execute on function public.create_my_profile(text) to authenticated;
 grant execute on function public.submit_idea(text, text) to authenticated;
 grant execute on function public.equip_cosmetic(text, text) to authenticated;
+grant execute on function public.mib_hello(text, text) to anon, authenticated;
+grant execute on function public.mib_ping(uuid, text, boolean) to anon, authenticated;
+grant execute on function public.mib_who(uuid[], text[]) to anon, authenticated;
 
 -- panel admina: wywołać może każdy zalogowany, ale każda funkcja sama sprawdza, czy to admin
 revoke all on function private.need_admin() from public, anon, authenticated;

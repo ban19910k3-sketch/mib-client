@@ -17,17 +17,19 @@ Darmowy launcher Minecraft PvP w Electronie (czysty HTML/JS, bez frameworka). Ro
 - `lib/crash.js` — przyczyny awarii gry; `lib/discord.js` — status na Discordzie przez lokalne IPC (numer aplikacji: `DISCORD_CLIENT_ID` w `main.js`).
 - `lib/servers.js` — lista serwerów (`servers.dat`) wspólna dla wszystkich wersji gry, z kopią w folderze launchera (przed startem gry do instancji, po zamknięciu z powrotem).
 - Kosmetyki (od 0.13.0): kolumna `profiles.equipped` i funkcja `equip_cosmetic` w `schema.sql`; Załóż/Zdejmij w launcherze i w menu w grze.
+- Gracze MiB w grze (od 0.14.0): `lib/presence.js` zgłasza konto przed startem gry (Mojang `join` w launcherze, `hasJoined` w bazie przez rozszerzenie `http` — token Minecrafta idzie tylko do Mojanga), co 4 min odświeża obecność i pyta `mib_who` o graczy z Tab; tabela `private.mib_players`, funkcje `mib_hello`, `mib_ping`, `mib_who` w `schema.sql`.
 - Testy: `npm test` (logika), `bash test/sql/run.sh` jako użytkownik `postgres` (schemat na lokalnym Postgresie z atrapą Supabase), `xvfb-run -a node test/e2e/profile.e2e.js` i `test/e2e/anim.e2e.js` (Electron + atrapa `test/fake-supabase.js`). `MIB_SUPA_URL` podmienia adres Supabase.
 
 ## Mod MiB w grze (od 0.12.0)
 
-- `mod/common` — cała logika i rysowanie (menu pod prawym Shiftem, HUD, edytor HUD, moduły), Java 8 bez klas Minecrafta.
+- `mod/common` — cała logika i rysowanie (menu pod prawym Shiftem, HUD, edytor HUD, moduły etapów 1 i 2 z listy 87 w `docs/superpowers/specs/2026-10-16-mib-mod-design.md`), Java 8 bez klas Minecrafta.
 - `mod/fabric/src` — jeden adapter (Canvas, GameInfo, ekrany, mixiny) na nazwach Mojanga dla wszystkich wersji 1.21–26.3. Różnice między wersjami w blokach `//#if MC >= 1.21.9` … `//#else` … `//#endif`; słowa `MibGraphics`, `MibId`, `MibHud` zamieniają się na klasy danej wersji (`mod/buildSrc/.../MibPp.groovy`). Wersje gry: katalogi `mod/versions/<wersja>/gradle.properties` (Minecraft + Fabric API); nowa wersja = nowy katalog + wpis w `VERSIONS` w `lib/mibmod.js`.
-- Logo MiB: ekran tytułowy przez podmienione `assets/minecraft/textures/gui/title/{minecraft,edition}.png`, menu pauzy przez `Logo.java`.
+- Logo MiB: ekran tytułowy przez `TitleScreenMixin` (duże logo, bez żółtego napisu i napisu z wersją), menu pauzy przez `Logo.java` (zamiast napisu „Menu gry”).
+- Logo przed nickiem: znak `\uE000` z czcionki `mibclient:badge` (`Players.java`, wstawki `PlayerMixin` i `PlayerTabOverlayMixin`); peleryny innych graczy MiB z `mib/capes/<id>.png`.
 - Nowe API gry 26.x bez źródeł: dopisz zapytania do `.github/probe.txt` (workflow „Podgląd klas gry” wypisuje sygnatury z jara Minecrafta w adnotacjach).
 - Testy: `cd mod && ./gradlew -PcommonOnly :common:test mibPpCheck` (serwery Fabric są zablokowane w kontenerze, pełne budowanie tylko na GitHubie). CI `.github/workflows/mod.yml`: każda wersja osobno — budowanie i test w prawdziwym kliencie (od 1.21.4 test Fabric ze zrzutami, starsze `-Psmoke`); błędy trafiają do adnotacji przebiegu.
 - Launcher: `lib/mibmod.js` (instalacja `mib-client-mod.jar`, Fabric API, Sodium, most kont), pliki moda w instalatorze w `resources/mod` (budowane w `release.yml`), lokalnie w `mod-dist/`. Ustawienie `mibMod`.
-- Most z launcherem: pliki we wspólnym `<folder gry z ustawień>/mib` (`accounts.json` bez tokenów, `switch-request.json`, `switch-result.json`; `cosmetics.json` z teksturami peleryn, `cosmetic-request.json`, `cosmetic-result.json`), tam też `mod-config.json` — jedne ustawienia moda dla wszystkich wersji. Co MiB dodał do instancji (Sodium, Fabric API, loader), zapisuje w `mib-instance.json` i cofa po wyłączeniu przełącznika.
+- Most z launcherem: pliki we wspólnym `<folder gry z ustawień>/mib` (`accounts.json` bez tokenów, `switch-request.json`, `switch-result.json`; `cosmetics.json` z teksturami peleryn, `cosmetic-request.json`, `cosmetic-result.json`; `players-request.json` z graczami z Tab, `players.json` z graczami MiB, `capes/`), tam też `mod-config.json` — jedne ustawienia moda dla wszystkich wersji. Co MiB dodał do instancji (Sodium, Fabric API, loader), zapisuje w `mib-instance.json` i cofa po wyłączeniu przełącznika.
 
 ## Wydawanie aktualizacji
 

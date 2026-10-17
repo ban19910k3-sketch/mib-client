@@ -21,3 +21,14 @@ grant execute on function auth.uid() to anon, authenticated;
 alter default privileges in schema public grant all on tables to anon, authenticated;
 alter default privileges in schema public grant all on sequences to anon, authenticated;
 alter default privileges in schema public grant all on functions to anon, authenticated;
+-- Atrapa rozszerzenia http (w Supabase włącza je schema.sql): odpowiedzi Mojanga (hasJoined) z tabeli extensions.fake_mojang
+create table extensions.fake_mojang (name text, server_id text, id text);
+create type extensions.http_response as (status integer, content_type varchar, headers text, content varchar);
+create function extensions.http_set_curlopt(curlopt varchar, value varchar) returns boolean language sql as $$ select true $$;
+create function extensions.http_get(uri varchar) returns extensions.http_response language sql as $$
+  select coalesce(
+    (select (200, 'application/json', null, json_build_object('id', f.id, 'name', f.name)::text)::extensions.http_response
+       from extensions.fake_mojang f
+       where uri = 'https://sessionserver.mojang.com/session/minecraft/hasJoined?username=' || f.name || '&serverId=' || f.server_id),
+    (204, null, null, '')::extensions.http_response)
+$$;

@@ -449,3 +449,17 @@ test('allCosmetics lite skips textures', async () => {
   const q = supa.calls.filter(c => c[1] === 'cosmetics').map(c => c[2]);
   assert.ok(!q[0].includes('texture') && q[1].includes('texture'));
 });
+
+test('gracze MiB: zgłoszenie z profilem łączy konto, bez profilu anonimowo; tekstury peleryn tylko o bezpiecznych id', async () => {
+  const { p, supa } = mk();
+  await p.mibHello({ name: 'Gracz', serverId: 'ab' });
+  assert.deepEqual(supa.calls.at(-1), ['rpc', 'mib_hello', { p_name: 'Gracz', p_server_id: 'ab' }, undefined]);
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  await p.mibHello({ name: 'Gracz', serverId: 'cd' });
+  assert.equal(supa.calls.at(-1)[3], 'AT1');
+  await p.capeTextures({ ids: ['cape_a', '../x', 'cape_b'] });
+  assert.deepEqual(supa.calls.at(-1), ['select', 'cosmetics', 'select=id,texture&type=eq.cape&id=in.(cape_a,cape_b)']);
+  assert.deepEqual(await p.capeTextures({ ids: ['ZŁE'] }), []);
+  await p.mibWho({ ids: ['u'], names: null });
+  assert.deepEqual(supa.calls.at(-1), ['rpc', 'mib_who', { p_ids: ['u'], p_names: [] }]);
+});
