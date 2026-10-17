@@ -90,6 +90,48 @@ test('bridge: konta, żądanie zmiany, błąd', async () => {
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'switch-result.json'), 'utf8')).ok, false);
 });
 
+const COS = { loggedIn: true, items: [
+  { id: 'c1', name: 'Fiolet', type: 'cape', equipped: true, texture: 'data:image/png;base64,QUJD' },
+  { id: 'c2', name: 'Link', type: 'cape', equipped: false, texture: 'https://evil.example/x.png' },
+  { id: 'h1', name: 'Czapka', type: 'hat', equipped: false }] };
+
+test('cosmeticsPayload: tylko tekstury PNG w base64, bez adresów zewnętrznych', () => {
+  assert.deepStrictEqual(JSON.parse(m.cosmeticsPayload(COS)).items, [
+    { id: 'c1', name: 'Fiolet', type: 'cape', equipped: true, png: 'QUJD' },
+    { id: 'c2', name: 'Link', type: 'cape', equipped: false, png: null },
+    { id: 'h1', name: 'Czapka', type: 'hat', equipped: false, png: null }]);
+  assert.deepStrictEqual(JSON.parse(m.cosmeticsPayload(null)), { loggedIn: false, items: [] });
+});
+
+test('readEquip: tylko przedmioty gracza i pasujący typ', () => {
+  assert.deepStrictEqual(m.readEquip('{"type":"cape","id":"c2"}', COS), { type: 'cape', id: 'c2' });
+  assert.deepStrictEqual(m.readEquip('{"type":"cape","id":null}', COS), { type: 'cape', id: null });
+  assert.strictEqual(m.readEquip('{"type":"cape","id":"h1"}', COS), null);
+  assert.strictEqual(m.readEquip('{"type":"cape","id":"obcy"}', COS), null);
+  assert.strictEqual(m.readEquip('{"type":"buty","id":null}', COS), null);
+  assert.strictEqual(m.readEquip('zly', COS), null);
+});
+
+test('bridge: kosmetyki do gry i zakładanie z menu w grze', async () => {
+  const dir = path.join(tmp(), 'mib'), equips = [];
+  let cur = JSON.parse(JSON.stringify(COS)), fail = null;
+  const b = m.createBridge({ dir, accounts: () => ACC, onSwitch: async () => {}, cosmetics: async () => cur, intervalMs: 60000, now: () => 99,
+    onEquip: async (type, id) => { if (fail) throw new Error(fail); equips.push([type, id]); cur.items.forEach(x => { if (x.type === type) x.equipped = x.id === id; }); } });
+  b.start(); b.stop();
+  await b.pollOnce();
+  const read = () => JSON.parse(fs.readFileSync(path.join(dir, 'cosmetics.json'), 'utf8'));
+  assert.strictEqual(read().items.find(x => x.equipped).id, 'c1');
+  fs.writeFileSync(path.join(dir, 'cosmetic-request.json'), '{"type":"cape","id":"c2"}');
+  await b.pollOnce();
+  assert.deepStrictEqual(equips, [['cape', 'c2']]);
+  assert.strictEqual(read().items.find(x => x.equipped).id, 'c2', 'lista odświeżona po założeniu');
+  assert.ok(!fs.existsSync(path.join(dir, 'cosmetic-request.json')));
+  fail = 'Brak połączenia';
+  fs.writeFileSync(path.join(dir, 'cosmetic-request.json'), '{"type":"cape","id":null}');
+  await b.pollOnce();
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'cosmetic-result.json'), 'utf8')), { ok: false, message: 'Brak połączenia', at: 99 });
+});
+
 // Instalacja z katalogiem zasobów launchera (resDir), folderem mods instancji i zapisem mib-instance.json (inst)
 function setup() {
   const base = tmp(), resDir = path.join(base, 'res'), modsDir = path.join(base, 'inst', 'mods'), mibDir = path.join(base, 'mib');

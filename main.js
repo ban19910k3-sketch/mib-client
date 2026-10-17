@@ -382,7 +382,17 @@ let ov = null, fgProc = null, menuOpen = false, fg = true, hooked = false, bridg
 function startHud(pid, mibDir, gameAcc) {
   if (mibDir) {
     // „aktywne” dla menu w grze to konto, na którym gra działa (nie to wybrane później w oknie launchera)
-    try { bridge = mibmod.createBridge({ dir: mibDir, accounts: () => ({ ...accLoad(), active: gameAcc }), onSwitch: relaunchWithAccount }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
+    try {
+      bridge = mibmod.createBridge({ dir: mibDir, accounts: () => ({ ...accLoad(), active: gameAcc }), onSwitch: relaunchWithAccount,
+        // kosmetyki z profilu MiB dla menu w grze (Załóż/Zdejmij pod prawym Shiftem)
+        cosmetics: async () => {
+          const st = await prof.state();
+          if (!st || st.offline) return null; // bez sieci: zostaje poprzednia lista
+          if (!st.loggedIn) return { loggedIn: false, items: [] };
+          const l = await prof.cosmetics();
+          return Array.isArray(l) ? { loggedIn: true, items: l } : null;
+        },
+        onEquip: async (type, id) => { const r = await prof.equip({ type, id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się zmienić kosmetyku.'); } }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
     return;
   }
