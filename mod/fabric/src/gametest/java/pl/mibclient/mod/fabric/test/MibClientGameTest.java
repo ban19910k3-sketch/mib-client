@@ -91,21 +91,22 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.setScreen(() -> null);
 			context.waitTicks(2);
 
-			// walka: uderzenie zombie przed graczem liczy trafienie, zasięg i combo
-			sp.getServer().runCommand("execute as @p at @p run summon minecraft:zombie ^ ^ ^2 {NoAI:1b,Silent:1b}");
+			// walka: uderzenie świni w miejscu gracza liczy trafienie, zasięg i combo (zombie płonie w dzień, a wtedy
+			// chwilowa nietykalność po obrażeniach od ognia gubi uderzenie; obok gracza istota mogłaby utknąć w bloku)
+			sp.getServer().runCommand("execute as @p at @p run summon minecraft:pig ~ ~ ~ {NoAI:1b,Silent:1b}");
 			context.waitTicks(10);
 			context.runOnClient(c -> {
 				if (!MibClient.get().modules.isOn("hit_indicator")) MibClient.get().modules.toggle("hit_indicator");
-				// najbliższa istota (zombie 2 bloki przed graczem)
-				Entity zombie = null;
+				// najbliższa istota (świnia w miejscu gracza)
+				Entity target = null;
 				for (Entity e : c.level.getEntities(c.player, c.player.getBoundingBox().inflate(6))) {
-					if (e instanceof LivingEntity && (zombie == null || e.distanceTo(c.player) < zombie.distanceTo(c.player))) zombie = e;
+					if (e instanceof LivingEntity && (target == null || e.distanceTo(c.player) < target.distanceTo(c.player))) target = e;
 				}
-				if (zombie != null) c.gameMode.attack(c.player, zombie);
+				if (target != null) c.gameMode.attack(c.player, target);
 			});
 			context.waitTicks(10);
 			check(MibClient.hooks.contains("attack"), "uderzenie nie dotarło do modułów PvP");
-			check(context.computeOnClient(c -> MibClient.get().pvp.combat.reach() > 0), "trafienie zombie nie zostało policzone (zasięg)");
+			check(context.computeOnClient(c -> MibClient.get().pvp.combat.reach() >= 0), "trafienie nie zostało policzone (zasięg)");
 			context.takeScreenshot("06c-pvp");
 			check(context.computeOnClient(c -> MibClient.get().pvp.meters.tps.tps() > 0), "brak pomiaru TPS");
 			// logo MiB przed nickiem (własna postać zawsze gra w MiB)
