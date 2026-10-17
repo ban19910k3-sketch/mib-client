@@ -99,6 +99,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		HudRenderCallback.EVENT.register((g, tick) -> renderHud(g));
 		//#endif
 		ClientTickEvents.END_CLIENT_TICK.register(this::tick);
+		Logo.register();
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			ServerData s = client.getCurrentServer();
 			modules.setBlocked(ServerRules.builtIn().blockedFor(s == null ? null : s.ip));

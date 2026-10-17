@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.TestInput;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.PauseScreen;
 import pl.mibclient.mod.core.HudEditorModel;
 import pl.mibclient.mod.core.HudPos;
 import pl.mibclient.mod.core.MenuView;
@@ -25,6 +26,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		TestInput input = context.getInput();
+		context.takeScreenshot("00-title");
 		long t0 = System.nanoTime();
 		// świat wczytuje się w małym oknie (renderowanie programowe na CI jest wolne), zrzuty robimy w 1280×720
 		try (TestSingleplayerContext sp = context.worldBuilder().create()) {
@@ -103,8 +105,15 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(3);
 			check(context.computeOnClient(c -> Input.screen(c) == null), "prawy Shift nie zamknął menu");
 
+			// menu pauzy z logo MiB
+			context.setScreen(() -> new PauseScreen(true));
+			context.waitTicks(3);
+			context.takeScreenshot("09-pause");
+			context.setScreen(() -> null);
+			context.waitTicks(2);
+
 			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik)
-			for (String h : new String[] {"fov", "gamma", "click", "crosshair"}) {
+			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo"}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
 		}
