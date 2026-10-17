@@ -7,6 +7,10 @@ on:
   push:
     paths: ['mod/**', '.github/workflows/mod.yml', '.github/workflows/annotate.sh']
   workflow_dispatch:
+    inputs:
+      versions:
+        description: 'Wersje gry po przecinku (puste = wszystkie)'
+        required: false
 
 jobs:
   common:
@@ -30,11 +34,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - id: v
-        run: echo "list=$(ls mod/versions | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+        env:
+          WANT: ${{ github.event.inputs.versions }}
+        run: |
+          if [ -n "$WANT" ]; then echo "list=$(echo "$WANT" | jq -R -c 'split(",") | map(gsub(" "; ""))')" >> "$GITHUB_OUTPUT"
+          else echo "list=$(ls mod/versions | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"; fi
 
   version:
     needs: versions
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -64,7 +73,7 @@ jobs:
             grep -q "\[MIB-SMOKE\] menu true" test.log && grep -q "\[MIB-SMOKE\] hud true" test.log && grep -q "\[MIB-SMOKE\] ok" test.log \
               || { echo "::error::Test uruchomienia nie przeszedł"; exit 1; }
           else
-            xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:runClientGameTest --stacktrace 2>&1 | tee test.log
+            timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:runClientGameTest --stacktrace 2>&1 | tee test.log
           fi
       - name: Błędy jako adnotacje
         if: failure()
