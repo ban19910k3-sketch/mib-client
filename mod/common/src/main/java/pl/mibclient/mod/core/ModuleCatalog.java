@@ -103,6 +103,9 @@ public final class ModuleCatalog {
 				bool("dot", "Kropka na środku", "Centre dot", false),
 				bool("outline", "Czarna obwódka", "Black outline", true),
 				new ColorSetting("color", "Kolor", "Colour", 0xFFFFFFFF))),
+		new ModuleDef("perspective", "Perspective", Category.LOOK, "Kamera 360° wokół postaci pod klawiszem (domyślnie lewy Alt), postać dalej patrzy przed siebie",
+			"360° camera around your character while holding a key (left Alt by default), your character keeps looking ahead", "rotate-360", false, null, list(
+				bool("hold", "Trzymaj klawisz (wyłączone: naciśnij, żeby włączyć i wyłączyć)", "Hold the key (off: press to turn on and off)", true))),
 		new ModuleDef("fov_changer", "FOV changer", Category.LOOK, "Własne pole widzenia, bez zmian przy biegu i miksturach szybkości",
 			"Custom field of view, no changes from sprinting or speed potions", "eye", false, null, list(
 				new IntSetting("fov", "Pole widzenia", "Field of view", 90, 30, 110, 1),

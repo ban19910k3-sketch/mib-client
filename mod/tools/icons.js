@@ -5,13 +5,16 @@ const fs = require('fs'), path = require('path');
 
 const ICONS = [
   // moduły etapu 1
-  'shield', 'sun', 'map-pin', 'mouse', 'frame', 'compass', 'eye', 'speed-fast', 'keyboard', 'wifi', 'hourglass', 'potion', 'cloud-server', 'clock', 'zap', 'zoom-in',
+  'shield', 'sun', 'map-pin', 'mouse', 'frame', 'compass', 'eye', 'speed-fast', 'keyboard', 'wifi', 'hourglass', 'potion', 'cloud-server', 'clock', 'zap', 'zoom-in', 'rotate-360',
   // menu i kategorie
   'search', 'settings-cog', 'arrow-left', 'move', 'users', 'close', 'lock', 'grid-3x3', 'layout', 'sword', 'map', 'message', 'archive', 'check',
 ];
 
 // Własne rysunki tam, gdzie oryginał ma detale 1 px, które giną przy pomniejszeniu do 12×12
 const CUSTOM = {
+  'rotate-360': [
+    '............', '....####.#..', '..##....###.', '.#.....####.', '.#..........', '#...........',
+    '#..........#', '.#........#.', '.#........#.', '..##....##..', '....####....', '............'],
   keyboard: [
     '............', '............', '############', '#.##.##.##.#', '#..........#', '#.##.##.##.#',
     '#..........#', '#.########.#', '#..........#', '############', '............', '............'],

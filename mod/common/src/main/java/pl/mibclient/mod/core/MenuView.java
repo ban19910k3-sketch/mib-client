@@ -368,7 +368,7 @@ public final class MenuView {
 					actions.openHudEditor(m.id);
 				}
 			}));
-		} else if ("zoom".equals(m.id)) {
+		} else if ("zoom".equals(m.id) || "perspective".equals(m.id)) {
 			c.text(Lang.t("menu.key_hint"), ct[0], ct[1] + ct[3] - 12, FAINT, false);
 		}
 	}

@@ -59,7 +59,7 @@ class ModuleManagerTest {
 		assertEquals(4, m.enabledCount());
 		m.setBlocked(Collections.singleton("cps"));
 		assertEquals(3, m.enabledCount());
-		assertEquals(16, m.all().size());
+		assertEquals(17, m.all().size());
 	}
 
 	@Test

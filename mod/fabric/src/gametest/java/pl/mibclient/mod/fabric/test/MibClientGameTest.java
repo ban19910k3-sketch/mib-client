@@ -105,6 +105,20 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(3);
 			check(context.computeOnClient(c -> Input.screen(c) == null), "prawy Shift nie zamknął menu");
 
+			// Perspective: kamera 360° pod lewym Altem, po puszczeniu wraca widok z oczu
+			context.runOnClient(c -> {
+				if (!MibClient.get().modules.isOn("perspective")) MibClient.get().modules.toggle("perspective");
+			});
+			input.holdKey(MibClient.get().perspectiveKey);
+			context.waitTicks(3);
+			input.moveCursor(200, 0);
+			context.waitTicks(3);
+			check(context.computeOnClient(c -> MibClient.get().freelook() && !c.options.getCameraType().isFirstPerson()), "Perspective nie włączył kamery 360°");
+			context.takeScreenshot("10-perspective");
+			input.releaseKey(MibClient.get().perspectiveKey);
+			context.waitTicks(3);
+			check(context.computeOnClient(c -> c.options.getCameraType().isFirstPerson()), "po puszczeniu klawisza Perspective widok nie wrócił");
+
 			// menu pauzy z logo MiB
 			context.setScreen(() -> new PauseScreen(true));
 			context.waitTicks(3);
@@ -113,7 +127,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(2);
 
 			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik)
-			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo"}) {
+			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "freelook"}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
 		}

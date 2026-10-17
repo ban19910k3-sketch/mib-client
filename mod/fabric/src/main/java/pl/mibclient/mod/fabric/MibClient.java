@@ -10,6 +10,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.CameraType;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
@@ -62,11 +63,15 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public LauncherBridge bridge;
 	public final CpsCounter left = new CpsCounter(), right = new CpsCounter();
 	public final ZoomState zoom = new ZoomState();
-	public KeyMapping menuKey, zoomKey;
+	public KeyMapping menuKey, zoomKey, perspectiveKey;
 
 	private final long sessionStart = System.currentTimeMillis();
 	private boolean optionsApplied;
 	private Boolean cinematicBefore;
+	/** Perspective: kąty kamery niezależne od postaci i widok sprzed włączenia. */
+	private boolean freeOn, freeToggled;
+	private float freeYaw, freePitch;
+	private CameraType cameraBefore;
 	private long lastFrameNanos;
 	private List<Account> accountsCache = Collections.emptyList();
 	private long accountsReadAt, switchAt, failureCheckedAt;
@@ -92,6 +97,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		//#endif
 		menuKey = register(new KeyMapping("key.mibclient.menu", InputConstants.KEY_RSHIFT, cat));
 		zoomKey = register(new KeyMapping("key.mibclient.zoom", InputConstants.KEY_C, cat));
+		perspectiveKey = register(new KeyMapping("key.mibclient.perspective", InputConstants.KEY_LALT, cat));
 
 		//#if MC >= 1.21.6
 		HudElementRegistry.addLast(MibId.fromNamespaceAndPath("mibclient", "hud"), (g, tick) -> renderHud(g));
@@ -150,6 +156,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			c.options.smoothCamera = cinematicBefore;
 			cinematicBefore = null;
 		}
+		tickFreelook(c);
 		if (smoke != null) smoke.tick(c);
 	}
 
@@ -157,6 +164,46 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		Minecraft c = Minecraft.getInstance();
 		if (Input.screen(c) instanceof HudEditorScreen) return;
 		hud.render(new FabricCanvas(g, c.font), info, g.guiWidth(), g.guiHeight(), null, false);
+	}
+
+	/** Perspective: przy wejściu kamera z tyłu (trzecia osoba) zaczyna tam, gdzie patrzy postać; przy wyjściu wraca poprzedni widok. */
+	private void tickFreelook(Minecraft c) {
+		boolean hold = boolOpt("perspective", "hold");
+		while (perspectiveKey.consumeClick()) if (!hold) freeToggled = !freeToggled;
+		boolean want = modules.isOn("perspective") && c.player != null && Input.screen(c) == null
+				&& (hold ? Input.held(c, perspectiveKey) : freeToggled);
+		if (!modules.isOn("perspective") || c.player == null) freeToggled = false;
+		if (want && !freeOn) {
+			freeOn = true;
+			freeYaw = c.player.getYRot();
+			freePitch = c.player.getXRot();
+			cameraBefore = c.options.getCameraType();
+			c.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+		} else if (!want && freeOn) {
+			freeOn = false;
+			if (cameraBefore != null) c.options.setCameraType(cameraBefore);
+		}
+	}
+
+	public boolean freelook() {
+		if (freeOn) hooks.add("freelook");
+		return freeOn;
+	}
+
+	public float freeYaw() {
+		return freeYaw;
+	}
+
+	public float freePitch() {
+		return freePitch;
+	}
+
+	/** Ruch myszy przy Perspective obraca kamerę (jak Entity.turn: 0,15° na jednostkę); true = postać się nie obraca. */
+	public boolean turnCamera(double yRot, double xRot) {
+		if (!freeOn) return false;
+		freeYaw += (float) yRot * 0.15f;
+		freePitch = Math.max(-90f, Math.min(90f, freePitch + (float) xRot * 0.15f));
+		return true;
 	}
 
 	// ===== Moduły z wstawkami w grę =====

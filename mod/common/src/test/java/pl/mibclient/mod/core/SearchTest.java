@@ -27,7 +27,7 @@ class SearchTest {
 		assertTrue(find("przyblizenie").contains("zoom"));
 		assertTrue(find("przybliżenie").contains("zoom"));
 		assertTrue(find("xyz qqq").isEmpty());
-		assertEquals(16, find("  ").size());
+		assertEquals(17, find("  ").size());
 	}
 
 	@Test

@@ -8,7 +8,7 @@ import java.util.Set;
 /**
  * Ikony pikselowe 12×12 (wiersz = 12 bitów, bit 11 = lewa kolumna). Plik WYGENEROWANY przez mod/tools/icons.js.
  * Źródło: pixelarticons 2.4.2, Copyright (c) 2019 Gerrit Halfmann, licencja MIT (pełna treść: fonts/LICENSES.txt).
- * Ikony keyboard i settings-cog to własne rysunki MiB (oryginały mają detale 1 px, które giną w 12×12).
+ * Ikony keyboard, settings-cog i rotate-360 to własne rysunki MiB (oryginały mają detale 1 px, które giną w 12×12).
  */
 public final class PixelIcons {
 	private PixelIcons() {
@@ -51,6 +51,7 @@ public final class PixelIcons {
 		put("message", 0x000, 0x3fc, 0x402, 0x402, 0x402, 0x402, 0x402, 0x402, 0x5fc, 0x600, 0x400, 0x000);
 		put("archive", 0x000, 0x7fe, 0xc03, 0xfff, 0x7fe, 0x6f6, 0x6f6, 0x606, 0x606, 0x606, 0x3fc, 0x000);
 		put("check", 0x000, 0x000, 0x000, 0x004, 0x008, 0x010, 0x220, 0x140, 0x080, 0x000, 0x000, 0x000);
+		put("rotate-360", 0x000, 0x0f4, 0x30e, 0x41e, 0x400, 0x800, 0x801, 0x402, 0x402, 0x30c, 0x0f0, 0x000);
 	}
 
 	/** Wiersze ikony albo null, gdy nie ma takiej ikony. */

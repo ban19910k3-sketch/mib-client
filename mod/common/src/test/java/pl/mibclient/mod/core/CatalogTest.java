@@ -11,12 +11,12 @@ import org.junit.jupiter.api.Test;
 
 class CatalogTest {
 	@Test
-	void stage1HasExactly16UniqueIds() {
+	void stage1HasExactly17UniqueIds() {
 		Set<String> ids = new HashSet<String>();
 		for (ModuleDef m : ModuleCatalog.STAGE1) ids.add(m.id);
 		assertEquals(new HashSet<String>(Arrays.asList("armor_status", "brightness", "coordinates", "cps", "custom_crosshair", "direction",
-				"fov_changer", "fps", "keystrokes", "ping", "playtime", "potion_effects", "server_address", "time", "toggle_sprint", "zoom")), ids);
-		assertEquals(16, ModuleCatalog.STAGE1.size());
+				"fov_changer", "fps", "keystrokes", "perspective", "ping", "playtime", "potion_effects", "server_address", "time", "toggle_sprint", "zoom")), ids);
+		assertEquals(17, ModuleCatalog.STAGE1.size());
 	}
 
 	@Test
@@ -24,7 +24,7 @@ class CatalogTest {
 		List<String> names = new ArrayList<String>();
 		for (ModuleDef m : ModuleCatalog.STAGE1) names.add(m.name);
 		assertEquals(new HashSet<String>(Arrays.asList("Armor status", "Brightness", "Coordinates", "CPS", "Custom crosshair", "Direction",
-				"FOV changer", "FPS", "Keystrokes", "Ping", "Playtime", "Potion effects", "Server address", "Time", "Toggle sprint", "Zoom")),
+				"FOV changer", "FPS", "Keystrokes", "Perspective", "Ping", "Playtime", "Potion effects", "Server address", "Time", "Toggle sprint", "Zoom")),
 				new HashSet<String>(names));
 	}
 
@@ -37,7 +37,7 @@ class CatalogTest {
 
 	@Test
 	void everyHudModuleHasDefaultPosition() {
-		Set<String> notHud = new HashSet<String>(Arrays.asList("brightness", "custom_crosshair", "fov_changer", "zoom"));
+		Set<String> notHud = new HashSet<String>(Arrays.asList("brightness", "custom_crosshair", "fov_changer", "perspective", "zoom"));
 		for (ModuleDef m : ModuleCatalog.STAGE1) {
 			assertEquals(!notHud.contains(m.id), m.hud, m.id);
 			assertEquals(m.hud, m.defaultHud != null, m.id);

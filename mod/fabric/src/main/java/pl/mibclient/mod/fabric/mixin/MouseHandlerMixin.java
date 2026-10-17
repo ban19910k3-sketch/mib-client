@@ -1,6 +1,9 @@
 package pl.mibclient.mod.fabric.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.client.player.LocalPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -10,7 +13,7 @@ import pl.mibclient.mod.fabric.MibClient;
 import net.minecraft.client.input.MouseButtonInfo;
 //#endif
 
-/** CPS liczy kliknięcia; kółko podczas zoomu zmienia przybliżenie. */
+/** CPS liczy kliknięcia; kółko podczas zoomu zmienia przybliżenie; przy Perspective mysz obraca kamerę, nie postać. */
 @Mixin(MouseHandler.class)
 public abstract class MouseHandlerMixin {
 	//#if MC >= 1.21.9
@@ -24,6 +27,11 @@ public abstract class MouseHandlerMixin {
 		MibClient.get().onMouseButton(button, action);
 	}
 	//#endif
+
+	@WrapOperation(method = "turnPlayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;turn(DD)V"))
+	private void mib$turn(LocalPlayer player, double yRot, double xRot, Operation<Void> original) {
+		if (!MibClient.get().turnCamera(yRot, xRot)) original.call(player, yRot, xRot);
+	}
 
 	@Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)
 	private void mib$scroll(long window, double horizontal, double vertical, CallbackInfo ci) {
