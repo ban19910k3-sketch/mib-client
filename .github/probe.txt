@@ -1,7 +1,8 @@
 # <wersja> class <klasa>  |  <wersja> calls <tekst> in <pakiet>  |  <wersja> members <klasa> <regex>   (wynik: adnotacje przebiegu "Podgląd klas gry")
-26.1 calls .turn:(DD)V in net.minecraft.client
-26.3 calls .turn:(DD)V in net.minecraft.client
-26.1 calls setRotation:(FF)V in net.minecraft.client.Camera
-26.3 calls setRotation:(FF)V in net.minecraft.client.Camera
-26.3 calls CameraType in net.minecraft.client.Options
-26.3 members net.minecraft.client.Options CameraType|cameraType
+26.1 members net.minecraft.client.player.AbstractClientPlayer [Ss]kin
+26.3 members net.minecraft.client.player.AbstractClientPlayer [Ss]kin
+26.3 class net.minecraft.world.entity.player.PlayerSkin
+26.3 members net.minecraft.core.ClientAsset$ResourceTexture ResourceTexture\(
+26.3 members net.minecraft.client.renderer.texture.DynamicTexture DynamicTexture\(
+26.3 members net.minecraft.client.renderer.texture.TextureManager register
+26.3 members com.mojang.blaze3d.platform.NativeImage static .*read
