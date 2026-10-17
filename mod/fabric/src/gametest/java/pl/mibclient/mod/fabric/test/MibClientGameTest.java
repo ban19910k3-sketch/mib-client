@@ -104,12 +104,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			check(context.computeOnClient(c -> Input.screen(c) == null), "prawy Shift nie zamknął menu");
 
 			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik)
-			//#if MC >= 26.1
-			String[] hooks = {"fov", "click", "crosshair"};
-			//#else
-			String[] hooks = {"fov", "gamma", "click", "crosshair"};
-			//#endif
-			for (String h : hooks) {
+			for (String h : new String[] {"fov", "gamma", "click", "crosshair"}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
 		}
