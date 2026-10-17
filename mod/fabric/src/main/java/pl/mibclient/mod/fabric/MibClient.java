@@ -50,7 +50,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 //#endif
 
-/** Mod MiB: menu pod prawym Shiftem, HUD, edytor HUD i moduły etapu 1 (jedno źródło dla 1.21–26.x). */
+/** Mod MiB: menu pod prawym Shiftem, HUD, edytor HUD, moduły etapów 1 i 2, gracze MiB (jedno źródło dla 1.21–26.x). */
 public final class MibClient implements ClientModInitializer, MenuActions {
 	private static MibClient instance;
 
@@ -69,7 +69,9 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public LauncherBridge bridge;
 	public final CpsCounter left = new CpsCounter(), right = new CpsCounter();
 	public final ZoomState zoom = new ZoomState();
-	public KeyMapping menuKey, zoomKey, perspectiveKey;
+	public Players players;
+	public Pvp pvp;
+	public KeyMapping menuKey, zoomKey, perspectiveKey, stopwatchKey;
 
 	private final long sessionStart = System.currentTimeMillis();
 	private boolean optionsApplied;
@@ -95,11 +97,13 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		String dir = System.getProperty("mib.dir");
 		File base = dir != null ? new File(dir) : FabricLoader.getInstance().getGameDir().resolve("mib").toFile();
 		config = Config.load(new File(base, Config.FILE_NAME));
-		modules = new ModuleManager(config, ModuleCatalog.STAGE1);
+		modules = new ModuleManager(config, ModuleCatalog.ALL);
 		hud = new HudView(modules);
 		editor = new HudEditorModel(modules);
 		info = new FabricGameInfo(this, sessionStart);
 		bridge = dir != null ? new LauncherBridge(base) : null;
+		players = new Players(this);
+		pvp = new Pvp(this);
 
 		//#if MC >= 1.21.9
 		KeyMapping.Category cat = KeyMapping.Category.register(MibId.fromNamespaceAndPath("mibclient", "main"));
@@ -109,6 +113,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		menuKey = register(new KeyMapping("key.mibclient.menu", InputConstants.KEY_RSHIFT, cat));
 		zoomKey = register(new KeyMapping("key.mibclient.zoom", InputConstants.KEY_C, cat));
 		perspectiveKey = register(new KeyMapping("key.mibclient.perspective", InputConstants.KEY_LALT, cat));
+		stopwatchKey = register(new KeyMapping("key.mibclient.stopwatch", InputConstants.KEY_J, cat));
 
 		//#if MC >= 1.21.6
 		HudElementRegistry.addLast(MibId.fromNamespaceAndPath("mibclient", "hud"), (g, tick) -> renderHud(g));
@@ -120,8 +125,12 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			ServerData s = client.getCurrentServer();
 			modules.setBlocked(ServerRules.builtIn().blockedFor(s == null ? null : s.ip));
+			pvp.reset();
 		});
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> modules.setBlocked(Collections.<String>emptySet()));
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			modules.setBlocked(Collections.<String>emptySet());
+			players.reset();
+		});
 		modules.addListener((id, on) -> {
 			if ("toggle_sprint".equals(id)) applySprint();
 		});
@@ -169,13 +178,20 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		}
 		tickFreelook(c);
 		tickCape(c);
+		while (stopwatchKey.consumeClick()) {
+			if (modules.isOn("stopwatch") && Input.screen(c) == null) pvp.meters.stopwatch.press(System.currentTimeMillis());
+		}
+		pvp.tick(c);
+		players.tick(c);
 		if (smoke != null) smoke.tick(c);
 	}
 
 	private void renderHud(MibGraphics g) {
 		Minecraft c = Minecraft.getInstance();
 		if (Input.screen(c) instanceof HudEditorScreen) return;
-		hud.render(new FabricCanvas(g, c.font), info, g.guiWidth(), g.guiHeight(), null, false);
+		FabricCanvas canvas = new FabricCanvas(g, c.font);
+		hud.render(canvas, info, g.guiWidth(), g.guiHeight(), null, false);
+		hud.overlay(canvas, info, g.guiWidth(), g.guiHeight());
 	}
 
 	/** Perspective: przy wejściu kamera z tyłu (trzecia osoba) zaczyna tam, gdzie patrzy postać; przy wyjściu wraca poprzedni widok. */
@@ -212,6 +228,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	/** Ruch myszy przy Perspective obraca kamerę (jak Entity.turn: 0,15° na jednostkę); true = postać się nie obraca. */
 	public boolean turnCamera(double yRot, double xRot) {
+		if (modules.isOn("mousestrokes")) pvp.meters.mouse.move(yRot, xRot, intOpt("mousestrokes", "sensitivity"), System.currentTimeMillis());
 		if (!freeOn) return false;
 		freeYaw += (float) yRot * 0.15f;
 		freePitch = Math.max(-90f, Math.min(90f, freePitch + (float) xRot * 0.15f));
@@ -332,28 +349,35 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public void applyCape(String key, byte[] png) {
 		if (Objects.equals(key, capeKey)) return;
 		capeKey = key;
-		if (capeTexture != null) Minecraft.getInstance().getTextureManager().release(capeTexture);
-		capeTexture = null;
-		if (png == null) return;
+		releaseTexture(capeTexture);
+		capeTexture = png == null ? null : registerTexture("cape/" + Integer.toHexString(key.hashCode()), png);
+	}
+
+	/** Tekstura z PNG pod mibclient:path albo null, gdy obrazek jest zły. */
+	static MibId registerTexture(String path, byte[] png) {
 		try {
 			NativeImage img = NativeImage.read(png);
-			MibId id = MibId.fromNamespaceAndPath("mibclient", "cape/" + Integer.toHexString(key.hashCode()));
+			MibId id = MibId.fromNamespaceAndPath("mibclient", path);
 			//#if MC >= 1.21.5
-			Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> "mibclient cape", img));
+			Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> "mibclient " + path, img));
 			//#else
 			Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(img));
 			//#endif
-			capeTexture = id;
+			return id;
 		} catch (Exception e) {
-			capeTexture = null;
+			return null;
 		}
 	}
 
-	/** Tekstura peleryny MiB dla tego gracza albo null (tylko własna postać — peleryny innych graczy w przyszłości). */
+	static void releaseTexture(MibId id) {
+		if (id != null) Minecraft.getInstance().getTextureManager().release(id);
+	}
+
+	/** Peleryna MiB dla tego gracza: własna założona albo innego gracza MiB (z launchera); null = peleryna ze skórki. */
 	public MibId capeFor(AbstractClientPlayer player) {
-		if (capeTexture == null || player != Minecraft.getInstance().player) return null;
-		hooks.add("cape");
-		return capeTexture;
+		MibId t = player == Minecraft.getInstance().player ? capeTexture : players.capeOf(player.getUUID(), player.getScoreboardName());
+		if (t != null) hooks.add("cape");
+		return t;
 	}
 
 	@Override

@@ -22,7 +22,7 @@ class HudViewTest {
 	@BeforeEach
 	void setUp() {
 		Lang.setGame("pl_pl");
-		mm = new ModuleManager(Config.load(new File(dir, "c.json")), ModuleCatalog.STAGE1);
+		mm = new ModuleManager(Config.load(new File(dir, "c.json")), ModuleCatalog.ALL);
 		hud = new HudView(mm);
 		g = new FakeGameInfo();
 		c = new RecordingCanvas();
@@ -165,5 +165,68 @@ class HudViewTest {
 		hud.render(c, g, 480, 270, ed, true);
 		assertEquals(3, ed.boxes().size());
 		assertTrue(c.hasFillColor(Theme.AM));
+	}
+
+	@Test
+	void stage2ModulesShowGameData() {
+		for (String id : new String[] {"hearts", "saturation", "speed_meter", "tps", "combo_display", "reach_display", "damage_indicator", "totem", "pack_display", "attack_indicator"}) enable(id);
+		g.absorption = 4;
+		g.target = new GameInfo.Target("Notch", 12, 20);
+		g.combat.onAttack(1, 3.14159, g.now - 100);
+		g.combat.onTargetHurt(1, 2.5f, g.now - 50);
+		g.inventory.add(new GameInfo.Stack("minecraft:totem_of_undying", 2, "totem"));
+		g.meters.tps.onTime(0, g.now - 1000);
+		g.meters.tps.onTime(20, g.now);
+		g.packs.add("Faithful");
+		g.attack = 0.5f;
+		hud.render(c, g, 480, 270, null, false);
+		assertTrue(c.hasText("\u2764 18.5"));
+		assertTrue(c.hasText(" +4"));
+		assertTrue(c.hasText("Nasycenie: 7.2"));
+		assertTrue(c.hasText("Głód: 18/20"));
+		assertTrue(c.hasText("0.00 m/s"));
+		assertTrue(c.hasText("TPS: 20.0"));
+		assertTrue(c.hasText("Combo: 1"));
+		assertTrue(c.hasText("Zasięg: 3.14"));
+		assertTrue(c.hasText("Notch"));
+		assertTrue(c.hasText("\u2764 12/20  -2.5"));
+		assertTrue(c.hasText("Totemy: 2"));
+		assertTrue(c.hasText("Faithful"));
+	}
+
+	@Test
+	void stage2ModulesHideWithoutData() {
+		for (String id : new String[] {"combo_display", "reach_display", "damage_indicator", "jump_reset", "stopwatch", "tps", "attack_indicator", "armor_bar", "item_counter"}) enable(id);
+		Set<String> ids = new HashSet<String>();
+		for (HudEditorModel.Box b : hud.layout(c, g, 480, 270, null, false)) ids.add(b.id);
+		assertEquals(new HashSet<String>(java.util.Arrays.asList("fps", "cps", "keystrokes")), ids, "bez walki, stopera i zbroi nic nie widać");
+		ids.clear();
+		for (HudEditorModel.Box b : hud.layout(c, g, 480, 270, null, true)) ids.add(b.id);
+		assertTrue(ids.containsAll(java.util.Arrays.asList("combo_display", "reach_display", "damage_indicator", "jump_reset", "stopwatch", "tps",
+				"attack_indicator", "armor_bar", "item_counter")), "w edytorze HUD przykładowa treść: " + ids);
+	}
+
+	@Test
+	void itemCounterSumsGroups() {
+		enable("item_counter");
+		g.inventory.add(new GameInfo.Stack("minecraft:arrow", 40, "a"));
+		g.inventory.add(new GameInfo.Stack("minecraft:spectral_arrow", 8, "s"));
+		g.inventory.add(new GameInfo.Stack("minecraft:ender_pearl", 16, "p"));
+		g.inventory.add(new GameInfo.Stack("minecraft:cobweb", 5, "w"));
+		hud.render(c, g, 480, 270, null, false);
+		assertTrue(c.hasText("48"));
+		assertTrue(c.hasText("16"));
+		assertFalse(c.hasText("5"), "pajęczyny domyślnie wyłączone");
+	}
+
+	@Test
+	void hitMarkerOnlyRightAfterHit() {
+		enable("hit_indicator");
+		hud.overlay(c, g, 480, 270);
+		assertTrue(c.fills.isEmpty());
+		g.combat.onAttack(1, 3, g.now - 100);
+		g.combat.onTargetHurt(1, 1, g.now - 50);
+		hud.overlay(c, g, 480, 270);
+		assertFalse(c.fills.isEmpty());
 	}
 }

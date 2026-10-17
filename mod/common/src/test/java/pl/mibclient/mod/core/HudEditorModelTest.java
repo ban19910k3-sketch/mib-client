@@ -16,7 +16,7 @@ class HudEditorModelTest {
 
 	@BeforeEach
 	void setUp() {
-		mm = new ModuleManager(Config.load(new File(dir, "mod-config.json")), ModuleCatalog.STAGE1);
+		mm = new ModuleManager(Config.load(new File(dir, "mod-config.json")), ModuleCatalog.ALL);
 		ed = new HudEditorModel(mm);
 		ed.setBoxes(Arrays.asList(new HudEditorModel.Box("fps", 4, 80, 40, 15, 1.0), new HudEditorModel.Box("cps", 4, 96, 40, 15, 1.0)), 480, 270);
 	}
@@ -66,7 +66,7 @@ class HudEditorModelTest {
 		ed.mouseUp();
 		ed.scroll(10, 100, 1);
 		ed.resetAll();
-		ModuleManager fresh = new ModuleManager(Config.load(mm.config().file()), ModuleCatalog.STAGE1);
+		ModuleManager fresh = new ModuleManager(Config.load(mm.config().file()), ModuleCatalog.ALL);
 		assertNull(fresh.config().module("fps").hud(null));
 		assertNull(fresh.config().module("cps").hud(null));
 	}

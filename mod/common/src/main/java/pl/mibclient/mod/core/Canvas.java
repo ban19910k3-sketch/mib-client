@@ -29,4 +29,8 @@ public interface Canvas {
 
 	/** Ikona efektu mikstury 18×18 (uchwyt z GameInfo.Effect). */
 	void effectIcon(Object handle, int x, int y);
+
+	/** Postać gracza w prostokącie [x1, x2) × [y1, y2), patrząca przed siebie (Player model); size = skala modelu. */
+	default void player(int x1, int y1, int x2, int y2, int size) {
+	}
 }

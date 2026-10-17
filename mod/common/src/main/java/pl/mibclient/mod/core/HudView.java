@@ -9,10 +9,12 @@ import pl.mibclient.mod.core.Setting.BoolSetting;
 import pl.mibclient.mod.core.Setting.ChoiceSetting;
 import pl.mibclient.mod.core.Setting.ColorSetting;
 import pl.mibclient.mod.core.Setting.IntSetting;
+import pl.mibclient.mod.core.modules.CombatTracker;
 import pl.mibclient.mod.core.modules.Formats;
+import pl.mibclient.mod.core.modules.Meters;
 
 /**
- * HUD modułów etapu 1. Każdy element rysuje się od (0,0) swojego pudełka, a rozmiar zależy od treści.
+ * HUD modułów etapów 1 i 2. Każdy element rysuje się od (0,0) swojego pudełka, a rozmiar zależy od treści.
  * W trybie edytora moduł bez danych (np. brak mikstur) pokazuje przykładową treść i ramkę.
  */
 public final class HudView {
@@ -66,6 +68,12 @@ public final class HudView {
 		if ("potion_effects".equals(id)) return potions(at, c, d, st, g, editor);
 		if ("armor_status".equals(id)) return armor(at, c, d, st, g, editor);
 		if ("direction".equals(id) && "strip".equals(choice(d, st, "style"))) return compass(at, c, d, st, g);
+		if ("armor_bar".equals(id)) return armorBar(at, c, d, st, g, editor);
+		if ("hearts".equals(id)) return hearts(at, c, d, st, g);
+		if ("item_counter".equals(id)) return itemCounter(at, c, d, st, g, editor);
+		if ("mousestrokes".equals(id)) return mousestrokes(at, c, d, st, g);
+		if ("player_model".equals(id)) return playerModel(at, c, d, st);
+		if ("attack_indicator".equals(id) && "bar".equals(choice(d, st, "style"))) return attackBar(at, c, d, st, g, editor);
 		List<String> lines = lines(d, st, g, editor);
 		if (lines.isEmpty()) return new int[] {0, 0};
 		return textBox(at, c, d, st, lines, color(d, st, g));
@@ -102,6 +110,85 @@ public final class HudView {
 			return one(Formats.clock(t[0], t[1], t[2], bool(d, st, "h24"), bool(d, st, "seconds")));
 		}
 		if ("direction".equals(id)) return one(Formats.facing(g.yaw()));
+		long now = g.nowMs();
+		CombatTracker cb = g.combat();
+		Meters m = g.meters();
+		if ("saturation".equals(id)) {
+			List<String> l = new ArrayList<String>();
+			l.add(Lang.t("hud.saturation", Formats.decimal(g.saturation(), 1)));
+			if (bool(d, st, "food")) l.add(Lang.t("hud.food", g.food()));
+			return l;
+		}
+		if ("speed_meter".equals(id)) return one(Formats.decimal(m == null ? 4.32 : m.speed.bps(), integer(d, st, "decimals")) + " m/s");
+		if ("stopwatch".equals(id)) {
+			if ((m == null || !m.stopwatch.started()) && !editor) return Collections.emptyList();
+			return one(Lang.t("hud.stopwatch", Formats.stopwatch(m == null ? 83400 : m.stopwatch.elapsed(now))));
+		}
+		if ("system_resources".equals(id)) {
+			List<String> l = new ArrayList<String>();
+			double cpu = g.cpuLoad();
+			if (bool(d, st, "cpu")) l.add("CPU: " + (cpu < 0 ? "?" : Math.round(cpu * 100) + "%"));
+			long[] mem = g.memoryMb();
+			if (bool(d, st, "ram")) l.add("RAM: " + mem[0] + "/" + mem[1] + " MB");
+			return l;
+		}
+		if ("tps".equals(id)) {
+			double t = m == null ? 20 : m.tps.tps();
+			if (t < 0 && !editor) return Collections.emptyList();
+			return one("TPS: " + (t < 0 ? "20.0" : Formats.decimal(t, 1)));
+		}
+		if ("attack_indicator".equals(id)) {
+			float a = g.attackStrength();
+			if (a >= 1 && bool(d, st, "only_charging") && !editor) return Collections.emptyList();
+			return one(Lang.t("hud.attack", Math.round(Math.min(1, a) * 100)));
+		}
+		if ("combo_display".equals(id)) {
+			int n = cb == null ? 3 : cb.combo(now);
+			if (n == 0 && bool(d, st, "hide_zero") && !editor) return Collections.emptyList();
+			return one("Combo: " + (editor && n == 0 ? 3 : n));
+		}
+		if ("reach_display".equals(id)) {
+			double r = cb == null ? 2.87 : cb.reach();
+			if (r < 0 && !editor) return Collections.emptyList();
+			return one(Lang.t("hud.reach", Formats.decimal(r < 0 ? 2.87 : r, integer(d, st, "decimals"))));
+		}
+		if ("damage_indicator".equals(id)) {
+			GameInfo.Target t = g.target();
+			if (t == null) {
+				if (!editor) return Collections.emptyList();
+				t = new GameInfo.Target("Steve", 14.5f, 20);
+			}
+			List<String> l = new ArrayList<String>();
+			l.add(t.name);
+			float dmg = cb == null ? -1 : cb.lastDamage(now);
+			l.add("\u2764 " + Formats.hp(t.health) + "/" + Formats.hp(t.maxHealth)
+					+ (bool(d, st, "damage") && dmg > 0 ? "  -" + Formats.hp(dmg) : ""));
+			return l;
+		}
+		if ("jump_reset".equals(id)) {
+			if ((cb == null || !cb.jumpShown(now)) && !editor) return Collections.emptyList();
+			Integer dt = cb == null || !cb.jumpShown(now) ? Integer.valueOf(0) : cb.jumpDelta();
+			if (dt == null) return one(Lang.t("jump.none"));
+			if (Math.abs(dt) <= 1) return one(Lang.t("jump.perfect"));
+			return one(dt > 0 ? Lang.t("jump.late", dt) : Lang.t("jump.early", -dt));
+		}
+		if ("totem".equals(id)) {
+			int own = 0;
+			for (GameInfo.Stack x : g.inventory()) if ("minecraft:totem_of_undying".equals(x.id)) own += x.count;
+			List<String> l = new ArrayList<String>();
+			l.add(Lang.t("hud.totems", own));
+			String who = cb == null ? (editor ? "Steve" : null) : cb.lastPop(now);
+			if (bool(d, st, "pops") && who != null) l.add(Lang.t("hud.popped", who, cb == null ? 2 : cb.pops(who)));
+			return l;
+		}
+		if ("pack_display".equals(id)) {
+			List<String> packs = g.resourcePacks();
+			if (packs.isEmpty()) return editor ? one(Lang.t("hud.no_packs")) : Collections.<String>emptyList();
+			int max = integer(d, st, "max");
+			List<String> l = new ArrayList<String>(packs.subList(0, Math.min(max, packs.size())));
+			if (packs.size() > max) l.add("+" + (packs.size() - max));
+			return l;
+		}
 		if ("toggle_sprint".equals(id)) {
 			if (!bool(d, st, "show")) return Collections.emptyList();
 			if (g.sneakToggled() && g.sneaking()) return one("[" + Lang.t("sprint.sneak") + "]");
@@ -113,6 +200,7 @@ public final class HudView {
 
 	private int color(ModuleDef d, ModuleState st, GameInfo g) {
 		if ("ping".equals(d.id) && bool(d, st, "quality_color")) return Formats.pingColor(g.ping() < 0 ? 24 : g.ping());
+		if ("tps".equals(d.id) && bool(d, st, "quality_color")) return Formats.tpsColor(g.meters() == null ? 20 : g.meters().tps.tps());
 		return colorOpt(d, st, "color");
 	}
 
@@ -248,6 +336,140 @@ public final class HudView {
 		c.unscissor();
 		c.fill(mid, at[1], mid + 1, at[1] + 3, Theme.AM);
 		return new int[] {w, h};
+	}
+
+	/** Armor bar: 10 ikon po 2 punkty w kolorach materiału zbroi (jak pasek gry, ale kolorowy). */
+	private int[] armorBar(int[] at, Canvas c, ModuleDef d, ModuleState st, GameInfo g, boolean editor) {
+		List<String> ids = new ArrayList<String>();
+		for (GameInfo.Gear x : g.gear()) if (!x.held) ids.add(x.id);
+		int armor = g.armorValue();
+		if (armor <= 0 && editor) {
+			ids = Arrays.asList("minecraft:diamond_helmet", "minecraft:iron_chestplate", "minecraft:iron_leggings", "minecraft:diamond_boots");
+			armor = 16;
+		}
+		if (armor <= 0) return new int[] {0, 0};
+		boolean number = bool(d, st, "number");
+		String n = String.valueOf(armor);
+		int w = 10 * 8 - 1 + 2 * PAD + (number ? 3 + c.textWidth(n) : 0), h = 7 + 2 * PAD;
+		if (at == null) return new int[] {w, h};
+		if (bool(d, st, "background")) c.fill(at[0], at[1], at[0] + w, at[1] + h, Theme.HUD_BG);
+		int[] pts = Formats.armorPoints(ids, armor);
+		for (int i = 0; i < 10; i++) {
+			int x = at[0] + PAD + i * 8, y = at[1] + PAD, a = pts[2 * i], b = pts[2 * i + 1];
+			if (a == 0 && !bool(d, st, "empty")) continue;
+			shield(c, x, y, 0x80000000 | (Theme.MUTED & 0xFFFFFF), false);
+			if (a != 0) shield(c, x, y, a, b == 0);
+		}
+		if (number) c.text(n, at[0] + w - PAD - c.textWidth(n), at[1] + PAD, colorOpt(d, st, "color"), bool(d, st, "shadow"));
+		return new int[] {w, h};
+	}
+
+	/** Ikona tarczy 7×7; half = tylko lewa połowa. */
+	private static void shield(Canvas c, int x, int y, int color, boolean half) {
+		int[][] rows = {{0, 7}, {0, 7}, {0, 7}, {0, 7}, {1, 6}, {1, 6}, {2, 5}};
+		for (int r = 0; r < rows.length; r++) {
+			int x1 = x + rows[r][0], x2 = x + (half ? Math.min(rows[r][1], 4) : rows[r][1]);
+			if (x2 > x1) c.fill(x1, y + r, x2, y + r + 1, color);
+		}
+	}
+
+	/** Hearts: zdrowie liczbą i absorpcja na złoto. */
+	private int[] hearts(int[] at, Canvas c, ModuleDef d, ModuleState st, GameInfo g) {
+		String hp = "\u2764 " + Formats.hp(g.health()) + (bool(d, st, "max") ? "/" + Formats.hp(g.maxHealth()) : "");
+		String abs = bool(d, st, "absorption") && g.absorption() > 0 ? " +" + Formats.hp(g.absorption()) : "";
+		int w = c.textWidth(hp) + c.textWidth(abs) + 2 * PAD, h = 10 - 1 + 2 * PAD;
+		if (at == null) return new int[] {w, h};
+		if (bool(d, st, "background")) c.fill(at[0], at[1], at[0] + w, at[1] + h, Theme.HUD_BG);
+		c.text(hp, at[0] + PAD, at[1] + PAD, colorOpt(d, st, "color"), bool(d, st, "shadow"));
+		if (!abs.isEmpty()) c.text(abs, at[0] + PAD + c.textWidth(hp), at[1] + PAD, 0xFFFFD34D, bool(d, st, "shadow"));
+		return new int[] {w, h};
+	}
+
+	/** Item counter: ikona przedmiotu i liczba sztuk w ekwipunku dla wybranych grup. */
+	private int[] itemCounter(int[] at, Canvas c, ModuleDef d, ModuleState st, GameInfo g, boolean editor) {
+		List<Object> stacks = new ArrayList<Object>();
+		List<String> counts = new ArrayList<String>();
+		for (String[] grp : ModuleCatalog.ITEM_GROUPS) {
+			if (!bool(d, st, grp[0])) continue;
+			int n = 0;
+			Object icon = null;
+			for (GameInfo.Stack x : g.inventory()) {
+				for (int i = 1; i < grp.length; i++) {
+					if (!grp[i].equals(x.id)) continue;
+					n += x.count;
+					if (icon == null) icon = x.stack;
+				}
+			}
+			if (n == 0) continue;
+			stacks.add(icon);
+			counts.add(String.valueOf(n));
+		}
+		if (stacks.isEmpty()) return editor ? textBox(at, c, d, st, one(d.name), colorOpt(d, st, "color")) : new int[] {0, 0};
+		boolean horizontal = "horizontal".equals(choice(d, st, "layout"));
+		int maxT = 0, sumW = 0;
+		for (String t : counts) {
+			maxT = Math.max(maxT, c.textWidth(t));
+			sumW += 16 + 2 + c.textWidth(t) + 4;
+		}
+		int w = horizontal ? sumW - 4 + 2 * PAD : 18 + maxT + 2 * PAD, h = horizontal ? 16 + 2 * PAD : stacks.size() * 17 - 1 + 2 * PAD;
+		if (at == null) return new int[] {w, h};
+		if (bool(d, st, "background")) c.fill(at[0], at[1], at[0] + w, at[1] + h, Theme.HUD_BG);
+		int x = at[0] + PAD, y = at[1] + PAD;
+		for (int i = 0; i < stacks.size(); i++) {
+			c.item(stacks.get(i), x, y);
+			c.text(counts.get(i), x + 18, y + 4, colorOpt(d, st, "color"), bool(d, st, "shadow"));
+			if (horizontal) x += 16 + 2 + c.textWidth(counts.get(i)) + 4;
+			else y += 17;
+		}
+		return new int[] {w, h};
+	}
+
+	/** Mousestrokes: kropka odsunięta w stronę ruchu myszy. */
+	private int[] mousestrokes(int[] at, Canvas c, ModuleDef d, ModuleState st, GameInfo g) {
+		int s = 34;
+		if (at == null) return new int[] {s, s};
+		if (bool(d, st, "background")) c.fill(at[0], at[1], at[0] + s, at[1] + s, Theme.HUD_BG);
+		int mid = s / 2;
+		c.fill(at[0] + mid, at[1] + 3, at[0] + mid + 1, at[1] + s - 3, 0x60FFFFFF);
+		c.fill(at[0] + 3, at[1] + mid, at[0] + s - 3, at[1] + mid + 1, 0x60FFFFFF);
+		double[] p = g.meters() == null ? new double[] {0.4, -0.3} : g.meters().mouse.pos(g.nowMs());
+		int px = at[0] + mid + (int) Math.round(p[0] * (mid - 4)), py = at[1] + mid + (int) Math.round(p[1] * (mid - 4));
+		c.fill(px - 2, py - 2, px + 3, py + 3, colorOpt(d, st, "color"));
+		return new int[] {s, s};
+	}
+
+	/** Player model: postać gracza (rysuje gra, przez Canvas). */
+	private int[] playerModel(int[] at, Canvas c, ModuleDef d, ModuleState st) {
+		int size = integer(d, st, "size"), w = size * 4 / 3 + 8, h = size * 2 + 14;
+		if (at == null) return new int[] {w, h};
+		if (bool(d, st, "background")) c.fill(at[0], at[1], at[0] + w, at[1] + h, Theme.HUD_BG);
+		c.player(at[0], at[1], at[0] + w, at[1] + h, size);
+		return new int[] {w, h};
+	}
+
+	/** Attack indicator jako pasek ładowania ataku. */
+	private int[] attackBar(int[] at, Canvas c, ModuleDef d, ModuleState st, GameInfo g, boolean editor) {
+		float a = g.attackStrength();
+		if (a >= 1 && bool(d, st, "only_charging") && !editor) return new int[] {0, 0};
+		if (editor && a >= 1) a = 0.6f;
+		int w = 32, h = 4;
+		if (at == null) return new int[] {w, h};
+		c.fill(at[0], at[1], at[0] + w, at[1] + h, bool(d, st, "background") ? Theme.HUD_BG : 0x40000000);
+		c.fill(at[0] + 1, at[1] + 1, at[0] + 1 + Math.round((w - 2) * Math.min(1, a)), at[1] + h - 1, colorOpt(d, st, "color"));
+		return new int[] {w, h};
+	}
+
+	/** Rzeczy rysowane poza pudełkami HUD: znacznik trafienia przy celowniku (Hit indicator). */
+	public void overlay(Canvas c, GameInfo g, int sw, int sh) {
+		if (g.hideHud() || !modules.isOn("hit_indicator") || g.combat() == null || !g.combat().hitMarker(g.nowMs())) return;
+		int color = colorOpt(modules.def("hit_indicator"), modules.state("hit_indicator"), "color");
+		int cx = sw / 2, cy = sh / 2;
+		for (int i = 3; i <= 6; i++) {
+			c.fill(cx - i, cy - i, cx - i + 1, cy - i + 1, color);
+			c.fill(cx + i, cy - i, cx + i + 1, cy - i + 1, color);
+			c.fill(cx - i, cy + i, cx - i + 1, cy + i + 1, color);
+			c.fill(cx + i, cy + i, cx + i + 1, cy + i + 1, color);
+		}
 	}
 
 	// ===== Opcje =====

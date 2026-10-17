@@ -1,7 +1,10 @@
 package pl.mibclient.mod.fabric;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.MibGraphics;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Holder;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.item.ItemStack;
@@ -12,7 +15,6 @@ import net.minecraft.client.renderer.RenderPipelines;
 import org.joml.Matrix3x2fStack;
 //#else
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 //#endif
 //#if MC >= 1.21.2 && MC < 1.21.6
@@ -115,6 +117,19 @@ public final class FabricCanvas implements Canvas {
 		//#else
 		g.blit(x, y, 0, 18, 18, sprite);
 		//#endif
+		//#endif
+	}
+
+	@Override
+	public void player(int x1, int y1, int x2, int y2, int size) {
+		LocalPlayer p = Minecraft.getInstance().player;
+		if (p == null) return;
+		// „mysz” na środku: postać patrzy prosto przed siebie
+		float cx = (x1 + x2) / 2f, cy = (y1 + y2) / 2f;
+		//#if MC >= 26.1
+		InventoryScreen.extractEntityInInventoryFollowsMouse(g, x1, y1, x2, y2, size, 0.0625f, cx, cy, p);
+		//#else
+		InventoryScreen.renderEntityInInventoryFollowsMouse(g, x1, y1, x2, y2, size, 0.0625f, cx, cy, p);
 		//#endif
 	}
 }

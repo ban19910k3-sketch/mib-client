@@ -15,7 +15,7 @@ class SearchTest {
 
 	private List<String> find(String q) {
 		List<String> r = new ArrayList<String>();
-		for (ModuleDef m : ModuleCatalog.STAGE1) if (Search.matches(m, q)) r.add(m.id);
+		for (ModuleDef m : ModuleCatalog.ALL) if (Search.matches(m, q)) r.add(m.id);
 		return r;
 	}
 
@@ -27,7 +27,7 @@ class SearchTest {
 		assertTrue(find("przyblizenie").contains("zoom"));
 		assertTrue(find("przybliżenie").contains("zoom"));
 		assertTrue(find("xyz qqq").isEmpty());
-		assertEquals(17, find("  ").size());
+		assertEquals(36, find("  ").size());
 	}
 
 	@Test

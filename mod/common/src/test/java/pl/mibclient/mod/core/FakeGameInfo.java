@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import pl.mibclient.mod.core.modules.CombatTracker;
 import pl.mibclient.mod.core.modules.CpsCounter;
+import pl.mibclient.mod.core.modules.Meters;
 
 /** Atrapa danych gry do testów HUD. */
 public class FakeGameInfo implements GameInfo {
@@ -19,6 +21,68 @@ public class FakeGameInfo implements GameInfo {
 	public long now = 100_000, start = 100_000 - 3_909_000;
 	public int[] time = {14, 5, 9};
 	public boolean sprintToggled, sneakToggled, sprinting, sneaking, hide;
+	public float health = 18.5f, absorption, saturation = 7.2f, attack = 1;
+	public int armor, food = 18;
+	public final List<Stack> inventory = new ArrayList<Stack>();
+	public final List<String> packs = new ArrayList<String>();
+	public Target target;
+	public CombatTracker combat = new CombatTracker();
+	public Meters meters = new Meters();
+
+	@Override
+	public float health() {
+		return health;
+	}
+
+	@Override
+	public float absorption() {
+		return absorption;
+	}
+
+	@Override
+	public int armorValue() {
+		return armor;
+	}
+
+	@Override
+	public int food() {
+		return food;
+	}
+
+	@Override
+	public float saturation() {
+		return saturation;
+	}
+
+	@Override
+	public float attackStrength() {
+		return attack;
+	}
+
+	@Override
+	public List<Stack> inventory() {
+		return inventory;
+	}
+
+	@Override
+	public List<String> resourcePacks() {
+		return packs;
+	}
+
+	@Override
+	public Target target() {
+		return target;
+	}
+
+	@Override
+	public CombatTracker combat() {
+		return combat;
+	}
+
+	@Override
+	public Meters meters() {
+		return meters;
+	}
 
 	@Override
 	public int fps() {

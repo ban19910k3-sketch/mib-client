@@ -6,10 +6,15 @@
 	"client": [
 		"AbstractClientPlayerMixin",
 		"CameraMixin",
+		"ClientPacketListenerMixin",
 		"GameRendererMixin",
 		"GuiMixin",
 		"LightTextureMixin",
+		"LivingEntityMixin",
 		"MouseHandlerMixin",
+		"MultiPlayerGameModeMixin",
+		"PlayerMixin",
+		"PlayerTabOverlayMixin",
 		"TitleScreenMixin"
 	],
 	"injectors": {

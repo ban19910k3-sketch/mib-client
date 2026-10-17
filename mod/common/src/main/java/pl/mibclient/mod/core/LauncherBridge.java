@@ -14,7 +14,9 @@ import java.util.Map;
 /**
  * Rozmowa z launcherem przez pliki w katalogu mib (tylko na tym komputerze):
  * accounts.json (launcher -> mod: konta bez tokenów), switch-request.json (mod -> launcher),
- * switch-result.json (launcher -> mod, tylko gdy zmiana konta się nie udała).
+ * switch-result.json (launcher -> mod, tylko gdy zmiana konta się nie udała), kosmetyki (cosmetics.json,
+ * cosmetic-request.json, cosmetic-result.json) i gracze MiB na serwerze (players-request.json od moda,
+ * players.json i capes/ID.png od launchera).
  */
 public final class LauncherBridge {
 	private final File dir;
@@ -91,6 +93,46 @@ public final class LauncherBridge {
 					x.get("png") instanceof String ? (String) x.get("png") : null));
 		}
 		return new Cosmetics(true, out);
+	}
+
+	private String playersAsked;
+	private byte[] playersBytes;
+	private MibPlayers playersParsed = MibPlayers.NONE;
+
+	/** Lista graczy z Tab do sprawdzenia przez launcher (zapis tylko po zmianie). */
+	public void requestPlayers(String requestJson) {
+		if (requestJson.equals(playersAsked)) return;
+		File f = new File(dir, "players-request.json"), tmp = new File(dir, "players-request.json.tmp");
+		try {
+			Files.createDirectories(dir.toPath());
+			Files.write(tmp.toPath(), requestJson.getBytes(StandardCharsets.UTF_8));
+			Files.move(tmp.toPath(), f.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			playersAsked = requestJson;
+		} catch (IOException e) {
+			tmp.delete();
+		}
+	}
+
+	/** Gracze MiB z players.json (plik parsowany tylko po zmianie). */
+	public MibPlayers players() {
+		byte[] b;
+		try {
+			File f = new File(dir, "players.json");
+			b = f.isFile() ? Files.readAllBytes(f.toPath()) : null;
+		} catch (IOException e) {
+			b = null;
+		}
+		if (java.util.Arrays.equals(b, playersBytes)) return playersParsed;
+		playersBytes = b;
+		playersParsed = b == null ? MibPlayers.NONE : MibPlayers.parse(new String(b, StandardCharsets.UTF_8));
+		return playersParsed;
+	}
+
+	/** Tekstura peleryny innego gracza MiB (PNG pobrany przez launcher) albo null. */
+	public File capeFile(String id) {
+		if (!MibPlayers.validCapeId(id)) return null;
+		File f = new File(new File(dir, "capes"), id + ".png");
+		return f.isFile() ? f : null;
 	}
 
 	/** Prośba do launchera: załóż (id) albo zdejmij (id = null) kosmetyk danego typu. */

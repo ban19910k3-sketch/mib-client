@@ -11,34 +11,40 @@ import org.junit.jupiter.api.Test;
 
 class CatalogTest {
 	@Test
-	void stage1HasExactly17UniqueIds() {
+	void stagesOneAndTwoWithUniqueIds() {
 		Set<String> ids = new HashSet<String>();
-		for (ModuleDef m : ModuleCatalog.STAGE1) ids.add(m.id);
+		for (ModuleDef m : ModuleCatalog.ALL) ids.add(m.id);
 		assertEquals(new HashSet<String>(Arrays.asList("armor_status", "brightness", "coordinates", "cps", "custom_crosshair", "direction",
-				"fov_changer", "fps", "keystrokes", "perspective", "ping", "playtime", "potion_effects", "server_address", "time", "toggle_sprint", "zoom")), ids);
-		assertEquals(17, ModuleCatalog.STAGE1.size());
+				"fov_changer", "fps", "keystrokes", "perspective", "ping", "playtime", "potion_effects", "server_address", "time", "toggle_sprint", "zoom",
+				"armor_bar", "hearts", "saturation", "item_counter", "mousestrokes", "pack_display", "player_model", "speed_meter", "stopwatch",
+				"system_resources", "tps", "attack_indicator", "combo_display", "damage_indicator", "hit_indicator", "jump_reset", "reach_display", "totem",
+				"mib_badge")), ids);
+		assertEquals(36, ModuleCatalog.ALL.size());
 	}
 
 	@Test
 	void namesMatchSpec() {
 		List<String> names = new ArrayList<String>();
-		for (ModuleDef m : ModuleCatalog.STAGE1) names.add(m.name);
+		for (ModuleDef m : ModuleCatalog.ALL) names.add(m.name);
 		assertEquals(new HashSet<String>(Arrays.asList("Armor status", "Brightness", "Coordinates", "CPS", "Custom crosshair", "Direction",
-				"FOV changer", "FPS", "Keystrokes", "Perspective", "Ping", "Playtime", "Potion effects", "Server address", "Time", "Toggle sprint", "Zoom")),
+				"FOV changer", "FPS", "Keystrokes", "Perspective", "Ping", "Playtime", "Potion effects", "Server address", "Time", "Toggle sprint", "Zoom",
+				"Armor bar", "Hearts", "Saturation", "Item counter", "Mousestrokes", "Pack display", "Player model", "Speed meter", "Stopwatch",
+				"System resources", "TPS", "Attack indicator", "Combo display", "Damage indicator", "Hit indicator", "Jump reset", "Reach display", "Totem",
+				"MiB players")),
 				new HashSet<String>(names));
 	}
 
 	@Test
 	void defaultsOn() {
 		Set<String> on = new HashSet<String>();
-		for (ModuleDef m : ModuleCatalog.STAGE1) if (m.defaultOn) on.add(m.id);
-		assertEquals(new HashSet<String>(Arrays.asList("fps", "cps", "keystrokes", "zoom")), on);
+		for (ModuleDef m : ModuleCatalog.ALL) if (m.defaultOn) on.add(m.id);
+		assertEquals(new HashSet<String>(Arrays.asList("fps", "cps", "keystrokes", "zoom", "mib_badge")), on);
 	}
 
 	@Test
 	void everyHudModuleHasDefaultPosition() {
-		Set<String> notHud = new HashSet<String>(Arrays.asList("brightness", "custom_crosshair", "fov_changer", "perspective", "zoom"));
-		for (ModuleDef m : ModuleCatalog.STAGE1) {
+		Set<String> notHud = new HashSet<String>(Arrays.asList("brightness", "custom_crosshair", "fov_changer", "perspective", "zoom", "hit_indicator", "mib_badge"));
+		for (ModuleDef m : ModuleCatalog.ALL) {
 			assertEquals(!notHud.contains(m.id), m.hud, m.id);
 			assertEquals(m.hud, m.defaultHud != null, m.id);
 			assertFalse(m.descPl.isEmpty(), m.id);

@@ -59,6 +59,19 @@ public final class Lang {
 		put("sprint.sprint", "Bieg (przełączony)", "Sprinting (toggled)");
 		put("sprint.sneak", "Skradanie (przełączone)", "Sneaking (toggled)");
 		put("sprint.running", "Bieg", "Sprinting");
+		put("hud.saturation", "Nasycenie: %s", "Saturation: %s");
+		put("hud.food", "Głód: %d/20", "Food: %d/20");
+		put("hud.reach", "Zasięg: %s", "Reach: %s");
+		put("hud.stopwatch", "Stoper: %s", "Stopwatch: %s");
+		put("hud.totems", "Totemy: %d", "Totems: %d");
+		put("hud.popped", "%s: −%d totem", "%s: −%d totem");
+		put("hud.attack", "Atak: %d%%", "Attack: %d%%");
+		put("hud.no_packs", "Bez paczek zasobów", "No resource packs");
+		put("jump.perfect", "Jump reset: idealny", "Jump reset: perfect");
+		put("jump.late", "Jump reset: za późno (%d t)", "Jump reset: too late (%d t)");
+		put("jump.early", "Jump reset: za wcześnie (%d t)", "Jump reset: too early (%d t)");
+		put("jump.none", "Jump reset: bez skoku", "Jump reset: no jump");
+		put("key.stopwatch", "Stoper", "Stopwatch");
 	}
 
 	/** Kod języka gry, np. "pl_pl" albo "en_us". */

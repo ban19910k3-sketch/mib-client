@@ -60,7 +60,7 @@ class PreviewTest {
 	void renderMenus() throws Exception {
 		File out = out();
 		Lang.setGame("pl_pl");
-		ModuleManager mm = new ModuleManager(Config.load(new File(dir, "c.json")), ModuleCatalog.STAGE1);
+		ModuleManager mm = new ModuleManager(Config.load(new File(dir, "c.json")), ModuleCatalog.ALL);
 		List<Account> acc = Arrays.asList(new Account("a", "Ban19910k", true), new Account("b", "BanAlt", false));
 		MenuView v = new MenuView(mm, actions(acc));
 		menu(out, "menu-1280x720", 1280, 720, v);
@@ -89,7 +89,7 @@ class PreviewTest {
 	void renderHud() throws Exception {
 		File out = out();
 		Lang.setGame("pl_pl");
-		ModuleManager mm = new ModuleManager(Config.load(new File(dir, "h.json")), ModuleCatalog.STAGE1);
+		ModuleManager mm = new ModuleManager(Config.load(new File(dir, "h.json")), ModuleCatalog.ALL);
 		for (ModuleDef d : mm.all()) if (d.hud && !mm.isOn(d.id)) mm.toggle(d.id);
 		FakeGameInfo g = new FakeGameInfo();
 		g.keys.add(GameInfo.Key.FORWARD);

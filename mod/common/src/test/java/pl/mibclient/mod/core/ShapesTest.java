@@ -66,7 +66,7 @@ class ShapesTest {
 
 	@Test
 	void allCatalogAndCategoryIconsExist() {
-		for (ModuleDef m : ModuleCatalog.STAGE1) assertNotNull(PixelIcons.get(m.icon), m.id + " -> " + m.icon);
+		for (ModuleDef m : ModuleCatalog.ALL) assertNotNull(PixelIcons.get(m.icon), m.id + " -> " + m.icon);
 		for (Category k : Category.values()) assertNotNull(PixelIcons.get(k.icon), k + " -> " + k.icon);
 		for (String k : new String[] {"search", "settings-cog", "arrow-left", "move", "users", "close", "lock", "grid-3x3", "check"}) {
 			assertNotNull(PixelIcons.get(k), k);

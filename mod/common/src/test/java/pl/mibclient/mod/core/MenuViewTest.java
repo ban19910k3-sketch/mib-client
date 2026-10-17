@@ -26,7 +26,7 @@ class MenuViewTest {
 	@BeforeEach
 	void setUp() {
 		Lang.setGame("pl_pl");
-		mm = new ModuleManager(Config.load(new File(dir, "mod-config.json")), ModuleCatalog.STAGE1);
+		mm = new ModuleManager(Config.load(new File(dir, "mod-config.json")), ModuleCatalog.ALL);
 		v = new MenuView(mm, new MenuActions() {
 			@Override
 			public void openHudEditor(String moduleId) {
@@ -120,7 +120,7 @@ class MenuViewTest {
 	void categoryFiltersCards() {
 		click("cat:PVP");
 		render();
-		assertEquals(3, cards());
+		assertEquals(10, cards());
 		assertEquals(Category.PVP, v.category());
 		click("cat:ALL");
 		render();
@@ -236,11 +236,11 @@ class MenuViewTest {
 		v.render(c, 320, 240, -1, -1);
 		int max = v.layout().maxScroll;
 		assertTrue(max > 0);
-		for (int i = 0; i < 50; i++) v.mouseScrolled(-1);
+		for (int i = 0; i < 300; i++) v.mouseScrolled(-1);
 		c.clear();
 		v.render(c, 320, 240, -1, -1);
 		assertEquals(max, v.layout().scroll);
-		for (int i = 0; i < 50; i++) v.mouseScrolled(1);
+		for (int i = 0; i < 300; i++) v.mouseScrolled(1);
 		c.clear();
 		v.render(c, 320, 240, -1, -1);
 		assertEquals(0, v.layout().scroll);

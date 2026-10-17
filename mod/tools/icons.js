@@ -6,12 +6,30 @@ const fs = require('fs'), path = require('path');
 const ICONS = [
   // moduły etapu 1
   'shield', 'sun', 'map-pin', 'mouse', 'frame', 'compass', 'eye', 'speed-fast', 'keyboard', 'wifi', 'hourglass', 'potion', 'cloud-server', 'clock', 'zap', 'zoom-in', 'rotate-360',
+  // moduły etapu 2 i gracze MiB
+  'shield-sharp', 'heart', 'apple', 'backpack', 'cursor-minimal', 'image', 'human', 'speed-medium', 'alarm-clock', 'cpu', 'server', 'target',
+  'trending-up', 'skull', 'x', 'arrow-big-up', 'arrows-horizontal', 'trophy', 'user',
   // menu i kategorie
   'search', 'settings-cog', 'arrow-left', 'move', 'users', 'close', 'lock', 'grid-3x3', 'layout', 'sword', 'map', 'message', 'archive', 'check',
 ];
 
 // Własne rysunki tam, gdzie oryginał ma detale 1 px, które giną przy pomniejszeniu do 12×12
 const CUSTOM = {
+  target: [
+    '.....##.....', '...######...', '..#..##..#..', '.#...##...#.', '.#........#.', '####....####',
+    '####....####', '.#........#.', '.#...##...#.', '..#..##..#..', '...######...', '.....##.....'],
+  x: [
+    '............', '.##......##.', '.###....###.', '..##....##..', '............', '............',
+    '............', '............', '..##....##..', '.###....###.', '.##......##.', '............'],
+  'trending-up': [
+    '............', '.........##.', '.........##.', '......##.##.', '......##.##.', '...##.##.##.',
+    '...##.##.##.', '##.##.##.##.', '##.##.##.##.', '##.##.##.##.', '###########.', '............'],
+  cpu: [
+    '...#..#..#..', '.##########.', '.#........#.', '##.######.##', '.#.#....#.#.', '##.#....#.##',
+    '.#.#....#.#.', '##.######.##', '.#........#.', '.##########.', '...#..#..#..', '............'],
+  human: [
+    '....####....', '....####....', '....####....', '.##########.', '.#.######.#.', '.#.######.#.',
+    '.#.######.#.', '...##..##...', '...##..##...', '...##..##...', '...##..##...', '............'],
   'rotate-360': [
     '............', '....####.#..', '..##....###.', '.#.....####.', '.#..........', '#...........',
     '#..........#', '.#........#.', '.#........#.', '..##....##..', '....####....', '............'],
@@ -98,7 +116,7 @@ import java.util.Set;
 /**
  * Ikony pikselowe 12×12 (wiersz = 12 bitów, bit 11 = lewa kolumna). Plik WYGENEROWANY przez mod/tools/icons.js.
  * Źródło: pixelarticons 2.4.2, Copyright (c) 2019 Gerrit Halfmann, licencja MIT (pełna treść: fonts/LICENSES.txt).
- * Ikony keyboard i settings-cog to własne rysunki MiB (oryginały mają detale 1 px, które giną w 12×12).
+ * Ikony z CUSTOM w mod/tools/icons.js to własne rysunki MiB (oryginały mają detale 1 px, które giną w 12×12).
  */
 public final class PixelIcons {
 	private PixelIcons() {

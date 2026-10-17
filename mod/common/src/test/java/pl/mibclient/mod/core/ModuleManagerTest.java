@@ -14,7 +14,7 @@ class ModuleManagerTest {
 	File dir;
 
 	private ModuleManager manager() {
-		return new ModuleManager(Config.load(new File(dir, "mod-config.json")), ModuleCatalog.STAGE1);
+		return new ModuleManager(Config.load(new File(dir, "mod-config.json")), ModuleCatalog.ALL);
 	}
 
 	@Test
@@ -56,10 +56,10 @@ class ModuleManagerTest {
 	@Test
 	void enabledCountIgnoresBlocked() {
 		ModuleManager m = manager();
-		assertEquals(4, m.enabledCount());
+		assertEquals(5, m.enabledCount());
 		m.setBlocked(Collections.singleton("cps"));
-		assertEquals(3, m.enabledCount());
-		assertEquals(17, m.all().size());
+		assertEquals(4, m.enabledCount());
+		assertEquals(36, m.all().size());
 	}
 
 	@Test

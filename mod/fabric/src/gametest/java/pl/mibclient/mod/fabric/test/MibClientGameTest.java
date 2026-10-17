@@ -10,6 +10,8 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import pl.mibclient.mod.core.HudEditorModel;
 import pl.mibclient.mod.core.HudPos;
 import pl.mibclient.mod.core.MenuView;
@@ -82,6 +84,31 @@ public class MibClientGameTest implements FabricClientGameTest {
 			});
 			context.waitTicks(20);
 			context.takeScreenshot("06-hud-all");
+			// edytor HUD ze wszystkimi modułami: przykładowa treść także tych bez danych (combo, zasięg, stoper…)
+			context.runOnClient(c -> MibClient.get().openHudEditor(null));
+			context.waitTicks(5);
+			context.takeScreenshot("06b-hud-editor-all");
+			context.setScreen(() -> null);
+			context.waitTicks(2);
+
+			// walka: uderzenie zombie przed graczem liczy trafienie, zasięg i combo
+			sp.getServer().runCommand("execute as @p at @p run summon minecraft:zombie ^ ^ ^2 {NoAI:1b,Silent:1b}");
+			context.waitTicks(10);
+			context.runOnClient(c -> {
+				if (!MibClient.get().modules.isOn("hit_indicator")) MibClient.get().modules.toggle("hit_indicator");
+				Entity zombie = null;
+				for (Entity e : c.level.getEntities(c.player, c.player.getBoundingBox().inflate(6))) {
+					if (e.getType() == EntityType.ZOMBIE) zombie = e;
+				}
+				if (zombie != null) c.gameMode.attack(c.player, zombie);
+			});
+			context.waitTicks(10);
+			check(MibClient.hooks.contains("attack"), "uderzenie nie dotarło do modułów PvP");
+			check(context.computeOnClient(c -> MibClient.get().pvp.combat.reach() > 0), "trafienie zombie nie zostało policzone (zasięg)");
+			context.takeScreenshot("06c-pvp");
+			check(context.computeOnClient(c -> MibClient.get().pvp.meters.tps.tps() > 0), "brak pomiaru TPS");
+			// logo MiB przed nickiem (własna postać zawsze gra w MiB)
+			check(context.computeOnClient(c -> c.player.getDisplayName().getString().startsWith("\uE000")), "brak logo MiB przed nickiem");
 
 			input.holdKey(MibClient.get().zoomKey);
 			context.waitTicks(10);
@@ -134,7 +161,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(2);
 
 			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik, logo i ekran tytułowy)
-			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape"}) {
+			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge"}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
 		}
