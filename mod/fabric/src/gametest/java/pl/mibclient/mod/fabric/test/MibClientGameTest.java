@@ -11,7 +11,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import pl.mibclient.mod.core.HudEditorModel;
 import pl.mibclient.mod.core.HudPos;
 import pl.mibclient.mod.core.MenuView;
@@ -96,9 +96,10 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(10);
 			context.runOnClient(c -> {
 				if (!MibClient.get().modules.isOn("hit_indicator")) MibClient.get().modules.toggle("hit_indicator");
+				// najbliższa istota (zombie 2 bloki przed graczem)
 				Entity zombie = null;
 				for (Entity e : c.level.getEntities(c.player, c.player.getBoundingBox().inflate(6))) {
-					if (e.getType() == EntityType.ZOMBIE) zombie = e;
+					if (e instanceof LivingEntity && (zombie == null || e.distanceTo(c.player) < zombie.distanceTo(c.player))) zombie = e;
 				}
 				if (zombie != null) c.gameMode.attack(c.player, zombie);
 			});

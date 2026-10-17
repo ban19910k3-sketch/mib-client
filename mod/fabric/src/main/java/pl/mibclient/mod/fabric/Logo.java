@@ -51,7 +51,10 @@ public final class Logo {
 		});
 	}
 
-	/** Najwyższy widoczny element ekranu; hideTitle chowa napis z tytułem ekranu (w menu pauzy jego miejsce zajmuje logo). */
+	/**
+	 * Górna krawędź przycisków menu (bez małych ikon, np. znajomych w rogu); hideTitle chowa napis z tytułem ekranu
+	 * (w menu pauzy jego miejsce zajmuje logo).
+	 */
 	private static int top(Screen screen, boolean hideTitle) {
 		//#if MC >= 26.1
 		List<AbstractWidget> widgets = Screens.getWidgets(screen);
@@ -61,7 +64,7 @@ public final class Logo {
 		int top = Integer.MAX_VALUE;
 		for (AbstractWidget w : widgets) {
 			if (hideTitle && w instanceof StringWidget && w.getMessage().equals(screen.getTitle())) w.visible = false;
-			else if (w.visible) top = Math.min(top, w.getY());
+			else if (w.visible && w.getWidth() >= 90) top = Math.min(top, w.getY());
 		}
 		return top;
 	}
