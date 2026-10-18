@@ -210,7 +210,7 @@ ipcMain.handle('trending', async () => {
 // Aktualizacje launchera (GitHub Releases). Nic nie instaluje się bez zgody użytkownika.
 autoUpdater.autoDownload = false;
 // Opis zmian (Markdown z latest.yml albo HTML z GitHuba) jako zwykły tekst: punkty list z „•”, nagłówki bez „#”, encje zamienione na znaki
-const txt = n => Array.isArray(n) ? n.map(x => x.note).join('\n') : String(n || '')
+const txt = n => Array.isArray(n) ? n.map(x => x.note).join('\n') : String(n || '').replace(/\r/g, '')
   .replace(/<li[^>]*>/gi, '• ').replace(/<\/(p|li|h\d|div|ul)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
   .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
   .replace(/^[ \t]*#{1,6}[ \t]*/gm, '').replace(/^[ \t]*[-*][ \t]+/gm, '• ').replace(/\*\*|__|`/g, '')
