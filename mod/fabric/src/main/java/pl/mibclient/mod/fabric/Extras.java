@@ -232,11 +232,20 @@ public final class Extras {
 
 	/** Rysowanie znaczników w świecie po nieprzezroczystym terenie i postaciach (z głębią: za blokami ich nie widać). */
 	void registerWorld() {
-		//#if MC >= 26.1
+		//#if MC >= 26.2
 		net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(ctx -> {
 			Minecraft c = Minecraft.getInstance();
 			if (!collectWorld(c)) return;
 			ctx.submitNodeCollector().submitCustomGeometry(ctx.poseStack(), RenderTypes.debugQuads(), (pose, out) -> emit(pose, out));
+		});
+		//#elif MC >= 26.1
+		// 26.1.x: kształty dorzucone w tym miejscu przez submitNodeCollector już się nie rysują — od razu do bufora gry
+		net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(ctx -> {
+			Minecraft c = Minecraft.getInstance();
+			if (!collectWorld(c)) return;
+			net.minecraft.client.renderer.MultiBufferSource.BufferSource buffers = c.renderBuffers().bufferSource();
+			emit(ctx.poseStack().last(), buffers.getBuffer(RenderTypes.debugQuads()));
+			buffers.endBatch(RenderTypes.debugQuads());
 		});
 		//#elif MC >= 1.21.10
 		net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.BEFORE_TRANSLUCENT.register(ctx -> {

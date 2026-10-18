@@ -1,19 +1,16 @@
-<!-- 0.14.2 -->
+<!-- 0.15.0 -->
 ## Dodane
 
-- Auto sprint: biegniesz zawsze, gdy idziesz do przodu.
-- Player overlay: zdrowie graczy obok ich nicku nad głową.
-- Logo MiB przy nicku graczy MiB, którzy piszą na czacie.
-- Aktualności od twórcy MiB Client w panelu Aktualności na stronie głównej.
+- Znajomi: zaproszenie po nicku albo numerze MiB, widać, kto jest w grze lub w launcherze i na jakim serwerze gra. Przycisk Dołącz od razu wchodzi na serwer znajomego.
+- Zmiana skina w launcherze: podgląd 3D, wybór pliku PNG (model zwykły albo smukły rozpoznaje się sam), powrót do domyślnego i ostatnio używane skiny.
+- Mody na więcej FPS instalowane razem z modem MiB: Lithium, FerriteCore, Entity Culling i ImmediatelyFast. Wyłączysz je w ustawieniach.
+- Czapki i skrzydła MiB widać w grze. Zakładasz je w Kosmetykach albo w menu pod prawym Shiftem.
+- Ustawienie, czy znajomi widzą serwer, na którym grasz.
 
 ## Zmienione
 
-- Wyszukiwarka modułów pod prawym Shiftem działa w Minecraft 26.x i szuka we wszystkich kategoriach naraz.
-- Ekran ładowania gry pokazuje tylko logo i napis MiB Client, bez numeru wersji.
-- Twój nick nad głową w trzeciej osobie i zrzuty ekranu do schowka działają zawsze, bez włączania modułu.
-- Mob overlay to teraz Player overlay. Zdrowie mobów włączysz w jego ustawieniach.
-
-## Usunięte
-
-- Moduł Jump reset.
-- Moduły Nametags i Screenshot z menu (działają zawsze).
+- Waypoints: nad punktem świeci promień w świecie, który chowa się za blokami. Nazwa i odległość zostają na ekranie.
+- Light level overlay: znaczniki leżą na blokach w świecie i nie widać ich przez ściany.
+- Motion blur działa też w Minecraft 1.21.2–1.21.5.
+- Hitbox: opcje „Zawsze” i „Tylko gracze” działają we wszystkich wersjach gry.
+- Time changer działa w Minecraft 26.3.
