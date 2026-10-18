@@ -11,6 +11,9 @@ on:
       versions:
         description: 'Wersje gry po przecinku (puste = wszystkie)'
         required: false
+      without:
+        description: 'Mody z Modrinth pominięte w teście, po przecinku (np. sodium) — do szukania moda, który psuje grę'
+        required: false
 
 jobs:
   common:
@@ -69,14 +72,14 @@ jobs:
         run: |
           set -o pipefail
           if [[ "${{ matrix.mc }}" =~ ^1\.21(\.[123])?$ ]]; then
-            timeout 900 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew -Pmc=${{ matrix.mc }} -Psmoke -PwithMods :mc-${{ matrix.mc }}:runClient --stacktrace 2>&1 | tee test.log
+            timeout 900 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew -Pmc=${{ matrix.mc }} -Psmoke -PwithMods -PwithoutMods="${{ github.event.inputs.without }}" :mc-${{ matrix.mc }}:runClient --stacktrace 2>&1 | tee test.log
             grep -q "\[MIB-SMOKE\] menu true" test.log && grep -q "\[MIB-SMOKE\] hud true" test.log && grep -q "\[MIB-SMOKE\] ok" test.log \
               || { echo "::error::Test uruchomienia nie przeszedł"; exit 1; }
           elif [[ "${{ matrix.mc }}" =~ ^26\.([3-9]|[1-9][0-9]) ]]; then
             # od 26.3 gra używa SDL: test bez xvfb, jak w CI samego Fabric
-            timeout 1500 ./gradlew -Pmc=${{ matrix.mc }} -PwithMods :mc-${{ matrix.mc }}:runClientGameTest --stacktrace 2>&1 | tee test.log
+            timeout 1500 ./gradlew -Pmc=${{ matrix.mc }} -PwithMods -PwithoutMods="${{ github.event.inputs.without }}" :mc-${{ matrix.mc }}:runClientGameTest --stacktrace 2>&1 | tee test.log
           else
-            timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew -Pmc=${{ matrix.mc }} -PwithMods :mc-${{ matrix.mc }}:runClientGameTest --stacktrace 2>&1 | tee test.log
+            timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew -Pmc=${{ matrix.mc }} -PwithMods -PwithoutMods="${{ github.event.inputs.without }}" :mc-${{ matrix.mc }}:runClientGameTest --stacktrace 2>&1 | tee test.log
           fi
       - name: Błędy jako adnotacje
         if: failure()

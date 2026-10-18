@@ -94,7 +94,8 @@ if (project.hasProperty('withMods')) {
 			add(d.project_id, d.version_id ? modrinth("/version/${d.version_id}") : modrinth("/project/${d.project_id}/version?$query")[0])
 		}
 	}
-	['sodium', 'lithium', 'ferrite-core', 'entityculling', 'immediatelyfast'].each { slug ->
+	def without = (project.findProperty('withoutMods') ?: '').toString().split(',')*.trim().findAll { it }
+	(['sodium', 'lithium', 'ferrite-core', 'entityculling', 'immediatelyfast'] - without).each { slug ->
 		def list = modrinth("/project/$slug/version?$query")
 		if (list) add(list[0].project_id, list[0])
 		else logger.lifecycle("MiB: $slug nie ma wersji dla $mc")
