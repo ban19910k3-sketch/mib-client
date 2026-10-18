@@ -138,6 +138,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		extras = new Extras(this);
 		Extras.register();
 		Looks.register();
+		extras.registerWorld();
 		// czapka MiB na postaciach graczy
 		//#if MC >= 26.1
 		net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.EVENT.register((type, renderer, helper, context) -> {

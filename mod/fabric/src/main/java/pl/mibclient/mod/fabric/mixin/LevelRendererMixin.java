@@ -13,8 +13,19 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.world.phys.shapes.VoxelShape;
 //#endif
+//#if MC >= 1.21.9 && MC < 1.21.10
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.state.LevelRenderState;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import pl.mibclient.mod.fabric.MibClient;
+//#endif
 
-/** Block overlay: kolor (i od 1.21.11 grubość) obwódki wskazanego bloku. */
+/**
+ * Block overlay: kolor (i od 1.21.11 grubość) obwódki wskazanego bloku. W 1.21.9 (Fabric API bez zdarzeń rysowania
+ * świata) także znaczniki Light level overlay i Waypoints, dokładane po postaciach.
+ */
 @Mixin(LevelRenderer.class)
 public abstract class LevelRendererMixin {
 	//#if MC >= 26.2
@@ -50,6 +61,14 @@ public abstract class LevelRendererMixin {
 		int c = Looks.outlineColor(0);
 		if (c == 0) original.call(pose, out, shape, x, y, z, r, g, b, a);
 		else original.call(pose, out, shape, x, y, z, ((c >> 16) & 0xFF) / 255f, ((c >> 8) & 0xFF) / 255f, (c & 0xFF) / 255f, 1f);
+	}
+	//#endif
+
+	//#if MC >= 1.21.9 && MC < 1.21.10
+	@Inject(method = "submitEntities", at = @At("TAIL"))
+	private void mib$marks(PoseStack pose, LevelRenderState state, SubmitNodeCollector out, CallbackInfo ci) {
+		MibClient m = MibClient.get();
+		if (m != null) m.extras.submitWorld(pose, out);
 	}
 	//#endif
 }

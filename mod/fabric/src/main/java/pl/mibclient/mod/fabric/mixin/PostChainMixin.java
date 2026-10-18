@@ -35,7 +35,7 @@ public abstract class PostChainMixin {
 	private void mib$previous(FrameGraphBuilder builder, int w, int h, PostChain.TargetBundle targets, Consumer<RenderPass> setup, Operation<Void> original) {
 		original.call(builder, w, h, Looks.withPrevious(builder, w, h, targets), setup);
 	}
-	//#elif MC >= 1.21.2
+	//#elif MC >= 1.21.2 && MC < 1.21.5
 	@WrapMethod(method = "addToFrame")
 	private void mib$previous(FrameGraphBuilder builder, int w, int h, PostChain.TargetBundle targets, Operation<Void> original) {
 		original.call(builder, w, h, Looks.withPrevious(builder, w, h, targets));

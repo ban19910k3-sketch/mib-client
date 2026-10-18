@@ -42,11 +42,20 @@ import pl.mibclient.mod.core.ModuleState;
 import pl.mibclient.mod.core.Setting;
 import pl.mibclient.mod.core.Theme;
 import pl.mibclient.mod.core.modules.Waypoints;
+import pl.mibclient.mod.core.modules.WorldMarks;
 import pl.mibclient.mod.core.modules.WorldOverlay;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+//#if MC >= 1.21.11
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+//#else
+import net.minecraft.client.renderer.RenderType;
+//#endif
 
 /**
- * Moduły bez rysowania w świecie: Auto text, Emotes, Waypoints i Light level overlay (znaczniki rzutowane na HUD),
- * Screenshot (nowy plik w screenshots: podgląd w rogu i kopia do schowka przez launcher), UI scaling, Custom F3, Keybind search.
+ * Auto text, Emotes, Waypoints i Light level overlay (znaczniki i promienie w świecie, za blokami niewidoczne; nazwy
+ * punktów na HUD), Screenshot (nowy plik w screenshots: podgląd w rogu i kopia do schowka przez launcher), UI scaling,
+ * Custom F3, Keybind search.
  */
 public final class Extras {
 	/** Pole widzenia świata z ostatniej klatki (GameRendererMixin), do rzutowania punktów na ekran. */
@@ -217,6 +226,73 @@ public final class Extras {
 		if (a.length > 0) MibClient.hooks.add("light_level");
 	}
 
+	// ===== Rysowanie w świecie =====
+
+	private final WorldMarks.Quads quads = new WorldMarks.Quads();
+
+	/** Rysowanie znaczników w świecie po nieprzezroczystym terenie i postaciach (z głębią: za blokami ich nie widać). */
+	void registerWorld() {
+		//#if MC >= 26.1
+		net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents.BEFORE_TRANSLUCENT_TERRAIN.register(ctx -> {
+			Minecraft c = Minecraft.getInstance();
+			if (!collectWorld(c)) return;
+			ctx.submitNodeCollector().submitCustomGeometry(ctx.poseStack(), RenderTypes.debugQuads(), (pose, out) -> emit(pose, out));
+		});
+		//#elif MC >= 1.21.10
+		net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents.BEFORE_TRANSLUCENT.register(ctx -> {
+			Minecraft c = Minecraft.getInstance();
+			if (!collectWorld(c)) return;
+			//#if MC >= 1.21.11
+			emit(ctx.matrices().last(), ctx.consumers().getBuffer(RenderTypes.debugQuads()));
+			//#else
+			emit(ctx.matrices().last(), ctx.consumers().getBuffer(RenderType.debugQuads()));
+			//#endif
+		});
+		//#elif MC >= 1.21.9
+		// 1.21.9: Fabric API bez zdarzeń rysowania świata — LevelRendererMixin woła submitWorld
+		//#else
+		net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents.AFTER_ENTITIES.register(ctx -> {
+			Minecraft c = Minecraft.getInstance();
+			if (ctx.consumers() == null || !collectWorld(c)) return;
+			RenderType type = RenderType.debugQuads();
+			emit(new PoseStack().last(), ctx.consumers().getBuffer(type));
+			if (ctx.consumers() instanceof net.minecraft.client.renderer.MultiBufferSource.BufferSource b) b.endBatch(type);
+		});
+		//#endif
+	}
+
+	//#if MC >= 1.21.9 && MC < 1.21.10
+	/** 1.21.9: znaczniki dokładane do rysowanych w tej klatce (pose względem kamery). */
+	public void submitWorld(PoseStack pose, net.minecraft.client.renderer.SubmitNodeCollector out) {
+		if (collectWorld(Minecraft.getInstance())) out.submitCustomGeometry(pose, RenderType.debugQuads(), (p, vc) -> emit(p, vc));
+	}
+	//#endif
+
+	/** Zbiera czworokąty do narysowania w tej klatce; false = nic do rysowania. */
+	private boolean collectWorld(Minecraft c) {
+		quads.count = 0;
+		if (c.level == null || c.player == null) return false;
+		double[] cam = camera(c);
+		if (light.length > 0) WorldMarks.light(quads, light, cam[0], cam[1], cam[2]);
+		String world = on("waypoints") ? worldKey(c) : null;
+		if (world != null) {
+			int max = mib.intOpt("waypoints", "max_distance");
+			for (Waypoints.Point pt : Waypoints.in(mib.modules.state("waypoints"), world, dimension(c))) {
+				double dx = pt.x + 0.5 - cam[0], dz = pt.z + 0.5 - cam[2];
+				if (max > 0 && dx * dx + dz * dz > (double) max * max) continue;
+				WorldMarks.beam(quads, pt.x, pt.y, pt.z, pt.color, cam[0], cam[1], cam[2]);
+			}
+		}
+		return quads.count > 0;
+	}
+
+	private void emit(PoseStack.Pose pose, VertexConsumer out) {
+		float[] v = quads.xyz;
+		int[] col = quads.color;
+		for (int i = 0, n = quads.count * 4; i < n; i++) out.addVertex(pose, v[i * 3], v[i * 3 + 1], v[i * 3 + 2]).setColor(col[i]);
+		if (quads.count > 0) MibClient.hooks.add("world_marks");
+	}
+
 	// ===== Rysowanie na HUD =====
 
 	private static double[] camera(Minecraft c) {
@@ -236,19 +312,7 @@ public final class Extras {
 
 	void render(MibGraphics g, FabricCanvas canvas, Minecraft c) {
 		int w = g.guiWidth(), h = g.guiHeight();
-		if (c.level != null && c.player != null && (on("waypoints") || light.length > 0)) {
-			double[] cam = camera(c);
-			if (light.length > 0) {
-				int[] l = light;
-				for (int i = 0; i < l.length; i += 4) {
-					double[] p = Waypoints.project(l[i] + 0.5, l[i + 1] + 0.05, l[i + 2] + 0.5, cam[0], cam[1], cam[2], (float) cam[3], (float) cam[4], fov, w, h);
-					if (p == null || p[0] < 0 || p[1] < 0 || p[0] > w || p[1] > h) continue;
-					int s = p[2] < 6 ? 2 : 1, x = (int) p[0], y = (int) p[1];
-					canvas.fill(x - s, y - s, x + s + 1, y + s + 1, l[i + 3]);
-				}
-			}
-			if (on("waypoints")) drawWaypoints(canvas, c, cam, w, h);
-		}
+		if (c.level != null && c.player != null && on("waypoints")) drawWaypoints(canvas, c, camera(c), w, h);
 		if (preview != null && System.currentTimeMillis() < previewUntil) {
 			int pw = Math.max(60, w / 5), ph = pw * previewH / Math.max(1, previewW), x = w - pw - 6, y = 6;
 			canvas.fill(x - 2, y - 2, x + pw + 2, y + ph + 12, 0xC0100618);
@@ -267,11 +331,9 @@ public final class Extras {
 			if (p == null || (max > 0 && p[2] > max)) continue;
 			int x = (int) Math.max(4, Math.min(w - 4, p[0])), y = (int) Math.max(12, Math.min(h - 14, p[1]));
 			MibClient.hooks.add("waypoints");
-			canvas.fill(x - 3, y - 3, x + 4, y + 4, 0xFF000000);
-			canvas.fill(x - 2, y - 2, x + 3, y + 3, pt.color);
 			String d = Math.round(p[2]) + " m";
-			canvas.text(pt.name, x - canvas.textWidth(pt.name) / 2, y - 13, pt.color, true);
-			canvas.text(d, x - canvas.textWidth(d) / 2, y + 6, 0xFFE0E0E0, true);
+			canvas.text(pt.name, x - canvas.textWidth(pt.name) / 2, y - 10, pt.color, true);
+			canvas.text(d, x - canvas.textWidth(d) / 2, y, 0xFFE0E0E0, true);
 		}
 	}
 
