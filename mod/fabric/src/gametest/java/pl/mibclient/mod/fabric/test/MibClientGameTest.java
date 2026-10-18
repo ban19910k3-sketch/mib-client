@@ -223,6 +223,10 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(5);
 			context.takeScreenshot("06g-world2");
 			input.releaseKey(o -> o.keyUse);
+			// Hitbox „tylko gracze”: ramki leżących przedmiotów znikają
+			context.runOnClient(c -> MibClient.get().modules.state("hitbox").setOption("players", true));
+			context.waitTicks(5);
+			context.runOnClient(c -> MibClient.get().modules.state("hitbox").setOption("players", false));
 			context.runOnClient(c -> {
 				MibClient.get().extras.startEmoteForTest("wave");
 				c.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT);
@@ -317,9 +321,9 @@ public class MibClientGameTest implements FabricClientGameTest {
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
 					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop",
 					"post_effect", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "light_level", "waypoints", "dark_mode", "anim_block", "anim_dip",
-					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "time"
-					//#if MC < 1.21.9
-					, "hitbox"
+					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "time", "hitbox", "hitbox_players"
+					//#if MC >= 1.21.2 && MC < 1.21.6
+					, "blur_previous"
 					//#endif
 					}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);

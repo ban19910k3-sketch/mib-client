@@ -34,8 +34,9 @@ import pl.mibclient.mod.fabric.MibClient;
 //#endif
 public abstract class WingsLayerMixin {
 	//#if MC >= 1.21.2
+	/** Elytra na czas rysowania; tworzona przy pierwszym użyciu (w 26.x przedmiotu nie wolno tworzyć przy wczytywaniu gry). */
 	@Unique
-	private static final ItemStack MIB_WINGS = new ItemStack(Items.ELYTRA);
+	private static ItemStack mib$wingsItem;
 	@Unique
 	private ItemStack mib$chest;
 
@@ -50,10 +51,11 @@ public abstract class WingsLayerMixin {
 		//#endif
 		if (!((MibSelfState) state).mib$wings() || chest.has(DataComponents.GLIDER)) return false;
 		mib$chest = chest;
+		if (mib$wingsItem == null) mib$wingsItem = new ItemStack(Items.ELYTRA);
 		//#if MC >= 1.21.4
-		state.chestEquipment = MIB_WINGS;
+		state.chestEquipment = mib$wingsItem;
 		//#else
-		state.chestItem = MIB_WINGS;
+		state.chestItem = mib$wingsItem;
 		//#endif
 		MibClient.hooks.add("wings_drawn");
 		return false;

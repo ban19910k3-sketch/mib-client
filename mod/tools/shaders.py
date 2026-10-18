@@ -8,7 +8,10 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'fabric', 
 SAT = {0: 1.0, 1: 0.0, 2: 0.5, 3: 1.6, 4: 2.3}   # brak, szarość, słabe, mocne, bardzo mocne
 BLUR = {0: 0.0, 1: 0.45, 2: 0.65, 3: 0.82}        # brak, słabe, średnie, mocne
 # rodzina: (od wersji, motion blur działa)
-FAMILIES = {'f1': True, 'f2': False, 'f3': False, 'f4': True, 'f5': True, 'f6': True}
+FAMILIES = {'f1': True, 'f2': True, 'f3': True, 'f4': True, 'f5': True, 'f6': True}
+# 1.21.2–1.21.5: efekty gry nie mają celów trwałych między klatkami — poprzednią klatkę trzyma mod (PostChainMixin)
+# i podaje ją efektowi jako cel z zewnątrz o tej nazwie
+EXTERNAL_PREV = ('f2', 'f3')
 
 MAIN_COLOR = '''
 void main() {
@@ -79,11 +82,13 @@ def gen(fam):
         write(os.path.join(p, 'mib_blur.json'), old_program('mib_blur', ['DiffuseSampler', 'PrevSampler'], [('Saturation', 1.0), ('Strength', 0.5)]))
     elif fam == 'f2':
         p = os.path.join(base, 'mibclient', 'shaders', 'post')
-        write(os.path.join(p, 'mib_color.fsh'), glsl(fam, 'color'))
-        prog = old_program('mibclient:post/mib_color', ['InSampler'], [('Saturation', 1.0)])
-        del prog['blend'], prog['attributes']
-        prog['vertex'] = 'minecraft:post/sobel'
-        write(os.path.join(p, 'mib_color.json'), prog)
+        for k, samplers, vals in (('color', ['InSampler'], [('Saturation', 1.0)]),
+                                  ('blur', ['InSampler', 'PrevSampler'], [('Saturation', 1.0), ('Strength', 0.5)])):
+            write(os.path.join(p, 'mib_' + k + '.fsh'), glsl(fam, k))
+            prog = old_program('mibclient:post/mib_' + k, samplers, vals)
+            del prog['blend'], prog['attributes']
+            prog['vertex'] = 'minecraft:post/sobel'
+            write(os.path.join(p, 'mib_' + k + '.json'), prog)
     else:
         p = os.path.join(base, 'mibclient', 'shaders', 'post')
         for k in ('color', 'blur', 'copy'):
@@ -123,10 +128,16 @@ def gen(fam):
                           pass_(copy, [("In", "swap")], "minecraft:main")]
                 targets = ["swap"] if fam == 'f1' else {"swap": {}}
             else:
-                passes = [pass_(blur, [("In", "minecraft:main"), ("Prev", "previous")], "swap", [("Saturation", SAT[s]), ("Strength", BLUR[b])]),
-                          pass_(copy, [("In", "swap")], "previous"),
+                prev = 'mibclient:previous' if fam in EXTERNAL_PREV else 'previous'
+                passes = [pass_(blur, [("In", "minecraft:main"), ("Prev", prev)], "swap", [("Saturation", SAT[s]), ("Strength", BLUR[b])]),
+                          pass_(copy, [("In", "swap")], prev),
                           pass_(copy, [("In", "swap")], "minecraft:main")]
-                targets = ["swap", "previous"] if fam == 'f1' else {"swap": {}, "previous": {"persistent": True}}
+                if fam == 'f1':
+                    targets = ["swap", "previous"]
+                elif fam in EXTERNAL_PREV:
+                    targets = {"swap": {}}
+                else:
+                    targets = {"swap": {}, "previous": {"persistent": True}}
             chain = {"targets": targets, "passes": passes}
             name = 'mib_s%d_b%d.json' % (s, b)
             if fam == 'f1':

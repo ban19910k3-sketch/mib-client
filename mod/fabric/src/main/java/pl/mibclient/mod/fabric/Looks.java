@@ -30,14 +30,6 @@ public final class Looks {
 	public static float[] item = NO_ITEM;
 
 	private static boolean darkActive, tooltipPushed;
-	/** Motion blur potrzebuje obrazu z poprzedniej klatki — efekty gry 1.21.2–1.21.5 go nie przechowują. */
-	//#if MC >= 1.21.6
-	static final boolean BLUR = true;
-	//#elif MC >= 1.21.2
-	static final boolean BLUR = false;
-	//#else
-	static final boolean BLUR = true;
-	//#endif
 	private static final Set<String> UHC = new HashSet<>(Arrays.asList("gold_ingot", "gold_nugget", "raw_gold", "gold_block", "apple", "golden_apple",
 			"enchanted_golden_apple", "golden_carrot", "player_head"));
 
@@ -161,18 +153,22 @@ public final class Looks {
 	// ===== Hitbox =====
 
 	public static boolean hideHitbox(Entity e) {
-		return on("hitbox") && mib().boolOpt("hitbox", "players") && !(e instanceof Player);
+		boolean hide = on("hitbox") && mib().boolOpt("hitbox", "players") && !(e instanceof Player);
+		if (hide) MibClient.hooks.add("hitbox_players");
+		return hide;
 	}
 
 	public static boolean hideHitboxState(Object state) {
 		if (!on("hitbox") || !mib().boolOpt("hitbox", "players")) return false;
 		//#if MC >= 1.21.9
-		return !(state instanceof net.minecraft.client.renderer.entity.state.AvatarRenderState);
+		boolean hide = !(state instanceof net.minecraft.client.renderer.entity.state.AvatarRenderState);
 		//#elif MC >= 1.21.2
-		return !(state instanceof net.minecraft.client.renderer.entity.state.PlayerRenderState);
+		boolean hide = !(state instanceof net.minecraft.client.renderer.entity.state.PlayerRenderState);
 		//#else
-		return false;
+		boolean hide = false;
 		//#endif
+		if (hide) MibClient.hooks.add("hitbox_players");
+		return hide;
 	}
 
 	/** Kolor ramki hitboxu (ARGB); białe ramki gry dostają kolor z ustawień. */
@@ -190,8 +186,13 @@ public final class Looks {
 	}
 
 	static void tickHitboxes(Minecraft c) {
-		//#if MC < 1.21.9
-		if (on("hitbox") && mib().boolOpt("hitbox", "always")) c.getEntityRenderDispatcher().setRenderHitBoxes(true);
+		if (!on("hitbox") || !mib().boolOpt("hitbox", "always")) return;
+		//#if MC >= 1.21.9
+		// jak F3+B; gdy przełączenie da inny stan niż „włączone”, kolejny tick przełącza dalej
+		MibId hb = net.minecraft.client.gui.components.debug.DebugScreenEntries.ENTITY_HITBOXES;
+		if (!c.debugEntries.isCurrentlyEnabled(hb)) c.debugEntries.toggleStatus(hb);
+		//#else
+		c.getEntityRenderDispatcher().setRenderHitBoxes(true);
 		//#endif
 	}
 
@@ -321,6 +322,53 @@ public final class Looks {
 		//#endif
 	}
 
+	//#if MC >= 1.21.2 && MC < 1.21.6
+	/** Motion blur w 1.21.2–1.21.5: poprzednia klatka, którą trzyma mod (efekty gry tych wersji jej nie przechowują). */
+	public static final MibId PREVIOUS = MibId.parse("mibclient:previous");
+	private static com.mojang.blaze3d.pipeline.RenderTarget previous;
+	private static java.util.Set<MibId> allowedIn, allowedOut;
+
+	/** Cele z zewnątrz dozwolone przy wczytywaniu efektu: dodatkowo poprzednia klatka MiB (PostChainMixin). */
+	public static java.util.Set<MibId> allowPrevious(java.util.Set<MibId> allowed) {
+		if (allowed.contains(PREVIOUS)) return allowed;
+		if (allowed != allowedIn) {
+			java.util.Set<MibId> s = new java.util.HashSet<>(allowed);
+			s.add(PREVIOUS);
+			allowedIn = allowed;
+			allowedOut = s;
+		}
+		return allowedOut;
+	}
+
+	/** Cele efektu z poprzednią klatką MiB (podpinaną do grafu klatki jako cel z zewnątrz, więc nie znika). */
+	public static net.minecraft.client.renderer.PostChain.TargetBundle withPrevious(com.mojang.blaze3d.framegraph.FrameGraphBuilder builder, int w, int h,
+			net.minecraft.client.renderer.PostChain.TargetBundle in) {
+		return new net.minecraft.client.renderer.PostChain.TargetBundle() {
+			@Override
+			public void replace(MibId id, com.mojang.blaze3d.resource.ResourceHandle<com.mojang.blaze3d.pipeline.RenderTarget> handle) {
+				if (!PREVIOUS.equals(id)) in.replace(id, handle);
+			}
+
+			@Override
+			public com.mojang.blaze3d.resource.ResourceHandle<com.mojang.blaze3d.pipeline.RenderTarget> get(MibId id) {
+				return PREVIOUS.equals(id) ? builder.importExternal("mib_previous", previous(w, h)) : in.get(id);
+			}
+		};
+	}
+
+	private static com.mojang.blaze3d.pipeline.RenderTarget previous(int w, int h) {
+		if (previous == null) {
+			//#if MC >= 1.21.5
+			previous = new com.mojang.blaze3d.pipeline.TextureTarget("MiB previous frame", w, h, false);
+			//#else
+			previous = new com.mojang.blaze3d.pipeline.TextureTarget(w, h, false);
+			//#endif
+		} else if (previous.width != w || previous.height != h) previous.resize(w, h);
+		MibClient.hooks.add("blur_previous");
+		return previous;
+	}
+	//#endif
+
 	/** Efekt pełnoekranowy MiB do włączenia: mib_s&lt;nasycenie&gt;_b&lt;rozmycie&gt; albo null. */
 	static String postEffect() {
 		int s = 0, b = 0;
@@ -328,7 +376,7 @@ public final class Looks {
 			String l = ((Setting.ChoiceSetting) mib().modules.def("color_saturation").setting("level")).get(mib().modules.state("color_saturation"));
 			s = "gray".equals(l) ? 1 : "low".equals(l) ? 2 : "max".equals(l) ? 4 : 3;
 		}
-		if (BLUR && on("motion_blur")) {
+		if (on("motion_blur")) {
 			String l = ((Setting.ChoiceSetting) mib().modules.def("motion_blur").setting("strength")).get(mib().modules.state("motion_blur"));
 			b = "low".equals(l) ? 1 : "high".equals(l) ? 3 : 2;
 		}

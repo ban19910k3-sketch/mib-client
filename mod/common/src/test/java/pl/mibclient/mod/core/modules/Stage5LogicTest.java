@@ -106,4 +106,33 @@ class Stage5LogicTest {
 		assertTrue(WorldOverlay.emote("wave", 0)[0] < -2, "ręka w górze");
 		assertNull(WorldOverlay.emote("nope", 0));
 	}
+
+	@Test
+	void worldMarksAreRelativeToCamera() {
+		WorldMarks.Quads q = new WorldMarks.Quads();
+		WorldMarks.light(q, new int[] {10, 64, -3, 0xFFFF5555, 0, 0, 0, 0xFFFFFF55}, 10.5, 66, -2.5);
+		assertEquals(2, q.count);
+		// środek kwadratu nad blokiem (10, 64, -3), 2 bloki pod kamerą, tuż nad podłożem
+		double h = WorldMarks.LIGHT_SIZE / 2;
+		assertEquals(-h, q.xyz[0], 1e-6);
+		assertEquals(-2 + WorldMarks.LIGHT_LIFT, q.xyz[1], 1e-6);
+		assertEquals(-h, q.xyz[2], 1e-6);
+		assertEquals(h, q.xyz[6], 1e-6);
+		assertEquals(0x90FF5555, q.color[0]);
+		assertEquals(0x90FFFF55, q.color[4]);
+		// promień: 2 słupy po 4 ściany, od punktu w górę, u góry przezroczysty
+		WorldMarks.Quads b = new WorldMarks.Quads();
+		WorldMarks.beam(b, 0, 70, 0, 0xFF8A2BE2, 0.5, 70, 0.5);
+		assertEquals(8, b.count);
+		assertEquals(0, b.xyz[1], 1e-6);
+		assertEquals(WorldMarks.BEAM_HEIGHT, b.xyz[7], 1e-3);
+		assertEquals(0xB08A2BE2, b.color[0]);
+		assertEquals(0x008A2BE2, b.color[2]);
+		for (int i = 0; i < b.count * 12; i += 3) assertTrue(Math.abs(b.xyz[i]) <= WorldMarks.BEAM_GLOW + 1e-6);
+		// dużo znaczników: tablice rosną
+		WorldMarks.Quads many = new WorldMarks.Quads();
+		int[] m = new int[400];
+		WorldMarks.light(many, m, 0, 0, 0);
+		assertEquals(100, many.count);
+	}
 }

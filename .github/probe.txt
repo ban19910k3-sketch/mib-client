@@ -1,52 +1,8 @@
 # <wersja> class|calls|members|code|asset|find|files|ffind ...   (wynik: adnotacje przebiegu "Podgląd klas gry")
-1.21 ffind rendering\.v1\.(world\.)?World
-1.21 class net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents
-1.21 class net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext
-1.21 members net.minecraft.client.renderer.RenderType (debugQuads|debugFilledBox)
-1.21 members com.mojang.blaze3d.vertex.VertexConsumer (addVertex|setColor)
-1.21.2 ffind rendering\.v1\.(world\.)?World
-1.21.2 class net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents
-1.21.2 class net.minecraft.client.renderer.PostChain
-1.21.2 class net.minecraft.client.renderer.PostChain$TargetBundle
-1.21.2 code net.minecraft.client.renderer.PostChain addToFrame
-1.21.2 members net.minecraft.client.renderer.ShaderManager (getPostChain)
-1.21.2 class com.mojang.blaze3d.pipeline.TextureTarget
-1.21.2 members com.mojang.blaze3d.pipeline.RenderTarget (resize|init|width|height|destroy|clear)
-1.21.2 class com.mojang.blaze3d.framegraph.FrameGraphBuilder
-1.21.4 class com.mojang.blaze3d.pipeline.TextureTarget
-1.21.4 members com.mojang.blaze3d.pipeline.RenderTarget (resize|init|width|height|destroy|clear)
-1.21.4 class net.minecraft.client.renderer.PostChain$TargetBundle
-1.21.5 ffind rendering\.v1\.(world\.)?World
-1.21.5 class net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents
-1.21.5 members net.minecraft.client.renderer.RenderType (debugQuads|debugFilledBox)
-1.21.5 class com.mojang.blaze3d.pipeline.TextureTarget
-1.21.5 members com.mojang.blaze3d.pipeline.RenderTarget (resize|init|width|height|destroy|clear)
-1.21.5 class net.minecraft.client.renderer.PostChain
-1.21.5 class net.minecraft.client.renderer.PostChain$TargetBundle
-1.21.5 code net.minecraft.client.renderer.PostChain addToFrame
-1.21.5 members net.minecraft.client.renderer.ShaderManager (getPostChain)
-1.21.6 ffind rendering\.v1\.(world\.)?World
-1.21.6 class net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents
-1.21.6 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
-1.21.6 code net.minecraft.client.renderer.PostChain addToFrame
-1.21.8 ffind rendering\.v1\.(world\.)?World
-1.21.8 class net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents
-1.21.9 ffind rendering\.v1\.(world\.)?World
-1.21.9 class net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents
-1.21.9 class net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext
-1.21.9 members net.minecraft.client.renderer.RenderType (debugQuads|debugFilledBox)
-1.21.9 members net.minecraft.client.renderer.entity.EntityRenderer (itbox|submit)
-1.21.9 members net.minecraft.client.renderer.entity.state.EntityRenderState (itbox)
-1.21.9 code net.minecraft.client.renderer.entity.EntityRenderer submit
-1.21.9 find DebugScreenEntr
-1.21.9 members net.minecraft.client.Minecraft (debugEntries)
-1.21.9 class net.minecraft.client.gui.components.debug.DebugScreenEntryList
-1.21.9 members net.minecraft.client.gui.components.debug.DebugScreenEntries (HITBOX)
-1.21.10 ffind rendering\.v1\.(world\.)?World
-1.21.10 members net.minecraft.client.renderer.entity.EntityRenderer (itbox|submit)
-1.21.10 members net.minecraft.client.renderer.entity.state.EntityRenderState (itbox)
-1.21.11 class net.minecraft.client.gui.components.debug.DebugScreenEntryList
-1.21.11 members net.minecraft.client.gui.components.debug.DebugScreenEntries (HITBOX)
-26.1 members com.mojang.blaze3d.vertex.VertexConsumer (addVertex|setColor)
-26.3 class net.minecraft.client.gui.components.debug.DebugScreenEntryList
-26.3 members net.minecraft.client.gui.components.debug.DebugScreenEntries (HITBOX)
+1.21.9 ffind rendering\.v1\.[A-Z]
+1.21.9 members net.minecraft.client.renderer.LevelRenderer (submit|render|Entities|Main|Pass|feature)
+1.21.9 code net.minecraft.client.renderer.LevelRenderer (lambda\$addMainPass|addMainPass)
+1.21.10 class net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents
+1.21.10 class net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext
+1.21.10 members net.minecraft.client.renderer.SubmitNodeCollector (submitCustomGeometry)
+26.1 members net.minecraft.client.renderer.SubmitNodeCollector (submitCustomGeometry)

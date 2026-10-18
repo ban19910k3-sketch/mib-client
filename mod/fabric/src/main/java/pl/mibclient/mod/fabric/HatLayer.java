@@ -59,7 +59,9 @@ public final class HatLayer extends RenderLayer<AbstractClientPlayer, PlayerMode
 		MibId tex = ((MibSelfState) s).mib$hat();
 		if (tex == null || s.isInvisible) return;
 		MibClient.hooks.add("hat_drawn");
-		//#if MC >= 1.21.11
+		//#if MC >= 26.3
+		out.submitModel(model, s, pose, RenderTypes.armorCutoutNoCull(tex), light, LivingEntityRenderer.getOverlayCoords(s, 0f), s.outlineColor);
+		//#elif MC >= 1.21.11
 		out.submitModel(model, s, pose, RenderTypes.armorCutoutNoCull(tex), light, LivingEntityRenderer.getOverlayCoords(s, 0f), s.outlineColor, null);
 		//#else
 		out.submitModel(model, s, pose, RenderType.armorCutoutNoCull(tex), light, LivingEntityRenderer.getOverlayCoords(s, 0f), s.outlineColor, null);
