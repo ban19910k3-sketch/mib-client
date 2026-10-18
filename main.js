@@ -209,7 +209,12 @@ ipcMain.handle('trending', async () => {
 
 // Aktualizacje launchera (GitHub Releases). Nic nie instaluje się bez zgody użytkownika.
 autoUpdater.autoDownload = false;
-const txt = n => Array.isArray(n) ? n.map(x => x.note).join('\n') : String(n || '').replace(/<[^>]+>/g, '').trim();
+// Opis zmian (Markdown z latest.yml albo HTML z GitHuba) jako zwykły tekst: punkty list z „•”, nagłówki bez „#”, encje zamienione na znaki
+const txt = n => Array.isArray(n) ? n.map(x => x.note).join('\n') : String(n || '')
+  .replace(/<li[^>]*>/gi, '• ').replace(/<\/(p|li|h\d|div|ul)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+  .replace(/^[ \t]*#{1,6}[ \t]*/gm, '').replace(/^[ \t]*[-*][ \t]+/gm, '• ').replace(/\*\*|__|`/g, '')
+  .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 async function checkUpdate(manual) {
   if (!app.isPackaged) { if (manual) send('upd:none', 'Tryb deweloperski: aktualizacje działają tylko w zainstalowanej wersji.'); return; }
   try { const r = await autoUpdater.checkForUpdates();

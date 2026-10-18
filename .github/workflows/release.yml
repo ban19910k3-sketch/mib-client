@@ -72,6 +72,19 @@ jobs:
           pattern: mod-*
           merge-multiple: true
           path: mod-dist
+      # Opis zmian w oknie aktualizacji launchera: build/release-notes.md tej wersji (Dodane / Zmienione / Usunięte), bez linków i podpisów
+      - name: Opis zmian
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          head -1 build/release-notes.md | tr -d '\r' | grep -qx "<!-- $v -->" || { echo "::error::build/release-notes.md nie opisuje wersji $v (pierwsza linia: <!-- $v -->)"; exit 1; }
+          if grep -qiE 'https?://|co-authored-by|claude-session' build/release-notes.md; then echo "::error::build/release-notes.md: bez linków i podpisów"; exit 1; fi
       - run: npx electron-builder --win nsis --x64 --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # ten sam opis na stronie szkicu wydania (electron-builder wpisuje go tylko do latest.yml)
+      - name: Opis na stronie wydania
+        shell: bash
+        run: gh release edit "v$(node -p "require('./package.json').version")" --notes-file build/release-notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
