@@ -102,7 +102,7 @@ public final class Logo {
 	private static boolean loadingFailed;
 
 	/**
-	 * Logo MiB z napisem Beta 1.0, lekko „oddychające”. Tekstura z pliku moda wczytywana przy pierwszym rysowaniu
+	 * Logo MiB z numerem wersji (obrazek loading.png), lekko „oddychające”. Tekstura z pliku moda wczytywana przy pierwszym rysowaniu
 	 * (zasoby gry mogą być wtedy jeszcze w trakcie wczytywania). alpha &lt; 0: przezroczystość ustawiła już gra (1.21–1.21.1).
 	 */
 	public static void drawLoading(MibGraphics g, float alpha) {
