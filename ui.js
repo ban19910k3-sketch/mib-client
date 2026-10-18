@@ -114,11 +114,13 @@ $('rep-s').onclick=async()=>{if(await mib.call('report:save',$('rep-t').value))t
 let hid=0,ht,hoff=0,hend=false,hbusy=false;
 const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'k':String(n);
 const card=x=>`<div class="card hc" data-slug="${esc(x.slug)}" data-title="${esc(x.title)}" style="cursor:pointer"><img src="${esc(x.icon)}" width="44" height="44" onerror="this.style.visibility='hidden'"><div style="min-width:0"><b>${esc(x.title)}<em class="tag">${x.type==='resourcepack'?tr('paczka zasobów'):'mod'}</em></b><span class="mut">${esc(x.desc)}</span><span class="mut">${x.dl.toLocaleString(LANG==='en'?'en-GB':'pl-PL')} ${tr('pobrań')}</span></div></div>`;
+// pusty stan Hub (brak wyników albo błąd sieci z przyciskiem ponowienia)
+const hubEmpty=(msg,retry)=>{$('hres').innerHTML='<div class="empty-state"><p>'+esc(msg)+'</p>'+(retry?'<button class="b" id="h-retry">'+tr('Spróbuj ponownie')+'</button>':'')+'</div>';if(retry)$('h-retry').onclick=()=>hubLoad(true)};
 async function hubLoad(reset){if(hbusy&&!reset)return;if(!reset&&hend)return;hbusy=true;if(reset){hoff=0;hend=false;$('hres').innerHTML='';hid++}const id=hid;
  try{const r=await mib.call('hub',{q:$('hq').value.trim(),version:$('sel').value,compat:$('hc').checked,offset:hoff});if(id!==hid)return;
- if(r.error){$('hres').textContent=r.error;hend=true;return}if(!r.length)hend=true;else hoff+=r.length;$('hres').insertAdjacentHTML('beforeend',r.map(card).join(''));
- if(!$('hres').children.length)$('hres').textContent=tr('Brak wyników.');else if($('hres').scrollHeight<=$('hres').clientHeight+50)hubLoad(false)}
- catch{if(id===hid)$('hres').innerHTML='<p class="empty">'+tr('Nie udało się połączyć z Modrinth. Sprawdź internet i wpisz wyszukiwanie ponownie.')+'</p>'}finally{if(id===hid)hbusy=false}}
+ if(r.error){hubEmpty(tr('Nie udało się połączyć z Modrinth. Sprawdź internet i wpisz wyszukiwanie ponownie.'),true);hend=true;return}if(!r.length)hend=true;else hoff+=r.length;$('hres').insertAdjacentHTML('beforeend',r.map(card).join(''));
+ if(!$('hres').children.length)hubEmpty(tr('Brak wyników.'));else if($('hres').scrollHeight<=$('hres').clientHeight+50)hubLoad(false)}
+ catch{if(id===hid)hubEmpty(tr('Nie udało się połączyć z Modrinth. Sprawdź internet i wpisz wyszukiwanie ponownie.'),true)}finally{if(id===hid)hbusy=false}}
 $('hq').oninput=()=>{clearTimeout(ht);ht=setTimeout(()=>hubLoad(true),250)};$('hc').onchange=()=>hubLoad(true);
 $('hres').onscroll=()=>{const e=$('hres');if(e.scrollTop+e.clientHeight>=e.scrollHeight-250)hubLoad(false)};
 document.querySelector('.nav[data-p="hub"]').addEventListener('click',()=>{if(!$('hres').children.length)hubLoad(true)});
