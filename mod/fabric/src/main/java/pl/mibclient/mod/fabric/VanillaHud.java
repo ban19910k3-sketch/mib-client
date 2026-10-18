@@ -13,12 +13,13 @@ import net.minecraft.world.level.Level;
 import pl.mibclient.mod.core.Setting;
 
 /**
- * Zmiany w elementach gry (nie w HUD MiB): nasycenie na ikonach jedzenia, Boss bar, Scoreboard, powiadomienia
- * (Toast control) i pogoda (Weather changer). Wołane z wstawek w grę.
+ * Zmiany w elementach gry (nie w HUD MiB): nasycenie na ikonach jedzenia, Boss bar, Scoreboard, Title tweaker, Subtitles,
+ * powiadomienia (Toast control), pogoda (Weather changer), ping liczbami (Tablist) i tło ekwipunku (Inventory).
+ * Wołane z wstawek w grę.
  */
 public final class VanillaHud {
 	private static final MibId SATURATION = MibId.fromNamespaceAndPath("mibclient", "textures/gui/saturation.png");
-	private static boolean scorePushed, bossPushed;
+	private static boolean scorePushed, bossPushed, titlePushed, subtitlePushed;
 
 	private VanillaHud() {
 	}
@@ -86,6 +87,67 @@ public final class VanillaHud {
 	public static void bossEnd(MibGraphics g) {
 		if (bossPushed) FabricCanvas.popTransform(g);
 		bossPushed = false;
+	}
+
+	/** Scoreboard: bez czerwonych liczb po prawej. */
+	public static boolean hideScoreNumbers() {
+		return on("scoreboard") && mib().boolOpt("scoreboard", "hide_numbers");
+	}
+
+	/** Title tweaker: false = tytuły schowane; skala i przesunięcie wokół środka ekranu. */
+	public static boolean titleStart(MibGraphics g) {
+		titlePushed = false;
+		if (!on("title_tweaker")) return true;
+		MibClient.hooks.add("title");
+		if (mib().boolOpt("title_tweaker", "hide")) return false;
+		float scale = mib().intOpt("title_tweaker", "scale") / 100f;
+		int dy = mib().intOpt("title_tweaker", "offset_y");
+		if (scale != 1f || dy != 0) {
+			FabricCanvas.pushTransform(g, scale, g.guiWidth() / 2, g.guiHeight() / 2, 0, dy);
+			titlePushed = true;
+		}
+		return true;
+	}
+
+	public static void titleEnd(MibGraphics g) {
+		if (titlePushed) FabricCanvas.popTransform(g);
+		titlePushed = false;
+	}
+
+	/** Subtitles: skala wokół prawego dolnego rogu i przesunięcie w górę. */
+	public static void subtitlesStart(MibGraphics g) {
+		subtitlePushed = false;
+		if (!on("subtitles")) return;
+		MibClient.hooks.add("subtitles");
+		float scale = mib().intOpt("subtitles", "scale") / 100f;
+		int dy = mib().intOpt("subtitles", "offset_y");
+		if (scale != 1f || dy != 0) {
+			FabricCanvas.pushTransform(g, scale, g.guiWidth(), g.guiHeight(), 0, -dy);
+			subtitlePushed = true;
+		}
+	}
+
+	public static void subtitlesEnd(MibGraphics g) {
+		if (subtitlePushed) FabricCanvas.popTransform(g);
+		subtitlePushed = false;
+	}
+
+	/** Tablist: ping liczbą w miejscu kresek (prawa krawędź wpisu na x + width); false = zostaw kreski z gry. */
+	public static boolean ping(MibGraphics g, int width, int x, int y, int latency) {
+		if (!on("tablist")) return false;
+		MibClient.hooks.add("tablist");
+		net.minecraft.client.Minecraft c = net.minecraft.client.Minecraft.getInstance();
+		String t = latency < 0 ? "?" : String.valueOf(Math.min(latency, 9999));
+		FabricCanvas canvas = new FabricCanvas(g, c.font);
+		canvas.text(t, x + width - 1 - canvas.textWidth(t), y, 0xFF000000 | pl.mibclient.mod.core.modules.Labels.pingColor(latency), true);
+		return true;
+	}
+
+	/** Inventory: ekrany z ekwipunkiem i skrzyniami bez przyciemnienia gry w tle. */
+	public static boolean noContainerDim(Object screen) {
+		if (!(screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen) || !on("inventory")) return false;
+		MibClient.hooks.add("inventory");
+		return true;
 	}
 
 	/** Toast control: czy schować to powiadomienie. */

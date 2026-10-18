@@ -19,8 +19,8 @@ public final class Lang {
 	static {
 		put("menu.search", "Szukaj modułu…", "Search modules…");
 		put("menu.enabled", "Włączone: %d z %d", "Enabled: %d of %d");
-		put("menu.on", "WŁĄCZONY", "ENABLED");
-		put("menu.off", "WYŁĄCZONY", "DISABLED");
+		put("menu.on", "Włączony", "Enabled");
+		put("menu.off", "Wyłączony", "Disabled");
 		put("menu.all", "Wszystkie", "All");
 		put("menu.edit_hud", "Edytuj HUD", "Edit HUD");
 		put("menu.accounts", "Zmień konto", "Switch account");
@@ -76,6 +76,7 @@ public final class Lang {
 		put("hud.horse_health", "Zdrowie: %s/%s", "Health: %s/%s");
 		put("reconnect", "Połącz ponownie", "Reconnect");
 		put("item.durability", "Wytrzymałość: %d / %d", "Durability: %d / %d");
+		put("drop.blocked", "Drop prevention: %s zostaje w ekwipunku", "Drop prevention: %s stays in your inventory");
 		put("reconnect.in", "Połącz ponownie (%d)", "Reconnect (%d)");
 
 	}

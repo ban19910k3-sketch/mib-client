@@ -12,6 +12,7 @@ const ICONS = [
   // moduły etapów 3 i 4
   'crown', 'bulletlist', 'bell-off', 'camera', 'label', 'undo', 'shuffle', 'hand', 'cloud-sun', 'blocks', 'road-sign', 'speed-slow',
   'reload', 'info-box', 'eye-off',
+  'heading', 'badge-captions', 'list-box', 'bomb', 'trash', 'moon', 'save', 'box', 'filter', 'article',
   // menu i kategorie
   'search', 'settings-cog', 'arrow-left', 'move', 'users', 'close', 'lock', 'grid-3x3', 'layout', 'sword', 'map', 'message', 'archive', 'check',
 ];

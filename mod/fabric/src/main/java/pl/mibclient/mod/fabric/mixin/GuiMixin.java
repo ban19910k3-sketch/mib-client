@@ -1,9 +1,13 @@
 package pl.mibclient.mod.fabric.mixin;
 
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.client.gui.MibGraphics;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.MibHud;
+import net.minecraft.network.chat.numbers.BlankFormat;
+import net.minecraft.network.chat.numbers.NumberFormat;
 import net.minecraft.resources.MibId;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.scores.Objective;
@@ -24,7 +28,7 @@ import net.minecraft.client.renderer.RenderType;
 
 /**
  * HUD gry: Custom crosshair (podmienia tylko obrazek celownika — reszta zostaje z gry: wskaźnik ładowania ataku,
- * ukrycie w trzeciej osobie i trybie widza, osie F3), Saturation na ikonach jedzenia i Scoreboard.
+ * ukrycie w trzeciej osobie i trybie widza, osie F3), Saturation na ikonach jedzenia, Scoreboard i Title tweaker.
  */
 @Mixin(MibHud.class)
 public abstract class GuiMixin {
@@ -83,5 +87,31 @@ public abstract class GuiMixin {
 	@Inject(method = "displayScoreboardSidebar", at = @At("RETURN"))
 	private void mib$scoreboardEnd(MibGraphics g, Objective objective, CallbackInfo ci) {
 		VanillaHud.scoreboardEnd(g);
+	}
+
+	// Scoreboard: puste liczby zamiast czerwonych (format liczb z gry)
+	@ModifyExpressionValue(method = "displayScoreboardSidebar", at = @At(value = "INVOKE",
+			target = "Lnet/minecraft/world/scores/Objective;numberFormatOrDefault(Lnet/minecraft/network/chat/numbers/NumberFormat;)Lnet/minecraft/network/chat/numbers/NumberFormat;"))
+	private NumberFormat mib$scoreNumbers(NumberFormat original) {
+		return VanillaHud.hideScoreNumbers() ? BlankFormat.INSTANCE : original;
+	}
+
+	// Title tweaker: ukrycie, skala i położenie tytułów
+	//#if MC >= 26.1
+	@Inject(method = "extractTitle", at = @At("HEAD"), cancellable = true)
+	//#else
+	@Inject(method = "renderTitle", at = @At("HEAD"), cancellable = true)
+	//#endif
+	private void mib$title(MibGraphics g, DeltaTracker delta, CallbackInfo ci) {
+		if (!VanillaHud.titleStart(g)) ci.cancel();
+	}
+
+	//#if MC >= 26.1
+	@Inject(method = "extractTitle", at = @At("RETURN"))
+	//#else
+	@Inject(method = "renderTitle", at = @At("RETURN"))
+	//#endif
+	private void mib$titleEnd(MibGraphics g, DeltaTracker delta, CallbackInfo ci) {
+		VanillaHud.titleEnd(g);
 	}
 }

@@ -254,6 +254,6 @@ class MenuViewTest {
 		render();
 		assertTrue(c.hasText("Search modules…"));
 		assertTrue(c.hasText("Edit HUD"));
-		assertTrue(c.hasText("ENABLED"));
+		assertTrue(c.hasText("Disabled"));
 	}
 }

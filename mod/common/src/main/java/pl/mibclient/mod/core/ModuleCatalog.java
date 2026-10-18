@@ -198,8 +198,21 @@ public final class ModuleCatalog {
 		new ModuleDef("scoreboard", "Scoreboard", Category.HUD, "Ukrycie, rozmiar i położenie tabeli wyników z boku ekranu",
 			"Hide, resize or move the scoreboard on the side of the screen", "bulletlist", false, null, list(
 				bool("hide", "Ukryj tabelę wyników", "Hide the scoreboard", true),
+				bool("hide_numbers", "Ukryj czerwone liczby", "Hide the red numbers", false),
 				new IntSetting("scale", "Rozmiar (%)", "Size (%)", 100, 50, 150, 10),
 				new IntSetting("offset_y", "Przesunięcie w pionie", "Move vertically", 0, -100, 100, 5))),
+		new ModuleDef("title_tweaker", "Title tweaker", Category.HUD, "Rozmiar i położenie tytułów na środku ekranu",
+			"Size and position of the titles in the middle of the screen", "heading", false, null, list(
+				bool("hide", "Ukryj tytuły", "Hide titles", false),
+				new IntSetting("scale", "Rozmiar (%)", "Size (%)", 70, 30, 150, 10),
+				new IntSetting("offset_y", "Przesunięcie w pionie", "Move vertically", 0, -100, 100, 5))),
+		new ModuleDef("subtitles", "Subtitles", Category.HUD, "Rozmiar i położenie napisów do dźwięków (włączasz je w ustawieniach gry)",
+			"Size and position of sound subtitles (turn them on in the game settings)", "badge-captions", false, null, list(
+				new IntSetting("scale", "Rozmiar (%)", "Size (%)", 100, 50, 150, 10),
+				new IntSetting("offset_y", "Przesunięcie w górę", "Move up", 0, 0, 150, 5))),
+		new ModuleDef("autohide_hud", "Autohide HUD", Category.HUD, "Chowa HUD MiB, gdy masz otwarty ekwipunek lub inne menu gry",
+			"Hides the MiB HUD while the inventory or another game menu is open", "eye-off", false, null, list(
+				bool("chat", "Także przy pisaniu na czacie", "Also while typing in chat", false))),
 		new ModuleDef("toast_control", "Toast control", Category.HUD, "Wyłącza wyskakujące powiadomienia (przepisy, osiągnięcia)",
 			"Turns off pop-up notifications (recipes, advancements)", "bell-off", false, null, list(
 				bool("recipes", "Ukryj nowe przepisy", "Hide new recipes", true),
@@ -229,6 +242,13 @@ public final class ModuleCatalog {
 			"cloud-sun", false, null, list(
 				new ChoiceSetting("weather", "Pogoda", "Weather", "clear", new String[] {"clear", "rain", "thunder"},
 					new String[] {"Słońce", "Deszcz", "Burza"}, new String[] {"Clear", "Rain", "Thunder"}))),
+		new ModuleDef("time_changer", "Time changer", Category.LOOK, "Własna pora dnia (tylko u Ciebie)", "Your own time of day (only for you)",
+			"moon", false, null, list(
+				new ChoiceSetting("time", "Pora dnia", "Time of day", "noon", new String[] {"morning", "noon", "sunset", "night", "midnight"},
+					new String[] {"Rano", "Południe", "Zachód słońca", "Wieczór", "Północ"},
+					new String[] {"Morning", "Noon", "Sunset", "Evening", "Midnight"}))),
+		new ModuleDef("inventory", "Inventory", Category.LOOK, "Ekwipunek i skrzynie bez przyciemnienia gry w tle",
+			"Inventory and chests without darkening the game behind them", "backpack", false, null, list()),
 
 		// ===== Etap 4: świat, przedmioty, czat i narzędzia =====
 		new ModuleDef("block_indicator", "Block indicator", Category.WORLD, "Nazwa bloku, na który patrzysz", "Name of the block you are looking at",
@@ -237,6 +257,17 @@ public final class ModuleCatalog {
 			"road-sign", false, at(Anchor.TOP_LEFT, 4, 218), hud()),
 		new ModuleDef("horses", "Horses", Category.WORLD, "Prędkość, skok i zdrowie konia, na którym jedziesz", "Speed, jump and health of the horse you ride",
 			"speed-slow", false, at(Anchor.LEFT, 4, 40), hud()),
+		new ModuleDef("tnt_timer", "TNT timer", Category.WORLD, "Odliczanie nad zapalonym TNT", "Countdown above lit TNT",
+			"bomb", false, null, list()),
+		new ModuleDef("item_despawn", "Item despawn", Category.WORLD, "Czas do zniknięcia leżących przedmiotów (od kiedy je widzisz)",
+			"Time until dropped items disappear (since you first saw them)", "trash", false, null, list(
+				new IntSetting("radius", "Zasięg (bloki)", "Range (blocks)", 8, 4, 32, 2))),
+		new ModuleDef("mob_overlay", "Mob overlay", Category.WORLD, "Zdrowie nad mobami", "Health above mobs",
+			"skull", false, null, list(
+				new IntSetting("radius", "Zasięg (bloki)", "Range (blocks)", 16, 4, 32, 2),
+				bool("hostile", "Tylko wrogie moby", "Hostile mobs only", false))),
+		new ModuleDef("tablist", "Tablist", Category.CHAT, "Ping liczbami na liście graczy (Tab)", "Ping as numbers in the player list (Tab)",
+			"list-box", false, null, list()),
 		new ModuleDef("custom_chat", "Custom chat", Category.CHAT, "Godzina przy wiadomościach i dłuższa historia czatu",
 			"Time next to messages and a longer chat history", "message", false, null, list(
 				bool("time", "Godzina przy wiadomościach", "Time next to messages", true),
@@ -248,6 +279,17 @@ public final class ModuleCatalog {
 				new IntSetting("delay", "Po ilu sekundach", "After how many seconds", 5, 3, 30, 1))),
 		new ModuleDef("item_info", "Item info", Category.OTHER, "Wytrzymałość przedmiotów liczbami w ich opisie",
 			"Item durability as numbers in the item tooltip", "info-box", true, null, list()),
+		new ModuleDef("drop_prevention", "Drop prevention", Category.OTHER, "Nie wyrzucisz przez przypadek cennych przedmiotów (Q i w ekwipunku)",
+			"You won't drop valuable items by accident (Q and in the inventory)", "lock", false, null, list(
+				bool("gear", "Diamentowe i netherytowe, elytra, trójząb, buława", "Diamond and netherite, elytra, trident, mace", true),
+				bool("enchanted", "Zaklęte przedmioty", "Enchanted items", true),
+				bool("totem", "Totemy", "Totems", true),
+				bool("shulker", "Shulkery", "Shulker boxes", true))),
+		new ModuleDef("backups", "Backups", Category.OTHER, "Kopia świata jednoosobowego po wyjściu z niego (folder mib/backups)",
+			"A backup of your singleplayer world when you leave it (mib/backups folder)", "save", false, null, list(
+				new IntSetting("keep", "Ile kopii trzymać", "How many backups to keep", 3, 1, 10, 1))),
+		new ModuleDef("cull_logs", "Cull logs", Category.OTHER, "Nie zapisuje w logach gry tych samych komunikatów w kółko",
+			"Stops the game log from filling up with the same message over and over", "filter", false, null, list()),
 		new ModuleDef("nick_hider", "Nick hider", Category.OTHER, "Ukrywa Twój nick na liście graczy i nad głową (np. do nagrywania)",
 			"Hides your name in the player list and above your head (e.g. for recording)", "eye-off", false, null, list())));
 

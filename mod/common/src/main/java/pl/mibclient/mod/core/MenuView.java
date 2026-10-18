@@ -19,6 +19,10 @@ public final class MenuView {
 
 	public static final int KEY_ESCAPE = 256, KEY_BACKSPACE = 259;
 	private static final int FAINT = 0xFF6F5F82, WHITE = 0xFFFFFFFF;
+	/** Tło karty włączonego modułu (lekko fioletowe). */
+	private static final int CARD_ON = 0xFF160A24;
+	/** Linia między wierszami ustawień. */
+	private static final int ROW_LINE = 0xFF150B20;
 
 	private static final class Hit {
 		final String name;
@@ -265,27 +269,38 @@ public final class MenuView {
 		}
 	}
 
+	/**
+	 * Karta modułu: kafelek z ikoną (wypełniony fioletem, gdy moduł działa), pod nim nazwa i opis w dwóch liniach, na dole
+	 * stan słowem i przełącznik. Włączone karty mają jaśniejszą ramkę, więc na liście od razu widać, co działa.
+	 */
 	private void card(Canvas c, final ModuleDef m, int[] r, int mx, int my, boolean mouseInGrid) {
 		boolean on = modules.isOn(m.id), blocked = modules.isBlocked(m.id), hover = mouseInGrid && in(r, mx, my);
 		int x = r[0], y = r[1], w = r[2], h = r[3];
-		Shapes.panel(c, x, y, w, h, hover ? Theme.SLAB2 : Theme.SLAB, on ? Theme.AM_LO : Theme.EDGE);
-		Shapes.icon(c, m.icon, x + 7, y + 7, on ? Theme.AM_HI : Theme.MUTED);
-		int[] gear = {x + w - 7 - 14, y + 5, 16, 16};
-		Shapes.icon(c, "settings-cog", gear[0] + 2, gear[1] + 2, in(gear, mx, my) ? Theme.AM_HI : Theme.MUTED);
-		c.text(Shapes.ellipsize(c, m.name, w - 14, false), x + 7, y + 24, blocked ? Theme.MUTED : Theme.TEXT, false);
-		String[] lines = Shapes.wrap(c, m.desc(), w - 14, 2);
-		for (int i = 0; i < lines.length; i++) c.text(lines[i], x + 7, y + 36 + i * 10, Theme.MUTED, false);
-		int[] pill = {x + 7, y + h - 7 - 12, w - 14, 12};
+		Shapes.panel(c, x, y, w, h, on ? CARD_ON : hover ? Theme.SLAB2 : Theme.SLAB, on ? (hover ? Theme.AM_HI : Theme.AM) : hover ? Theme.EDGE2 : Theme.EDGE);
+		if (on) c.fill(x + 2, y + 1, x + w - 2, y + 2, Theme.AM_LO);
+		// kafelek ikony 18×18
+		int tx = x + 6, ty = y + 6;
+		if (on) {
+			Shapes.pixelRect(c, tx, ty, 18, 18, Theme.AM_LO);
+			c.fill(tx + 1, ty, tx + 17, ty + 1, Theme.BTN_HI);
+		} else Shapes.panel(c, tx, ty, 18, 18, Theme.SLAB2, Theme.EDGE2);
+		Shapes.icon(c, m.icon, tx + 3, ty + 3, on ? WHITE : blocked ? FAINT : Theme.MUTED);
+		int[] gear = {x + w - 6 - 14, y + 7, 14, 14};
+		boolean gearHover = in(gear, mx, my);
+		Shapes.icon(c, "settings-cog", gear[0] + 1, gear[1] + 1, gearHover ? Theme.AM_HI : hover ? Theme.MUTED : FAINT);
+		c.text(Shapes.ellipsize(c, m.name, w - 12, false), x + 6, y + 28, blocked ? Theme.MUTED : on ? WHITE : Theme.TEXT, on);
+		String[] lines = Shapes.wrap(c, m.desc(), w - 12, 2);
+		for (int i = 0; i < lines.length; i++) c.text(lines[i], x + 6, y + 39 + i * 10, Theme.MUTED, false);
+		// dolny pasek: stan i przełącznik (kliknięcie w całym pasku)
+		int[] pill = {x + 1, y + h - 19, w - 2, 18};
+		c.fill(x + 6, pill[1], x + w - 6, pill[1] + 1, on ? 0xFF3B1F5E : Theme.EDGE);
+		int ly = pill[1] + 6;
 		if (blocked) {
-			Shapes.pixelRect(c, pill[0], pill[1], pill[2], pill[3], Theme.OFF);
-			String t = Shapes.ellipsize(c, Lang.t("menu.blocked_short"), pill[2] - 16, false);
-			int tx = pill[0] + (pill[2] - c.textWidth(t) + 13) / 2;
-			Shapes.icon(c, "lock", tx - 13, pill[1], Theme.MUTED);
-			c.text(t, tx, pill[1] + 2, Theme.MUTED, false);
+			Shapes.icon(c, "lock", x + 5, ly - 2, FAINT);
+			c.text(Shapes.ellipsize(c, Lang.t("menu.blocked_short"), w - 26, false), x + 19, ly, FAINT, false);
 		} else {
-			Shapes.pixelRect(c, pill[0], pill[1], pill[2], pill[3], on ? Theme.AM : Theme.OFF);
-			String t = Lang.t(on ? "menu.on" : "menu.off");
-			c.text(t, pill[0] + (pill[2] - c.textWidth(t)) / 2, pill[1] + 2, on ? WHITE : Theme.MUTED, false);
+			c.text(Lang.t(on ? "menu.on" : "menu.off"), x + 6, ly, on ? Theme.AM_HI : FAINT, false);
+			toggle(c, x + w - 6 - 20, ly - 1, on);
 		}
 		int[] g = layout.grid;
 		if (r[1] < g[1] || r[1] + r[3] > g[1] + g[3]) return; // karta częściowo schowana: nie da się jej kliknąć
@@ -310,6 +325,11 @@ public final class MenuView {
 	}
 
 	private void header(Canvas c, String title, int mx, int my) {
+		header(c, title, null, false, mx, my);
+	}
+
+	/** Pasek u góry strony: strzałka powrotu, kafelek z ikoną (gdy jest) i tytuł. */
+	private void header(Canvas c, String title, String icon, boolean on, int mx, int my) {
 		int[] ct = layout.content;
 		int[] back = {ct[0], ct[1], 16, 16};
 		Shapes.panel(c, back[0], back[1], back[2], back[3], in(back, mx, my) ? Theme.SLAB2 : Theme.SLAB, Theme.EDGE2);
@@ -320,7 +340,16 @@ public final class MenuView {
 				page = Page.GRID;
 			}
 		}));
-		c.text(title, ct[0] + 22, ct[1] + 4, WHITE, true);
+		int tx = ct[0] + 22;
+		if (icon != null) {
+			if (on) {
+				Shapes.pixelRect(c, tx, ct[1], 16, 16, Theme.AM_LO);
+				c.fill(tx + 1, ct[1], tx + 15, ct[1] + 1, Theme.BTN_HI);
+			} else Shapes.panel(c, tx, ct[1], 16, 16, Theme.SLAB2, Theme.EDGE2);
+			Shapes.icon(c, icon, tx + 2, ct[1] + 2, on ? WHITE : Theme.MUTED);
+			tx += 22;
+		}
+		c.text(title, tx, ct[1] + 4, WHITE, true);
 	}
 
 	private void toggle(Canvas c, int x, int y, boolean on) {
@@ -359,7 +388,7 @@ public final class MenuView {
 		final ModuleDef m = modules.def(selected);
 		final ModuleState st = modules.state(m.id);
 		int[] ct = layout.content;
-		header(c, m.name, mx, my);
+		header(c, m.name, m.icon, modules.isOn(m.id), mx, my);
 		int right = ct[0] + ct[2];
 		final boolean blocked = modules.isBlocked(m.id);
 		int[] sw = {right - 20, ct[1] + 3, 20, 10};
@@ -412,6 +441,11 @@ public final class MenuView {
 
 	private void row(Canvas c, final ModuleDef m, final ModuleState st, final Setting<?> s, int y, int left, int right, int mx, int my,
 			boolean clickable) {
+		// wiersz podświetlony pod myszą, cienka linia między wierszami, treść z wcięciem
+		if (clickable && mx >= left && mx < right && my >= y && my < y + 18) c.fill(left, y, right, y + 18, Theme.SLAB);
+		c.fill(left, y + 18 - 1, right, y + 18, ROW_LINE);
+		left += 6;
+		right -= 6;
 		c.text(Shapes.ellipsize(c, s.label(), (right - left) / 2 - 6, false), left, y + 5, Theme.TEXT, false);
 		if (s instanceof BoolSetting) {
 			final BoolSetting b = (BoolSetting) s;

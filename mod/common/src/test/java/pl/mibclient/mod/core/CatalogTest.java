@@ -19,8 +19,10 @@ class CatalogTest {
 				"armor_bar", "hearts", "saturation", "item_counter", "mousestrokes", "pack_display", "player_model", "speed_meter", "stopwatch",
 				"system_resources", "tps", "attack_indicator", "combo_display", "damage_indicator", "hit_indicator", "jump_reset", "reach_display", "totem",
 				"boss_bar", "scoreboard", "toast_control", "camera", "nametags", "snaplook", "auto_perspective", "viewmodel", "weather_changer",
-				"block_indicator", "death_info", "horses", "custom_chat", "reconnect", "item_info", "nick_hider")), ids);
-		assertEquals(51, ModuleCatalog.ALL.size());
+				"block_indicator", "death_info", "horses", "custom_chat", "reconnect", "item_info", "nick_hider",
+				"title_tweaker", "subtitles", "autohide_hud", "time_changer", "inventory", "tnt_timer", "item_despawn", "mob_overlay",
+				"tablist", "drop_prevention", "backups", "cull_logs")), ids);
+		assertEquals(63, ModuleCatalog.ALL.size());
 	}
 
 	@Test
@@ -32,7 +34,9 @@ class CatalogTest {
 				"Armor bar", "Hearts", "Saturation", "Item counter", "Mousestrokes", "Pack display", "Player model", "Speed meter", "Stopwatch",
 				"System resources", "TPS", "Attack indicator", "Combo display", "Damage indicator", "Hit indicator", "Jump reset", "Reach display", "Totem",
 				"Boss bar", "Scoreboard", "Toast control", "Camera", "Nametags", "Snaplook", "Auto perspective", "Viewmodel", "Weather changer",
-				"Block indicator", "Death info", "Horses", "Custom chat", "Reconnect", "Item info", "Nick hider")),
+				"Block indicator", "Death info", "Horses", "Custom chat", "Reconnect", "Item info", "Nick hider",
+				"Title tweaker", "Subtitles", "Autohide HUD", "Time changer", "Inventory", "TNT timer", "Item despawn", "Mob overlay",
+				"Tablist", "Drop prevention", "Backups", "Cull logs")),
 				new HashSet<String>(names));
 	}
 
@@ -47,7 +51,8 @@ class CatalogTest {
 	void everyHudModuleHasDefaultPosition() {
 		Set<String> notHud = new HashSet<String>(Arrays.asList("brightness", "custom_crosshair", "fov_changer", "perspective", "zoom", "hit_indicator", "saturation",
 				"boss_bar", "scoreboard", "toast_control", "camera", "nametags", "snaplook", "auto_perspective", "viewmodel", "weather_changer",
-				"custom_chat", "reconnect", "item_info", "nick_hider"));
+				"custom_chat", "reconnect", "item_info", "nick_hider", "title_tweaker", "subtitles", "autohide_hud", "time_changer", "inventory",
+				"tnt_timer", "item_despawn", "mob_overlay", "tablist", "drop_prevention", "backups", "cull_logs"));
 		for (ModuleDef m : ModuleCatalog.ALL) {
 			assertEquals(!notHud.contains(m.id), m.hud, m.id);
 			assertEquals(m.hud, m.defaultHud != null, m.id);

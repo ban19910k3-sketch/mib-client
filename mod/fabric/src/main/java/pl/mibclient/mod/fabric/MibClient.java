@@ -75,6 +75,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	/** Wstawki w grę, które zadziałały w tej sesji (sprawdza je automatyczny test gry). */
 	public static final Set<String> hooks = ConcurrentHashMap.newKeySet();
+	public static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("MiB Client");
 
 	public Config config;
 	public ModuleManager modules;
@@ -86,6 +87,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public final ZoomState zoom = new ZoomState();
 	public Players players;
 	public Pvp pvp;
+	public WorldTweaks world;
 	public KeyMapping menuKey, zoomKey, perspectiveKey, stopwatchKey, snaplookKey;
 
 	private final long sessionStart = System.currentTimeMillis();
@@ -128,6 +130,8 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		bridge = dir != null ? new LauncherBridge(base) : null;
 		players = new Players(this);
 		pvp = new Pvp(this);
+		world = new WorldTweaks(this, base);
+		world.register();
 
 		//#if MC >= 1.21.9
 		KeyMapping.Category cat = KeyMapping.Category.register(MibId.fromNamespaceAndPath("mibclient", "main"));
@@ -220,6 +224,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		}
 		pvp.tick(c);
 		players.tick(c);
+		world.tick(c);
 		tickCameraModes(c);
 		tickDeath(c);
 		tickReconnect(c);
@@ -228,10 +233,28 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	private void renderHud(MibGraphics g) {
 		Minecraft c = Minecraft.getInstance();
-		if (Input.screen(c) instanceof HudEditorScreen) return;
+		Screen screen = Input.screen(c);
+		if (screen instanceof HudEditorScreen) return;
+		// Autohide HUD: bez HUD MiB pod ekwipunkiem i innymi menu (czat tylko z opcją)
+		if (screen != null && modules.isOn("autohide_hud")
+				&& (!(screen instanceof net.minecraft.client.gui.screens.ChatScreen) || boolOpt("autohide_hud", "chat"))) {
+			hooks.add("autohide");
+			return;
+		}
 		FabricCanvas canvas = new FabricCanvas(g, c.font);
 		hud.render(canvas, info, g.guiWidth(), g.guiHeight(), null, false);
 		hud.overlay(canvas, info, g.guiWidth(), g.guiHeight());
+	}
+
+	/** Napis nad paskiem przedmiotów (jak komunikaty gry). */
+	public void actionBar(Component text) {
+		Minecraft c = Minecraft.getInstance();
+		if (c.player == null) return;
+		//#if MC >= 26.1
+		c.player.sendOverlayMessage(text);
+		//#else
+		c.player.displayClientMessage(text, true);
+		//#endif
 	}
 
 	/** Perspective: przy wejściu kamera z tyłu (trzecia osoba) zaczyna tam, gdzie patrzy postać; przy wyjściu wraca poprzedni widok. */

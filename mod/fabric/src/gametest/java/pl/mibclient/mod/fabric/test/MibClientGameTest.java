@@ -150,6 +150,39 @@ public class MibClientGameTest implements FabricClientGameTest {
 			// logo MiB przed nickiem (własna postać zawsze gra w MiB)
 			check(context.computeOnClient(c -> c.player.getDisplayName().getString().startsWith("\uE000")), "brak logo MiB przed nickiem");
 
+			// moduły świata: zdrowie nad świnią, odliczanie TNT, tytuł, ping liczbami w Tab, pora dnia, ekwipunek, blokada wyrzucania
+			context.runOnClient(c -> {
+				ModuleManager m = MibClient.get().modules;
+				for (String id : new String[] {"mob_overlay", "tnt_timer", "title_tweaker", "tablist", "time_changer", "inventory", "drop_prevention"}) {
+					if (!m.isOn(id)) m.toggle(id);
+				}
+				m.state("time_changer").setOption("time", "sunset");
+			});
+			sp.getServer().runCommand("execute at @p run summon minecraft:tnt ~3 ~ ~ {fuse:400}");
+			sp.getServer().runCommand("scoreboard objectives setdisplay list mib");
+			sp.getServer().runCommand("title @a title \"MiB\"");
+			sp.getServer().runCommand("clear @a");
+			sp.getServer().runCommand("give @a minecraft:diamond_sword");
+			context.waitTicks(10);
+			input.holdKey(o -> o.keyPlayerList);
+			context.waitTicks(5);
+			context.takeScreenshot("06e-world");
+			input.releaseKey(o -> o.keyPlayerList);
+			context.runOnClient(c -> {
+				//#if MC >= 26.3
+				c.gameMode.dropItem(c.player, false);
+				//#else
+				c.player.drop(false);
+				//#endif
+			});
+			context.waitTicks(5);
+			check(context.computeOnClient(c -> !c.player.getMainHandItem().isEmpty()), "Drop prevention nie zatrzymał wyrzucenia miecza");
+			context.setScreen(() -> new net.minecraft.client.gui.screens.inventory.InventoryScreen(Minecraft.getInstance().player));
+			context.waitTicks(5);
+			context.takeScreenshot("06f-inventory");
+			context.setScreen(() -> null);
+			context.waitTicks(2);
+
 			input.holdKey(MibClient.get().zoomKey);
 			context.waitTicks(10);
 			check(context.computeOnClient(c -> MibClient.get().zoom.active()), "zoom nie działa po przytrzymaniu C");
@@ -202,7 +235,11 @@ public class MibClientGameTest implements FabricClientGameTest {
 
 			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik, logo i ekran tytułowy)
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
-					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name"}) {
+					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop"
+					//#if MC < 26.3
+					, "time"
+					//#endif
+					}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
 		}
