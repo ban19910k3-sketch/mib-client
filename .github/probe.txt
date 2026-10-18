@@ -1,56 +1,44 @@
 # <wersja> class|calls|members|code|asset|find|files ...   (wynik: adnotacje przebiegu "Podgląd klas gry")
-1.21 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)
-1.21.2 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)
-1.21.4 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)
-1.21.5 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)
-1.21.9 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)
-1.21.11 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)
-26.1 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)
-26.3 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)
-1.21 code net.minecraft.client.renderer.entity.layers.Deadmau5EarsLayer (render|submit)
-1.21.2 code net.minecraft.client.renderer.entity.layers.Deadmau5EarsLayer (render|submit|<init>)
-1.21.9 code net.minecraft.client.renderer.entity.layers.Deadmau5EarsLayer (render|submit|<init>)
-26.1 code net.minecraft.client.renderer.entity.layers.Deadmau5EarsLayer (render|submit|<init>)
-26.3 code net.minecraft.client.renderer.entity.layers.Deadmau5EarsLayer (render|submit|<init>)
-1.21 members net.minecraft.client.model.ElytraModel .
-1.21.2 members net.minecraft.client.model.ElytraModel .
-1.21.9 members net.minecraft.client.model.ElytraModel .
-26.1 members net.minecraft.client.model.ElytraModel .
-26.3 find (ElytraModel|PlayerModel|AvatarRenderer|PlayerRenderer|AvatarRenderState|PlayerRenderState|RenderTypes|Gizmos|ShapeRenderer)
-1.21.9 find (AvatarRenderer|PlayerRenderer|AvatarRenderState|PlayerRenderState|RenderTypes|Gizmos|ShapeRenderer)
-1.21.11 find (AvatarRenderer|RenderTypes|Gizmos|ShapeRenderer|LayerDefinition|CubeListBuilder)
-1.21 members net.minecraft.client.renderer.RenderType (entityCutoutNoCull|lines|debugQuads|debugFilledBox|LINES)
-1.21.9 members net.minecraft.client.renderer.RenderType (entityCutoutNoCull|lines|debugQuads|debugFilledBox|LINES)
-1.21.11 members net.minecraft.client.renderer.rendertype.RenderTypes (entityCutoutNoCull|lines|debugQuads|debugFilledBox)
-26.1 members net.minecraft.client.renderer.rendertype.RenderTypes (entityCutoutNoCull|lines|debugQuads|debugFilledBox)
-26.3 members net.minecraft.client.renderer.rendertype.RenderTypes (entityCutoutNoCull|lines|debugQuads|debugFilledBox)
-1.21.9 members net.minecraft.client.renderer.SubmitNodeCollector (submit)
-26.1 members net.minecraft.client.renderer.SubmitNodeCollector (submit)
-26.3 members net.minecraft.client.renderer.SubmitNodeCollector (submit)
-1.21.9 members net.minecraft.client.renderer.OrderedSubmitNodeCollector (submit)
-26.3 members net.minecraft.client.renderer.OrderedSubmitNodeCollector (submit)
-1.21 members com.mojang.blaze3d.vertex.VertexConsumer (addVertex|setColor|setNormal|setLineWidth|setUv|setOverlay|setLight)
-26.3 members com.mojang.blaze3d.vertex.VertexConsumer (addVertex|setColor|setNormal|setLineWidth|setUv|setOverlay|setLight)
-1.21.2 members net.minecraft.client.renderer.ShapeRenderer (render|add)
-1.21.11 members net.minecraft.client.renderer.ShapeRenderer (render|add)
-26.1 members net.minecraft.client.renderer.ShapeRenderer (render|add)
-1.21.11 find (gizmo|Gizmo)
-26.3 find (gizmo|Gizmo)
-1.21 members net.minecraft.client.renderer.LevelRenderer (renderLineBox|addChainedFilledBoxVertices|renderShape)
-26.3 code net.minecraft.client.multiplayer.ClientLevel ([Dd]ayTime|[Tt]imeOfDay|[Cc]lock)
-26.3 find ([Cc]lock|DayTime|TimeOfDay|WorldTime)
-26.3 calls getTotalTicks in net.minecraft.client
-26.3 calls ClockManager in net.minecraft.client.renderer
-26.2 code net.minecraft.client.ClientClockManager .
-1.21.9 code net.minecraft.client.KeyboardHandler handleDebugKeys
-1.21.11 calls ENTITY_HITBOXES in net.minecraft.client
-1.21.9 calls Hitbox in net.minecraft.client.renderer.entity
-1.21.9 members net.minecraft.client.renderer.entity.EntityRenderer (itbox)
+1.21 members net.minecraft.client.model.HumanoidModel (<init>|createMesh|setupAnim|copyPropertiesTo|renderToBuffer|head|hat|setAllVisible)
+1.21.2 members net.minecraft.client.model.HumanoidModel (<init>|createMesh|setupAnim|copyPropertiesTo|renderToBuffer|head|hat|setAllVisible)
+1.21.9 members net.minecraft.client.model.HumanoidModel (<init>|createMesh|setupAnim|copyPropertiesTo|renderToBuffer|head|hat|setAllVisible)
+26.1 members net.minecraft.client.model.HumanoidModel (<init>|createMesh|setupAnim|copyPropertiesTo|renderToBuffer|head|hat|setAllVisible)
+26.3 members net.minecraft.client.model.HumanoidModel (<init>|createMesh|setupAnim|copyPropertiesTo|renderToBuffer|head|hat|setAllVisible)
+1.21 members net.minecraft.client.model.geom.builders.LayerDefinition .
+26.3 members net.minecraft.client.model.geom.builders.LayerDefinition .
+1.21 members net.minecraft.client.model.geom.ModelPart (render|translateAndRotate|visible|getChild)
+26.3 members net.minecraft.client.model.geom.ModelPart (render|translateAndRotate|visible|getChild)
+1.21.11 members net.minecraft.gizmos.Gizmos .
+26.1 members net.minecraft.gizmos.Gizmos .
+26.3 members net.minecraft.gizmos.Gizmos .
+1.21.11 members net.minecraft.gizmos.GizmoStyle .
+1.21.11 members net.minecraft.client.renderer.OrderedSubmitNodeCollector (submitModel|submitCustomGeometry)
+1.21.11 members net.minecraft.client.renderer.rendertype.RenderTypes (armorCutoutNoCull|entityCutoutNoCull|debugQuads|lines)
+1.21.9 members net.minecraft.client.renderer.RenderType (armorCutoutNoCull|entityCutoutNoCull|debugQuads|lines)
+1.21.2 members net.minecraft.client.renderer.RenderType (armorCutoutNoCull|debugQuads|lines)
+1.21 members net.minecraft.client.renderer.RenderType (armorCutoutNoCull|debugQuads)
+26.3 members com.mojang.blaze3d.vertex.VertexConsumer (addVertex|setColor|setNormal|setLineWidth)
+1.21.11 members com.mojang.blaze3d.vertex.VertexConsumer (setLineWidth|setNormal)
+1.21 members net.minecraft.client.renderer.MultiBufferSource$BufferSource (endBatch)
+26.3 members net.minecraft.client.renderer.MultiBufferSource$BufferSource (endBatch)
+1.21.9 members net.minecraft.client.gui.components.debug.DebugScreenEntryList (Enabled|toggle|isCurrently|set)
+1.21.11 members net.minecraft.client.gui.components.debug.DebugScreenEntryList (Enabled|toggle|isCurrently|set)
+26.3 members net.minecraft.client.gui.components.debug.DebugScreenEntryList (Enabled|toggle|isCurrently|set)
+26.3 code net.minecraft.client.ClientClockManager .
+26.3 members net.minecraft.world.clock.ClockManager .
+26.3 calls getTotalTicks in net.minecraft.world
+26.3 calls DayTime in net.minecraft.client
+1.21.9 members net.minecraft.client.renderer.entity.EntityRenderer (extractHitboxes|extractRenderState)
+1.21.9 members net.minecraft.client.renderer.state.LevelRenderState (camera|Camera)
+26.1 members net.minecraft.client.renderer.state.LevelRenderState (camera|Camera)
+1.21.9 members net.minecraft.client.renderer.state.CameraRenderState .
+1.21 members net.minecraft.client.gui.Font (drawInBatch)
+1.21.9 members net.minecraft.client.gui.Font (drawInBatch)
+26.3 members net.minecraft.client.gui.Font (drawInBatch)
 1.21.2 files post_effect
 1.21.5 files post_effect
-1.21.2 asset assets/minecraft/post_effect/phosphor.json
-1.21.5 asset assets/minecraft/post_effect/phosphor.json
-1.21.6 asset assets/minecraft/post_effect/phosphor.json
-1.21.2 members com.mojang.blaze3d.pipeline.RenderTarget (blit|copy|bind|Texture)
-1.21.5 members com.mojang.blaze3d.pipeline.RenderTarget (blit|copy|bind|Texture)
-1.21.2 code net.minecraft.client.renderer.PostChain (load|addToFrame|process)
+1.21.6 asset assets/minecraft/post_effect/transparency.json
+1.21.2 members com.mojang.blaze3d.pipeline.RenderTarget (blit|copy|bind|Texture|<init>)
+1.21.5 members com.mojang.blaze3d.pipeline.RenderTarget (blit|copy|bind|Texture|<init>)
+1.21.2 members net.minecraft.client.renderer.PostChain (load|process|<init>|create)
+1.21.5 members net.minecraft.client.renderer.PostChain (load|process|<init>|create)
