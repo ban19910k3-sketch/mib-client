@@ -138,6 +138,18 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		extras = new Extras(this);
 		Extras.register();
 		Looks.register();
+		// czapka MiB na postaciach graczy
+		//#if MC >= 26.1
+		net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.EVENT.register((type, renderer, helper, context) -> {
+		//#else
+		net.fabricmc.fabric.api.client.rendering.v1.LivingEntityFeatureRendererRegistrationCallback.EVENT.register((type, renderer, helper, context) -> {
+		//#endif
+			//#if MC >= 1.21.9
+			if (renderer instanceof net.minecraft.client.renderer.entity.player.AvatarRenderer) helper.register(new HatLayer((net.minecraft.client.renderer.entity.RenderLayerParent) renderer));
+			//#else
+			if (renderer instanceof net.minecraft.client.renderer.entity.player.PlayerRenderer) helper.register(new HatLayer((net.minecraft.client.renderer.entity.RenderLayerParent) renderer));
+			//#endif
+		});
 
 		//#if MC >= 1.21.9
 		KeyMapping.Category cat = KeyMapping.Category.register(MibId.fromNamespaceAndPath("mibclient", "main"));

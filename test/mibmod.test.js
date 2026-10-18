@@ -236,6 +236,22 @@ test('prepareMibMod: mody na wydajność wyłączone w ustawieniach wracają po 
   assert.ok(has(e, 'lithium-moj.jar'));
 });
 
+test('prepareMibMod: biblioteka pobrana razem z modem na wydajność wyłącza się i wraca razem z nim', async () => {
+  const d = setup();
+  const ensureDep = async (slug, gv, l) => { await d.ensureDep(slug, gv, l); if (slug === 'entityculling') fs.writeFileSync(path.join(d.modsDir, 'transition-1.0.jar'), 'x'); };
+  await d.run({ ensureDep });
+  assert.ok(d.inst.mibDeps.includes('transition-1.0.jar'));
+  await d.run({ ensureDep, settings: { perfMods: false } });
+  assert.ok(has(d, 'transition-1.0.jar.disabled'), 'wyłączona z modami na wydajność');
+  await d.run({ ensureDep });
+  assert.ok(has(d, 'transition-1.0.jar') && has(d, 'entityculling-1.0.jar'), 'wraca po włączeniu');
+  await d.run({ ensureDep, settings: { mibMod: false } });
+  assert.ok(has(d, 'transition-1.0.jar.disabled'), 'wyłączona z modem MiB');
+  await d.run({ ensureDep });
+  assert.ok(has(d, 'transition-1.0.jar'));
+  assert.strictEqual(d.deps.length, 6, 'bez ponownego pobierania');
+});
+
 test('prepareMibMod: brak wersji moda dla tej wersji gry — następna próba po dobie', async () => {
   const d = setup();
   let t = 1000;

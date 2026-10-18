@@ -48,14 +48,27 @@ if (project.hasProperty('withMods')) {
 			filter { includeGroup 'maven.modrinth' }
 		}
 	}
-	['sodium', 'lithium', 'ferrite-core', 'entityculling', 'immediatelyfast'].each { slug ->
-		def conn = new URL("https://api.modrinth.com/v2/project/$slug/version?loaders=%5B%22fabric%22%5D&game_versions=%5B%22$mc%22%5D").openConnection()
+	def modrinth = { String path ->
+		def conn = new URL("https://api.modrinth.com/v2$path").openConnection()
 		conn.setRequestProperty('User-Agent', 'MiB-Client-CI (github.com/ban19910k3-sketch/mib-client)')
-		def list = new groovy.json.JsonSlurper().parse(conn.inputStream)
-		if (list) {
-			logger.lifecycle("MiB: test z $slug ${list[0].version_number}")
-			dependencies { if (unobf) runtimeOnly "maven.modrinth:$slug:${list[0].id}" else modLocalRuntime "maven.modrinth:$slug:${list[0].id}" }
-		} else logger.lifecycle("MiB: $slug nie ma wersji dla $mc")
+		new groovy.json.JsonSlurper().parse(conn.inputStream)
+	}
+	def query = "loaders=%5B%22fabric%22%5D&game_versions=%5B%22$mc%22%5D"
+	def added = [] as Set
+	// jak launcher: razem z modem jego wymagane biblioteki (np. Transition dla Entity Culling), bez Fabric API (już jest)
+	def add
+	add = { String project, version ->
+		if (version == null || !added.add(project)) return
+		logger.lifecycle("MiB: test z $project ${version.version_number}")
+		dependencies { if (unobf) runtimeOnly "maven.modrinth:$project:${version.id}" else modLocalRuntime "maven.modrinth:$project:${version.id}" }
+		version.dependencies.findAll { it.dependency_type == 'required' && it.project_id && it.project_id != 'P7dR8mSH' }.each { d ->
+			add(d.project_id, d.version_id ? modrinth("/version/${d.version_id}") : modrinth("/project/${d.project_id}/version?$query")[0])
+		}
+	}
+	['sodium', 'lithium', 'ferrite-core', 'entityculling', 'immediatelyfast'].each { slug ->
+		def list = modrinth("/project/$slug/version?$query")
+		if (list) add(list[0].project_id, list[0])
+		else logger.lifecycle("MiB: $slug nie ma wersji dla $mc")
 	}
 }
 
