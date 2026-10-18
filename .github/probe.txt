@@ -1,191 +1,80 @@
-# <wersja> class|calls|members|code|asset|find ...   (wynik: adnotacje przebiegu "Podgląd klas gry")
-1.21 find \.(ItemEntityRenderer|ItemEntityRenderState|BeaconRenderer|ShapeRenderer|FogRenderer|ElytraLayer|WingsLayer|KeyBindsList|KeyBindsScreen|ClientTooltipComponent|AdvancementWidget|DebugScreenOverlay|Screenshot|HumanoidModel|PlayerModel|PlayerRenderState|AvatarRenderState|HumanoidRenderState|Channel|SoundEngine|Library|GameRenderer|PostChain|Window|LevelRenderer|BlockOutlineRenderState|EntityHitboxDebugRenderer|HitboxRenderState|HitboxesRenderState|Gizmos)$
-1.21 members net.minecraft.client.renderer.entity.ItemEntityRenderer [(]
-1.21 members net.minecraft.client.renderer.blockentity.BeaconRenderer [Bb]eam
-1.21 members net.minecraft.client.renderer.LevelRenderer ([Oo]utline|Hitbox|[Hh]it[A-Z])
-1.21 members net.minecraft.client.renderer.ShapeRenderer [(]
-1.21 members net.minecraft.client.renderer.entity.EntityRenderDispatcher ([Hh]it[Bb]ox|HitBox)
-1.21 members net.minecraft.client.renderer.FogRenderer [(]
-1.21 members net.minecraft.client.renderer.fog.FogRenderer [(]
-1.21 members net.minecraft.client.renderer.GameRenderer ([Pp]ost|loadEffect|Effect)
-1.21 members com.mojang.blaze3d.platform.Window ([Gg]uiScale|calculateScale)
-1.21 members net.minecraft.client.gui.components.DebugScreenOverlay [(]
-1.21 members net.minecraft.client.gui.screens.advancements.AdvancementWidget (description|width|[(])
-1.21 members net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent [(]
-1.21 members net.minecraft.world.item.Item getTooltipImage
-1.21 members net.minecraft.client.Screenshot [(]
-1.21 members com.mojang.blaze3d.audio.Channel [(]
-1.21 members net.minecraft.client.multiplayer.ClientPacketListener (sendChat|sendCommand)
-1.21 members net.minecraft.client.renderer.ItemInHandRenderer (applyItemArmTransform|tick|renderPlayerArm)
-1.21 members net.minecraft.client.model.HumanoidModel setupAnim
-1.21.2 find \.(ItemEntityRenderer|ItemEntityRenderState|BeaconRenderer|ShapeRenderer|FogRenderer|ElytraLayer|WingsLayer|KeyBindsList|KeyBindsScreen|ClientTooltipComponent|AdvancementWidget|DebugScreenOverlay|Screenshot|HumanoidModel|PlayerModel|PlayerRenderState|AvatarRenderState|HumanoidRenderState|Channel|SoundEngine|Library|GameRenderer|PostChain|Window|LevelRenderer|BlockOutlineRenderState|EntityHitboxDebugRenderer|HitboxRenderState|HitboxesRenderState|Gizmos)$
-1.21.2 members net.minecraft.client.renderer.entity.ItemEntityRenderer [(]
-1.21.2 members net.minecraft.client.renderer.blockentity.BeaconRenderer [Bb]eam
-1.21.2 members net.minecraft.client.renderer.LevelRenderer ([Oo]utline|Hitbox|[Hh]it[A-Z])
-1.21.2 members net.minecraft.client.renderer.ShapeRenderer [(]
-1.21.2 members net.minecraft.client.renderer.entity.EntityRenderDispatcher ([Hh]it[Bb]ox|HitBox)
-1.21.2 members net.minecraft.client.renderer.FogRenderer [(]
-1.21.2 members net.minecraft.client.renderer.fog.FogRenderer [(]
-1.21.2 members net.minecraft.client.renderer.GameRenderer ([Pp]ost|loadEffect|Effect)
-1.21.2 members com.mojang.blaze3d.platform.Window ([Gg]uiScale|calculateScale)
-1.21.2 members net.minecraft.client.gui.components.DebugScreenOverlay [(]
-1.21.2 members net.minecraft.client.gui.screens.advancements.AdvancementWidget (description|width|[(])
-1.21.2 members net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent [(]
-1.21.2 members net.minecraft.world.item.Item getTooltipImage
-1.21.2 members net.minecraft.client.Screenshot [(]
-1.21.2 members com.mojang.blaze3d.audio.Channel [(]
-1.21.2 members net.minecraft.client.multiplayer.ClientPacketListener (sendChat|sendCommand)
-1.21.2 members net.minecraft.client.renderer.ItemInHandRenderer (applyItemArmTransform|tick|renderPlayerArm)
-1.21.2 members net.minecraft.client.model.HumanoidModel setupAnim
-1.21.4 find \.(ItemEntityRenderer|ItemEntityRenderState|BeaconRenderer|ShapeRenderer|FogRenderer|ElytraLayer|WingsLayer|KeyBindsList|KeyBindsScreen|ClientTooltipComponent|AdvancementWidget|DebugScreenOverlay|Screenshot|HumanoidModel|PlayerModel|PlayerRenderState|AvatarRenderState|HumanoidRenderState|Channel|SoundEngine|Library|GameRenderer|PostChain|Window|LevelRenderer|BlockOutlineRenderState|EntityHitboxDebugRenderer|HitboxRenderState|HitboxesRenderState|Gizmos)$
-1.21.4 members net.minecraft.client.renderer.entity.ItemEntityRenderer [(]
-1.21.4 members net.minecraft.client.renderer.blockentity.BeaconRenderer [Bb]eam
-1.21.4 members net.minecraft.client.renderer.LevelRenderer ([Oo]utline|Hitbox|[Hh]it[A-Z])
-1.21.4 members net.minecraft.client.renderer.ShapeRenderer [(]
-1.21.4 members net.minecraft.client.renderer.entity.EntityRenderDispatcher ([Hh]it[Bb]ox|HitBox)
-1.21.4 members net.minecraft.client.renderer.FogRenderer [(]
-1.21.4 members net.minecraft.client.renderer.fog.FogRenderer [(]
-1.21.4 members net.minecraft.client.renderer.GameRenderer ([Pp]ost|loadEffect|Effect)
-1.21.4 members com.mojang.blaze3d.platform.Window ([Gg]uiScale|calculateScale)
-1.21.4 members net.minecraft.client.gui.components.DebugScreenOverlay [(]
-1.21.4 members net.minecraft.client.gui.screens.advancements.AdvancementWidget (description|width|[(])
-1.21.4 members net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent [(]
-1.21.4 members net.minecraft.world.item.Item getTooltipImage
-1.21.4 members net.minecraft.client.Screenshot [(]
-1.21.4 members com.mojang.blaze3d.audio.Channel [(]
-1.21.4 members net.minecraft.client.multiplayer.ClientPacketListener (sendChat|sendCommand)
-1.21.4 members net.minecraft.client.renderer.ItemInHandRenderer (applyItemArmTransform|tick|renderPlayerArm)
-1.21.4 members net.minecraft.client.model.HumanoidModel setupAnim
-1.21.5 find \.(ItemEntityRenderer|ItemEntityRenderState|BeaconRenderer|ShapeRenderer|FogRenderer|ElytraLayer|WingsLayer|KeyBindsList|KeyBindsScreen|ClientTooltipComponent|AdvancementWidget|DebugScreenOverlay|Screenshot|HumanoidModel|PlayerModel|PlayerRenderState|AvatarRenderState|HumanoidRenderState|Channel|SoundEngine|Library|GameRenderer|PostChain|Window|LevelRenderer|BlockOutlineRenderState|EntityHitboxDebugRenderer|HitboxRenderState|HitboxesRenderState|Gizmos)$
-1.21.5 members net.minecraft.client.renderer.entity.ItemEntityRenderer [(]
-1.21.5 members net.minecraft.client.renderer.blockentity.BeaconRenderer [Bb]eam
-1.21.5 members net.minecraft.client.renderer.LevelRenderer ([Oo]utline|Hitbox|[Hh]it[A-Z])
-1.21.5 members net.minecraft.client.renderer.ShapeRenderer [(]
-1.21.5 members net.minecraft.client.renderer.entity.EntityRenderDispatcher ([Hh]it[Bb]ox|HitBox)
-1.21.5 members net.minecraft.client.renderer.FogRenderer [(]
-1.21.5 members net.minecraft.client.renderer.fog.FogRenderer [(]
-1.21.5 members net.minecraft.client.renderer.GameRenderer ([Pp]ost|loadEffect|Effect)
-1.21.5 members com.mojang.blaze3d.platform.Window ([Gg]uiScale|calculateScale)
-1.21.5 members net.minecraft.client.gui.components.DebugScreenOverlay [(]
-1.21.5 members net.minecraft.client.gui.screens.advancements.AdvancementWidget (description|width|[(])
-1.21.5 members net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent [(]
-1.21.5 members net.minecraft.world.item.Item getTooltipImage
-1.21.5 members net.minecraft.client.Screenshot [(]
-1.21.5 members com.mojang.blaze3d.audio.Channel [(]
-1.21.5 members net.minecraft.client.multiplayer.ClientPacketListener (sendChat|sendCommand)
-1.21.5 members net.minecraft.client.renderer.ItemInHandRenderer (applyItemArmTransform|tick|renderPlayerArm)
-1.21.5 members net.minecraft.client.model.HumanoidModel setupAnim
-1.21.6 find \.(ItemEntityRenderer|ItemEntityRenderState|BeaconRenderer|ShapeRenderer|FogRenderer|ElytraLayer|WingsLayer|KeyBindsList|KeyBindsScreen|ClientTooltipComponent|AdvancementWidget|DebugScreenOverlay|Screenshot|HumanoidModel|PlayerModel|PlayerRenderState|AvatarRenderState|HumanoidRenderState|Channel|SoundEngine|Library|GameRenderer|PostChain|Window|LevelRenderer|BlockOutlineRenderState|EntityHitboxDebugRenderer|HitboxRenderState|HitboxesRenderState|Gizmos)$
-1.21.6 members net.minecraft.client.renderer.entity.ItemEntityRenderer [(]
-1.21.6 members net.minecraft.client.renderer.blockentity.BeaconRenderer [Bb]eam
-1.21.6 members net.minecraft.client.renderer.LevelRenderer ([Oo]utline|Hitbox|[Hh]it[A-Z])
-1.21.6 members net.minecraft.client.renderer.ShapeRenderer [(]
-1.21.6 members net.minecraft.client.renderer.entity.EntityRenderDispatcher ([Hh]it[Bb]ox|HitBox)
-1.21.6 members net.minecraft.client.renderer.FogRenderer [(]
-1.21.6 members net.minecraft.client.renderer.fog.FogRenderer [(]
-1.21.6 members net.minecraft.client.renderer.GameRenderer ([Pp]ost|loadEffect|Effect)
-1.21.6 members com.mojang.blaze3d.platform.Window ([Gg]uiScale|calculateScale)
-1.21.6 members net.minecraft.client.gui.components.DebugScreenOverlay [(]
-1.21.6 members net.minecraft.client.gui.screens.advancements.AdvancementWidget (description|width|[(])
-1.21.6 members net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent [(]
-1.21.6 members net.minecraft.world.item.Item getTooltipImage
-1.21.6 members net.minecraft.client.Screenshot [(]
-1.21.6 members com.mojang.blaze3d.audio.Channel [(]
-1.21.6 members net.minecraft.client.multiplayer.ClientPacketListener (sendChat|sendCommand)
-1.21.6 members net.minecraft.client.renderer.ItemInHandRenderer (applyItemArmTransform|tick|renderPlayerArm)
-1.21.6 members net.minecraft.client.model.HumanoidModel setupAnim
-1.21.9 find \.(ItemEntityRenderer|ItemEntityRenderState|BeaconRenderer|ShapeRenderer|FogRenderer|ElytraLayer|WingsLayer|KeyBindsList|KeyBindsScreen|ClientTooltipComponent|AdvancementWidget|DebugScreenOverlay|Screenshot|HumanoidModel|PlayerModel|PlayerRenderState|AvatarRenderState|HumanoidRenderState|Channel|SoundEngine|Library|GameRenderer|PostChain|Window|LevelRenderer|BlockOutlineRenderState|EntityHitboxDebugRenderer|HitboxRenderState|HitboxesRenderState|Gizmos)$
-1.21.9 members net.minecraft.client.renderer.entity.ItemEntityRenderer [(]
-1.21.9 members net.minecraft.client.renderer.blockentity.BeaconRenderer [Bb]eam
-1.21.9 members net.minecraft.client.renderer.LevelRenderer ([Oo]utline|Hitbox|[Hh]it[A-Z])
-1.21.9 members net.minecraft.client.renderer.ShapeRenderer [(]
-1.21.9 members net.minecraft.client.renderer.entity.EntityRenderDispatcher ([Hh]it[Bb]ox|HitBox)
-1.21.9 members net.minecraft.client.renderer.FogRenderer [(]
-1.21.9 members net.minecraft.client.renderer.fog.FogRenderer [(]
-1.21.9 members net.minecraft.client.renderer.GameRenderer ([Pp]ost|loadEffect|Effect)
-1.21.9 members com.mojang.blaze3d.platform.Window ([Gg]uiScale|calculateScale)
-1.21.9 members net.minecraft.client.gui.components.DebugScreenOverlay [(]
-1.21.9 members net.minecraft.client.gui.screens.advancements.AdvancementWidget (description|width|[(])
-1.21.9 members net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent [(]
-1.21.9 members net.minecraft.world.item.Item getTooltipImage
-1.21.9 members net.minecraft.client.Screenshot [(]
-1.21.9 members com.mojang.blaze3d.audio.Channel [(]
-1.21.9 members net.minecraft.client.multiplayer.ClientPacketListener (sendChat|sendCommand)
-1.21.9 members net.minecraft.client.renderer.ItemInHandRenderer (applyItemArmTransform|tick|renderPlayerArm)
-1.21.9 members net.minecraft.client.model.HumanoidModel setupAnim
-1.21.11 find \.(ItemEntityRenderer|ItemEntityRenderState|BeaconRenderer|ShapeRenderer|FogRenderer|ElytraLayer|WingsLayer|KeyBindsList|KeyBindsScreen|ClientTooltipComponent|AdvancementWidget|DebugScreenOverlay|Screenshot|HumanoidModel|PlayerModel|PlayerRenderState|AvatarRenderState|HumanoidRenderState|Channel|SoundEngine|Library|GameRenderer|PostChain|Window|LevelRenderer|BlockOutlineRenderState|EntityHitboxDebugRenderer|HitboxRenderState|HitboxesRenderState|Gizmos)$
-1.21.11 members net.minecraft.client.renderer.entity.ItemEntityRenderer [(]
-1.21.11 members net.minecraft.client.renderer.blockentity.BeaconRenderer [Bb]eam
-1.21.11 members net.minecraft.client.renderer.LevelRenderer ([Oo]utline|Hitbox|[Hh]it[A-Z])
-1.21.11 members net.minecraft.client.renderer.ShapeRenderer [(]
-1.21.11 members net.minecraft.client.renderer.entity.EntityRenderDispatcher ([Hh]it[Bb]ox|HitBox)
-1.21.11 members net.minecraft.client.renderer.FogRenderer [(]
-1.21.11 members net.minecraft.client.renderer.fog.FogRenderer [(]
-1.21.11 members net.minecraft.client.renderer.GameRenderer ([Pp]ost|loadEffect|Effect)
-1.21.11 members com.mojang.blaze3d.platform.Window ([Gg]uiScale|calculateScale)
-1.21.11 members net.minecraft.client.gui.components.DebugScreenOverlay [(]
-1.21.11 members net.minecraft.client.gui.screens.advancements.AdvancementWidget (description|width|[(])
-1.21.11 members net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent [(]
-1.21.11 members net.minecraft.world.item.Item getTooltipImage
-1.21.11 members net.minecraft.client.Screenshot [(]
-1.21.11 members com.mojang.blaze3d.audio.Channel [(]
-1.21.11 members net.minecraft.client.multiplayer.ClientPacketListener (sendChat|sendCommand)
-1.21.11 members net.minecraft.client.renderer.ItemInHandRenderer (applyItemArmTransform|tick|renderPlayerArm)
-1.21.11 members net.minecraft.client.model.HumanoidModel setupAnim
-26.1 find \.(ItemEntityRenderer|ItemEntityRenderState|BeaconRenderer|ShapeRenderer|FogRenderer|ElytraLayer|WingsLayer|KeyBindsList|KeyBindsScreen|ClientTooltipComponent|AdvancementWidget|DebugScreenOverlay|Screenshot|HumanoidModel|PlayerModel|PlayerRenderState|AvatarRenderState|HumanoidRenderState|Channel|SoundEngine|Library|GameRenderer|PostChain|Window|LevelRenderer|BlockOutlineRenderState|EntityHitboxDebugRenderer|HitboxRenderState|HitboxesRenderState|Gizmos)$
-26.1 members net.minecraft.client.renderer.entity.ItemEntityRenderer [(]
-26.1 members net.minecraft.client.renderer.blockentity.BeaconRenderer [Bb]eam
-26.1 members net.minecraft.client.renderer.LevelRenderer ([Oo]utline|Hitbox|[Hh]it[A-Z])
-26.1 members net.minecraft.client.renderer.ShapeRenderer [(]
-26.1 members net.minecraft.client.renderer.entity.EntityRenderDispatcher ([Hh]it[Bb]ox|HitBox)
-26.1 members net.minecraft.client.renderer.FogRenderer [(]
-26.1 members net.minecraft.client.renderer.fog.FogRenderer [(]
-26.1 members net.minecraft.client.renderer.GameRenderer ([Pp]ost|loadEffect|Effect)
-26.1 members com.mojang.blaze3d.platform.Window ([Gg]uiScale|calculateScale)
-26.1 members net.minecraft.client.gui.components.DebugScreenOverlay [(]
-26.1 members net.minecraft.client.gui.screens.advancements.AdvancementWidget (description|width|[(])
-26.1 members net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent [(]
-26.1 members net.minecraft.world.item.Item getTooltipImage
-26.1 members net.minecraft.client.Screenshot [(]
-26.1 members com.mojang.blaze3d.audio.Channel [(]
-26.1 members net.minecraft.client.multiplayer.ClientPacketListener (sendChat|sendCommand)
-26.1 members net.minecraft.client.renderer.ItemInHandRenderer (applyItemArmTransform|tick|renderPlayerArm)
-26.1 members net.minecraft.client.model.HumanoidModel setupAnim
-26.2 find \.(ItemEntityRenderer|ItemEntityRenderState|BeaconRenderer|ShapeRenderer|FogRenderer|ElytraLayer|WingsLayer|KeyBindsList|KeyBindsScreen|ClientTooltipComponent|AdvancementWidget|DebugScreenOverlay|Screenshot|HumanoidModel|PlayerModel|PlayerRenderState|AvatarRenderState|HumanoidRenderState|Channel|SoundEngine|Library|GameRenderer|PostChain|Window|LevelRenderer|BlockOutlineRenderState|EntityHitboxDebugRenderer|HitboxRenderState|HitboxesRenderState|Gizmos)$
-26.2 members net.minecraft.client.renderer.entity.ItemEntityRenderer [(]
-26.2 members net.minecraft.client.renderer.blockentity.BeaconRenderer [Bb]eam
-26.2 members net.minecraft.client.renderer.LevelRenderer ([Oo]utline|Hitbox|[Hh]it[A-Z])
-26.2 members net.minecraft.client.renderer.ShapeRenderer [(]
-26.2 members net.minecraft.client.renderer.entity.EntityRenderDispatcher ([Hh]it[Bb]ox|HitBox)
-26.2 members net.minecraft.client.renderer.FogRenderer [(]
-26.2 members net.minecraft.client.renderer.fog.FogRenderer [(]
-26.2 members net.minecraft.client.renderer.GameRenderer ([Pp]ost|loadEffect|Effect)
-26.2 members com.mojang.blaze3d.platform.Window ([Gg]uiScale|calculateScale)
-26.2 members net.minecraft.client.gui.components.DebugScreenOverlay [(]
-26.2 members net.minecraft.client.gui.screens.advancements.AdvancementWidget (description|width|[(])
-26.2 members net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent [(]
-26.2 members net.minecraft.world.item.Item getTooltipImage
-26.2 members net.minecraft.client.Screenshot [(]
-26.2 members com.mojang.blaze3d.audio.Channel [(]
-26.2 members net.minecraft.client.multiplayer.ClientPacketListener (sendChat|sendCommand)
-26.2 members net.minecraft.client.renderer.ItemInHandRenderer (applyItemArmTransform|tick|renderPlayerArm)
-26.2 members net.minecraft.client.model.HumanoidModel setupAnim
-26.3 find \.(ItemEntityRenderer|ItemEntityRenderState|BeaconRenderer|ShapeRenderer|FogRenderer|ElytraLayer|WingsLayer|KeyBindsList|KeyBindsScreen|ClientTooltipComponent|AdvancementWidget|DebugScreenOverlay|Screenshot|HumanoidModel|PlayerModel|PlayerRenderState|AvatarRenderState|HumanoidRenderState|Channel|SoundEngine|Library|GameRenderer|PostChain|Window|LevelRenderer|BlockOutlineRenderState|EntityHitboxDebugRenderer|HitboxRenderState|HitboxesRenderState|Gizmos)$
-26.3 members net.minecraft.client.renderer.entity.ItemEntityRenderer [(]
-26.3 members net.minecraft.client.renderer.blockentity.BeaconRenderer [Bb]eam
-26.3 members net.minecraft.client.renderer.LevelRenderer ([Oo]utline|Hitbox|[Hh]it[A-Z])
-26.3 members net.minecraft.client.renderer.ShapeRenderer [(]
-26.3 members net.minecraft.client.renderer.entity.EntityRenderDispatcher ([Hh]it[Bb]ox|HitBox)
-26.3 members net.minecraft.client.renderer.FogRenderer [(]
-26.3 members net.minecraft.client.renderer.fog.FogRenderer [(]
-26.3 members net.minecraft.client.renderer.GameRenderer ([Pp]ost|loadEffect|Effect)
-26.3 members com.mojang.blaze3d.platform.Window ([Gg]uiScale|calculateScale)
-26.3 members net.minecraft.client.gui.components.DebugScreenOverlay [(]
-26.3 members net.minecraft.client.gui.screens.advancements.AdvancementWidget (description|width|[(])
-26.3 members net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent [(]
-26.3 members net.minecraft.world.item.Item getTooltipImage
-26.3 members net.minecraft.client.Screenshot [(]
-26.3 members com.mojang.blaze3d.audio.Channel [(]
-26.3 members net.minecraft.client.multiplayer.ClientPacketListener (sendChat|sendCommand)
-26.3 members net.minecraft.client.renderer.ItemInHandRenderer (applyItemArmTransform|tick|renderPlayerArm)
-26.3 members net.minecraft.client.model.HumanoidModel setupAnim
+# <wersja> class|calls|members|code|asset|find|files ...   (wynik: adnotacje przebiegu "Podgląd klas gry")
+1.21 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
+1.21.2 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
+1.21.4 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
+1.21.9 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
+26.1 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
+26.3 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
+1.21 code net.minecraft.client.renderer.LevelRenderer renderHitOutline
+1.21.2 members net.minecraft.client.renderer.fog.FogRenderer (static|boolean)
+1.21.6 members net.minecraft.client.renderer.fog.FogRenderer (static|boolean)
+26.1 members net.minecraft.client.renderer.fog.FogRenderer (static|boolean)
+26.3 members net.minecraft.client.renderer.fog.FogRenderer (static|boolean)
+1.21.2 members net.minecraft.client.renderer.FogRenderer (static|boolean)
+1.21.6 code net.minecraft.client.renderer.fog.FogRenderer setupFog
+26.1 code net.minecraft.client.renderer.fog.FogRenderer setupFog
+26.3 code net.minecraft.client.renderer.fog.FogRenderer setupFog
+1.21 members net.minecraft.client.Camera (Fluid|fluid|[yx]Rot|[Pp]osition|forward)
+1.21.6 members net.minecraft.client.Camera (Fluid|fluid|[yx]Rot|[Pp]osition|forward)
+26.1 members net.minecraft.client.Camera (Fluid|fluid|[yx]Rot|[Pp]osition|forward)
+26.3 members net.minecraft.client.Camera (Fluid|fluid|[yx]Rot|[Pp]osition|forward)
+1.21 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
+1.21.2 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
+1.21.5 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
+1.21.6 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
+1.21.11 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
+26.1 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
+26.3 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
+1.21.2 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
+1.21.5 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
+1.21.6 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
+26.1 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
+26.3 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
+1.21 members net.minecraft.client.gui.GuiGraphics (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
+1.21.2 members net.minecraft.client.gui.GuiGraphics (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
+1.21.6 members net.minecraft.client.gui.GuiGraphics (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
+1.21.9 members net.minecraft.client.gui.GuiGraphics (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
+26.1 members net.minecraft.client.gui.GuiGraphicsExtractor (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
+26.3 members net.minecraft.client.gui.GuiGraphicsExtractor (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
+1.21 members net.minecraft.client.gui.screens.inventory.AbstractContainerScreen (renderBg|renderBackground|renderLabels|extractBackground|extractLabels|leftPos|topPos|hoveredSlot)
+1.21.6 members net.minecraft.client.gui.screens.inventory.AbstractContainerScreen (renderBg|renderBackground|renderLabels|extractBackground|extractLabels|leftPos|topPos|hoveredSlot)
+26.1 members net.minecraft.client.gui.screens.inventory.AbstractContainerScreen (renderBg|renderBackground|renderLabels|extractBackground|extractLabels|leftPos|topPos|hoveredSlot)
+26.3 members net.minecraft.client.gui.screens.inventory.AbstractContainerScreen (renderBg|renderBackground|renderLabels|extractBackground|extractLabels|leftPos|topPos|hoveredSlot)
+1.21 members net.minecraft.client.renderer.entity.layers.ElytraLayer [(]
+1.21.2 members net.minecraft.client.renderer.entity.layers.WingsLayer [(]
+1.21.9 members net.minecraft.client.renderer.entity.layers.WingsLayer [(]
+26.1 members net.minecraft.client.renderer.entity.layers.WingsLayer [(]
+26.3 members net.minecraft.client.renderer.entity.layers.WingsLayer [(]
+1.21 find \.PlayerSkin$
+1.21.9 find \.PlayerSkin$
+26.3 find \.PlayerSkin$
+1.21.2 members net.minecraft.client.renderer.entity.LivingEntityRenderer extractRenderState
+1.21.9 members net.minecraft.client.renderer.entity.LivingEntityRenderer extractRenderState
+26.1 members net.minecraft.client.renderer.entity.LivingEntityRenderer extractRenderState
+26.3 members net.minecraft.client.renderer.entity.LivingEntityRenderer extractRenderState
+1.21 members net.minecraft.client.model.HumanoidModel (rightArm|leftArm|head;|body;)
+26.3 members net.minecraft.client.model.HumanoidModel (rightArm|leftArm|head;|body;)
+1.21.9 members net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer [(]
+1.21.11 members net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer [(]
+26.1 members net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer [(]
+26.3 members net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer [(]
+1.21.9 calls setRenderHitBoxes in net.minecraft.client
+26.1 calls setRenderHitBoxes in net.minecraft.client
+26.3 calls setRenderHitBoxes in net.minecraft.client
+1.21.9 calls shouldRenderHitBoxes in net.minecraft.client
+26.1 calls shouldRenderHitBoxes in net.minecraft.client
+26.3 calls shouldRenderHitBoxes in net.minecraft.client
+1.21.5 class net.minecraft.client.renderer.entity.state.HitboxRenderState
+26.3 class net.minecraft.client.renderer.entity.state.HitboxRenderState
+1.21 code net.minecraft.client.renderer.ItemInHandRenderer tick[(]
+26.2 code net.minecraft.client.renderer.ItemInHandRenderer tick[(]
+26.3 code net.minecraft.client.player.FirstPersonHandsAndItems tick[(]
+26.3 members net.minecraft.client.renderer.FirstPersonHandsAndItemsRenderer (apply|[(])
+1.21 class net.minecraft.client.gui.screens.options.controls.KeyBindsList$KeyEntry
+26.3 class net.minecraft.client.gui.screens.options.controls.KeyBindsList$KeyEntry
+1.21 members net.minecraft.client.gui.screens.options.controls.KeyBindsList [(]
+26.3 members net.minecraft.client.gui.screens.options.controls.KeyBindsList [(]
+1.21 members net.minecraft.world.food.FoodProperties (nutrition|saturation)
+26.3 members net.minecraft.world.food.FoodProperties (nutrition|saturation)
+1.21 members net.minecraft.world.item.component.ItemContainerContents copyInto
+26.3 members net.minecraft.world.item.component.ItemContainerContents copyInto

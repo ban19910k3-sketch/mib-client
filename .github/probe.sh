@@ -6,6 +6,7 @@
 #   <wersja> code <klasa> <regex>              — wywołania, pola i stałe w metodach pasujących do wyrażenia
 #   <wersja> asset <ścieżka w jarze>          — mały plik z jara jako base64 (np. kształt ikony)
 #   <wersja> find <regex>                      — klasy, których nazwa pasuje do wyrażenia (np. po przeniesieniu klasy)
+#   <wersja> files <regex>                     — pliki z jara (nie klasy), np. shadery i efekty
 # Wynik w probe-out.txt i w adnotacjach przebiegu.
 # Argument (opcjonalny): tylko ta wersja gry.
 cd mod
@@ -38,6 +39,9 @@ for v in $(awk -v only="$1" '!/^#/ && NF && (only == "" || $1 == only) {print $1
     elif [ "$kind" = find ]; then
       echo "=== klasy ~ $rest" >> "$out"
       for j in ${jar//:/ }; do unzip -Z1 "$j"; done | grep -E '\.class$' | grep -v '\$' | sed 's/\.class$//; s#/#.#g' | grep -E "$rest" | head -60 >> "$out"
+    elif [ "$kind" = files ]; then
+      echo "=== pliki ~ $rest" >> "$out"
+      for j in ${jar//:/ }; do unzip -Z1 "$j"; done | grep -vE '\.class$' | grep -E "$rest" | sort -u | head -150 >> "$out"
     elif [ "$kind" = asset ]; then
       echo "=== plik $rest" >> "$out"
       for j in ${jar//:/ }; do unzip -p "$j" "$rest" 2>/dev/null | base64 -w0 && break; done >> "$out"
