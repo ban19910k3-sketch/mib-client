@@ -168,8 +168,10 @@ public final class Looks {
 		if (!on("hitbox") || !mib().boolOpt("hitbox", "players")) return false;
 		//#if MC >= 1.21.9
 		return !(state instanceof net.minecraft.client.renderer.entity.state.AvatarRenderState);
-		//#else
+		//#elif MC >= 1.21.2
 		return !(state instanceof net.minecraft.client.renderer.entity.state.PlayerRenderState);
+		//#else
+		return false;
 		//#endif
 	}
 
@@ -220,9 +222,15 @@ public final class Looks {
 		MibClient.hooks.add("anim_block");
 		int i = arm == HumanoidArm.RIGHT ? 1 : -1;
 		pose.translate(i * -0.14142136f, 0.08f, 0.14142136f);
+		//#if MC >= 26.3
+		pose.rotate(Axis.XP, (float) Math.toRadians(-102.25));
+		pose.rotate(Axis.YP, (float) Math.toRadians(i * 13.365));
+		pose.rotate(Axis.ZP, (float) Math.toRadians(i * 78.05));
+		//#else
 		pose.mulPose(Axis.XP.rotationDegrees(-102.25f));
 		pose.mulPose(Axis.YP.rotationDegrees(i * 13.365f));
 		pose.mulPose(Axis.ZP.rotationDegrees(i * 78.05f));
+		//#endif
 	}
 
 	// ===== Elytras, Emotes =====
@@ -244,13 +252,13 @@ public final class Looks {
 
 	// ===== Color saturation, Motion blur =====
 
-	private static String postTried;
+	private static String postTried, postVerified;
 	private static int postAttempts;
 
 	/** Co tick: włącza efekt MiB (gdy kamera jest w graczu, a nie np. w mobie w trybie widza) albo go wyłącza. */
 	static void tickPost(Minecraft c) {
 		String want = postEffect();
-		if (want == null) postTried = null;
+		if (want == null) postTried = postVerified = null;
 		boolean self = c.player != null && c.getCameraEntity() == c.player;
 		net.minecraft.client.renderer.GameRenderer gr = c.gameRenderer;
 		//#if MC >= 26.3
@@ -270,21 +278,47 @@ public final class Looks {
 			String id = "mibclient:shaders/post/" + want + ".json";
 			//#endif
 			MibClient.hooks.add("post_effect");
-			if (id.equals(now)) return;
+			if (id.equals(now)) {
+				if (!id.equals(postVerified)) {
+					postVerified = id;
+					if (postLoads(c, id)) MibClient.hooks.add("post_ok");
+					else {
+						MibClient.LOG.warn("MiB: efekt {} nie wczytał się", id);
+						postAttempts = 99;
+						clearPost(gr);
+					}
+				}
+				return;
+			}
 			if (!id.equals(postTried)) {
 				postTried = id;
 				postAttempts = 0;
 			}
 			if (postAttempts++ < 3) ((pl.mibclient.mod.fabric.mixin.GameRendererAccessor) gr).mib$setPostEffect(MibId.parse(id));
-		} else if (now != null && now.startsWith("mibclient:")) {
-			//#if MC >= 26.3
-			gr.clearSpectatedEntityPostEffect();
-			//#elif MC >= 1.21.2
-			gr.clearPostEffect();
-			//#else
-			gr.shutdownEffect();
-			//#endif
+		} else if (now != null && now.startsWith("mibclient:")) clearPost(gr);
+	}
+
+	private static void clearPost(net.minecraft.client.renderer.GameRenderer gr) {
+		//#if MC >= 26.3
+		gr.clearSpectatedEntityPostEffect();
+		//#elif MC >= 1.21.2
+		gr.clearPostEffect();
+		//#else
+		gr.shutdownEffect();
+		//#endif
+	}
+
+	/** Czy łańcuch efektu da się wczytać (shadery skompilowane); do 1.21.1 gra wczytuje go od razu przy włączaniu. */
+	private static boolean postLoads(Minecraft c, String id) {
+		//#if MC >= 1.21.2
+		try {
+			return c.getShaderManager().getPostChain(MibId.parse(id), net.minecraft.client.renderer.LevelTargetBundle.MAIN_TARGETS) != null;
+		} catch (Exception e) {
+			return false;
 		}
+		//#else
+		return true;
+		//#endif
 	}
 
 	/** Efekt pełnoekranowy MiB do włączenia: mib_s&lt;nasycenie&gt;_b&lt;rozmycie&gt; albo null. */

@@ -78,7 +78,7 @@ public abstract class ItemEntityRendererMixin {
 	private void mib$start(ItemEntityRenderState state, PoseStack pose, MultiBufferSource buffers, int light, CallbackInfo ci) {
 		float[] info = ((MibItemState) state).mib$item();
 		Looks.item = info == null ? Looks.NO_ITEM : info;
-		beam(pose, buffers);
+		beam(pose, buffers, Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false));
 	}
 
 	@Inject(method = "render(Lnet/minecraft/client/renderer/entity/state/ItemEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
@@ -91,7 +91,7 @@ public abstract class ItemEntityRendererMixin {
 			at = @At("HEAD"))
 	private void mib$start(ItemEntity entity, float yaw, float partialTick, PoseStack pose, MultiBufferSource buffers, int light, CallbackInfo ci) {
 		Looks.item = Looks.itemInfo(entity);
-		beam(pose, buffers);
+		beam(pose, buffers, partialTick);
 	}
 
 	@Inject(method = "render(Lnet/minecraft/world/entity/item/ItemEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
@@ -102,15 +102,14 @@ public abstract class ItemEntityRendererMixin {
 	//#endif
 
 	//#if MC < 1.21.9
-	private static void beam(PoseStack pose, MultiBufferSource buffers) {
+	private static void beam(PoseStack pose, MultiBufferSource buffers, float partialTick) {
 		int beam = Looks.beamColor();
 		if (beam == 0) return;
 		Minecraft c = Minecraft.getInstance();
 		long time = c.level == null ? 0 : c.level.getGameTime();
 		pose.pushPose();
 		pose.translate(-0.5f, 0f, -0.5f);
-		BeaconRenderer.renderBeaconBeam(pose, buffers, BeaconRenderer.BEAM_LOCATION, c.getDeltaTracker().getGameTimeDeltaPartialTick(false), 1f, time, 0,
-				Looks.beamHeight(), beam, 0.04f, 0.07f);
+		BeaconRenderer.renderBeaconBeam(pose, buffers, BeaconRenderer.BEAM_LOCATION, partialTick, 1f, time, 0, Looks.beamHeight(), beam, 0.04f, 0.07f);
 		pose.popPose();
 	}
 	//#endif

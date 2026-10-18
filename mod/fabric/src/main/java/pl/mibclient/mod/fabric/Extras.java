@@ -98,7 +98,13 @@ public final class Extras {
 		if (s != uiScaleApplied) {
 			boolean first = uiScaleApplied == -2;
 			uiScaleApplied = s;
-			if (!first || s > 0) c.resizeDisplay();
+			if (!first || s > 0) {
+				//#if MC >= 26.1
+				c.resizeGui();
+				//#else
+				c.resizeDisplay();
+				//#endif
+			}
 		}
 	}
 
@@ -214,8 +220,12 @@ public final class Extras {
 	// ===== Rysowanie na HUD =====
 
 	private static double[] camera(Minecraft c) {
+		//#if MC >= 26.2
+		Camera cam = c.gameRenderer.mainCamera();
+		//#else
 		Camera cam = c.gameRenderer.getMainCamera();
-		//#if MC >= 26.1
+		//#endif
+		//#if MC >= 1.21.11
 		Vec3 p = cam.position();
 		return new double[] {p.x, p.y, p.z, cam.yRot(), cam.xRot()};
 		//#else

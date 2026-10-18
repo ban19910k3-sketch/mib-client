@@ -189,7 +189,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			// reszta listy: wygląd świata, przedmioty na ziemi, punkty, światło, emotki, animacje, efekty, klawisze, skala
 			context.runOnClient(c -> {
 				ModuleManager m = MibClient.get().modules;
-				for (String id : new String[] {"color_saturation", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "loot_beams", "light_level",
+				for (String id : new String[] {"color_saturation", "motion_blur", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "loot_beams", "light_level",
 						"waypoints", "animations", "emotes", "hitbox", "keybind_search", "custom_f3", "tooltips", "screenshot"}) {
 					if (!m.isOn(id)) m.toggle(id);
 				}
@@ -288,7 +288,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
 					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop",
 					"post_effect", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "light_level", "waypoints", "dark_mode", "anim_block", "anim_dip",
-					"emote", "keybind_search", "ui_scale"
+					"emote", "keybind_search", "ui_scale", "post_ok"
 					//#if MC < 26.3
 					, "time"
 					//#endif
