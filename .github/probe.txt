@@ -1,80 +1,79 @@
 # <wersja> class|calls|members|code|asset|find|files ...   (wynik: adnotacje przebiegu "Podgląd klas gry")
-1.21 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
-1.21.2 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
-1.21.4 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
-1.21.9 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
-26.1 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
-26.3 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
-1.21 code net.minecraft.client.renderer.LevelRenderer renderHitOutline
-1.21.2 members net.minecraft.client.renderer.fog.FogRenderer (static|boolean)
-1.21.6 members net.minecraft.client.renderer.fog.FogRenderer (static|boolean)
-26.1 members net.minecraft.client.renderer.fog.FogRenderer (static|boolean)
-26.3 members net.minecraft.client.renderer.fog.FogRenderer (static|boolean)
-1.21.2 members net.minecraft.client.renderer.FogRenderer (static|boolean)
-1.21.6 code net.minecraft.client.renderer.fog.FogRenderer setupFog
-26.1 code net.minecraft.client.renderer.fog.FogRenderer setupFog
-26.3 code net.minecraft.client.renderer.fog.FogRenderer setupFog
-1.21 members net.minecraft.client.Camera (Fluid|fluid|[yx]Rot|[Pp]osition|forward)
-1.21.6 members net.minecraft.client.Camera (Fluid|fluid|[yx]Rot|[Pp]osition|forward)
-26.1 members net.minecraft.client.Camera (Fluid|fluid|[yx]Rot|[Pp]osition|forward)
-26.3 members net.minecraft.client.Camera (Fluid|fluid|[yx]Rot|[Pp]osition|forward)
-1.21 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
-1.21.2 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
-1.21.5 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
-1.21.6 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
-1.21.11 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
-26.1 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
-26.3 files ^assets/minecraft/(post_effect|shaders/post|shaders/program)/
-1.21.2 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
-1.21.5 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
-1.21.6 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
-26.1 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
-26.3 class net.minecraft.client.renderer.PostChainConfig$InternalTarget
-1.21 members net.minecraft.client.gui.GuiGraphics (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
-1.21.2 members net.minecraft.client.gui.GuiGraphics (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
-1.21.6 members net.minecraft.client.gui.GuiGraphics (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
-1.21.9 members net.minecraft.client.gui.GuiGraphics (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
-26.1 members net.minecraft.client.gui.GuiGraphicsExtractor (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
-26.3 members net.minecraft.client.gui.GuiGraphicsExtractor (innerBlit|submitBlit|blit[(]|Tooltip|tooltip)
-1.21 members net.minecraft.client.gui.screens.inventory.AbstractContainerScreen (renderBg|renderBackground|renderLabels|extractBackground|extractLabels|leftPos|topPos|hoveredSlot)
-1.21.6 members net.minecraft.client.gui.screens.inventory.AbstractContainerScreen (renderBg|renderBackground|renderLabels|extractBackground|extractLabels|leftPos|topPos|hoveredSlot)
-26.1 members net.minecraft.client.gui.screens.inventory.AbstractContainerScreen (renderBg|renderBackground|renderLabels|extractBackground|extractLabels|leftPos|topPos|hoveredSlot)
-26.3 members net.minecraft.client.gui.screens.inventory.AbstractContainerScreen (renderBg|renderBackground|renderLabels|extractBackground|extractLabels|leftPos|topPos|hoveredSlot)
-1.21 members net.minecraft.client.renderer.entity.layers.ElytraLayer [(]
-1.21.2 members net.minecraft.client.renderer.entity.layers.WingsLayer [(]
-1.21.9 members net.minecraft.client.renderer.entity.layers.WingsLayer [(]
-26.1 members net.minecraft.client.renderer.entity.layers.WingsLayer [(]
-26.3 members net.minecraft.client.renderer.entity.layers.WingsLayer [(]
-1.21 find \.PlayerSkin$
-1.21.9 find \.PlayerSkin$
-26.3 find \.PlayerSkin$
-1.21.2 members net.minecraft.client.renderer.entity.LivingEntityRenderer extractRenderState
-1.21.9 members net.minecraft.client.renderer.entity.LivingEntityRenderer extractRenderState
-26.1 members net.minecraft.client.renderer.entity.LivingEntityRenderer extractRenderState
-26.3 members net.minecraft.client.renderer.entity.LivingEntityRenderer extractRenderState
-1.21 members net.minecraft.client.model.HumanoidModel (rightArm|leftArm|head;|body;)
-26.3 members net.minecraft.client.model.HumanoidModel (rightArm|leftArm|head;|body;)
-1.21.9 members net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer [(]
-1.21.11 members net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer [(]
-26.1 members net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer [(]
-26.3 members net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer [(]
-1.21.9 calls setRenderHitBoxes in net.minecraft.client
-26.1 calls setRenderHitBoxes in net.minecraft.client
-26.3 calls setRenderHitBoxes in net.minecraft.client
-1.21.9 calls shouldRenderHitBoxes in net.minecraft.client
-26.1 calls shouldRenderHitBoxes in net.minecraft.client
-26.3 calls shouldRenderHitBoxes in net.minecraft.client
+1.21 asset assets/minecraft/shaders/post/creeper.json
+1.21 asset assets/minecraft/shaders/program/color_convolve.json
+1.21 asset assets/minecraft/shaders/program/color_convolve.fsh
+1.21 asset assets/minecraft/shaders/program/blit.json
+1.21 asset assets/minecraft/shaders/program/blit.fsh
+1.21 asset assets/minecraft/shaders/program/blit.vsh
+1.21.2 asset assets/minecraft/post_effect/creeper.json
+1.21.2 asset assets/minecraft/shaders/post/color_convolve.json
+1.21.2 asset assets/minecraft/shaders/post/color_convolve.fsh
+1.21.2 asset assets/minecraft/shaders/post/blit.json
+1.21.2 asset assets/minecraft/shaders/post/blit.fsh
+1.21.2 asset assets/minecraft/shaders/post/blit.vsh
+1.21.5 asset assets/minecraft/post_effect/creeper.json
+1.21.6 asset assets/minecraft/post_effect/creeper.json
+1.21.5 asset assets/minecraft/post_effect/blur.json
+1.21.6 asset assets/minecraft/post_effect/blur.json
+1.21.5 asset assets/minecraft/shaders/post/color_convolve.fsh
+1.21.6 asset assets/minecraft/shaders/post/color_convolve.fsh
+1.21.5 asset assets/minecraft/shaders/post/blit.fsh
+1.21.6 asset assets/minecraft/shaders/post/blit.fsh
+1.21.5 asset assets/minecraft/shaders/post/blit.vsh
+1.21.6 asset assets/minecraft/shaders/post/blit.vsh
+26.1 asset assets/minecraft/post_effect/creeper.json
+26.3 asset assets/minecraft/post_effect/creeper.json
+26.1 asset assets/minecraft/post_effect/blur.json
+26.3 asset assets/minecraft/post_effect/blur.json
+26.1 asset assets/minecraft/shaders/post/color_convolve.fsh
+26.3 asset assets/minecraft/shaders/post/color_convolve.fsh
+26.1 asset assets/minecraft/shaders/post/blit.fsh
+26.3 asset assets/minecraft/shaders/post/blit.fsh
+26.1 files ^assets/minecraft/shaders/(core|include)/
+26.3 files ^assets/minecraft/shaders/(core|include)/
+1.21.2 find PostChainConfig
+1.21.5 find PostChainConfig
+1.21.2 class net.minecraft.client.renderer.PostChainConfig$FixedSizedTarget
+1.21.5 class net.minecraft.client.renderer.PostChainConfig$FixedSizedTarget
+1.21.2 class net.minecraft.client.renderer.PostChainConfig$ScreenRelativeTarget
+1.21.5 class net.minecraft.client.renderer.PostChainConfig$ScreenRelativeTarget
+1.21.9 code net.minecraft.client.renderer.blockentity.BeaconRenderer submit
+26.1 class net.minecraft.client.renderer.fog.FogData
+1.21.2 class net.minecraft.client.renderer.FogParameters
+1.21.5 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
+1.21.6 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
+1.21.11 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
 1.21.5 class net.minecraft.client.renderer.entity.state.HitboxRenderState
-26.3 class net.minecraft.client.renderer.entity.state.HitboxRenderState
-1.21 code net.minecraft.client.renderer.ItemInHandRenderer tick[(]
-26.2 code net.minecraft.client.renderer.ItemInHandRenderer tick[(]
-26.3 code net.minecraft.client.player.FirstPersonHandsAndItems tick[(]
-26.3 members net.minecraft.client.renderer.FirstPersonHandsAndItemsRenderer (apply|[(])
-1.21 class net.minecraft.client.gui.screens.options.controls.KeyBindsList$KeyEntry
-26.3 class net.minecraft.client.gui.screens.options.controls.KeyBindsList$KeyEntry
-1.21 members net.minecraft.client.gui.screens.options.controls.KeyBindsList [(]
-26.3 members net.minecraft.client.gui.screens.options.controls.KeyBindsList [(]
-1.21 members net.minecraft.world.food.FoodProperties (nutrition|saturation)
-26.3 members net.minecraft.world.food.FoodProperties (nutrition|saturation)
-1.21 members net.minecraft.world.item.component.ItemContainerContents copyInto
-26.3 members net.minecraft.world.item.component.ItemContainerContents copyInto
+1.21.5 calls HitboxRenderState.<init> in net.minecraft.client.renderer
+1.21.9 calls HitboxRenderState.<init> in net.minecraft.client.renderer
+1.21.9 calls HitboxesRenderState in net.minecraft.client.renderer
+1.21.11 code net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer showHitboxes
+26.3 code net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer showHitboxes
+1.21.9 calls ENTITY_HITBOXES in net.minecraft.client
+1.21.11 calls ENTITY_HITBOXES in net.minecraft.client
+26.1 calls ENTITY_HITBOXES in net.minecraft.client
+1.21.5 calls setRenderHitBoxes in net.minecraft.client
+1.21 class net.minecraft.client.resources.PlayerSkin
+1.21.9 class net.minecraft.world.entity.player.PlayerSkin
+26.3 class net.minecraft.world.entity.player.PlayerSkin
+26.1 members net.minecraft.client.gui.screens.inventory.InventoryScreen (extract|render)
+26.1 members net.minecraft.client.gui.screens.inventory.AbstractContainerScreen (extract|render)
+1.21 members net.minecraft.client.Minecraft resizeDisplay
+26.3 members net.minecraft.client.Minecraft resizeDisplay
+1.21 members net.minecraft.world.item.ItemStack (getRarity|Rarity)
+26.3 members net.minecraft.world.item.ItemStack (getRarity|Rarity)
+1.21 members net.minecraft.client.gui.screens.options.controls.KeyBindsScreen [(]
+26.3 members net.minecraft.client.gui.screens.options.controls.KeyBindsScreen [(]
+1.21 members com.mojang.blaze3d.audio.Channel source
+26.3 members com.mojang.blaze3d.audio.Channel source
+1.21.2 class net.minecraft.client.renderer.entity.state.HumanoidRenderState
+1.21.9 class net.minecraft.client.renderer.entity.state.HumanoidRenderState
+26.3 class net.minecraft.client.renderer.entity.state.HumanoidRenderState
+1.21 members net.minecraft.client.player.AbstractClientPlayer (getSkin|Skin)
+1.21.5 members net.minecraft.client.player.AbstractClientPlayer (getSkin|Skin)
+1.21.9 members net.minecraft.client.player.AbstractClientPlayer (getSkin|Skin)
+26.3 members net.minecraft.client.player.AbstractClientPlayer (getSkin|Skin)
+1.21.5 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)[(]
+1.21.9 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)[(]
+26.1 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)[(]
+26.3 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)[(]
