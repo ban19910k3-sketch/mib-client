@@ -47,7 +47,7 @@ for v in $(awk -v only="$1" '!/^#/ && NF && (only == "" || $1 == only) {print $1
       echo "=== kod $cls ~ $re" >> "$out"
       javap -c -p -cp "$jar" "$cls" 2>&1 | awk -v re="$re" '
         /^  [^ ].*\(.*\).*;$/ { on = ($0 ~ re); if (on) print; next }
-        on && /(invoke|getfield|putfield|getstatic|ldc|instanceof)/ { sub(/^ *[0-9]+: */, "    "); sub(/ +\/\/ */, " "); print }' | head -400 >> "$out"
+        on && /(invoke|getfield|putfield|getstatic|ldc|instanceof|bipush)/ { sub(/^ *[0-9]+: */, "    "); sub(/ +\/\/ */, " "); print }' | head -400 >> "$out"
     fi
   done < <(awk '!/^#/ && NF' ../.github/probe.txt)
 done

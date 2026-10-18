@@ -1,17 +1,19 @@
 # <wersja> class|calls|members|code|asset|find ...   (wynik: adnotacje przebiegu "Podgląd klas gry")
-26.2 members net.minecraft.client.renderer.ItemInHandRenderer [(]
-26.2 code net.minecraft.client.renderer.ItemInHandRenderer (Hand|Arm)[A-Za-z]*[(]
-26.3 calls FIRST_PERSON_RIGHT_HAND in net.minecraft.client
-26.3 calls DROP_ITEM in net.minecraft.client
-26.3 members net.minecraft.client.player.LocalPlayer [(]
-26.1 members net.minecraft.client.multiplayer.MultiPlayerGameMode [(]
-26.3 members net.minecraft.client.multiplayer.MultiPlayerGameMode [(]
-26.1 class net.minecraft.client.ClientClockManager
-26.1 class net.minecraft.world.clock.ClockManager
-26.1 calls clockManager in net.minecraft.client
-26.3 class net.minecraft.client.ClientClockManager
-26.3 calls clockManager in net.minecraft.client
-1.21.11 members net.minecraft.client.gui.screens.Screen (Background|background)
-26.1 members net.minecraft.client.gui.screens.Screen (Background|background)
-1.21 code net.minecraft.client.gui.components.PlayerTabOverlay renderPingIcon
-26.1 code net.minecraft.client.gui.components.PlayerTabOverlay extractPingIcon
+26.1 members net.minecraft.world.entity.player.Player (displayClientMessage|sendOverlayMessage|sendSystemMessage)
+26.2 members net.minecraft.world.entity.player.Player (displayClientMessage|sendOverlayMessage|sendSystemMessage)
+26.3 members net.minecraft.world.entity.player.Player (displayClientMessage|sendOverlayMessage|sendSystemMessage)
+1.21.11 members net.minecraft.world.entity.player.Player (displayClientMessage|sendOverlayMessage|sendSystemMessage)
+26.2 members net.minecraft.client.multiplayer.MultiPlayerGameMode (handleContainerInput|dropItem|handleInventoryMouseClick)
+26.1 class net.minecraft.world.inventory.ContainerInput
+26.3 calls FirstPersonHandsAndItemsRenderState in net.minecraft.client.renderer
+26.3 class net.minecraft.client.player.FirstPersonHandsAndItems
+26.1 class net.minecraft.client.ClientClockManager$ClientClockInstance
+26.1 calls getDefaultClockTime in net.minecraft.client
+26.1 calls getOverworldClockTime in net.minecraft.client
+26.1 calls totalTicks in net.minecraft.client
+26.1 members net.minecraft.world.entity.Entity (hasCustomName|getCustomName|isCustomNameVisible|level[(])
+1.21 members net.minecraft.world.entity.Entity (hasCustomName|getCustomName|isCustomNameVisible|level[(])
+1.21 code net.minecraft.client.gui.components.PlayerTabOverlay render[(]
+26.1 code net.minecraft.client.gui.components.PlayerTabOverlay extractRenderState[(]
+1.21 members net.minecraft.client.multiplayer.ClientLevel$ClientLevelData (DayTime|GameTime)
+1.21.11 members net.minecraft.client.multiplayer.ClientLevel$ClientLevelData (DayTime|GameTime)
