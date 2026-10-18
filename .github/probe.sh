@@ -7,6 +7,8 @@
 #   <wersja> asset <ścieżka w jarze>          — mały plik z jara jako base64 (np. kształt ikony)
 #   <wersja> find <regex>                      — klasy, których nazwa pasuje do wyrażenia (np. po przeniesieniu klasy)
 #   <wersja> files <regex>                     — pliki z jara (nie klasy), np. shadery i efekty
+#   <wersja> ffind <regex>                     — klasy Fabric API (i innych zależności), których nazwa pasuje do wyrażenia
+# class, members i code widzą też klasy Fabric API (ścieżka klas z zadania mibClasspath).
 # Wynik w probe-out.txt i w adnotacjach przebiegu.
 # Argument (opcjonalny): tylko ta wersja gry.
 cd mod
@@ -18,12 +20,13 @@ for v in $(awk -v only="$1" '!/^#/ && NF && (only == "" || $1 == only) {print $1
   for j in $(find ~/.gradle/caches .gradle */.gradle -name '*.jar' \( -path "*/$v/*" -o -path "*/$v-*" \) 2>/dev/null | grep -iE 'minecraft' | grep -vE 'sources|intermediary'); do
     if unzip -Z1 "$j" 2>/dev/null | grep -qE '^net/minecraft/(client/Minecraft|world/entity/Entity)\.class$'; then jar="$jar${jar:+:}$j"; fi
   done
+  cp=$(./gradlew -q -Pmc="$v" ":mc-$v:mibClasspath" 2>/dev/null | sed -n 's/^MIBCP=//p')
   echo "##### $v ($jar)" >> "$out"
   while read -r ver kind rest; do
     [ "$ver" = "$v" ] || continue
     if [ "$kind" = class ]; then
       echo "=== $rest" >> "$out"
-      javap -p -cp "$jar" "$rest" 2>&1 | head -80 >> "$out"
+      javap -p -cp "$jar:$cp" "$rest" 2>&1 | head -80 >> "$out"
     elif [ "$kind" = calls ]; then
       text=${rest% in *}; pkg=${rest##* in }
       echo "=== wywołania '$text' w $pkg" >> "$out"
@@ -35,10 +38,13 @@ for v in $(awk -v only="$1" '!/^#/ && NF && (only == "" || $1 == only) {print $1
     elif [ "$kind" = members ]; then
       cls=${rest%% *}; re=${rest#* }
       echo "=== $cls ~ $re" >> "$out"
-      javap -p -cp "$jar" "$cls" 2>&1 | grep -iE "$re" | head -40 >> "$out"
+      javap -p -cp "$jar:$cp" "$cls" 2>&1 | grep -iE "$re" | head -40 >> "$out"
     elif [ "$kind" = find ]; then
       echo "=== klasy ~ $rest" >> "$out"
       for j in ${jar//:/ }; do unzip -Z1 "$j"; done | grep -E '\.class$' | grep -v '\$' | sed 's/\.class$//; s#/#.#g' | grep -E "$rest" | head -60 >> "$out"
+    elif [ "$kind" = ffind ]; then
+      echo "=== klasy zależności ~ $rest" >> "$out"
+      for j in ${cp//:/ }; do case "$j" in *.jar) unzip -Z1 "$j" 2>/dev/null;; esac; done | grep -E '\.class$' | grep -v '\$' | sed 's/\.class$//; s#/#.#g' | grep -vE '^net\.minecraft\.' | grep -E "$rest" | sort -u | head -60 >> "$out"
     elif [ "$kind" = files ]; then
       echo "=== pliki ~ $rest" >> "$out"
       for j in ${jar//:/ }; do unzip -Z1 "$j"; done | grep -vE '\.class$' | grep -E "$rest" | sort -u | head -150 >> "$out"
@@ -49,7 +55,7 @@ for v in $(awk -v only="$1" '!/^#/ && NF && (only == "" || $1 == only) {print $1
     elif [ "$kind" = code ]; then
       cls=${rest%% *}; re=${rest#* }
       echo "=== kod $cls ~ $re" >> "$out"
-      javap -c -p -cp "$jar" "$cls" 2>&1 | awk -v re="$re" '
+      javap -c -p -cp "$jar:$cp" "$cls" 2>&1 | awk -v re="$re" '
         /^  [^ ].*\(.*\).*;$/ { on = ($0 ~ re); if (on) print; next }
         on && /(invoke|getfield|putfield|getstatic|ldc|instanceof|bipush)/ { sub(/^ *[0-9]+: */, "    "); sub(/ +\/\/ */, " "); print }' | head -400 >> "$out"
     fi

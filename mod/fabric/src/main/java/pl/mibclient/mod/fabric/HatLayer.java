@@ -8,7 +8,7 @@ import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.resources.MibId;
-//#if MC >= 26.1
+//#if MC >= 1.21.11
 import net.minecraft.client.model.player.PlayerModel;
 //#else
 import net.minecraft.client.model.PlayerModel;
@@ -59,9 +59,7 @@ public final class HatLayer extends RenderLayer<AbstractClientPlayer, PlayerMode
 		MibId tex = ((MibSelfState) s).mib$hat();
 		if (tex == null || s.isInvisible) return;
 		MibClient.hooks.add("hat_drawn");
-		//#if MC >= 26.1
-		out.submitModel(model, s, pose, RenderTypes.armorCutoutNoCull(tex), light, LivingEntityRenderer.getOverlayCoords(s, 0f), s.outlineColor);
-		//#elif MC >= 1.21.11
+		//#if MC >= 1.21.11
 		out.submitModel(model, s, pose, RenderTypes.armorCutoutNoCull(tex), light, LivingEntityRenderer.getOverlayCoords(s, 0f), s.outlineColor, null);
 		//#else
 		out.submitModel(model, s, pose, RenderType.armorCutoutNoCull(tex), light, LivingEntityRenderer.getOverlayCoords(s, 0f), s.outlineColor, null);

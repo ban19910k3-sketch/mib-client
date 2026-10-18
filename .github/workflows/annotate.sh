@@ -6,6 +6,8 @@ cut -c1-300 "$log" | grep -vE "^ALSA|^\s+at |Picked up JAVA_TOOL_OPTIONS|World l
   grep -E "MIB-TEST|error:|warning: \[|What went wrong|^> |Caused by|Exception|AssertionError|Mixin|FAILED|Could not|cannot find|\[ERROR\]|/ERROR\]|/WARN\]" short.txt | head -120
   echo "----- miejsca w kodzie MiB (stos) -----"
   grep -E "^\s+at .*(pl\.mibclient|mib\$)" "$log" | cut -c1-200 | awk '!seen[$0]++' | head -15
+  echo "----- skąd wyjątki (pierwsze linie stosu) -----"
+  awk '/Caused by|Exception in thread|ExceptionInInitializerError/ { n = 4; print substr($0, 1, 200); next } n > 0 && /^[ \t]+at / { print substr($0, 1, 200); n-- }' "$log" | awk '!seen[$0]++' | head -40
   echo "----- ostatnie stany wczytywania świata -----"
   grep "World loading finished" "$log" | cut -c1-300 | tail -3
   echo "----- koniec logu -----"

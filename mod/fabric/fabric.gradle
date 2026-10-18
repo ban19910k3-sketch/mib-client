@@ -54,13 +54,42 @@ if (project.hasProperty('withMods')) {
 		new groovy.json.JsonSlurper().parse(conn.inputStream)
 	}
 	def query = "loaders=%5B%22fabric%22%5D&game_versions=%5B%22$mc%22%5D"
-	def added = [] as Set
-	// jak launcher: razem z modem jego wymagane biblioteki (np. Transition dla Entity Culling), bez Fabric API (już jest)
+	def added = [] as Set, nestedIds = [] as Set
+	def nestedDir = layout.buildDirectory.dir('mib-nested').get().asFile
+	// Loom przy przemapowaniu usuwa z modów biblioteki w środku (META-INF/jars, np. Transition w Entity Culling), a gra
+	// z launchera je wczytuje — w teście dokładamy je osobno (bez modułów Fabric API i MixinExtras, które już są)
+	def addNested = { String coord ->
+		def cfg = configurations.detachedConfiguration(dependencies.create(coord))
+		cfg.transitive = false
+		cfg.files.each { jar ->
+			def zip = new java.util.zip.ZipFile(jar)
+			try {
+				zip.entries().toList().findAll { it.name.startsWith('META-INF/jars/') && it.name.endsWith('.jar') }.each { e ->
+					def out = new File(nestedDir, e.name.substring(14))
+					out.parentFile.mkdirs()
+					zip.getInputStream(e).withCloseable { st -> out.bytes = st.bytes }
+					def id = null
+					new java.util.zip.ZipFile(out).withCloseable { z ->
+						def fmj = z.getEntry('fabric.mod.json')
+						id = fmj == null ? out.name : new groovy.json.JsonSlurper().parse(z.getInputStream(fmj)).id
+					}
+					if (id.startsWith('fabric') || id == 'mixinextras' || !nestedIds.add(id)) return
+					logger.lifecycle("MiB: test z biblioteką $id z ${jar.name}")
+					dependencies { modLocalRuntime files(out) }
+				}
+			} finally {
+				zip.close()
+			}
+		}
+	}
+	// jak launcher: razem z modem jego wymagane biblioteki z Modrinth, bez Fabric API (już jest)
 	def add
 	add = { String project, version ->
 		if (version == null || !added.add(project)) return
 		logger.lifecycle("MiB: test z $project ${version.version_number}")
-		dependencies { if (unobf) runtimeOnly "maven.modrinth:$project:${version.id}" else modLocalRuntime "maven.modrinth:$project:${version.id}" }
+		def coord = "maven.modrinth:$project:${version.id}"
+		dependencies { if (unobf) runtimeOnly coord else modLocalRuntime coord }
+		if (!unobf) addNested(coord)
 		version.dependencies.findAll { it.dependency_type == 'required' && it.project_id && it.project_id != 'P7dR8mSH' }.each { d ->
 			add(d.project_id, d.version_id ? modrinth("/version/${d.version_id}") : modrinth("/project/${d.project_id}/version?$query")[0])
 		}
@@ -70,6 +99,11 @@ if (project.hasProperty('withMods')) {
 		if (list) add(list[0].project_id, list[0])
 		else logger.lifecycle("MiB: $slug nie ma wersji dla $mc")
 	}
+}
+
+// Podgląd klas (.github/probe.sh): ścieżka klas do kompilacji, razem z Fabric API po nazwach Mojanga
+tasks.register('mibClasspath') {
+	doLast { println 'MIBCP=' + sourceSets.main.compileClasspath.asPath }
 }
 
 // Starsze wersje bez testu klienta: -Psmoke uruchamia grę, mod sam otwiera menu i edytor HUD, wypisuje [MIB-SMOKE] i zamyka grę
