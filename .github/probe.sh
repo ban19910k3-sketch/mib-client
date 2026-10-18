@@ -4,6 +4,7 @@
 #   <wersja> calls <tekst> in <pakiet>         — metody z pakietu (z podpakietami), które w kodzie mają <tekst>
 #   <wersja> members <klasa> <regex>           — tylko pola i metody pasujące do wyrażenia
 #   <wersja> code <klasa> <regex>              — wywołania, pola i stałe w metodach pasujących do wyrażenia
+#   <wersja> asset <ścieżka w jarze>          — mały plik z jara jako base64 (np. kształt ikony)
 # Wynik w probe-out.txt i w adnotacjach przebiegu.
 # Argument (opcjonalny): tylko ta wersja gry.
 cd mod
@@ -33,6 +34,10 @@ for v in $(awk -v only="$1" '!/^#/ && NF && (only == "" || $1 == only) {print $1
       cls=${rest%% *}; re=${rest#* }
       echo "=== $cls ~ $re" >> "$out"
       javap -p -cp "$jar" "$cls" 2>&1 | grep -iE "$re" | head -40 >> "$out"
+    elif [ "$kind" = asset ]; then
+      echo "=== plik $rest" >> "$out"
+      for j in ${jar//:/ }; do unzip -p "$j" "$rest" 2>/dev/null | base64 -w0 && break; done >> "$out"
+      echo >> "$out"
     elif [ "$kind" = code ]; then
       cls=${rest%% *}; re=${rest#* }
       echo "=== kod $cls ~ $re" >> "$out"
