@@ -283,3 +283,11 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .frow.st-game .dot{background:#4ade80;box-shadow:0 0 8px rgba(74,222,128,.6)}.frow.st-launcher .dot{background:var(--am)}
 .frow.st-game .fi span{color:#86efac}
 #fr-who{max-width:320px}
+
+/* ===== Skin ===== */
+.skinbox{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.skin3d{width:200px;height:260px;flex:none;background:var(--slab);border:2px solid var(--edge);clip-path:var(--px)}
+.skinside{flex:1;min-width:260px;display:flex;flex-direction:column;gap:10px}
+.skhist .row{gap:6px;flex-wrap:wrap;margin-top:6px}
+.skh{padding:3px;background:var(--slab2);border:2px solid var(--edge2);clip-path:var(--px);cursor:pointer;line-height:0}.skh:hover{border-color:var(--am)}
+.skface{width:32px;height:32px;image-rendering:pixelated}

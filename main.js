@@ -12,6 +12,7 @@ const { pngInfo, validCapeSize } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
 const { createMibPresence } = require('./lib/presence');
+const skinApi = require('./lib/skin');
 let win, auth = null, launching = false;
 const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
@@ -248,6 +249,60 @@ ipcMain.handle('skin', async (_, name) => {
     return r.ok ? 'data:image/png;base64,' + Buffer.from(await r.arrayBuffer()).toString('base64') : null;
   } catch { return null; }
 });
+
+// ===== Skin konta Minecraft (Kosmetyki) =====
+// Token Minecrafta idzie tylko do Mojanga; ostatnio ustawione skiny zostają na tym komputerze (najwyżej 10)
+const skinDir = () => path.join(app.getPath('userData'), 'skins');
+const skinList = () => { try { return JSON.parse(fs.readFileSync(path.join(skinDir(), 'skins.json'), 'utf8')); } catch { return []; } };
+async function mcToken() {
+  if (!auth) throw Object.assign(new Error('skin_no_account'), { code: 'skin_no_account' });
+  if (!auth.validate()) { try { auth = await auth.refresh(); } catch {} } // wygasły token: nowy z zapisanej sesji
+  return auth.mclc().access_token;
+}
+const skinErr = e => ({ error: e.code || 'skin_failed' });
+const toDataUrl = buf => 'data:image/png;base64,' + buf.toString('base64');
+function skinFromBuffer(buf) {
+  const bad = skinApi.checkSkin(buf);
+  if (bad) return { error: bad };
+  const img = nativeImage.createFromBuffer(buf), size = img.getSize();
+  return { dataUrl: toDataUrl(buf), variant: skinApi.guessVariant(img.toBitmap(), size.width, size.height) };
+}
+ipcMain.handle('skin:current', async () => {
+  try {
+    const cur = await skinApi.currentSkin({ fetch, token: await mcToken() });
+    if (cur && auth.profile) auth.profile.skins = cur.skins;
+    if (!cur) return { variant: 'classic', dataUrl: null };
+    const r = await fetch(cur.url, { signal: AbortSignal.timeout(15000) });
+    return { variant: cur.variant, dataUrl: r.ok ? toDataUrl(Buffer.from(await r.arrayBuffer())) : null };
+  } catch (e) { return skinErr(e); }
+});
+ipcMain.handle('skin:pick', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'PNG', extensions: ['png'] }] });
+  if (r.canceled) return null;
+  try { if (fs.statSync(r.filePaths[0]).size > skinApi.MAX_BYTES) return { error: 'skin_too_big' }; return skinFromBuffer(fs.readFileSync(r.filePaths[0])); }
+  catch { return { error: 'skin_not_png' }; }
+});
+ipcMain.handle('skin:set', async (_, { dataUrl, variant }) => {
+  try {
+    const png = Buffer.from(String(dataUrl || '').replace(/^data:image\/png;base64,/, ''), 'base64');
+    const prof = await skinApi.uploadSkin({ fetch, token: await mcToken(), png, variant });
+    if (prof && prof.skins && auth.profile) auth.profile.skins = prof.skins;
+    // historia: ten sam plik nie powtarza się na liście
+    const id = crypto.createHash('sha1').update(png).digest('hex').slice(0, 16);
+    fs.mkdirSync(skinDir(), { recursive: true });
+    fs.writeFileSync(path.join(skinDir(), id + '.png'), png);
+    const list = [{ id, variant: variant === 'slim' ? 'slim' : 'classic', at: Date.now() }, ...skinList().filter(x => x.id !== id)];
+    for (const old of list.slice(10)) { try { fs.unlinkSync(path.join(skinDir(), old.id + '.png')); } catch {} }
+    fs.writeFileSync(path.join(skinDir(), 'skins.json'), JSON.stringify(list.slice(0, 10)));
+    return { ok: true };
+  } catch (e) { return skinErr(e); }
+});
+ipcMain.handle('skin:reset', async () => {
+  try { await skinApi.resetSkin({ fetch, token: await mcToken() }); if (auth.profile) auth.profile.skins = []; return { ok: true }; } catch (e) { return skinErr(e); }
+});
+ipcMain.handle('skin:history', () => skinList().map(x => {
+  try { return { ...x, dataUrl: toDataUrl(fs.readFileSync(path.join(skinDir(), path.basename(x.id) + '.png'))) }; } catch { return null; }
+}).filter(Boolean));
 
 // Java pobierana automatycznie (jednorazowo), żeby gra uruchamiała się bez ręcznej instalacji
 async function javaMajor(version) {

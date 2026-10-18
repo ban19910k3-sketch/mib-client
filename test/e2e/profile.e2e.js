@@ -7,6 +7,15 @@ const assert = require('node:assert/strict');
 
 const ROOT = path.join(__dirname, '..', '..'), OUT = process.argv[2] || fs.mkdtempSync(path.join(os.tmpdir(), 'mib-shots-'));
 const ok = m => console.log('PASS', m);
+// Skin 64×64 (fioletowy) jako PNG do atrapy Mojanga
+function pngSkin() {
+  const zlib = require('zlib'), w = 64, h = 64, raw = Buffer.alloc((w * 4 + 1) * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw.set([124 + (x % 8) * 8, 58, 237, 255], y * (w * 4 + 1) + 1 + x * 4);
+  const crc = b => { let c = ~0; for (const v of b) { c ^= v; for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1; } return ~c >>> 0; };
+  const chunk = (t, d) => { const l = Buffer.alloc(4), c = Buffer.alloc(4), td = Buffer.concat([Buffer.from(t), d]); l.writeUInt32BE(d.length); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 6;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
 
 (async () => {
   const fake = createFake();
@@ -114,6 +123,29 @@ const ok = m => console.log('PASS', m);
     await w.waitForTimeout(400);
     await shot('ideas.png');
     ok('(n) gracz wysyła pomysł i widzi go na liście');
+
+    // Skin: odpowiedzi Mojanga z atrapy w procesie głównym (zalogowane konto Microsoft)
+    const skinPng = 'data:image/png;base64,' + pngSkin().toString('base64');
+    await app.evaluate(({ ipcMain }, png) => {
+      global.skinCalls = [];
+      for (const ch of ['skin:current', 'skin:pick', 'skin:set', 'skin:history']) ipcMain.removeHandler(ch);
+      ipcMain.handle('skin:current', () => ({ variant: 'classic', dataUrl: png }));
+      ipcMain.handle('skin:pick', () => ({ dataUrl: png, variant: 'slim' }));
+      ipcMain.handle('skin:set', (_, a) => { global.skinCalls.push(a.variant); return { ok: true }; });
+      ipcMain.handle('skin:history', () => [{ id: 'a1', variant: 'classic', dataUrl: png }]);
+    }, skinPng);
+    await w.click('.nav[data-p="cos"]');
+    await w.waitForSelector('#skin-pick');
+    assert.equal(await w.isDisabled('#skin-set'), true, 'bez wybranego pliku nie da się ustawić');
+    await w.click('#skin-pick');
+    await w.waitForFunction(() => document.getElementById('skin-var').value === 'slim' && !document.getElementById('skin-set').disabled);
+    await w.click('#skin-set');
+    await w.waitForFunction(() => document.getElementById('skin-set').disabled);
+    assert.deepEqual(await app.evaluate(() => global.skinCalls), ['slim']);
+    await w.waitForSelector('#skin-hist .skh');
+    await w.waitForTimeout(500);
+    await shot('skin.png');
+    ok('(s) skin: wybór pliku, model postaci i ustawienie przez Mojanga');
 
     // Znajomi: zaproszenie po nicku, zaproszenie od kogoś innego, znajomy w grze z serwerem
     const now = new Date().toISOString();

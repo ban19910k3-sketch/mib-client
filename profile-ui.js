@@ -37,6 +37,13 @@
     friend_exists: 'Ten gracz jest już Twoim znajomym albo czeka na zaproszenie.',
     friend_limit: 'Za dużo zaproszeń. Spróbuj jutro.',
     friend_missing: 'To zaproszenie jest już nieaktualne.',
+    skin_no_account: 'Zaloguj się kontem Microsoft (przycisk u góry), żeby zmienić skina.',
+    skin_not_png: 'To nie jest plik PNG.',
+    skin_size: 'Skin musi mieć 64×64 piksele (albo stary format 64×32).',
+    skin_too_big: 'Plik jest za duży jak na skina.',
+    skin_auth: 'Sesja Microsoft wygasła. Zaloguj się ponownie kontem Microsoft.',
+    skin_rate: 'Mojang pozwala zmienić skina tylko kilka razy na minutę. Spróbuj za chwilę.',
+    skin_failed: 'Mojang nie przyjął skina. Spróbuj ponownie później.',
   };
   // Przy nieznanym błędzie pokazujemy też komunikat serwera, żeby dało się go przekazać
   const msg = (code, detail) => (ERR[code] ? tr(ERR[code]) : tr('Coś poszło nie tak. Spróbuj ponownie.') + ' (' + code + (detail && detail !== code ? ': ' + detail : '') + ')');
@@ -228,11 +235,74 @@
   // Miniatura peleryny: zewnętrzna strona z tekstury Minecrafta (pole 10×16 od piksela 1,1), powiększona k razy
   const capeThumb = (url, k) => h('span', { class: 'capeth', style: `width:${10 * k}px;height:${16 * k}px;background-image:url("${url}");background-size:${64 * k}px ${32 * k}px;background-position:-${k}px -${k}px` });
   const itemImage = (c, k) => (c.imageUrl && c.type === 'cape' && c.imageUrl.startsWith('data:image/png') ? capeThumb(c.imageUrl, k) : c.imageUrl ? h('img', { src: c.imageUrl, alt: '' }) : GLYPH[c.type] || '◆');
+  // ===== Skin konta Minecraft (na górze strony Kosmetyki; wystarczy konto Microsoft) =====
+  let skinViewer = null;
+  const skinCanvas = h('canvas', { width: 200, height: 260, class: 'skin3d', id: 'skin3d' });
+  // Twarz ze skina (z nakładką) do listy ostatnio używanych
+  function face(dataUrl) {
+    const c = h('canvas', { width: 32, height: 32, class: 'skface' }), x = c.getContext('2d'), img = new Image();
+    x.imageSmoothingEnabled = false;
+    img.onload = () => { x.drawImage(img, 8, 8, 8, 8, 0, 0, 32, 32); x.drawImage(img, 40, 8, 8, 8, 0, 0, 32, 32); };
+    img.src = dataUrl;
+    return c;
+  }
+  async function skinSection() {
+    const err = errBox(), sec = h('div', { class: 'sec skinsec' }, h('h3', {}, T('Skin')));
+    const cur = await mib.call('skin:current');
+    if (cur.error === 'skin_no_account') { sec.append(h('p', { class: 'mut' }, msg('skin_no_account'))); return sec; }
+    try { if (!skinViewer) { skinViewer = new skinview3d.SkinViewer({ canvas: skinCanvas, width: 200, height: 260 }); skinViewer.autoRotate = true; skinViewer.autoRotateSpeed = 0.7; skinViewer.controls.enableZoom = false; } } catch {}
+    let picked = null;
+    const variant = h('select', { id: 'skin-var' }, h('option', { value: 'classic' }, T('Klasyczny (szersze ręce)')), h('option', { value: 'slim' }, T('Smukły (węższe ręce)')));
+    variant.value = cur.variant || 'classic';
+    const show = async (dataUrl, model) => { try { if (skinViewer) await skinViewer.loadSkin(dataUrl || await mib.call('skin', 'MHF_Steve'), { model: model === 'slim' ? 'slim' : 'default' }); } catch {} };
+    const setBtn = h('button', { class: 'b', id: 'skin-set', type: 'button', disabled: true }, T('Ustaw skina'));
+    const hist = h('div', { class: 'skhist', id: 'skin-hist' });
+    variant.onchange = () => show(picked || cur.dataUrl, variant.value);
+    const pick = h('button', { class: 'b ghost', id: 'skin-pick', type: 'button', on: { click: async () => {
+      const r = await mib.call('skin:pick');
+      if (!r) return;
+      if (r.error) { err.textContent = msg(r.error); return; }
+      err.textContent = ''; picked = r.dataUrl; variant.value = r.variant; setBtn.disabled = false;
+      show(picked, variant.value);
+    } } }, T('Wybierz plik PNG…'));
+    async function apply(dataUrl, model) {
+      setBtn.disabled = true; err.textContent = '';
+      const r = await mib.call('skin:set', { dataUrl, variant: model });
+      if (r.error) { err.textContent = msg(r.error); setBtn.disabled = !picked; return; }
+      toast(T('Skin zmieniony. W grze zobaczysz go po ponownym wejściu na świat lub serwer.'));
+      picked = null; cur.dataUrl = dataUrl; cur.variant = model;
+      if (typeof loadSkin === 'function' && logged) loadSkin($('nick').textContent);
+      loadHist();
+    }
+    setBtn.onclick = () => picked && apply(picked, variant.value);
+    const reset = h('button', { class: 'b ghost', type: 'button', on: { click: async () => {
+      if (!confirm(T('Wrócić do domyślnego skina Minecrafta?'))) return;
+      const r = await mib.call('skin:reset');
+      if (r.error) { err.textContent = msg(r.error); return; }
+      toast(T('Przywrócono domyślny skin.')); picked = null; cur.dataUrl = null; setBtn.disabled = true; show(null, 'classic');
+      if (typeof loadSkin === 'function' && logged) loadSkin($('nick').textContent);
+    } } }, T('Przywróć domyślny'));
+    async function loadHist() {
+      const l = await mib.call('skin:history');
+      hist.replaceChildren(...(Array.isArray(l) && l.length ? [h('small', { class: 'mut' }, T('Ostatnio używane')), h('div', { class: 'row' },
+        ...l.map(x => h('button', { class: 'skh', type: 'button', title: T('Ustaw ten skin'), on: { click: () => { variant.value = x.variant; show(x.dataUrl, x.variant); apply(x.dataUrl, x.variant); } } }, face(x.dataUrl))))] : []));
+    }
+    if (cur.error) err.textContent = msg(cur.error);
+    show(cur.dataUrl, variant.value);
+    loadHist();
+    sec.append(h('div', { class: 'skinbox' }, skinCanvas, h('div', { class: 'skinside' },
+      h('p', { class: 'mut' }, T('Skin Twojego konta Minecraft. Widzą go wszyscy gracze, na każdym serwerze.')),
+      h('label', { class: 'sr' }, h('span', {}, T('Model postaci')), variant),
+      h('div', { class: 'row' }, pick, setBtn, reset), err, hist)));
+    return sec;
+  }
+
   async function renderCos() {
     const box = $('cos-box');
     if (st.loading) return box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'mut' }, T('Wczytywanie…')));
+    const skin = await skinSection();
     if (!st.loggedIn) {
-      box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('div', { class: 'empty-state' },
+      box.replaceChildren(h('h2', {}, T('Kosmetyki')), skin, h('div', { class: 'empty-state' },
         h('p', {}, st.offline ? T('Brak połączenia z serwerem MiB. Kosmetyki pokażą się, gdy połączenie wróci.') : T('Peleryny i inne przedmioty zapisują się na profilu MiB. Załóż profil, żeby je zbierać.')),
         st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))));
       return;
@@ -255,14 +325,14 @@
       ? h('div', { class: 'cos-grid' }, ...list.map(c => h('div', { class: 'cosi' + (c.equipped ? ' on' : '') },
         h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)),
         h('b', {}, c.name), h('small', { class: 'mut' }, c.equipped ? '✓ ' + T('Założona — widać ją w grze') : T('Odebrano') + ' ' + fmtDate(c.acquiredAt)),
-        c.type === 'cape' ? h('button', { class: c.equipped ? 'b ghost' : 'b', type: 'button', on: { click: async e => {
+        h('button', { class: c.equipped ? 'b ghost' : 'b', type: 'button', on: { click: async e => {
           e.currentTarget.disabled = true;
           const r = await mib.call('prof:equip', { type: c.type, id: c.equipped ? null : c.id });
           if (r.error) toast(msg(r.error), 1);
           renderCos();
-        } } }, T(c.equipped ? 'Zdejmij' : 'Załóż')) : null)))
+        } } }, T(c.equipped ? 'Zdejmij' : 'Załóż')))))
       : h('p', { class: 'empty' }, Array.isArray(list) ? T('Nie masz jeszcze żadnych przedmiotów. Masz kod z konkursu? Wpisz go wyżej.') : msg(list.error));
-    box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err, grid);
+    box.replaceChildren(h('h2', {}, T('Kosmetyki')), skin, h('div', { class: 'sec' }, h('h3', {}, T('Przedmioty MiB')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err, grid));
   }
 
   // ===== Strona Pomysły =====
