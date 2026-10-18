@@ -7,7 +7,7 @@ cut -c1-300 "$log" | grep -vE "^ALSA|^\s+at |Picked up JAVA_TOOL_OPTIONS|World l
   echo "----- miejsca w kodzie MiB (stos) -----"
   grep -E "^\s+at .*(pl\.mibclient|mib\$)" "$log" | cut -c1-200 | awk '!seen[$0]++' | head -15
   echo "----- skąd wyjątki (pierwsze linie stosu) -----"
-  awk '/Caused by|Exception in thread|ExceptionInInitializerError/ { n = 10; print substr($0, 1, 200); next } n > 0 && /^[ \t]+at / { print substr($0, 1, 200); n-- }' "$log" | awk '!seen[$0]++' | head -70
+  awk '/Caused by|Exception in thread|ExceptionInInitializerError|^[a-z.]+(Exception|Error): / { n = 25; print substr($0, 1, 200); next } n > 0 && /^[ \t]+at / { print substr($0, 1, 200); n-- }' "$log" | awk '!seen[$0]++' | head -120
   echo "----- ostatnie stany wczytywania świata -----"
   grep "World loading finished" "$log" | cut -c1-300 | tail -3
   echo "----- koniec logu -----"
