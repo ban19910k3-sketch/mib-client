@@ -424,8 +424,9 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			if (c.player.isSprinting()) hooks.add("auto_sprint");
 			autoSprint = true;
 		} else if (autoSprint) {
+			// po wyłączeniu bieg stop; przy przełączanym biegu „wciśnięcie” przełącza go z powrotem na wyłączony
 			autoSprint = false;
-			if (!c.options.toggleSprint().get()) c.options.keySprint.setDown(false);
+			if (c.options.keySprint.isDown()) c.options.keySprint.setDown(c.options.toggleSprint().get());
 		}
 	}
 
