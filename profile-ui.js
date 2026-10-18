@@ -297,11 +297,26 @@
     return sec;
   }
 
+  // Na podglądzie skina to, co gracz ma założone: peleryna, a bez niej skrzydła MiB (rysowane jak elytra, tak jak w grze).
+  // data-back na płótnie mówi, co widać (cape, elytra albo pusto).
+  async function backPreview(list) {
+    if (!skinViewer) return;
+    const on = t => list.find(c => c.equipped && c.type === t && c.texture);
+    const cape = on('cape'), wings = on('wings');
+    try {
+      if (cape) await skinViewer.loadCape(cape.texture, { backEquipment: 'cape' });
+      else if (wings) await skinViewer.loadCape(wings.texture, { backEquipment: 'elytra' });
+      else skinViewer.resetCape();
+      skinCanvas.dataset.back = cape ? 'cape' : wings ? 'elytra' : '';
+    } catch {}
+  }
+
   async function renderCos() {
     const box = $('cos-box');
     if (st.loading) return box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'mut' }, T('Wczytywanie…')));
     const skin = await skinSection();
     if (!st.loggedIn) {
+      backPreview([]);
       box.replaceChildren(h('h2', {}, T('Kosmetyki')), skin, h('div', { class: 'empty-state' },
         h('p', {}, st.offline ? T('Brak połączenia z serwerem MiB. Kosmetyki pokażą się, gdy połączenie wróci.') : T('Peleryny i inne przedmioty zapisują się na profilu MiB. Załóż profil, żeby je zbierać.')),
         st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))));
@@ -321,6 +336,7 @@
       renderCos();
     } } }, inp, btn);
     const list = await mib.call('prof:cosmetics');
+    backPreview(Array.isArray(list) ? list : []);
     const grid = Array.isArray(list) && list.length
       ? h('div', { class: 'cos-grid' }, ...list.map(c => h('div', { class: 'cosi' + (c.equipped ? ' on' : '') },
         h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)),

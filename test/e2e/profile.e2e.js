@@ -8,9 +8,11 @@ const assert = require('node:assert/strict');
 const ROOT = path.join(__dirname, '..', '..'), OUT = process.argv[2] || fs.mkdtempSync(path.join(os.tmpdir(), 'mib-shots-'));
 const ok = m => console.log('PASS', m);
 // Skin 64×64 (fioletowy) jako PNG do atrapy Mojanga
-function pngSkin() {
-  const zlib = require('zlib'), w = 64, h = 64, raw = Buffer.alloc((w * 4 + 1) * h);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw.set([124 + (x % 8) * 8, 58, 237, 255], y * (w * 4 + 1) + 1 + x * 4);
+const pngSkin = () => png(64, 64, x => [124 + (x % 8) * 8, 58, 237, 255]);
+// PNG w×h, kolor piksela z px(x, y) jako [r, g, b, a]
+function png(w, h, px) {
+  const zlib = require('zlib'), raw = Buffer.alloc((w * 4 + 1) * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw.set(px(x, y), y * (w * 4 + 1) + 1 + x * 4);
   const crc = b => { let c = ~0; for (const v of b) { c ^= v; for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1; } return ~c >>> 0; };
   const chunk = (t, d) => { const l = Buffer.alloc(4), c = Buffer.alloc(4), td = Buffer.concat([Buffer.from(t), d]); l.writeUInt32BE(d.length); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 6;
@@ -146,6 +148,16 @@ function pngSkin() {
     await w.waitForTimeout(500);
     await shot('skin.png');
     ok('(s) skin: wybór pliku, model postaci i ustawienie przez Mojanga');
+
+    // Założona peleryna widać na podglądzie skina
+    fake.cosmetics.cape_start.texture = 'data:image/png;base64,' + png(64, 32, (x, y) => (x < 22 && y < 17 ? [255, 210, 74, 255] : [0, 0, 0, 0])).toString('base64');
+    await w.click('.cosi .b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.back === 'cape');
+    await w.waitForTimeout(1500);
+    await shot('skin-cape.png');
+    await w.click('.cosi .b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.back === '');
+    ok('(t) założona peleryna na podglądzie skina, po zdjęciu znika');
 
     // Znajomi: zaproszenie po nicku, zaproszenie od kogoś innego, znajomy w grze z serwerem
     const now = new Date().toISOString();

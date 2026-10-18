@@ -177,7 +177,7 @@ function createFake() {
       return json(res, 404, { message: 'not found ' + p });
     });
   });
-  return { server, st };
+  return { server, st, cosmetics };
 }
 
 if (require.main === module) {
