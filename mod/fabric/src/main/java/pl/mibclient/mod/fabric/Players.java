@@ -14,6 +14,7 @@ import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.MibId;
+import pl.mibclient.mod.core.Lang;
 import pl.mibclient.mod.core.MibPlayers;
 //#if MC >= 1.21.9
 import net.minecraft.network.chat.FontDescription;
@@ -51,10 +52,6 @@ public final class Players {
 		return Component.literal("").withStyle(s);
 	}
 
-	private boolean on() {
-		return mib.modules.isOn("mib_badge");
-	}
-
 	public static UUID id(GameProfile p) {
 		//#if MC >= 1.21.9
 		return p.id();
@@ -72,7 +69,7 @@ public final class Players {
 	}
 
 	void tick(Minecraft c) {
-		if (mib.bridge == null || !on() || c.getConnection() == null) {
+		if (mib.bridge == null || c.getConnection() == null) {
 			list = MibPlayers.NONE;
 			return;
 		}
@@ -101,22 +98,25 @@ public final class Players {
 
 	/** Czy ten gracz gra w MiB (własna postać zawsze). */
 	boolean isMib(UUID id, String name) {
-		if (!on()) return false;
 		Minecraft c = Minecraft.getInstance();
 		if (c.player != null && c.player.getUUID().equals(id)) return true;
 		return list.find(id, name) != null;
 	}
 
-	/** Nick z logo MiB przed nim albo bez zmian. */
+	/** Nick z logo MiB przed nim albo bez zmian; Nick hider zamienia własny nick na „Ty”. */
 	public Component decorate(UUID id, String name, Component original) {
 		if (original == null || id == null || !isMib(id, name)) return original;
 		MibClient.hooks.add("badge");
+		Minecraft c = Minecraft.getInstance();
+		if (c.player != null && c.player.getUUID().equals(id) && mib.modules.isOn("nick_hider")) {
+			original = Component.literal(Lang.pl() ? "Ty" : "You");
+		}
 		return Component.empty().append(BADGE).append(" ").append(original);
 	}
 
 	/** Peleryna innego gracza MiB (tekstura z pliku od launchera) albo null. */
 	MibId capeOf(UUID id, String name) {
-		if (!on() || mib.bridge == null || !mib.boolOpt("mib_badge", "capes")) return null;
+		if (mib.bridge == null) return null;
 		MibPlayers.Entry e = list.find(id, name);
 		if (e == null || e.cape == null) return null;
 		if (capes.containsKey(e.cape)) return capes.get(e.cape);

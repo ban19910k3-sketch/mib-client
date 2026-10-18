@@ -59,8 +59,6 @@ public final class Lang {
 		put("sprint.sprint", "Bieg (przełączony)", "Sprinting (toggled)");
 		put("sprint.sneak", "Skradanie (przełączone)", "Sneaking (toggled)");
 		put("sprint.running", "Bieg", "Sprinting");
-		put("hud.saturation", "Nasycenie: %s", "Saturation: %s");
-		put("hud.food", "Głód: %d/20", "Food: %d/20");
 		put("hud.reach", "Zasięg: %s", "Reach: %s");
 		put("hud.stopwatch", "Stoper: %s", "Stopwatch: %s");
 		put("hud.totems", "Totemy: %d", "Totems: %d");
@@ -72,21 +70,41 @@ public final class Lang {
 		put("jump.early", "Jump reset: za wcześnie (%d t)", "Jump reset: too early (%d t)");
 		put("jump.none", "Jump reset: bez skoku", "Jump reset: no jump");
 		put("key.stopwatch", "Stoper", "Stopwatch");
+		put("hud.death", "Śmierć: %s", "Death: %s");
+		put("hud.horse_speed", "Prędkość: %s m/s", "Speed: %s m/s");
+		put("hud.horse_jump", "Skok: %s bl.", "Jump: %s blocks");
+		put("hud.horse_health", "Zdrowie: %s/%s", "Health: %s/%s");
+		put("reconnect", "Połącz ponownie", "Reconnect");
+		put("item.durability", "Wytrzymałość: %d / %d", "Durability: %d / %d");
+		put("reconnect.in", "Połącz ponownie (%d)", "Reconnect (%d)");
+
 	}
+
+	/** Język wybrany w menu: "pl", "en" albo null (jak język gry). */
+	private static volatile String chosen;
 
 	/** Kod języka gry, np. "pl_pl" albo "en_us". */
 	public static void setGame(String code) {
 		pl = code != null && code.toLowerCase(Locale.ROOT).startsWith("pl");
 	}
 
+	/** Język menu i HUD: "pl", "en" albo "auto" (jak gra). */
+	public static void choose(String code) {
+		chosen = "pl".equals(code) || "en".equals(code) ? code : null;
+	}
+
+	public static String chosen() {
+		return chosen == null ? "auto" : chosen;
+	}
+
 	public static boolean pl() {
-		return pl;
+		return chosen != null ? "pl".equals(chosen) : pl;
 	}
 
 	public static String t(String key, Object... args) {
 		String[] v = T.get(key);
 		if (v == null) return key;
-		String s = pl ? v[0] : v[1];
+		String s = pl() ? v[0] : v[1];
 		return args.length == 0 ? s : String.format(Locale.ROOT, s, args);
 	}
 }

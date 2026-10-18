@@ -10,7 +10,7 @@ import pl.mibclient.mod.core.Setting.ChoiceSetting;
 import pl.mibclient.mod.core.Setting.ColorSetting;
 import pl.mibclient.mod.core.Setting.IntSetting;
 
-/** Moduły etapów 1 i 2 (spec: docs/superpowers/specs/2026-10-16-mib-mod-design.md) i logo MiB przy nicku. */
+/** Moduły z listy 87 (spec: docs/superpowers/specs/2026-10-16-mib-mod-design.md). */
 public final class ModuleCatalog {
 	private ModuleCatalog() {
 	}
@@ -127,9 +127,9 @@ public final class ModuleCatalog {
 			"heart", false, at(Anchor.BOTTOM, -128, 22), hudColor(0xFFFF5555,
 				bool("absorption", "Pokaż absorpcję (złote serca)", "Show absorption (golden hearts)", true),
 				bool("max", "Pokaż maksimum", "Show maximum", false))),
-		new ModuleDef("saturation", "Saturation", Category.HUD, "Nasycenie i głód liczbami", "Saturation and hunger as numbers",
-			"apple", false, at(Anchor.BOTTOM, 128, 22), hudColor(0xFFFFC857,
-				bool("food", "Pokaż głód", "Show hunger", true))),
+		new ModuleDef("saturation", "Saturation", Category.HUD, "Nasycenie na ikonach jedzenia nad paskiem przedmiotów: lekko pomarańczowe, maleje razem z nasyceniem",
+			"Saturation on the hunger icons above the hotbar: light orange, shrinks as saturation drops", "apple", false, null, list(
+				new ColorSetting("color", "Kolor", "Colour", 0xFFFFB24D))),
 		new ModuleDef("item_counter", "Item counter", Category.HUD, "Liczba strzał, pereł, złotych jabłek i innych przedmiotów w ekwipunku",
 			"How many arrows, pearls, golden apples and more you carry", "backpack", false, at(Anchor.LEFT, 4, 0), hud(
 				bool("arrows", "Strzały", "Arrows", true),
@@ -189,10 +189,67 @@ public final class ModuleCatalog {
 			"Your totems and totems used up by opponents", "trophy", false, at(Anchor.TOP_RIGHT, 4, 114), hud(
 				bool("pops", "Totemy przeciwników", "Opponents' totems", true))),
 
-		// ===== Gracze MiB =====
-		new ModuleDef("mib_badge", "MiB players", Category.OTHER, "Logo MiB przed nickiem graczy MiB (nad głową i w Tab) i ich peleryny",
-			"MiB logo before the names of MiB players (above heads and in Tab) and their capes", "user", true, null, list(
-				bool("capes", "Peleryny innych graczy MiB", "Other MiB players' capes", true)))));
+		// ===== Etap 3: wygląd i kamera =====
+		new ModuleDef("boss_bar", "Boss bar", Category.HUD, "Ukrycie, rozmiar i położenie paska bossa", "Hide, resize or move the boss bar",
+			"crown", false, null, list(
+				bool("hide", "Ukryj pasek bossa", "Hide the boss bar", true),
+				new IntSetting("scale", "Rozmiar (%)", "Size (%)", 100, 50, 150, 10),
+				new IntSetting("offset_y", "Przesunięcie w dół", "Move down", 0, 0, 100, 5))),
+		new ModuleDef("scoreboard", "Scoreboard", Category.HUD, "Ukrycie, rozmiar i położenie tabeli wyników z boku ekranu",
+			"Hide, resize or move the scoreboard on the side of the screen", "bulletlist", false, null, list(
+				bool("hide", "Ukryj tabelę wyników", "Hide the scoreboard", true),
+				new IntSetting("scale", "Rozmiar (%)", "Size (%)", 100, 50, 150, 10),
+				new IntSetting("offset_y", "Przesunięcie w pionie", "Move vertically", 0, -100, 100, 5))),
+		new ModuleDef("toast_control", "Toast control", Category.HUD, "Wyłącza wyskakujące powiadomienia (przepisy, osiągnięcia)",
+			"Turns off pop-up notifications (recipes, advancements)", "bell-off", false, null, list(
+				bool("recipes", "Ukryj nowe przepisy", "Hide new recipes", true),
+				bool("advancements", "Ukryj osiągnięcia", "Hide advancements", false),
+				bool("tutorial", "Ukryj podpowiedzi samouczka", "Hide tutorial hints", true),
+				bool("system", "Ukryj komunikaty systemowe", "Hide system messages", false))),
+		new ModuleDef("camera", "Camera", Category.LOOK, "Bez bujania kamery przy chodzeniu i własna odległość kamery w trzeciej osobie",
+			"No view bobbing and your own third-person camera distance", "camera", false, null, list(
+				bool("no_bob", "Bez bujania kamery", "No view bobbing", true),
+				new IntSetting("distance", "Odległość w trzeciej osobie", "Third-person distance", 4, 1, 16, 1))),
+		new ModuleDef("nametags", "Nametags", Category.LOOK, "Własny nick nad głową w trzeciej osobie, tak jak widzą go inni (z logo MiB)",
+			"Your own name above your head in third person, as others see it (with the MiB logo)", "label", false, null, list(
+				bool("own", "Własny nick w trzeciej osobie", "Own name in third person", true))),
+		new ModuleDef("snaplook", "Snaplook", Category.LOOK, "Szybki podgląd za siebie pod klawiszem (domyślnie Z)",
+			"Quick look behind you while holding a key (Z by default)", "undo", false, null, list()),
+		new ModuleDef("auto_perspective", "Auto perspective", Category.LOOK, "Sam przełącza na trzecią osobę przy lataniu elytrą i jeździe konnej",
+			"Switches to third person while flying with an elytra or riding", "shuffle", false, null, list(
+				bool("elytra", "Przy lataniu elytrą", "While flying with an elytra", true),
+				bool("riding", "Przy jeździe (koń, łódka…)", "While riding (horse, boat…)", true))),
+		new ModuleDef("viewmodel", "Viewmodel", Category.LOOK, "Położenie i rozmiar ręki i przedmiotu w pierwszej osobie",
+			"Position and size of your hand and held item in first person", "hand", false, null, list(
+				new IntSetting("x", "W bok", "Sideways", 0, -20, 20, 1),
+				new IntSetting("y", "W górę", "Up", 0, -20, 20, 1),
+				new IntSetting("z", "Do przodu", "Forward", 0, -20, 20, 1),
+				new IntSetting("scale", "Rozmiar (%)", "Size (%)", 100, 50, 150, 5))),
+		new ModuleDef("weather_changer", "Weather changer", Category.LOOK, "Własna pogoda (tylko u Ciebie)", "Your own weather (only for you)",
+			"cloud-sun", false, null, list(
+				new ChoiceSetting("weather", "Pogoda", "Weather", "clear", new String[] {"clear", "rain", "thunder"},
+					new String[] {"Słońce", "Deszcz", "Burza"}, new String[] {"Clear", "Rain", "Thunder"}))),
+
+		// ===== Etap 4: świat, przedmioty, czat i narzędzia =====
+		new ModuleDef("block_indicator", "Block indicator", Category.WORLD, "Nazwa bloku, na który patrzysz", "Name of the block you are looking at",
+			"blocks", false, at(Anchor.TOP, 0, 44), hud()),
+		new ModuleDef("death_info", "Death info", Category.WORLD, "Miejsce ostatniej śmierci (przez 5 minut)", "Where you last died (for 5 minutes)",
+			"road-sign", false, at(Anchor.TOP_LEFT, 4, 218), hud()),
+		new ModuleDef("horses", "Horses", Category.WORLD, "Prędkość, skok i zdrowie konia, na którym jedziesz", "Speed, jump and health of the horse you ride",
+			"speed-slow", false, at(Anchor.LEFT, 4, 40), hud()),
+		new ModuleDef("custom_chat", "Custom chat", Category.CHAT, "Godzina przy wiadomościach i dłuższa historia czatu",
+			"Time next to messages and a longer chat history", "message", false, null, list(
+				bool("time", "Godzina przy wiadomościach", "Time next to messages", true),
+				bool("seconds", "Z sekundami", "With seconds", false),
+				bool("long_history", "Dłuższa historia (500 wiadomości)", "Longer history (500 messages)", true))),
+		new ModuleDef("reconnect", "Reconnect", Category.CHAT, "Przycisk „Połącz ponownie” po rozłączeniu i automatyczne łączenie",
+			"A Reconnect button after a disconnect and automatic reconnecting", "reload", true, null, list(
+				bool("auto", "Łącz automatycznie", "Reconnect automatically", false),
+				new IntSetting("delay", "Po ilu sekundach", "After how many seconds", 5, 3, 30, 1))),
+		new ModuleDef("item_info", "Item info", Category.OTHER, "Wytrzymałość przedmiotów liczbami w ich opisie",
+			"Item durability as numbers in the item tooltip", "info-box", true, null, list()),
+		new ModuleDef("nick_hider", "Nick hider", Category.OTHER, "Ukrywa Twój nick na liście graczy i nad głową (np. do nagrywania)",
+			"Hides your name in the player list and above your head (e.g. for recording)", "eye-off", false, null, list())));
 
 	/** Grupy przedmiotów dla Item counter: klucz opcji i id przedmiotów z gry. */
 	public static final String[][] ITEM_GROUPS = {

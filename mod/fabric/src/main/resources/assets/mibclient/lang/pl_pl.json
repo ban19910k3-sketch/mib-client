@@ -3,5 +3,6 @@
 	"key.mibclient.menu": "Menu MiB",
 	"key.mibclient.zoom": "Zoom",
 	"key.mibclient.perspective": "Perspective (kamera 360°)",
-	"key.mibclient.stopwatch": "Stoper"
+	"key.mibclient.stopwatch": "Stoper",
+	"key.mibclient.snaplook": "Snaplook (podgląd za siebie)"
 }

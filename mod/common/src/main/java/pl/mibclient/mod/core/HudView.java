@@ -74,6 +74,7 @@ public final class HudView {
 		if ("mousestrokes".equals(id)) return mousestrokes(at, c, d, st, g);
 		if ("player_model".equals(id)) return playerModel(at, c, d, st);
 		if ("attack_indicator".equals(id) && "bar".equals(choice(d, st, "style"))) return attackBar(at, c, d, st, g, editor);
+		if ("block_indicator".equals(id)) return blockIndicator(at, c, d, st, g, editor);
 		List<String> lines = lines(d, st, g, editor);
 		if (lines.isEmpty()) return new int[] {0, 0};
 		return textBox(at, c, d, st, lines, color(d, st, g));
@@ -113,12 +114,6 @@ public final class HudView {
 		long now = g.nowMs();
 		CombatTracker cb = g.combat();
 		Meters m = g.meters();
-		if ("saturation".equals(id)) {
-			List<String> l = new ArrayList<String>();
-			l.add(Lang.t("hud.saturation", Formats.decimal(g.saturation(), 1)));
-			if (bool(d, st, "food")) l.add(Lang.t("hud.food", g.food()));
-			return l;
-		}
 		if ("speed_meter".equals(id)) return one(Formats.decimal(m == null ? 4.32 : m.speed.bps(), integer(d, st, "decimals")) + " m/s");
 		if ("stopwatch".equals(id)) {
 			if ((m == null || !m.stopwatch.started()) && !editor) return Collections.emptyList();
@@ -180,6 +175,19 @@ public final class HudView {
 			String who = cb == null ? (editor ? "Steve" : null) : cb.lastPop(now);
 			if (bool(d, st, "pops") && who != null) l.add(Lang.t("hud.popped", who, cb == null ? 2 : cb.pops(who)));
 			return l;
+		}
+		if ("death_info".equals(id)) {
+			double[] dth = g.lastDeath();
+			if ((dth == null || now - (long) dth[3] > 300_000L) && !editor) return Collections.emptyList();
+			if (dth == null || now - (long) dth[3] > 300_000L) dth = new double[] {120, 64, -38, now};
+			return one(Lang.t("hud.death", (long) Math.floor(dth[0]) + " " + (long) Math.floor(dth[1]) + " " + (long) Math.floor(dth[2])));
+		}
+		if ("horses".equals(id)) {
+			double[] h = g.horse();
+			if (h == null && !editor) return Collections.emptyList();
+			if (h == null) h = new double[] {14.2, 4.1, 26, 30};
+			return Arrays.asList(Lang.t("hud.horse_speed", Formats.decimal(h[0], 1)), Lang.t("hud.horse_jump", Formats.decimal(h[1], 1)),
+					Lang.t("hud.horse_health", Formats.hp((float) h[2]), Formats.hp((float) h[3])));
 		}
 		if ("pack_display".equals(id)) {
 			List<String> packs = g.resourcePacks();
@@ -456,6 +464,21 @@ public final class HudView {
 		if (at == null) return new int[] {w, h};
 		c.fill(at[0], at[1], at[0] + w, at[1] + h, bool(d, st, "background") ? Theme.HUD_BG : 0x40000000);
 		c.fill(at[0] + 1, at[1] + 1, at[0] + 1 + Math.round((w - 2) * Math.min(1, a)), at[1] + h - 1, colorOpt(d, st, "color"));
+		return new int[] {w, h};
+	}
+
+	/** Block indicator: ikona i nazwa bloku pod celownikiem. */
+	private int[] blockIndicator(int[] at, Canvas c, ModuleDef d, ModuleState st, GameInfo g, boolean editor) {
+		GameInfo.Looked b = g.lookedBlock();
+		if (b == null) {
+			if (!editor) return new int[] {0, 0};
+			b = new GameInfo.Looked(Lang.pl() ? "Kamień" : "Stone", null);
+		}
+		int icon = b.stack == null ? 0 : 18, w = icon + c.textWidth(b.name) + 2 * PAD, h = Math.max(16, 9) + 2 * PAD;
+		if (at == null) return new int[] {w, h};
+		if (bool(d, st, "background")) c.fill(at[0], at[1], at[0] + w, at[1] + h, Theme.HUD_BG);
+		if (b.stack != null) c.item(b.stack, at[0] + PAD, at[1] + PAD);
+		c.text(b.name, at[0] + PAD + icon, at[1] + PAD + 4, colorOpt(d, st, "color"), bool(d, st, "shadow"));
 		return new int[] {w, h};
 	}
 

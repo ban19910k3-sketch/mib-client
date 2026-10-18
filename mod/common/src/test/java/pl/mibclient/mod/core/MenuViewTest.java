@@ -94,6 +94,7 @@ class MenuViewTest {
 	@Test
 	void pillTogglesModule() {
 		assertTrue(mm.isOn("fps"));
+		for (char ch : "fps".toCharArray()) v.charTyped(ch);
 		click("pill:fps");
 		assertFalse(mm.isOn("fps"));
 		click("pill:fps");
@@ -129,6 +130,7 @@ class MenuViewTest {
 
 	@Test
 	void gearOpensSettingsAndEscReturns() {
+		for (char ch : "fps".toCharArray()) v.charTyped(ch);
 		click("gear:fps");
 		assertEquals(MenuView.Page.SETTINGS, v.page());
 		assertEquals("fps", v.selected());

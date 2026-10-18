@@ -47,6 +47,16 @@ public final class Config {
 		return file;
 	}
 
+	/** Język menu wybrany przez gracza: "pl", "en" albo "auto". */
+	public String language() {
+		Object v = root.get("lang");
+		return "pl".equals(v) || "en".equals(v) ? (String) v : "auto";
+	}
+
+	public void setLanguage(String code) {
+		root.put("lang", "pl".equals(code) || "en".equals(code) ? code : "auto");
+	}
+
 	public ModuleState module(String id) {
 		return new ModuleState(this, id);
 	}

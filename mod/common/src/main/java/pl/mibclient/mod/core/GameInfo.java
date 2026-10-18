@@ -185,4 +185,31 @@ public interface GameInfo {
 	default Meters meters() {
 		return null;
 	}
+
+	// ===== Etapy 3 i 4 =====
+
+	/** Blok, na który patrzysz: nazwa i stack do ikony. */
+	final class Looked {
+		public final String name;
+		public final Object stack;
+
+		public Looked(String name, Object stack) {
+			this.name = name;
+			this.stack = stack;
+		}
+	}
+
+	default Looked lookedBlock() {
+		return null;
+	}
+
+	/** Ostatnia śmierć {x, y, z, czas w ms} albo null. */
+	default double[] lastDeath() {
+		return null;
+	}
+
+	/** Koń (albo inne zwierzę do jazdy) pod graczem: {prędkość w m/s, skok w blokach, zdrowie, maks. zdrowie} albo null. */
+	default double[] horse() {
+		return null;
+	}
 }

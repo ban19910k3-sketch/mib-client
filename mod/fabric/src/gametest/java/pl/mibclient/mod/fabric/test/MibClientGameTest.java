@@ -14,6 +14,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import pl.mibclient.mod.core.HudEditorModel;
 import pl.mibclient.mod.core.HudPos;
+import pl.mibclient.mod.core.Lang;
 import pl.mibclient.mod.core.MenuView;
 import pl.mibclient.mod.core.ModuleDef;
 import pl.mibclient.mod.core.ModuleManager;
@@ -53,15 +54,25 @@ public class MibClientGameTest implements FabricClientGameTest {
 			check(context.computeOnClient(c -> Input.screen(c) instanceof MenuScreen), "prawy Shift nie otworzył menu");
 			context.takeScreenshot("01-menu");
 
+			input.typeChars("cps");
+			context.waitTicks(3);
 			click(context, "pill:cps");
 			check(!context.computeOnClient(c -> MibClient.get().modules.isOn("cps")), "klik w pigułkę nie wyłączył CPS");
 			context.takeScreenshot("02-menu-cps-off");
+			context.runOnClient(c -> {
+				if (view(c) != null) view(c).clearQuery();
+			});
 
 			input.typeChars("zoom");
 			context.waitTicks(3);
 			check("zoom".equals(context.computeOnClient(c -> view(c) == null ? null : view(c).query())), "wyszukiwarka nie przyjęła tekstu");
 			context.takeScreenshot("03-search");
 
+			click(context, "lang");
+			check("pl".equals(Lang.chosen()), "przycisk języka nie zmienił języka menu");
+			click(context, "lang");
+			click(context, "lang");
+			check("auto".equals(Lang.chosen()), "przycisk języka nie wrócił do języka gry");
 			click(context, "gear:zoom");
 			check(context.computeOnClient(c -> view(c) != null && view(c).page() == MenuView.Page.SETTINGS), "zębatka nie otworzyła ustawień");
 			context.takeScreenshot("04-settings");
@@ -84,6 +95,28 @@ public class MibClientGameTest implements FabricClientGameTest {
 			});
 			context.waitTicks(20);
 			context.takeScreenshot("06-hud-all");
+			// moduły etapów 3 i 4 w grze: nasycenie (tryb przetrwania), tabela wyników, pasek bossa, czat, pogoda, kamera, ręka
+			context.runOnClient(c -> {
+				ModuleManager m = MibClient.get().modules;
+				for (String id : new String[] {"saturation", "scoreboard", "boss_bar", "custom_chat", "weather_changer", "camera", "viewmodel", "nametags"}) {
+					if (!m.isOn(id)) m.toggle(id);
+				}
+				m.state("scoreboard").setOption("hide", false);
+				m.state("scoreboard").setOption("scale", 80);
+				m.state("boss_bar").setOption("hide", false);
+				m.state("weather_changer").setOption("weather", "rain");
+			});
+			sp.getServer().runCommand("gamemode survival @a");
+			sp.getServer().runCommand("scoreboard objectives add mib dummy \"MiB\"");
+			sp.getServer().runCommand("scoreboard objectives setdisplay sidebar mib");
+			sp.getServer().runCommand("scoreboard players set Gracz mib 7");
+			sp.getServer().runCommand("bossbar add mib:test \"MiB\"");
+			sp.getServer().runCommand("bossbar set mib:test players @a");
+			sp.getServer().runCommand("say MiB");
+			context.waitTicks(20);
+			context.takeScreenshot("06d-stage3");
+			sp.getServer().runCommand("gamemode creative @a");
+
 			// edytor HUD ze wszystkimi modułami: przykładowa treść także tych bez danych (combo, zasięg, stoper…)
 			context.runOnClient(c -> MibClient.get().openHudEditor(null));
 			context.waitTicks(5);
@@ -168,7 +201,8 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(2);
 
 			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik, logo i ekran tytułowy)
-			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge"}) {
+			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
+					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name"}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
 		}

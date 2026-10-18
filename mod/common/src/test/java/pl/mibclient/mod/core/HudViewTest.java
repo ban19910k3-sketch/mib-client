@@ -169,7 +169,7 @@ class HudViewTest {
 
 	@Test
 	void stage2ModulesShowGameData() {
-		for (String id : new String[] {"hearts", "saturation", "speed_meter", "tps", "combo_display", "reach_display", "damage_indicator", "totem", "pack_display", "attack_indicator"}) enable(id);
+		for (String id : new String[] {"hearts", "speed_meter", "tps", "combo_display", "reach_display", "damage_indicator", "totem", "pack_display", "attack_indicator"}) enable(id);
 		g.absorption = 4;
 		g.target = new GameInfo.Target(1, "Notch", 12, 20);
 		g.combat.onAttack(1, 3.14159, g.now - 100);
@@ -182,8 +182,6 @@ class HudViewTest {
 		hud.render(c, g, 480, 270, null, false);
 		assertTrue(c.hasText("\u2764 18.5"));
 		assertTrue(c.hasText(" +4"));
-		assertTrue(c.hasText("Nasycenie: 7.2"));
-		assertTrue(c.hasText("Głód: 18/20"));
 		assertTrue(c.hasText("0.00 m/s"));
 		assertTrue(c.hasText("TPS: 20.0"));
 		assertTrue(c.hasText("Combo: 1"));

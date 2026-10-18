@@ -28,4 +28,8 @@ public interface MenuActions {
 	default String cosmeticMessage() {
 		return null;
 	}
+
+	/** Zapisuje język menu wybrany w menu ("pl", "en", "auto"); Lang.choose robi już MenuView. */
+	default void languageChosen(String code) {
+	}
 }

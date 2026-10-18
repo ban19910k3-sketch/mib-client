@@ -1,7 +1,9 @@
 package pl.mibclient.mod.fabric;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.io.File;
+import java.time.LocalTime;
 import java.util.Collections;
 import java.util.Base64;
 import java.util.List;
@@ -10,15 +12,28 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.MibGraphics;
 import com.mojang.blaze3d.platform.NativeImage;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.ConnectScreen;
+import net.minecraft.client.gui.screens.DisconnectedScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.MibId;
@@ -71,7 +86,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public final ZoomState zoom = new ZoomState();
 	public Players players;
 	public Pvp pvp;
-	public KeyMapping menuKey, zoomKey, perspectiveKey, stopwatchKey;
+	public KeyMapping menuKey, zoomKey, perspectiveKey, stopwatchKey, snaplookKey;
 
 	private final long sessionStart = System.currentTimeMillis();
 	private boolean optionsApplied;
@@ -89,6 +104,14 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	private long cosReadAt, equipAt, cosFailCheckedAt;
 	private String cosMessage, capeKey;
 	private MibId capeTexture;
+	/** Snaplook i Auto perspective: widok sprzed włączenia (null = nie działa). */
+	private CameraType snapBefore, autoBefore;
+	/** Ostatnia śmierć {x, y, z, czas}, poprzedni stan „martwy” i ostatni serwer (Reconnect). */
+	private double[] lastDeath;
+	private boolean wasDead;
+	private ServerData lastServer;
+	private Button reconnectButton;
+	private long reconnectAt;
 	private final SmokeTest smoke = System.getProperty("mib.smoketest") != null ? new SmokeTest() : null;
 
 	@Override
@@ -97,6 +120,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		String dir = System.getProperty("mib.dir");
 		File base = dir != null ? new File(dir) : FabricLoader.getInstance().getGameDir().resolve("mib").toFile();
 		config = Config.load(new File(base, Config.FILE_NAME));
+		Lang.choose(config.language());
 		modules = new ModuleManager(config, ModuleCatalog.ALL);
 		hud = new HudView(modules);
 		editor = new HudEditorModel(modules);
@@ -114,6 +138,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		zoomKey = register(new KeyMapping("key.mibclient.zoom", InputConstants.KEY_C, cat));
 		perspectiveKey = register(new KeyMapping("key.mibclient.perspective", InputConstants.KEY_LALT, cat));
 		stopwatchKey = register(new KeyMapping("key.mibclient.stopwatch", InputConstants.KEY_J, cat));
+		snaplookKey = register(new KeyMapping("key.mibclient.snaplook", InputConstants.KEY_Z, cat));
 
 		//#if MC >= 1.21.6
 		HudElementRegistry.addLast(MibId.fromNamespaceAndPath("mibclient", "hud"), (g, tick) -> renderHud(g));
@@ -126,6 +151,16 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			ServerData s = client.getCurrentServer();
 			modules.setBlocked(ServerRules.builtIn().blockedFor(s == null ? null : s.ip));
 			pvp.reset();
+			lastServer = s;
+		});
+		ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+			if (screen instanceof DisconnectedScreen) addReconnect(client, screen, width);
+		});
+		ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
+			if (!modules.isOn("item_info") || !stack.isDamageableItem() || type.isAdvanced()) return;
+			hooks.add("item_info");
+			int max = stack.getMaxDamage();
+			lines.add(Component.literal(Lang.t("item.durability", max - stack.getDamageValue(), max)).withStyle(ChatFormatting.GRAY));
 		});
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			modules.setBlocked(Collections.<String>emptySet());
@@ -133,6 +168,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		});
 		modules.addListener((id, on) -> {
 			if ("toggle_sprint".equals(id)) applySprint();
+			if ("camera".equals(id)) applyCamera();
 		});
 	}
 
@@ -162,6 +198,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		if (!optionsApplied && c.options != null) {
 			optionsApplied = true;
 			applySprint();
+			applyCamera();
 		}
 		while (menuKey.consumeClick()) {
 			if (Input.screen(c) == null) Input.open(c, new MenuScreen(this, null));
@@ -183,6 +220,9 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		}
 		pvp.tick(c);
 		players.tick(c);
+		tickCameraModes(c);
+		tickDeath(c);
+		tickReconnect(c);
 		if (smoke != null) smoke.tick(c);
 	}
 
@@ -326,6 +366,131 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		}
 	}
 
+	/** Camera „bez bujania” korzysta z opcji gry; po wyłączeniu przywraca poprzednie ustawienie gracza. */
+	private void applyCamera() {
+		Minecraft c = Minecraft.getInstance();
+		if (c == null || c.options == null) return;
+		ModuleState st = modules.state("camera");
+		boolean want = modules.isOn("camera") && boolOpt("camera", "no_bob");
+		if (want) {
+			if (!(st.option("prev_bob") instanceof Boolean)) {
+				st.setOption("prev_bob", c.options.bobView().get());
+				config.save();
+			}
+			c.options.bobView().set(false);
+		} else if (st.option("prev_bob") instanceof Boolean) {
+			c.options.bobView().set((Boolean) st.option("prev_bob"));
+			st.setOption("prev_bob", null);
+			config.save();
+		}
+	}
+
+	/** Odległość kamery w trzeciej osobie (gra podaje 4 bloki razy skala postaci). */
+	public float cameraDistance(float distance) {
+		if (!modules.isOn("camera")) return distance;
+		hooks.add("camera");
+		return distance * intOpt("camera", "distance") / 4f;
+	}
+
+	/** Własny nick nad głową: zawsze w kamerze 360°, w trzeciej osobie z Nametags. */
+	public boolean showOwnName() {
+		if (freeOn) return true;
+		Minecraft c = Minecraft.getInstance();
+		return modules.isOn("nametags") && boolOpt("nametags", "own") && !c.options.getCameraType().isFirstPerson();
+	}
+
+	/** Snaplook (klawisz: widok z przodu) i Auto perspective (elytra, jazda): trzecia osoba tylko na ten czas. */
+	private void tickCameraModes(Minecraft c) {
+		boolean snap = modules.isOn("snaplook") && c.player != null && Input.screen(c) == null && Input.held(c, snaplookKey);
+		if (snap && snapBefore == null) {
+			snapBefore = c.options.getCameraType();
+			c.options.setCameraType(CameraType.THIRD_PERSON_FRONT);
+			hooks.add("snaplook");
+		} else if (!snap && snapBefore != null) {
+			c.options.setCameraType(snapBefore);
+			snapBefore = null;
+		}
+		boolean auto = modules.isOn("auto_perspective") && c.player != null && !freeOn && snapBefore == null
+				&& ((boolOpt("auto_perspective", "elytra") && c.player.isFallFlying()) || (boolOpt("auto_perspective", "riding") && c.player.isPassenger()));
+		if (auto && autoBefore == null) {
+			autoBefore = c.options.getCameraType();
+			c.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+		} else if (!auto && autoBefore != null) {
+			c.options.setCameraType(autoBefore);
+			autoBefore = null;
+		}
+	}
+
+	/** Death info: miejsce śmierci zapamiętane w chwili śmierci. */
+	private void tickDeath(Minecraft c) {
+		boolean dead = c.player != null && c.player.isDeadOrDying();
+		if (dead && !wasDead) lastDeath = new double[] {c.player.getX(), c.player.getY(), c.player.getZ(), System.currentTimeMillis()};
+		wasDead = dead;
+	}
+
+	public double[] lastDeath() {
+		return lastDeath;
+	}
+
+	/** Reconnect: przycisk pod przyciskami ekranu rozłączenia. */
+	private void addReconnect(Minecraft c, Screen screen, int width) {
+		reconnectButton = null;
+		if (!modules.isOn("reconnect") || lastServer == null) return;
+		//#if MC >= 26.1
+		List<AbstractWidget> widgets = Screens.getWidgets(screen);
+		//#else
+		List<AbstractWidget> widgets = Screens.getButtons(screen);
+		//#endif
+		int bottom = 0;
+		for (AbstractWidget w : widgets) bottom = Math.max(bottom, w.getY() + w.getHeight());
+		ServerData target = lastServer;
+		reconnectButton = Button.builder(Component.literal(Lang.t("reconnect")), b -> reconnect(c, target)).bounds(width / 2 - 100, bottom + 4, 200, 20).build();
+		widgets.add(reconnectButton);
+		reconnectAt = boolOpt("reconnect", "auto") ? System.currentTimeMillis() + intOpt("reconnect", "delay") * 1000L : 0;
+		hooks.add("reconnect");
+	}
+
+	private void tickReconnect(Minecraft c) {
+		if (reconnectButton == null || reconnectAt <= 0) return;
+		if (!(Input.screen(c) instanceof DisconnectedScreen)) {
+			reconnectAt = 0;
+			return;
+		}
+		long left = reconnectAt - System.currentTimeMillis();
+		if (left <= 0) {
+			reconnectAt = 0;
+			reconnect(c, lastServer);
+		} else reconnectButton.setMessage(Component.literal(Lang.t("reconnect.in", (int) Math.ceil(left / 1000.0))));
+	}
+
+	private static void reconnect(Minecraft c, ServerData server) {
+		if (server == null) return;
+		ConnectScreen.startConnecting(new JoinMultiplayerScreen(new TitleScreen()), c, ServerAddress.parseString(server.ip), server, false, null);
+	}
+
+	/** Custom chat: godzina przed wiadomością. */
+	public Component chatMessage(Component message) {
+		if (!modules.isOn("custom_chat") || !boolOpt("custom_chat", "time")) return message;
+		hooks.add("chat");
+		LocalTime t = LocalTime.now();
+		String time = boolOpt("custom_chat", "seconds") ? String.format("[%02d:%02d:%02d] ", t.getHour(), t.getMinute(), t.getSecond())
+				: String.format("[%02d:%02d] ", t.getHour(), t.getMinute());
+		return Component.empty().append(Component.literal(time).withStyle(ChatFormatting.DARK_GRAY)).append(message);
+	}
+
+	public int chatHistory(int max) {
+		return modules.isOn("custom_chat") && boolOpt("custom_chat", "long_history") ? Math.max(max, 500) : max;
+	}
+
+	/** Viewmodel: przesunięcie (po 0,02 bloku) i rozmiar ręki; lewa ręka w lustrzanym odbiciu. */
+	public void viewmodel(PoseStack pose, boolean mainHand) {
+		if (!modules.isOn("viewmodel")) return;
+		hooks.add("viewmodel");
+		pose.translate(intOpt("viewmodel", "x") * 0.02f * (mainHand ? 1 : -1), intOpt("viewmodel", "y") * 0.02f, intOpt("viewmodel", "z") * -0.02f);
+		float sc = intOpt("viewmodel", "scale") / 100f;
+		pose.scale(sc, sc, sc);
+	}
+
 	// ===== Kosmetyki =====
 
 	/** Założona peleryna z launchera trafia do tekstury gry (tylko gdy się zmieni). */
@@ -415,6 +580,12 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	}
 
 	// ===== MenuActions =====
+
+	@Override
+	public void languageChosen(String code) {
+		config.setLanguage(code);
+		config.save();
+	}
 
 	@Override
 	public void openHudEditor(String moduleId) {

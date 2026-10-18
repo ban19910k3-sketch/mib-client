@@ -142,6 +142,7 @@ public final class MenuView {
 		c.fill(s[0] + s[2], s[1] + 1, s[0] + s[2] + 1, s[1] + s[3] - 1, Theme.EDGE);
 		c.text("MiB Client", s[0] + 10, s[1] + 10, Theme.AM_HI, true);
 		c.text(Lang.pl() ? "Moduły" : "Modules", s[0] + 10, s[1] + 21, Theme.MUTED, false);
+		language(c, s, mx, my);
 
 		List<Category> cats = new ArrayList<Category>();
 		cats.add(null);
@@ -194,6 +195,24 @@ public final class MenuView {
 			@Override
 			public void run() {
 				actions.openHudEditor(null);
+			}
+		}));
+	}
+
+	/** Język menu w rogu panelu bocznego: PL / EN / AUTO, kliknięcie zmienia na następny. */
+	private void language(Canvas c, int[] s, int mx, int my) {
+		String cur = Lang.chosen(), label = "auto".equals(cur) ? "AUTO" : cur.toUpperCase(java.util.Locale.ROOT);
+		int w = c.textWidth(label) + 10, h = 12;
+		final int[] r = {s[0] + s[2] - 8 - w, s[1] + 9, w, h};
+		boolean hover = in(r, mx, my);
+		Shapes.panel(c, r[0], r[1], r[2], r[3], hover ? Theme.SLAB2 : Theme.SLAB, hover ? Theme.AM : Theme.EDGE2);
+		c.text(label, r[0] + 5, r[1] + 2, hover ? Theme.AM_HI : Theme.MUTED, false);
+		hits.add(new Hit("lang", r, new Runnable() {
+			@Override
+			public void run() {
+				String cur = Lang.chosen(), next = "auto".equals(cur) ? "pl" : "pl".equals(cur) ? "en" : "auto";
+				Lang.choose(next);
+				actions.languageChosen(next);
 			}
 		}));
 	}

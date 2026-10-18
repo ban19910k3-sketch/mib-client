@@ -56,10 +56,10 @@ class ModuleManagerTest {
 	@Test
 	void enabledCountIgnoresBlocked() {
 		ModuleManager m = manager();
-		assertEquals(5, m.enabledCount());
+		assertEquals(6, m.enabledCount());
 		m.setBlocked(Collections.singleton("cps"));
-		assertEquals(4, m.enabledCount());
-		assertEquals(36, m.all().size());
+		assertEquals(5, m.enabledCount());
+		assertEquals(51, m.all().size());
 	}
 
 	@Test

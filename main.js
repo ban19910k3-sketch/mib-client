@@ -172,7 +172,7 @@ async function doLaunch(version) {
     }
     if (loader === 'forge') { send('log', 'Przygotowywanie Forge…'); opts.forge = await ensureForge(root, version); }
     // logo MiB przed nickiem: zgłoszenie konta przed startem gry (gra w tym czasie nie łączy się jeszcze z żadnym serwerem)
-    if (mibDir && mibmod.modModuleOn(mibDir, 'mib_badge', true)) {
+    if (mibDir) {
       presenceOn = true;
       try { await Promise.race([mibPresence.start(auth.mclc()), new Promise((_, rej) => setTimeout(() => rej(new Error('brak odpowiedzi')), 6000))]); }
       catch (e) { send('log', 'Logo MiB przy nicku chwilowo niedostępne (' + san(e.message) + ').'); }

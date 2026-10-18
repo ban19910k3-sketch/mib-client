@@ -18,8 +18,9 @@ class CatalogTest {
 				"fov_changer", "fps", "keystrokes", "perspective", "ping", "playtime", "potion_effects", "server_address", "time", "toggle_sprint", "zoom",
 				"armor_bar", "hearts", "saturation", "item_counter", "mousestrokes", "pack_display", "player_model", "speed_meter", "stopwatch",
 				"system_resources", "tps", "attack_indicator", "combo_display", "damage_indicator", "hit_indicator", "jump_reset", "reach_display", "totem",
-				"mib_badge")), ids);
-		assertEquals(36, ModuleCatalog.ALL.size());
+				"boss_bar", "scoreboard", "toast_control", "camera", "nametags", "snaplook", "auto_perspective", "viewmodel", "weather_changer",
+				"block_indicator", "death_info", "horses", "custom_chat", "reconnect", "item_info", "nick_hider")), ids);
+		assertEquals(51, ModuleCatalog.ALL.size());
 	}
 
 	@Test
@@ -30,7 +31,8 @@ class CatalogTest {
 				"FOV changer", "FPS", "Keystrokes", "Perspective", "Ping", "Playtime", "Potion effects", "Server address", "Time", "Toggle sprint", "Zoom",
 				"Armor bar", "Hearts", "Saturation", "Item counter", "Mousestrokes", "Pack display", "Player model", "Speed meter", "Stopwatch",
 				"System resources", "TPS", "Attack indicator", "Combo display", "Damage indicator", "Hit indicator", "Jump reset", "Reach display", "Totem",
-				"MiB players")),
+				"Boss bar", "Scoreboard", "Toast control", "Camera", "Nametags", "Snaplook", "Auto perspective", "Viewmodel", "Weather changer",
+				"Block indicator", "Death info", "Horses", "Custom chat", "Reconnect", "Item info", "Nick hider")),
 				new HashSet<String>(names));
 	}
 
@@ -38,12 +40,14 @@ class CatalogTest {
 	void defaultsOn() {
 		Set<String> on = new HashSet<String>();
 		for (ModuleDef m : ModuleCatalog.ALL) if (m.defaultOn) on.add(m.id);
-		assertEquals(new HashSet<String>(Arrays.asList("fps", "cps", "keystrokes", "zoom", "mib_badge")), on);
+		assertEquals(new HashSet<String>(Arrays.asList("fps", "cps", "keystrokes", "zoom", "reconnect", "item_info")), on);
 	}
 
 	@Test
 	void everyHudModuleHasDefaultPosition() {
-		Set<String> notHud = new HashSet<String>(Arrays.asList("brightness", "custom_crosshair", "fov_changer", "perspective", "zoom", "hit_indicator", "mib_badge"));
+		Set<String> notHud = new HashSet<String>(Arrays.asList("brightness", "custom_crosshair", "fov_changer", "perspective", "zoom", "hit_indicator", "saturation",
+				"boss_bar", "scoreboard", "toast_control", "camera", "nametags", "snaplook", "auto_perspective", "viewmodel", "weather_changer",
+				"custom_chat", "reconnect", "item_info", "nick_hider"));
 		for (ModuleDef m : ModuleCatalog.ALL) {
 			assertEquals(!notHud.contains(m.id), m.hud, m.id);
 			assertEquals(m.hud, m.defaultHud != null, m.id);

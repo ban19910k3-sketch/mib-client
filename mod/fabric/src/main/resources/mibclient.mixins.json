@@ -5,16 +5,23 @@
 	"compatibilityLevel": "JAVA_${java}",
 	"client": [
 		"AbstractClientPlayerMixin",
+		"BossHealthOverlayMixin",
 		"CameraMixin",
+		"ChatComponentMixin",
 		"ClientPacketListenerMixin",
 		"GameRendererMixin",
 		"GuiMixin",
+		"ItemInHandRendererMixin",
+		"LevelMixin",
 		"LightTextureMixin",
+		"LivingEntityRendererMixin",
+		"LoadingOverlayMixin",
 		"MouseHandlerMixin",
 		"MultiPlayerGameModeMixin",
 		"PlayerMixin",
 		"PlayerTabOverlayMixin",
-		"TitleScreenMixin"
+		"TitleScreenMixin",
+		"ToastManagerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

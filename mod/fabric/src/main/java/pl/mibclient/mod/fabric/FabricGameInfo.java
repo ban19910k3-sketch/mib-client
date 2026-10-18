@@ -17,7 +17,12 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -285,5 +290,32 @@ public final class FabricGameInfo implements GameInfo {
 	@Override
 	public Meters meters() {
 		return mib.pvp.meters;
+	}
+
+	// ===== Etapy 3 i 4 =====
+
+	@Override
+	public Looked lookedBlock() {
+		Minecraft c = mc();
+		if (c.level == null || !(c.hitResult instanceof BlockHitResult b) || c.hitResult.getType() != HitResult.Type.BLOCK) return null;
+		BlockState state = c.level.getBlockState(b.getBlockPos());
+		ItemStack icon = new ItemStack(state.getBlock());
+		return new Looked(state.getBlock().getName().getString(), icon.isEmpty() ? null : icon);
+	}
+
+	@Override
+	public double[] lastDeath() {
+		return mib.lastDeath();
+	}
+
+	/** Zwierzę z siłą skoku pod graczem (koń, osioł, muł…): prędkość w m/s i wysokość skoku w blokach. */
+	@Override
+	public double[] horse() {
+		LocalPlayer p = player();
+		Entity v = p == null ? null : p.getVehicle();
+		if (!(v instanceof LivingEntity h) || !h.getAttributes().hasAttribute(Attributes.JUMP_STRENGTH)) return null;
+		double js = h.getAttributeValue(Attributes.JUMP_STRENGTH);
+		double jump = -0.1817584952 * js * js * js + 3.689713992 * js * js + 2.128599134 * js - 0.343930367;
+		return new double[] {h.getAttributeValue(Attributes.MOVEMENT_SPEED) * 42.16, jump, h.getHealth(), h.getMaxHealth()};
 	}
 }

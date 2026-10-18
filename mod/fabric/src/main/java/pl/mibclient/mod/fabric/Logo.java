@@ -11,13 +11,6 @@ import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.resources.MibId;
-//#if MC >= 1.21.6
-import net.minecraft.client.renderer.RenderPipelines;
-//#elif MC >= 1.21.2
-import net.minecraft.client.renderer.RenderType;
-//#else
-import com.mojang.blaze3d.systems.RenderSystem;
-//#endif
 
 /**
  * Logo MiB Client: na ekranie tytułowym zamiast logo Minecrafta (TitleScreenMixin) i w menu pauzy (Esc) zamiast
@@ -93,17 +86,58 @@ public final class Logo {
 
 	static void draw(MibGraphics g, int[] box, float alpha) {
 		MibClient.hooks.add("logo");
-		int x = box[0], y = box[1], w = box[2], h = box[3];
-		int color = (Math.round(Math.max(0f, Math.min(1f, alpha)) * 255) << 24) | 0xFFFFFF;
-		//#if MC >= 1.21.6
-		g.blit(RenderPipelines.GUI_TEXTURED, TEXTURE, x, y, 0, 0, w, h, w, h, color);
-		//#elif MC >= 1.21.2
-		g.blit(RenderType::guiTextured, TEXTURE, x, y, 0, 0, w, h, w, h, color);
+		FabricCanvas.blit(g, TEXTURE, box[0], box[1], 0, 0, box[2], box[3], box[2], box[3], argb(alpha, 0xFFFFFF));
+	}
+
+	static int argb(float alpha, int rgb) {
+		return (Math.round(Math.max(0f, Math.min(1f, alpha)) * 255) << 24) | (rgb & 0xFFFFFF);
+	}
+
+	// ===== Ekran ładowania (start gry i wczytywanie paczek zasobów) =====
+
+	/** Tło ekranu ładowania zamiast czerwieni Mojang Studios. */
+	public static final int LOADING_BACKGROUND = 0x0B0412;
+	private static final float LOADING_RATIO = 1126f / 251f;
+	private static MibId loadingTexture;
+	private static boolean loadingFailed;
+
+	/**
+	 * Logo MiB z napisem Beta 1.0, lekko „oddychające”. Tekstura z pliku moda wczytywana przy pierwszym rysowaniu
+	 * (zasoby gry mogą być wtedy jeszcze w trakcie wczytywania). alpha &lt; 0: przezroczystość ustawiła już gra (1.21–1.21.1).
+	 */
+	public static void drawLoading(MibGraphics g, float alpha) {
+		MibClient.hooks.add("loading");
+		if (loadingTexture == null && !loadingFailed) {
+			try (java.io.InputStream in = Logo.class.getResourceAsStream("/assets/mibclient/textures/gui/loading.png")) {
+				loadingTexture = in == null ? null : MibClient.registerTexture("loading", in.readAllBytes());
+			} catch (java.io.IOException e) {
+				loadingTexture = null;
+			}
+			loadingFailed = loadingTexture == null;
+		}
+		if (loadingTexture == null) return;
+		int sw = g.guiWidth(), sh = g.guiHeight();
+		double t = (System.currentTimeMillis() % 2400L) / 2400.0;
+		float pulse = 1f + 0.025f * (float) Math.sin(t * 2 * Math.PI);
+		int w = Math.round(Math.min(sw * 0.62f, 330f) * pulse), h = Math.round(w / LOADING_RATIO);
+		int x = (sw - w) / 2, y = Math.round(sh * 0.46f) - h / 2;
+		//#if MC >= 1.21.2
+		FabricCanvas.blit(g, loadingTexture, x, y, 0, 0, w, h, w, h, argb(alpha, 0xFFFFFF));
 		//#else
-		RenderSystem.enableBlend();
-		g.setColor(1f, 1f, 1f, (color >>> 24) / 255f);
-		g.blit(TEXTURE, x, y, 0, 0, w, h, w, h);
-		g.setColor(1f, 1f, 1f, 1f);
+		if (alpha >= 0) FabricCanvas.blit(g, loadingTexture, x, y, 0, 0, w, h, w, h, argb(alpha, 0xFFFFFF));
+		else g.blit(loadingTexture, x, y, 0, 0, w, h, w, h);
 		//#endif
+	}
+
+	/** Pasek postępu w kolorach MiB (zamiast białego). */
+	public static void drawLoadingBar(MibGraphics g, int x1, int y1, int x2, int y2, float progress, float alpha) {
+		int a = Math.round(Math.max(0f, Math.min(1f, alpha)) * 255) << 24;
+		int fill = Math.round((x2 - x1 - 4) * Math.max(0f, Math.min(1f, progress)));
+		g.fill(x1, y1, x2, y2, a | 0x24133A);
+		g.fill(x1 + 1, y1 + 1, x2 - 1, y2 - 1, a | 0x100618);
+		if (fill > 0) {
+			g.fill(x1 + 2, y1 + 2, x1 + 2 + fill, y2 - 2, a | 0xA855F7);
+			g.fill(x1 + 2, y1 + 2, x1 + 2 + fill, y1 + 3, a | 0xD6B0FF);
+		}
 	}
 }

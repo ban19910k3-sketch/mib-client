@@ -9,6 +9,9 @@ const ICONS = [
   // moduły etapu 2 i gracze MiB
   'shield-sharp', 'heart', 'apple', 'backpack', 'cursor-minimal', 'image', 'human', 'speed-medium', 'alarm-clock', 'cpu', 'server', 'target',
   'trending-up', 'skull', 'x', 'arrow-big-up', 'arrows-horizontal', 'trophy', 'user',
+  // moduły etapów 3 i 4
+  'crown', 'bulletlist', 'bell-off', 'camera', 'label', 'undo', 'shuffle', 'hand', 'cloud-sun', 'blocks', 'road-sign', 'speed-slow',
+  'reload', 'info-box', 'eye-off',
   // menu i kategorie
   'search', 'settings-cog', 'arrow-left', 'move', 'users', 'close', 'lock', 'grid-3x3', 'layout', 'sword', 'map', 'message', 'archive', 'check',
 ];
