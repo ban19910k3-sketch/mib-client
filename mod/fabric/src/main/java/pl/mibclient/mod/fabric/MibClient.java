@@ -521,7 +521,8 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	/** Tekstura z PNG pod mibclient:path albo null, gdy obrazek jest zły. */
 	static MibId registerTexture(String path, byte[] png) {
 		try {
-			NativeImage img = NativeImage.read(png);
+			// read(byte[]) do 1.21.3 kopiuje plik na stos LWJGL (64 KB) — większe obrazki (ekran ładowania) go przepełniają
+			NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(png));
 			MibId id = MibId.fromNamespaceAndPath("mibclient", path);
 			//#if MC >= 1.21.5
 			Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> "mibclient " + path, img));
