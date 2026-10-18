@@ -26,7 +26,7 @@ class Stage2LogicTest {
 		assertFalse(t.onTargetHurt(7, 3, 3000 + CombatTracker.HIT_WINDOW_MS + 1), "obrażenia za późno po uderzeniu");
 		t.onAttack(7, 3.0, 4000);
 		t.onTargetHurt(7, -1, 4010);
-		t.onSelfHurt(100, 4020);
+		t.onSelfHurt();
 		assertEquals(0, t.combo(4030), "cios w nas kończy combo");
 	}
 
@@ -43,26 +43,6 @@ class Stage2LogicTest {
 		t.onTargetHealthDrop(4, 9f, 210);
 		assertEquals(3.5f, t.lastDamage(3, 300), 1e-6, "spadek zdrowia innej istoty bez trafienia nie zmienia obrażeń");
 		assertEquals(-1, t.lastDamage(3, 6000), 1e-6);
-	}
-
-	@Test
-	void jumpResetTiming() {
-		CombatTracker t = new CombatTracker();
-		t.onSelfHurt(100, 5000);
-		assertFalse(t.jumpShown(5000));
-		t.onJump(101, 5050);
-		assertTrue(t.jumpShown(5100));
-		assertEquals(Integer.valueOf(1), t.jumpDelta());
-		t.onSelfHurt(200, 10000);
-		t.onJump(205, 10250);
-		assertEquals(Integer.valueOf(5), t.jumpDelta(), "za późno o 5 ticków");
-		t.onJump(299, 14900);
-		t.onSelfHurt(300, 15000);
-		assertEquals(Integer.valueOf(-1), t.jumpDelta(), "skok tick przed ciosem");
-		t.onSelfHurt(400, 20000);
-		t.tick(411, 20550);
-		assertTrue(t.jumpShown(20600));
-		assertNull(t.jumpDelta(), "bez skoku");
 	}
 
 	@Test

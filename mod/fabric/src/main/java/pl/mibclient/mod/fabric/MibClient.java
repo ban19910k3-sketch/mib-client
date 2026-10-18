@@ -92,7 +92,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public KeyMapping menuKey, zoomKey, perspectiveKey, stopwatchKey, snaplookKey;
 
 	private final long sessionStart = System.currentTimeMillis();
-	private boolean optionsApplied;
+	private boolean optionsApplied, autoSprint;
 	private Boolean cinematicBefore;
 	/** Perspective: kąty kamery niezależne od postaci i widok sprzed włączenia. */
 	private boolean freeOn, freeToggled;
@@ -241,6 +241,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		while (stopwatchKey.consumeClick()) {
 			if (modules.isOn("stopwatch") && Input.screen(c) == null) pvp.meters.stopwatch.press(System.currentTimeMillis());
 		}
+		tickAutoSprint(c);
 		pvp.tick(c);
 		players.tick(c);
 		world.tick(c);
@@ -413,6 +414,21 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		}
 	}
 
+	/**
+	 * Auto sprint: klawisz biegu stale „wciśnięty” (gra sama sprawdza, czy idziesz do przodu i czy możesz biec).
+	 * Przy przełączanym biegu wciśnięcie zmienia stan, więc tylko gdy bieg jest wyłączony.
+	 */
+	private void tickAutoSprint(Minecraft c) {
+		if (modules.isOn("auto_sprint") && c.player != null) {
+			if (!c.options.keySprint.isDown()) c.options.keySprint.setDown(true);
+			if (c.player.isSprinting()) hooks.add("auto_sprint");
+			autoSprint = true;
+		} else if (autoSprint) {
+			autoSprint = false;
+			if (!c.options.toggleSprint().get()) c.options.keySprint.setDown(false);
+		}
+	}
+
 	/** Camera „bez bujania” korzysta z opcji gry; po wyłączeniu przywraca poprzednie ustawienie gracza. */
 	private void applyCamera() {
 		Minecraft c = Minecraft.getInstance();
@@ -439,11 +455,9 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		return distance * intOpt("camera", "distance") / 4f;
 	}
 
-	/** Własny nick nad głową: zawsze w kamerze 360°, w trzeciej osobie z Nametags. */
+	/** Własny nick nad głową (z logo MiB): zawsze w kamerze 360° i w trzeciej osobie. */
 	public boolean showOwnName() {
-		if (freeOn) return true;
-		Minecraft c = Minecraft.getInstance();
-		return modules.isOn("nametags") && boolOpt("nametags", "own") && !c.options.getCameraType().isFirstPerson();
+		return freeOn || !Minecraft.getInstance().options.getCameraType().isFirstPerson();
 	}
 
 	/** Snaplook (klawisz: widok z przodu) i Auto perspective (elytra, jazda): trzecia osoba tylko na ten czas. */

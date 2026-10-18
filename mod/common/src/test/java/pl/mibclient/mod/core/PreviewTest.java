@@ -65,6 +65,9 @@ class PreviewTest {
 		MenuView v = new MenuView(mm, actions(acc));
 		menu(out, "menu-1280x720", 1280, 720, v);
 		menu(out, "menu-854x480", 854, 480, v);
+		for (char ch : "sprint".toCharArray()) v.charTyped(ch);
+		menu(out, "menu-search", 1280, 720, v);
+		v.clearQuery();
 		mm.setBlocked(Collections.singleton("zoom"));
 		v.openSettings("keystrokes");
 		menu(out, "menu-settings", 1280, 720, v);

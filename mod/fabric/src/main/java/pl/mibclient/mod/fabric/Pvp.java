@@ -15,16 +15,14 @@ import pl.mibclient.mod.core.modules.Meters;
 
 /**
  * Moduły PvP i liczniki etapu 2 po stronie gry: uderzenia (MultiPlayerGameModeMixin), trafienia i obrażenia celu,
- * własne obrażenia i skoki (co tick), totemy i TPS (ClientPacketListenerMixin), prędkość.
+ * własne obrażenia (co tick), totemy i TPS (ClientPacketListenerMixin), prędkość.
  */
 public final class Pvp {
 	public final CombatTracker combat = new CombatTracker();
 	public final Meters meters = new Meters();
 
 	private final MibClient mib;
-	private long tick;
 	private int prevHurt;
-	private boolean prevGround = true;
 	private WeakReference<LivingEntity> target = new WeakReference<>(null);
 	private int targetPrevHurt;
 	private float targetPrevHealth = -1;
@@ -68,18 +66,13 @@ public final class Pvp {
 	}
 
 	void tick(Minecraft c) {
-		tick++;
 		long now = System.currentTimeMillis();
 		LocalPlayer p = c.player;
 		if (p == null) return;
 		meters.speed.tick(p.getX(), p.getY(), p.getZ(), mib.boolOpt("speed_meter", "vertical"));
 		// gra ustawia hurtTime na 10 przy otrzymaniu obrażeń i odlicza do zera
-		if (p.hurtTime > prevHurt) combat.onSelfHurt(tick, now);
+		if (p.hurtTime > prevHurt) combat.onSelfHurt();
 		prevHurt = p.hurtTime;
-		boolean ground = p.onGround();
-		if (prevGround && !ground && c.options.keyJump.isDown()) combat.onJump(tick, now);
-		prevGround = ground;
-		combat.tick(tick, now);
 
 		LivingEntity t = target.get();
 		if (t != null) {

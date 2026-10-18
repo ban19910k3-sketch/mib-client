@@ -47,6 +47,19 @@ public final class MenuScreen extends Screen {
 	}
 
 	//#if MC >= 26.1
+	// Od 26.1 gra włącza wpisywanie tekstu (litery, IME) tylko dla aktywnego pola tekstowego; menu ma wyszukiwarkę, więc cały czas
+	@Override
+	protected void init() {
+		super.init();
+		minecraft.onTextInputFocusChange(this, true);
+	}
+
+	@Override
+	public void removed() {
+		minecraft.onTextInputFocusChange(this, false);
+		super.removed();
+	}
+
 	@Override
 	public void extractRenderState(MibGraphics g, int mouseX, int mouseY, float delta) {
 		super.extractRenderState(g, mouseX, mouseY, delta);

@@ -17,13 +17,15 @@ class CatalogTest {
 		assertEquals(new HashSet<String>(Arrays.asList("armor_status", "brightness", "coordinates", "cps", "custom_crosshair", "direction",
 				"fov_changer", "fps", "keystrokes", "perspective", "ping", "playtime", "potion_effects", "server_address", "time", "toggle_sprint", "zoom",
 				"armor_bar", "hearts", "saturation", "item_counter", "mousestrokes", "pack_display", "player_model", "speed_meter", "stopwatch",
-				"system_resources", "tps", "attack_indicator", "combo_display", "damage_indicator", "hit_indicator", "jump_reset", "reach_display", "totem",
-				"boss_bar", "scoreboard", "toast_control", "camera", "nametags", "snaplook", "auto_perspective", "viewmodel", "weather_changer",
+				"system_resources", "tps", "attack_indicator", "combo_display", "damage_indicator", "hit_indicator", "reach_display", "totem", "auto_sprint", "player_overlay",
+				"boss_bar", "scoreboard", "toast_control", "camera", "snaplook", "auto_perspective", "viewmodel", "weather_changer",
 				"block_indicator", "death_info", "horses", "custom_chat", "reconnect", "item_info", "nick_hider",
-				"title_tweaker", "subtitles", "autohide_hud", "time_changer", "inventory", "tnt_timer", "item_despawn", "mob_overlay",
+				"title_tweaker", "subtitles", "autohide_hud", "time_changer", "inventory", "tnt_timer", "item_despawn",
 				"tablist", "drop_prevention", "backups", "cull_logs",
-				"animations", "block_overlay", "color_saturation", "motion_blur", "custom_fog", "dark_mode", "elytras", "item_physic", "ui_scaling", "custom_f3", "tooltips", "shulker_tooltips", "advancement_info", "hitbox", "tier_tagger", "light_level", "loot_beams", "uhc_overlay", "waypoints", "auto_text", "emotes", "screenshot", "keybind_search", "sound_filters")), ids);
-		assertEquals(87, ModuleCatalog.ALL.size());
+				"animations", "block_overlay", "color_saturation", "motion_blur", "custom_fog", "dark_mode", "elytras", "item_physic", "ui_scaling", "custom_f3", "tooltips", "shulker_tooltips", "advancement_info", "hitbox", "tier_tagger", "light_level", "loot_beams", "uhc_overlay", "waypoints", "auto_text", "emotes", "keybind_search", "sound_filters")), ids);
+		assertEquals(85, ModuleCatalog.ALL.size());
+		assertFalse(ids.contains("jump_reset") || ids.contains("nametags") || ids.contains("screenshot") || ids.contains("mob_overlay"),
+				"Jump reset usunięty, Nametags i Screenshot działają zawsze bez przełącznika, Mob overlay to teraz Player overlay");
 	}
 
 	@Test
@@ -33,12 +35,12 @@ class CatalogTest {
 		assertEquals(new HashSet<String>(Arrays.asList("Armor status", "Brightness", "Coordinates", "CPS", "Custom crosshair", "Direction",
 				"FOV changer", "FPS", "Keystrokes", "Perspective", "Ping", "Playtime", "Potion effects", "Server address", "Time", "Toggle sprint", "Zoom",
 				"Armor bar", "Hearts", "Saturation", "Item counter", "Mousestrokes", "Pack display", "Player model", "Speed meter", "Stopwatch",
-				"System resources", "TPS", "Attack indicator", "Combo display", "Damage indicator", "Hit indicator", "Jump reset", "Reach display", "Totem",
-				"Boss bar", "Scoreboard", "Toast control", "Camera", "Nametags", "Snaplook", "Auto perspective", "Viewmodel", "Weather changer",
+				"System resources", "TPS", "Attack indicator", "Combo display", "Damage indicator", "Hit indicator", "Reach display", "Totem", "Auto sprint", "Player overlay",
+				"Boss bar", "Scoreboard", "Toast control", "Camera", "Snaplook", "Auto perspective", "Viewmodel", "Weather changer",
 				"Block indicator", "Death info", "Horses", "Custom chat", "Reconnect", "Item info", "Nick hider",
-				"Title tweaker", "Subtitles", "Autohide HUD", "Time changer", "Inventory", "TNT timer", "Item despawn", "Mob overlay",
+				"Title tweaker", "Subtitles", "Autohide HUD", "Time changer", "Inventory", "TNT timer", "Item despawn",
 				"Tablist", "Drop prevention", "Backups", "Cull logs",
-				"Animations", "Block overlay", "Color saturation", "Motion blur", "Custom fog", "Dark mode", "Elytras", "Item physic", "UI scaling", "Custom F3", "Tooltips", "Shulker tooltips", "Custom advancement requirements", "Hitbox", "Tier tagger", "Light level overlay", "Loot beams", "UHC overlay", "Waypoints", "Auto text", "Emotes", "Screenshot", "Keybind search", "Sound filters")),
+				"Animations", "Block overlay", "Color saturation", "Motion blur", "Custom fog", "Dark mode", "Elytras", "Item physic", "UI scaling", "Custom F3", "Tooltips", "Shulker tooltips", "Custom advancement requirements", "Hitbox", "Tier tagger", "Light level overlay", "Loot beams", "UHC overlay", "Waypoints", "Auto text", "Emotes", "Keybind search", "Sound filters")),
 				new HashSet<String>(names));
 	}
 
@@ -52,10 +54,10 @@ class CatalogTest {
 	@Test
 	void everyHudModuleHasDefaultPosition() {
 		Set<String> notHud = new HashSet<String>(Arrays.asList("brightness", "custom_crosshair", "fov_changer", "perspective", "zoom", "hit_indicator", "saturation",
-				"boss_bar", "scoreboard", "toast_control", "camera", "nametags", "snaplook", "auto_perspective", "viewmodel", "weather_changer",
+				"boss_bar", "scoreboard", "toast_control", "camera", "snaplook", "auto_perspective", "viewmodel", "weather_changer",
 				"custom_chat", "reconnect", "item_info", "nick_hider", "title_tweaker", "subtitles", "autohide_hud", "time_changer", "inventory",
-				"tnt_timer", "item_despawn", "mob_overlay", "tablist", "drop_prevention", "backups", "cull_logs",
-				"animations", "block_overlay", "color_saturation", "motion_blur", "custom_fog", "dark_mode", "elytras", "item_physic", "ui_scaling", "custom_f3", "tooltips", "shulker_tooltips", "advancement_info", "hitbox", "tier_tagger", "light_level", "loot_beams", "uhc_overlay", "waypoints", "auto_text", "emotes", "screenshot", "keybind_search", "sound_filters"));
+				"tnt_timer", "item_despawn", "player_overlay", "auto_sprint", "tablist", "drop_prevention", "backups", "cull_logs",
+				"animations", "block_overlay", "color_saturation", "motion_blur", "custom_fog", "dark_mode", "elytras", "item_physic", "ui_scaling", "custom_f3", "tooltips", "shulker_tooltips", "advancement_info", "hitbox", "tier_tagger", "light_level", "loot_beams", "uhc_overlay", "waypoints", "auto_text", "emotes", "keybind_search", "sound_filters"));
 		for (ModuleDef m : ModuleCatalog.ALL) {
 			assertEquals(!notHud.contains(m.id), m.hud, m.id);
 			assertEquals(m.hud, m.defaultHud != null, m.id);
@@ -71,6 +73,8 @@ class CatalogTest {
 		assertEquals(Category.HUD, ModuleCatalog.get("fps").category);
 		assertEquals(Category.PVP, ModuleCatalog.get("zoom").category);
 		assertEquals(Category.PVP, ModuleCatalog.get("toggle_sprint").category);
+		assertEquals(Category.PVP, ModuleCatalog.get("auto_sprint").category);
+		assertEquals(Category.PVP, ModuleCatalog.get("player_overlay").category);
 		assertEquals(Category.LOOK, ModuleCatalog.get("brightness").category);
 		assertNull(ModuleCatalog.get("nope"));
 	}

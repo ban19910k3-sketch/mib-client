@@ -78,10 +78,6 @@ public final class Lang {
 		put("hud.popped", "%s: −%d totem", "%s: −%d totem");
 		put("hud.attack", "Atak: %d%%", "Attack: %d%%");
 		put("hud.no_packs", "Bez paczek zasobów", "No resource packs");
-		put("jump.perfect", "Jump reset: idealny", "Jump reset: perfect");
-		put("jump.late", "Jump reset: za późno (%d t)", "Jump reset: too late (%d t)");
-		put("jump.early", "Jump reset: za wcześnie (%d t)", "Jump reset: too early (%d t)");
-		put("jump.none", "Jump reset: bez skoku", "Jump reset: no jump");
 		put("key.stopwatch", "Stoper", "Stopwatch");
 		put("hud.death", "Śmierć: %s", "Death: %s");
 		put("hud.horse_speed", "Prędkość: %s m/s", "Speed: %s m/s");

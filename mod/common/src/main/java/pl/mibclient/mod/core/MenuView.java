@@ -88,10 +88,15 @@ public final class MenuView {
 		page = Page.SETTINGS;
 	}
 
-	/** Moduły widoczne w siatce: kategoria i wyszukiwarka, alfabetycznie. */
+	/** Szukanie obejmuje wszystkie moduły, bez względu na wybraną kategorię. */
+	private boolean searching() {
+		return !query.trim().isEmpty();
+	}
+
+	/** Moduły widoczne w siatce: wyniki wyszukiwania ze wszystkich kategorii albo moduły wybranej kategorii, alfabetycznie. */
 	public List<ModuleDef> visible() {
 		List<ModuleDef> l = new ArrayList<ModuleDef>();
-		for (ModuleDef m : modules.all()) if ((category == null || m.category == category) && Search.matches(m, query)) l.add(m);
+		for (ModuleDef m : modules.all()) if ((category == null || searching() || m.category == category) && Search.matches(m, query)) l.add(m);
 		Collections.sort(l, new Comparator<ModuleDef>() {
 			@Override
 			public int compare(ModuleDef a, ModuleDef b) {
@@ -158,7 +163,7 @@ public final class MenuView {
 		for (int i = 0; i < cats.size(); i++) {
 			final Category k = cats.get(i);
 			int[] r = layout.category(i);
-			boolean on = k == category && page == Page.GRID, hover = in(r, mx, my);
+			boolean on = (searching() ? k == null : k == category) && page == Page.GRID, hover = in(r, mx, my);
 			if (on || hover) c.fill(r[0], r[1], r[0] + r[2], r[1] + r[3], Theme.SLAB2);
 			if (on) c.fill(r[0], r[1], r[0] + 2, r[1] + r[3], Theme.AM);
 			Shapes.icon(c, k == null ? "grid-3x3" : k.icon, r[0] + 6, r[1] + 2, on ? Theme.AM_HI : Theme.MUTED);
@@ -169,6 +174,7 @@ public final class MenuView {
 				@Override
 				public void run() {
 					category = k;
+					query = "";
 					scroll = 0;
 					page = Page.GRID;
 				}

@@ -160,13 +160,6 @@ public final class HudView {
 					+ (bool(d, st, "damage") && dmg > 0 ? "  -" + Formats.hp(dmg) : ""));
 			return l;
 		}
-		if ("jump_reset".equals(id)) {
-			if ((cb == null || !cb.jumpShown(now)) && !editor) return Collections.emptyList();
-			Integer dt = cb == null || !cb.jumpShown(now) ? Integer.valueOf(0) : cb.jumpDelta();
-			if (dt == null) return one(Lang.t("jump.none"));
-			if (Math.abs(dt) <= 1) return one(Lang.t("jump.perfect"));
-			return one(dt > 0 ? Lang.t("jump.late", dt) : Lang.t("jump.early", -dt));
-		}
 		if ("totem".equals(id)) {
 			int own = 0;
 			for (GameInfo.Stack x : g.inventory()) if ("minecraft:totem_of_undying".equals(x.id)) own += x.count;

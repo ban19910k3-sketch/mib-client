@@ -4,9 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Walka dla modułów PvP: combo, zasięg uderzenia, znacznik trafienia, zadane obrażenia, jump reset i totemy.
- * Adapter gry woła on*(): uderzenie (attack), trafienie celu (cel dostał obrażenia), własne obrażenia, skok, totem.
- * Czas w ms, tick = numer ticku gry (20 na sekundę).
+ * Walka dla modułów PvP: combo, zasięg uderzenia, znacznik trafienia, zadane obrażenia i totemy.
+ * Adapter gry woła on*(): uderzenie (attack), trafienie celu (cel dostał obrażenia), własne obrażenia, totem. Czas w ms.
  */
 public final class CombatTracker {
 	/** Po tylu ms bez trafienia combo się kończy. */
@@ -15,8 +14,6 @@ public final class CombatTracker {
 	public static final long MARKER_MS = 300;
 	/** Trafienie liczy się tylko wtedy, gdy cel dostał obrażenia do tylu ms po naszym uderzeniu. */
 	static final long HIT_WINDOW_MS = 600;
-	/** Wynik jump resetu widać tyle ms. */
-	public static final long JUMP_SHOW_MS = 3000;
 
 	/** „Dawno temu” bez przepełnienia przy odejmowaniu. */
 	private static final long NEVER = Long.MIN_VALUE / 4;
@@ -27,10 +24,6 @@ public final class CombatTracker {
 	private int combo;
 	private float damage = -1;
 	private int damageTarget = Integer.MIN_VALUE;
-
-	private long hurtTick = NEVER, jumpTick = NEVER, jumpShownAt = NEVER;
-	private Integer jumpDelta;
-	private boolean waitingJump;
 
 	private final Map<String, Integer> pops = new HashMap<String, Integer>();
 	private String lastPop;
@@ -73,35 +66,9 @@ public final class CombatTracker {
 		if (entityId == damageTarget && now - hitAt <= 1000 && lost > 0) damage = Math.max(damage, 0) + lost;
 	}
 
-	/** My dostaliśmy obrażenia: koniec combo, zaczyna się okno jump resetu. */
-	public void onSelfHurt(long tick, long now) {
+	/** My dostaliśmy obrażenia: koniec combo. */
+	public void onSelfHurt() {
 		combo = 0;
-		hurtTick = tick;
-		// skok tuż przed ciosem (do 2 ticków) też liczy się jako jump reset
-		if (tick - jumpTick <= 2) showJump((int) (jumpTick - tick), now);
-		else waitingJump = true;
-	}
-
-	/** Postać wyskoczyła z ziemi. */
-	public void onJump(long tick, long now) {
-		jumpTick = tick;
-		if (waitingJump && tick - hurtTick <= 10) showJump((int) (tick - hurtTick), now);
-		waitingJump = false;
-	}
-
-	/** Co tick: brak skoku do 10 ticków po ciosie. */
-	public void tick(long tick, long now) {
-		if (waitingJump && tick - hurtTick > 10) {
-			waitingJump = false;
-			jumpDelta = null;
-			jumpShownAt = now;
-		}
-	}
-
-	private void showJump(int delta, long now) {
-		waitingJump = false;
-		jumpDelta = delta;
-		jumpShownAt = now;
 	}
 
 	/** Istota zużyła totem nieśmiertelności. */
@@ -121,9 +88,6 @@ public final class CombatTracker {
 		damage = -1;
 		damageTarget = Integer.MIN_VALUE;
 		targetId = Integer.MIN_VALUE;
-		jumpDelta = null;
-		jumpShownAt = NEVER;
-		waitingJump = false;
 	}
 
 	public int combo(long now) {
@@ -142,16 +106,6 @@ public final class CombatTracker {
 
 	public boolean hitMarker(long now) {
 		return now - hitAt <= MARKER_MS;
-	}
-
-	/** Czy pokazać wynik jump resetu (do 3 s po ciosie). */
-	public boolean jumpShown(long now) {
-		return now - jumpShownAt <= JUMP_SHOW_MS;
-	}
-
-	/** Ticki między ciosem a skokiem (ujemne: skok przed ciosem) albo null, gdy nie było skoku. */
-	public Integer jumpDelta() {
-		return jumpDelta;
 	}
 
 	public int pops(String name) {

@@ -253,7 +253,7 @@ public final class Extras {
 			int pw = Math.max(60, w / 5), ph = pw * previewH / Math.max(1, previewW), x = w - pw - 6, y = 6;
 			canvas.fill(x - 2, y - 2, x + pw + 2, y + ph + 12, 0xC0100618);
 			FabricCanvas.blit(g, preview, x, y, 0, 0, pw, ph, pw, ph, 0xFFFFFFFF);
-			String t = Lang.t(mib.bridge != null && mib.boolOpt("screenshot", "copy") ? "shot.copied" : "shot.saved");
+			String t = Lang.t(mib.bridge != null ? "shot.copied" : "shot.saved");
 			canvas.text(t, x + (pw - canvas.textWidth(t)) / 2, y + ph + 2, Theme.AM_HI, true);
 		}
 	}
@@ -277,8 +277,8 @@ public final class Extras {
 
 	// ===== Screenshot =====
 
+	/** Zrzut ekranu (F2) zawsze trafia do schowka (przez launcher) i na chwilę do podglądu w rogu. */
 	private void tickScreenshots(Minecraft c) {
-		if (!on("screenshot")) return;
 		try {
 			if (watch == null) {
 				shots = FabricLoader.getInstance().getGameDir().resolve("screenshots");
@@ -311,8 +311,7 @@ public final class Extras {
 
 	private void shot(File f) {
 		MibClient.hooks.add("screenshot");
-		if (mib.boolOpt("screenshot", "copy") && mib.bridge != null) mib.bridge.requestScreenshotCopy(f.getAbsolutePath());
-		if (!mib.boolOpt("screenshot", "preview")) return;
+		if (mib.bridge != null) mib.bridge.requestScreenshotCopy(f.getAbsolutePath());
 		try (InputStream in = Files.newInputStream(f.toPath())) {
 			byte[] png = in.readAllBytes();
 			int[] size = pngSize(png);

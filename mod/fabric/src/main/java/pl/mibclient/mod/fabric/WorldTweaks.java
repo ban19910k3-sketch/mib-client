@@ -12,7 +12,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.item.PrimedTnt;
-import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.LevelResource;
 import org.apache.logging.log4j.LogManager;
@@ -74,10 +74,10 @@ public final class WorldTweaks {
 		cullOn = mib.modules.isOn("cull_logs");
 		labels = Collections.emptyMap(); // przy liczeniu nowych getCustomName() zwraca prawdziwe nazwy
 		if (c.level == null || c.player == null) return;
-		boolean tnt = mib.modules.isOn("tnt_timer"), items = mib.modules.isOn("item_despawn"), mobs = mib.modules.isOn("mob_overlay");
+		boolean tnt = mib.modules.isOn("tnt_timer"), items = mib.modules.isOn("item_despawn");
+		boolean mobs = mib.modules.isOn("player_overlay") && mib.boolOpt("player_overlay", "mobs");
 		if (!tnt && !items && !mobs) return;
-		int itemR = mib.intOpt("item_despawn", "radius"), mobR = mib.intOpt("mob_overlay", "radius");
-		boolean hostile = mib.boolOpt("mob_overlay", "hostile");
+		int itemR = mib.intOpt("item_despawn", "radius"), mobR = mib.intOpt("player_overlay", "radius");
 		int range = Math.max(tnt ? 64 : 0, Math.max(items ? itemR : 0, mobs ? mobR : 0));
 		Map<Entity, Component> out = new IdentityHashMap<>();
 		for (Entity e : c.level.getEntities(c.player, c.player.getBoundingBox().inflate(range), x -> true)) {
@@ -90,7 +90,7 @@ public final class WorldTweaks {
 				ItemStack s = it.getItem();
 				Component name = s.getCount() > 1 ? Component.empty().append(s.getHoverName()).append(" ×" + s.getCount()) : s.getHoverName();
 				out.put(e, Component.empty().append(name).append(Component.literal("  " + left).withColor(Labels.despawnColor(it.getAge()))));
-			} else if (mobs && e instanceof Mob m && d <= mobR * mobR && !m.isInvisible() && (!hostile || m instanceof Enemy)) {
+			} else if (mobs && e instanceof Mob m && d <= mobR * mobR && !m.isInvisible()) {
 				float hp = m.getHealth();
 				out.put(e, Component.empty().append(m.getName())
 						.append(Component.literal(" ❤ " + Labels.health(hp)).withColor(Labels.healthColor(hp, m.getMaxHealth()))));
@@ -98,6 +98,19 @@ public final class WorldTweaks {
 		}
 		if (!out.isEmpty()) MibClient.hooks.add("labels");
 		labels = out;
+	}
+
+	/** Player overlay: zdrowie gracza (i złote serca absorpcji) za jego nickiem nad głową albo null (PlayerMixin). */
+	public static Component playerHealth(Player p) {
+		MibClient m = MibClient.get();
+		Minecraft c = Minecraft.getInstance();
+		if (m == null || c.player == null || !m.modules.isOn("player_overlay") || p.isInvisible()) return null;
+		int r = m.intOpt("player_overlay", "radius");
+		if (p != c.player && p.distanceToSqr(c.player) > (double) r * r) return null;
+		MibClient.hooks.add("player_overlay");
+		float hp = p.getHealth(), abs = p.getAbsorptionAmount();
+		Component out = Component.literal(" ❤ " + Labels.health(hp)).withColor(Labels.healthColor(hp, p.getMaxHealth()));
+		return abs > 0 ? Component.empty().append(out).append(Component.literal(" +" + Labels.health(abs)).withColor(0xFFFFAA00)) : out;
 	}
 
 	/** Napis zamiast nazwy istoty albo null (EntityMixin). */

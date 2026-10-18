@@ -11,7 +11,7 @@ import pl.mibclient.mod.core.Setting.ColorSetting;
 import pl.mibclient.mod.core.Setting.IntSetting;
 import pl.mibclient.mod.core.Setting.TextSetting;
 
-/** Moduły z listy 87 (spec: docs/superpowers/specs/2026-10-16-mib-mod-design.md). */
+/** Moduły menu pod prawym Shiftem (lista ze spec: docs/superpowers/specs/2026-10-16-mib-mod-design.md, bez Jump reset; Nametags i Screenshot działają zawsze, poza menu). */
 public final class ModuleCatalog {
 	private ModuleCatalog() {
 	}
@@ -92,6 +92,8 @@ public final class ModuleCatalog {
 				bool("sprint", "Przełączany bieg", "Toggle sprint", true),
 				bool("sneak", "Przełączane skradanie", "Toggle sneak", false),
 				bool("show", "Pokaż stan na ekranie", "Show status on screen", true))),
+		new ModuleDef("auto_sprint", "Auto sprint", Category.PVP, "Biegasz zawsze, gdy idziesz do przodu (bez trzymania klawisza biegu)",
+			"You always sprint while walking forward (no need to hold the sprint key)", "zap", false, null, list()),
 		new ModuleDef("zoom", "Zoom", Category.PVP, "Przybliżenie pod klawiszem (domyślnie C), kółkiem bliżej i dalej",
 			"Zoom while holding a key (C by default), scroll to adjust", "zoom-in", true, null, list(
 				new IntSetting("factor", "Przybliżenie (x)", "Zoom level (x)", 4, 2, 50, 1),
@@ -181,11 +183,13 @@ public final class ModuleCatalog {
 			"Marker at the crosshair and a sound when you hit an opponent", "x", false, null, list(
 				bool("sound", "Dźwięk trafienia", "Hit sound", true),
 				new ColorSetting("color", "Kolor znacznika", "Marker colour", 0xFFFF5555))),
-		new ModuleDef("jump_reset", "Jump reset", Category.PVP, "Podpowiedź, czy skok po otrzymaniu ciosu był w dobrym momencie (bez automatu)",
-			"Tells you if your jump after getting hit was on time (no automation)", "arrow-big-up", false, at(Anchor.CENTER, 0, 28), hud()),
 		new ModuleDef("reach_display", "Reach display", Category.PVP, "Odległość ostatniego trafienia w blokach", "Distance of your last hit in blocks",
 			"arrows-horizontal", false, at(Anchor.TOP_RIGHT, 4, 98), hud(
 				new IntSetting("decimals", "Miejsca po przecinku", "Decimal places", 2, 1, 3, 1))),
+		new ModuleDef("player_overlay", "Player overlay", Category.PVP, "Zdrowie graczy obok ich nicku nad głową",
+			"Players' health next to their name above their head", "users", false, null, list(
+				new IntSetting("radius", "Zasięg (bloki)", "Range (blocks)", 32, 4, 64, 4),
+				bool("mobs", "Także zdrowie nad mobami", "Health above mobs too", false))),
 		new ModuleDef("totem", "Totem", Category.PVP, "Twoje totemy i totemy zużyte przez przeciwników",
 			"Your totems and totems used up by opponents", "trophy", false, at(Anchor.TOP_RIGHT, 4, 114), hud(
 				bool("pops", "Totemy przeciwników", "Opponents' totems", true))),
@@ -224,9 +228,6 @@ public final class ModuleCatalog {
 			"No view bobbing and your own third-person camera distance", "camera", false, null, list(
 				bool("no_bob", "Bez bujania kamery", "No view bobbing", true),
 				new IntSetting("distance", "Odległość w trzeciej osobie", "Third-person distance", 4, 1, 16, 1))),
-		new ModuleDef("nametags", "Nametags", Category.LOOK, "Własny nick nad głową w trzeciej osobie, tak jak widzą go inni (z logo MiB)",
-			"Your own name above your head in third person, as others see it (with the MiB logo)", "label", false, null, list(
-				bool("own", "Własny nick w trzeciej osobie", "Own name in third person", true))),
 		new ModuleDef("snaplook", "Snaplook", Category.LOOK, "Szybki podgląd za siebie pod klawiszem (domyślnie Z)",
 			"Quick look behind you while holding a key (Z by default)", "undo", false, null, list()),
 		new ModuleDef("auto_perspective", "Auto perspective", Category.LOOK, "Sam przełącza na trzecią osobę przy lataniu elytrą i jeździe konnej",
@@ -263,10 +264,6 @@ public final class ModuleCatalog {
 		new ModuleDef("item_despawn", "Item despawn", Category.WORLD, "Czas do zniknięcia leżących przedmiotów (od kiedy je widzisz)",
 			"Time until dropped items disappear (since you first saw them)", "trash", false, null, list(
 				new IntSetting("radius", "Zasięg (bloki)", "Range (blocks)", 8, 4, 32, 2))),
-		new ModuleDef("mob_overlay", "Mob overlay", Category.WORLD, "Zdrowie nad mobami", "Health above mobs",
-			"skull", false, null, list(
-				new IntSetting("radius", "Zasięg (bloki)", "Range (blocks)", 16, 4, 32, 2),
-				bool("hostile", "Tylko wrogie moby", "Hostile mobs only", false))),
 		new ModuleDef("tablist", "Tablist", Category.CHAT, "Ping liczbami na liście graczy (Tab)", "Ping as numbers in the player list (Tab)",
 			"list-box", false, null, list()),
 		new ModuleDef("custom_chat", "Custom chat", Category.CHAT, "Godzina przy wiadomościach i dłuższa historia czatu",
@@ -370,10 +367,6 @@ public final class ModuleCatalog {
 					new String[] {"Machanie", "Taniec", "Klaskanie", "Wskazywanie", "Radość"}, new String[] {"Wave", "Dance", "Clap", "Point", "Cheer"}),
 				new IntSetting("seconds", "Czas (sekundy)", "Duration (seconds)", 4, 2, 10, 1),
 				bool("camera", "Pokaż postać od przodu", "Show yourself from the front", true))),
-		new ModuleDef("screenshot", "Screenshot", Category.OTHER, "Zrzut ekranu (F2) od razu w schowku i jego podgląd w rogu ekranu",
-			"Screenshots (F2) copied to the clipboard right away, with a preview in the corner", "image", false, null, list(
-				bool("copy", "Kopiuj do schowka", "Copy to clipboard", true),
-				bool("preview", "Podgląd w rogu", "Preview in the corner", true))),
 		new ModuleDef("keybind_search", "Keybind search", Category.OTHER, "Wyszukiwarka w ustawieniach klawiszy (Sterowanie)",
 			"A search box in the key binds settings (Controls)", "keyboard", false, null, list()),
 		new ModuleDef("sound_filters", "Sound filters", Category.OTHER, "Pogłos w jaskiniach i wytłumione dźwięki pod wodą",

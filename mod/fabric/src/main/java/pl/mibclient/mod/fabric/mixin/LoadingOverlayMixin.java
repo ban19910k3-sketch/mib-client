@@ -22,8 +22,8 @@ import net.minecraft.client.renderer.RenderType;
 //#endif
 
 /**
- * Ekran ładowania (start gry, wczytywanie paczek zasobów): ciemne tło MiB, animowane logo MiB Client z
- * numerem wersji zamiast logo Mojang Studios i fioletowy pasek postępu.
+ * Ekran ładowania (start gry, wczytywanie paczek zasobów): ciemne tło MiB, animowane logo i napis MiB Client
+ * zamiast logo Mojang Studios i fioletowy pasek postępu.
  */
 @Mixin(LoadingOverlay.class)
 public abstract class LoadingOverlayMixin {

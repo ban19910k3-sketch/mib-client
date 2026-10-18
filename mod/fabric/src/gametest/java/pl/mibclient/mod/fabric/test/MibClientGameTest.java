@@ -52,6 +52,9 @@ public class MibClientGameTest implements FabricClientGameTest {
 			input.pressKey(InputConstants.KEY_RSHIFT);
 			context.waitTicks(5);
 			check(context.computeOnClient(c -> Input.screen(c) instanceof MenuScreen), "prawy Shift nie otworzył menu");
+			//#if MC >= 26.1
+			check(context.computeOnClient(MibClientGameTest::textInputOn), "menu nie włączyło wpisywania tekstu (wyszukiwarka nie dostanie liter)");
+			//#endif
 			context.takeScreenshot("01-menu");
 
 			input.typeChars("cps");
@@ -98,7 +101,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			// moduły etapów 3 i 4 w grze: nasycenie (tryb przetrwania), tabela wyników, pasek bossa, czat, pogoda, kamera, ręka
 			context.runOnClient(c -> {
 				ModuleManager m = MibClient.get().modules;
-				for (String id : new String[] {"saturation", "scoreboard", "boss_bar", "custom_chat", "weather_changer", "camera", "viewmodel", "nametags"}) {
+				for (String id : new String[] {"saturation", "scoreboard", "boss_bar", "custom_chat", "weather_changer", "camera", "viewmodel"}) {
 					if (!m.isOn(id)) m.toggle(id);
 				}
 				m.state("scoreboard").setOption("hide", false);
@@ -113,6 +116,8 @@ public class MibClientGameTest implements FabricClientGameTest {
 			sp.getServer().runCommand("bossbar add mib:test \"MiB\"");
 			sp.getServer().runCommand("bossbar set mib:test players @a");
 			sp.getServer().runCommand("say MiB");
+			// własna wiadomość na czacie z logo MiB przed nickiem
+			context.runOnClient(c -> c.getConnection().sendChat("hej"));
 			context.waitTicks(20);
 			context.takeScreenshot("06d-stage3");
 			sp.getServer().runCommand("gamemode creative @a");
@@ -153,11 +158,13 @@ public class MibClientGameTest implements FabricClientGameTest {
 			// moduły świata: zdrowie nad świnią, odliczanie TNT, tytuł, ping liczbami w Tab, pora dnia, ekwipunek, blokada wyrzucania
 			context.runOnClient(c -> {
 				ModuleManager m = MibClient.get().modules;
-				for (String id : new String[] {"mob_overlay", "tnt_timer", "title_tweaker", "tablist", "time_changer", "inventory", "drop_prevention"}) {
+				for (String id : new String[] {"player_overlay", "tnt_timer", "title_tweaker", "tablist", "time_changer", "inventory", "drop_prevention"}) {
 					if (!m.isOn(id)) m.toggle(id);
 				}
+				m.state("player_overlay").setOption("mobs", true);
 				m.state("time_changer").setOption("time", "sunset");
 			});
+			check(context.computeOnClient(c -> c.player.getDisplayName().getString().contains("\u2764")), "Player overlay nie dopisał zdrowia do nicku");
 			sp.getServer().runCommand("execute at @p run summon minecraft:tnt ~3 ~ ~ {fuse:400}");
 			sp.getServer().runCommand("scoreboard objectives setdisplay list mib");
 			sp.getServer().runCommand("title @a title \"MiB\"");
@@ -190,7 +197,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.runOnClient(c -> {
 				ModuleManager m = MibClient.get().modules;
 				for (String id : new String[] {"color_saturation", "motion_blur", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "loot_beams", "light_level",
-						"waypoints", "animations", "emotes", "hitbox", "keybind_search", "custom_f3", "tooltips", "screenshot"}) {
+						"waypoints", "animations", "emotes", "hitbox", "keybind_search", "custom_f3", "tooltips"}) {
 					if (!m.isOn(id)) m.toggle(id);
 				}
 				m.state("hitbox").setOption("always", true);
@@ -233,6 +240,18 @@ public class MibClientGameTest implements FabricClientGameTest {
 				for (String id : new String[] {"color_saturation", "motion_blur", "dark_mode"}) if (m.isOn(id)) m.toggle(id);
 			});
 			context.waitTicks(3);
+
+			// Auto sprint: idąc do przodu postać biegnie bez klawisza biegu
+			context.runOnClient(c -> {
+				if (!MibClient.get().modules.isOn("auto_sprint")) MibClient.get().modules.toggle("auto_sprint");
+			});
+			input.holdKey(o -> o.keyUp);
+			context.waitTicks(8);
+			check(context.computeOnClient(c -> c.options.keySprint.isDown() && c.player.isSprinting()), "Auto sprint: postać nie biegnie");
+			input.releaseKey(o -> o.keyUp);
+			context.runOnClient(c -> MibClient.get().modules.toggle("auto_sprint"));
+			context.waitTicks(3);
+			check(context.computeOnClient(c -> !c.options.keySprint.isDown()), "Auto sprint po wyłączeniu dalej trzyma klawisz biegu");
 
 			input.holdKey(MibClient.get().zoomKey);
 			context.waitTicks(10);
@@ -288,7 +307,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
 					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop",
 					"post_effect", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "light_level", "waypoints", "dark_mode", "anim_block", "anim_dip",
-					"emote", "keybind_search", "ui_scale", "post_ok"
+					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint"
 					//#if MC < 26.3
 					, "time"
 					//#endif
@@ -301,6 +320,22 @@ public class MibClientGameTest implements FabricClientGameTest {
 		}
 		if (!errors.isEmpty()) throw new AssertionError(String.join("; ", errors));
 	}
+
+	//#if MC >= 26.1
+	/** Czy gra przyjmuje teraz wpisywany tekst (TextInputManager.textInputEnabled). */
+	private static boolean textInputOn(Minecraft c) {
+		try {
+			java.lang.reflect.Field f = Minecraft.class.getDeclaredField("textInputManager");
+			f.setAccessible(true);
+			Object t = f.get(c);
+			java.lang.reflect.Field e = t.getClass().getDeclaredField("textInputEnabled");
+			e.setAccessible(true);
+			return e.getBoolean(t);
+		} catch (ReflectiveOperationException ex) {
+			return false;
+		}
+	}
+	//#endif
 
 	private void check(boolean ok, String message) {
 		if (!ok) errors.add(message);

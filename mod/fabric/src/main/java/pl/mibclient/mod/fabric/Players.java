@@ -7,13 +7,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.MibId;
+import pl.mibclient.mod.core.ChatSender;
 import pl.mibclient.mod.core.Lang;
 import pl.mibclient.mod.core.MibPlayers;
 //#if MC >= 1.21.9
@@ -21,7 +24,7 @@ import net.minecraft.network.chat.FontDescription;
 //#endif
 
 /**
- * Gracze MiB: logo MiB przed nickiem (nad głową i w Tab) i peleryny innych graczy MiB.
+ * Gracze MiB: logo MiB przed nickiem (nad głową, w Tab i na czacie) i peleryny innych graczy MiB.
  * Co 5 s lista graczy z Tab trafia do launchera (players-request.json), launcher pyta serwer MiB i zapisuje
  * players.json oraz tekstury peleryn w mib/capes. Własna postać zawsze ma logo (gra w MiB).
  */
@@ -124,6 +127,34 @@ public final class Players {
 				out = Component.empty().append(out).append(Component.literal(" " + t).withColor(pl.mibclient.mod.core.modules.Tiers.color(t)));
 			}
 		}
+		return out;
+	}
+
+	/** Czat: logo MiB przed nickiem nadawcy, gdy pisze gracz MiB (także Ty); inne wiadomości bez zmian. */
+	public Component chat(Component message) {
+		Minecraft c = Minecraft.getInstance();
+		if (message == null || c.player == null) return message;
+		List<String> names = new ArrayList<>();
+		names.add(c.player.getScoreboardName());
+		if (c.getConnection() != null && list.size() > 0) {
+			for (PlayerInfo p : c.getConnection().getOnlinePlayers()) {
+				if (list.find(id(p.getProfile()), name(p.getProfile())) != null) names.add(name(p.getProfile()));
+			}
+		}
+		int at = ChatSender.badgeAt(message.getString(), names);
+		if (at < 0) return message;
+		MibClient.hooks.add("chat_badge");
+		MutableComponent out = Component.empty();
+		int[] pos = {0};
+		message.visit((style, text) -> {
+			int start = pos[0];
+			pos[0] += text.length();
+			if (at >= start && at < pos[0]) {
+				if (at > start) out.append(Component.literal(text.substring(0, at - start)).setStyle(style));
+				out.append(BADGE).append(Component.literal(" ").setStyle(style)).append(Component.literal(text.substring(at - start)).setStyle(style));
+			} else out.append(Component.literal(text).setStyle(style));
+			return Optional.empty();
+		}, Style.EMPTY);
 		return out;
 	}
 

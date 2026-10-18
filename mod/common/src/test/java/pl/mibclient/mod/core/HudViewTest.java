@@ -194,13 +194,13 @@ class HudViewTest {
 
 	@Test
 	void stage2ModulesHideWithoutData() {
-		for (String id : new String[] {"combo_display", "reach_display", "damage_indicator", "jump_reset", "stopwatch", "tps", "attack_indicator", "armor_bar", "item_counter"}) enable(id);
+		for (String id : new String[] {"combo_display", "reach_display", "damage_indicator", "stopwatch", "tps", "attack_indicator", "armor_bar", "item_counter"}) enable(id);
 		Set<String> ids = new HashSet<String>();
 		for (HudEditorModel.Box b : hud.layout(c, g, 480, 270, null, false)) ids.add(b.id);
 		assertEquals(new HashSet<String>(java.util.Arrays.asList("fps", "cps", "keystrokes")), ids, "bez walki, stopera i zbroi nic nie widać");
 		ids.clear();
 		for (HudEditorModel.Box b : hud.layout(c, g, 480, 270, null, true)) ids.add(b.id);
-		assertTrue(ids.containsAll(java.util.Arrays.asList("combo_display", "reach_display", "damage_indicator", "jump_reset", "stopwatch", "tps",
+		assertTrue(ids.containsAll(java.util.Arrays.asList("combo_display", "reach_display", "damage_indicator", "stopwatch", "tps",
 				"attack_indicator", "armor_bar", "item_counter")), "w edytorze HUD przykładowa treść: " + ids);
 	}
 

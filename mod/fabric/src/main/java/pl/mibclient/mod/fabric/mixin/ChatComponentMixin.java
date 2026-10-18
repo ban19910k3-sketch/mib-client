@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import pl.mibclient.mod.fabric.MibClient;
 
-/** Custom chat: godzina przed wiadomością i dłuższa historia czatu. */
+/** Logo MiB przy nicku graczy MiB, a z Custom chat godzina przed wiadomością i dłuższa historia czatu. */
 @Mixin(ChatComponent.class)
 public abstract class ChatComponentMixin {
 	//#if MC >= 26.1
@@ -21,7 +21,7 @@ public abstract class ChatComponentMixin {
 	//#endif
 	private Component mib$time(Component message) {
 		MibClient m = MibClient.get();
-		return m == null ? message : m.chatMessage(message);
+		return m == null ? message : m.chatMessage(m.players == null ? message : m.players.chat(message));
 	}
 
 	// gra trzyma 100 wiadomości; z Custom chat więcej (stała może zniknąć w nowszej wersji — wtedy bez zmian)

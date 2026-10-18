@@ -97,12 +97,12 @@ public final class Logo {
 
 	/** Tło ekranu ładowania zamiast czerwieni Mojang Studios. */
 	public static final int LOADING_BACKGROUND = 0x0B0412;
-	private static final float LOADING_RATIO = 1126f / 251f;
+	private static final float LOADING_RATIO = 1126f / 175f;
 	private static MibId loadingTexture;
 	private static boolean loadingFailed;
 
 	/**
-	 * Logo MiB z numerem wersji (obrazek loading.png), lekko „oddychające”. Tekstura z pliku moda wczytywana przy pierwszym rysowaniu
+	 * Logo i napis MiB Client (obrazek loading.png, bez numeru wersji), lekko „oddychające”. Tekstura z pliku moda wczytywana przy pierwszym rysowaniu
 	 * (zasoby gry mogą być wtedy jeszcze w trakcie wczytywania). alpha &lt; 0: przezroczystość ustawiła już gra (1.21–1.21.1).
 	 */
 	public static void drawLoading(MibGraphics g, float alpha) {

@@ -135,6 +135,18 @@ class MenuViewTest {
 	}
 
 	@Test
+	void searchFindsModulesFromOtherCategories() {
+		click("cat:HUD");
+		render();
+		for (char ch : "zoom".toCharArray()) v.charTyped(ch);
+		render();
+		assertEquals(1, cards(), "Zoom (PvP) znaleziony, choć wybrana jest kategoria HUD");
+		assertNotNull(v.hitRect("pill:zoom"));
+		click("cat:PVP");
+		assertEquals("", v.query(), "wybranie kategorii czyści wyszukiwarkę");
+	}
+
+	@Test
 	void categoryFiltersCards() {
 		click("cat:PVP");
 		render();
