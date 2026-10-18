@@ -226,11 +226,11 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     },
     mibPing: ({ uuid, token: tok, online }) => supa.rpc('mib_ping', { p_uuid: uuid, p_token: tok, p_online: online !== false }),
     mibWho: ({ ids, names }) => supa.rpc('mib_who', { p_ids: ids || [], p_names: names || [] }),
-    // Tekstury peleryn (tabela cosmetics jest publiczna); id tylko z bezpiecznych znaków
+    // Tekstury kosmetyków innych graczy (tabela cosmetics jest publiczna); id tylko z bezpiecznych znaków
     async capeTextures({ ids }) {
       const ok = (ids || []).filter(id => /^[a-z0-9_]{2,32}$/.test(id));
       if (!ok.length) return [];
-      return supa.select('cosmetics', 'select=id,texture&type=eq.cape&id=in.(' + ok.join(',') + ')');
+      return supa.select('cosmetics', 'select=id,texture&id=in.(' + ok.join(',') + ')');
     },
     async submitIdea({ category, body }) {
       const bad = P.validateIdea({ category, body });

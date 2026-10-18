@@ -458,7 +458,7 @@ test('gracze MiB: zgłoszenie z profilem łączy konto, bez profilu anonimowo; t
   await p.mibHello({ name: 'Gracz', serverId: 'cd' });
   assert.equal(supa.calls.at(-1)[3], 'AT1');
   await p.capeTextures({ ids: ['cape_a', '../x', 'cape_b'] });
-  assert.deepEqual(supa.calls.at(-1), ['select', 'cosmetics', 'select=id,texture&type=eq.cape&id=in.(cape_a,cape_b)']);
+  assert.deepEqual(supa.calls.at(-1), ['select', 'cosmetics', 'select=id,texture&id=in.(cape_a,cape_b)']);
   assert.deepEqual(await p.capeTextures({ ids: ['ZŁE'] }), []);
   await p.mibWho({ ids: ['u'], names: null });
   assert.deepEqual(supa.calls.at(-1), ['rpc', 'mib_who', { p_ids: ['u'], p_names: [] }]);

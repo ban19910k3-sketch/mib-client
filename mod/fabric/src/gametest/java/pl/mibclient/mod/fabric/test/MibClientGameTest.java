@@ -280,7 +280,11 @@ public class MibClientGameTest implements FabricClientGameTest {
 			check(context.computeOnClient(c -> Input.screen(c) == null), "prawy Shift nie zamknął menu");
 
 			// peleryna MiB (jak po założeniu w menu Kosmetyki) — widać ją na zrzucie z kamery 360°
-			context.runOnClient(c -> MibClient.get().applyCape("test:cape", Base64.getDecoder().decode(CAPE_PNG)));
+			context.runOnClient(c -> {
+				MibClient.get().applyCape("test:cape", Base64.getDecoder().decode(CAPE_PNG));
+				// skrzydła MiB bez elytry: gra rysuje je jak elytrę z teksturą skrzydeł
+				MibClient.get().applyCosmetic("wings", "test:wings", Base64.getDecoder().decode(CAPE_PNG));
+			});
 
 			// Perspective: kamera 360° pod lewym Altem, po puszczeniu wraca widok z oczu
 			context.runOnClient(c -> {
@@ -307,7 +311,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
 					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop",
 					"post_effect", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "light_level", "waypoints", "dark_mode", "anim_block", "anim_dip",
-					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint"
+					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn"
 					//#if MC < 26.3
 					, "time"
 					//#endif

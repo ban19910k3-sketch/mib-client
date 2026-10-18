@@ -28,6 +28,10 @@ class MibPlayersTest {
 		assertEquals("Gracz", p.find(OFFLINE, "gracz").name);
 		assertNull(p.find(OFFLINE, "Inny"));
 		assertNull(p.find(null, "Drugi").cape, "zła nazwa peleryny odrzucona");
+		MibPlayers q = MibPlayers.parse("{\"players\":[{\"uuid\":\"33333333-3333-4333-8333-333333333333\",\"name\":\"Gracz\",\"hat\":\"hat_one\",\"wings\":\"x/../y\"}]}");
+		assertEquals("hat_one", q.find(PREMIUM, "Gracz").cosmetic("hat"));
+		assertNull(q.find(PREMIUM, "Gracz").cosmetic("wings"), "zła nazwa skrzydeł odrzucona");
+		assertNull(q.find(PREMIUM, "Gracz").cosmetic("cape"));
 		assertEquals(0, MibPlayers.parse("zepsuty").size());
 		assertEquals(0, MibPlayers.parse("[1]").size());
 	}

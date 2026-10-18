@@ -39,6 +39,26 @@ if (hasGametest) {
 	}
 }
 
+// -PwithMods: test gry razem z modami, które launcher instaluje obok moda MiB (Sodium i mody na więcej FPS),
+// każdy w najnowszej wersji z Modrinth dla tej wersji gry (bez wersji — test bez niego)
+if (project.hasProperty('withMods')) {
+	repositories {
+		exclusiveContent {
+			forRepository { maven { url = 'https://api.modrinth.com/maven' } }
+			filter { includeGroup 'maven.modrinth' }
+		}
+	}
+	['sodium', 'lithium', 'ferrite-core', 'entityculling', 'immediatelyfast'].each { slug ->
+		def conn = new URL("https://api.modrinth.com/v2/project/$slug/version?loaders=%5B%22fabric%22%5D&game_versions=%5B%22$mc%22%5D").openConnection()
+		conn.setRequestProperty('User-Agent', 'MiB-Client-CI (github.com/ban19910k3-sketch/mib-client)')
+		def list = new groovy.json.JsonSlurper().parse(conn.inputStream)
+		if (list) {
+			logger.lifecycle("MiB: test z $slug ${list[0].version_number}")
+			dependencies { if (unobf) runtimeOnly "maven.modrinth:$slug:${list[0].id}" else modLocalRuntime "maven.modrinth:$slug:${list[0].id}" }
+		} else logger.lifecycle("MiB: $slug nie ma wersji dla $mc")
+	}
+}
+
 // Starsze wersje bez testu klienta: -Psmoke uruchamia grę, mod sam otwiera menu i edytor HUD, wypisuje [MIB-SMOKE] i zamyka grę
 if (project.hasProperty('smoke')) {
 	loom {

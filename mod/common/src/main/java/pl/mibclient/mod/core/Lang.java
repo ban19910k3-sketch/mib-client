@@ -30,13 +30,12 @@ public final class Lang {
 		put("menu.place", "Ustaw na ekranie", "Place on screen");
 		put("menu.preview", "Podgląd", "Preview");
 		put("menu.cosmetics", "Kosmetyki", "Cosmetics");
-		put("cos.hint", "Założona peleryna jest widoczna na Twojej postaci w grze.", "Your equipped cape is shown on your character in game.");
-		put("cos.login", "Załóż profil MiB w launcherze, żeby zbierać peleryny.", "Create a MiB profile in the launcher to collect capes.");
+		put("cos.hint", "Założone przedmioty widać na Twojej postaci w grze.", "Equipped items are shown on your character in game.");
+		put("cos.login", "Załóż profil MiB w launcherze, żeby zbierać kosmetyki.", "Create a MiB profile in the launcher to collect cosmetics.");
 		put("cos.empty", "Nie masz jeszcze kosmetyków. Kody odbierzesz w launcherze (Kosmetyki).", "No cosmetics yet. Redeem codes in the launcher (Cosmetics).");
 		put("cos.equip", "Załóż", "Equip");
 		put("cos.unequip", "Zdejmij", "Take off");
 		put("cos.on", "Założona", "Equipped");
-		put("cos.soon", "Wkrótce w grze", "Coming to the game soon");
 		put("cos.cape", "Peleryna", "Cape");
 		put("cos.hat", "Czapka", "Hat");
 		put("cos.wings", "Skrzydła", "Wings");

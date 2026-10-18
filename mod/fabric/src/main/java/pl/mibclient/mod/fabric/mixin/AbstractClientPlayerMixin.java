@@ -16,7 +16,7 @@ import pl.mibclient.mod.fabric.MibClient;
 
 /**
  * FOV changer: bez zmiany pola widzenia przy biegu i miksturach; luneta i napinanie łuku działają jak w grze.
- * Kosmetyki: założona peleryna MiB zamiast peleryny ze skórki (na własnej postaci), z Elytras także na elytrze.
+ * Kosmetyki: założona peleryna MiB zamiast peleryny ze skórki, z Elytras także na elytrze; skrzydła MiB jako tekstura elytry.
  */
 @Mixin(AbstractClientPlayer.class)
 public abstract class AbstractClientPlayerMixin {
@@ -38,15 +38,18 @@ public abstract class AbstractClientPlayerMixin {
 
 	@Inject(method = "getSkin", at = @At("RETURN"), cancellable = true)
 	private void mib$cape(CallbackInfoReturnable<PlayerSkin> cir) {
-		MibId cape = MibClient.get().capeFor((AbstractClientPlayer) (Object) this);
-		if (cape == null) return;
+		AbstractClientPlayer p = (AbstractClientPlayer) (Object) this;
+		MibId cape = MibClient.get().capeFor(p), wings = MibClient.get().cosmeticFor(p, "wings");
+		if (cape == null && wings == null) return;
 		PlayerSkin s = cir.getReturnValue();
-		boolean onElytra = pl.mibclient.mod.fabric.Looks.capeOnElytra();
+		// skrzydła MiB mają pierwszeństwo przed peleryną na elytrze (Elytras)
+		MibId elytra = wings != null ? wings : pl.mibclient.mod.fabric.Looks.capeOnElytra() ? cape : null;
 		//#if MC >= 1.21.9
-		ClientAsset.Texture c = new ClientAsset.ResourceTexture(cape, cape);
-		cir.setReturnValue(new PlayerSkin(s.body(), c, onElytra ? c : s.elytra(), s.model(), s.secure()));
+		ClientAsset.Texture c = cape == null ? s.cape() : new ClientAsset.ResourceTexture(cape, cape);
+		ClientAsset.Texture e = elytra == null ? s.elytra() : new ClientAsset.ResourceTexture(elytra, elytra);
+		cir.setReturnValue(new PlayerSkin(s.body(), c, e, s.model(), s.secure()));
 		//#else
-		cir.setReturnValue(new PlayerSkin(s.texture(), s.textureUrl(), cape, onElytra ? cape : s.elytraTexture(), s.model(), s.secure()));
+		cir.setReturnValue(new PlayerSkin(s.texture(), s.textureUrl(), cape == null ? s.capeTexture() : cape, elytra == null ? s.elytraTexture() : elytra, s.model(), s.secure()));
 		//#endif
 	}
 }

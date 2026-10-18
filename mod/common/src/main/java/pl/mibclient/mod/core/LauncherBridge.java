@@ -145,6 +145,14 @@ public final class LauncherBridge {
 	}
 
 	/** Prośba do launchera: skopiuj ten zrzut ekranu do schowka (moduł Screenshot). */
+	/** Znajomi: serwer, na którym gracz właśnie gra (null = świat jednoosobowy); co kilka sekund, póki gracz jest w świecie. */
+	public void writeStatus(String server, long now) {
+		Map<String, Object> m = new LinkedHashMap<String, Object>();
+		m.put("server", server);
+		m.put("at", now);
+		write("status.json", m);
+	}
+
 	public void requestScreenshotCopy(String path) {
 		Map<String, Object> m = new LinkedHashMap<String, Object>();
 		m.put("path", path);

@@ -39,7 +39,12 @@ public abstract class LivingEntityRendererMixin {
 	@Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V",
 			at = @At("TAIL"))
 	private void mib$self(LivingEntity entity, LivingEntityRenderState state, float partialTick, CallbackInfo ci) {
-		if (state instanceof MibSelfState s) s.mib$self(entity == Minecraft.getInstance().player);
+		if (!(state instanceof MibSelfState s)) return;
+		s.mib$self(entity == Minecraft.getInstance().player);
+		MibClient m = MibClient.get();
+		boolean player = m != null && entity instanceof net.minecraft.client.player.AbstractClientPlayer;
+		s.mib$wings(player && m.cosmeticFor((net.minecraft.client.player.AbstractClientPlayer) entity, "wings") != null);
+		s.mib$hat(player ? m.cosmeticFor((net.minecraft.client.player.AbstractClientPlayer) entity, "hat") : null);
 	}
 	//#endif
 }

@@ -352,7 +352,7 @@ async function getFile(v, dest, done) {
 // Zależność moda MiB (np. Fabric API): najnowsza wersja z Modrinth dla tej wersji gry i loadera
 async function ensureDep(slug, gv, loader) {
   const vs = await mr('/project/' + encodeURIComponent(slug) + '/version?game_versions=' + enc([gv]) + '&loaders=' + enc([loader]));
-  if (!Array.isArray(vs) || !vs.length) throw new Error('brak wersji ' + slug + ' dla ' + gv);
+  if (!Array.isArray(vs) || !vs.length) throw Object.assign(new Error('brak wersji ' + slug + ' dla ' + gv), { code: 'no_version' });
   const done = []; done.gv = gv; done.loader = loader;
   await getFile(vs[0], modsDir(gv), done); modsChanged(gv);
 }

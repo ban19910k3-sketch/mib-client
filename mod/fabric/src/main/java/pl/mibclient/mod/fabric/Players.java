@@ -35,7 +35,7 @@ public final class Players {
 
 	private final MibClient mib;
 	private MibPlayers list = MibPlayers.NONE;
-	/** Tekstury peleryn innych graczy: id peleryny -> tekstura (null = pliku nie da się wczytać) i data pliku. */
+	/** Tekstury kosmetyków innych graczy: id kosmetyku -> tekstura (null = pliku nie da się wczytać) i data pliku. */
 	private final Map<String, MibId> capes = new HashMap<>();
 	private final Map<String, Long> capeStamps = new HashMap<>();
 	/** Kiedy ostatnio sprawdzono brakujący plik peleryny (getSkin woła się co klatkę). */
@@ -87,6 +87,9 @@ public final class Players {
 				if (!id.equals(self)) seen.add(new MibPlayers.Seen(id, name(p.getProfile())));
 			}
 			mib.bridge.requestPlayers(MibPlayers.request(seen));
+			// znajomi w launcherze widzą serwer (świat jednoosobowy: bez adresu)
+			net.minecraft.client.multiplayer.ServerData sd = c.getCurrentServer();
+			mib.bridge.writeStatus(sd == null || c.hasSingleplayerServer() ? null : sd.ip, System.currentTimeMillis());
 		}
 		// peleryna zmieniona w panelu admina: launcher podmienia plik, tekstura wczytuje się od nowa
 		if (ticks % 200 == 0) {
@@ -158,28 +161,29 @@ public final class Players {
 		return out;
 	}
 
-	/** Peleryna innego gracza MiB (tekstura z pliku od launchera) albo null. */
-	MibId capeOf(UUID id, String name) {
+	/** Kosmetyk innego gracza MiB danego typu (cape, hat, wings; tekstura z pliku od launchera) albo null. */
+	MibId cosmeticOf(UUID id, String name, String type) {
 		if (mib.bridge == null) return null;
 		MibPlayers.Entry e = list.find(id, name);
-		if (e == null || e.cape == null) return null;
-		if (capes.containsKey(e.cape)) return capes.get(e.cape);
+		String cid = e == null ? null : e.cosmetic(type);
+		if (cid == null) return null;
+		if (capes.containsKey(cid)) return capes.get(cid);
 		long now = System.currentTimeMillis();
-		if (now - capeMissingAt.getOrDefault(e.cape, 0L) < 2000) return null;
-		File f = mib.bridge.capeFile(e.cape);
+		if (now - capeMissingAt.getOrDefault(cid, 0L) < 2000) return null;
+		File f = mib.bridge.capeFile(cid);
 		if (f == null) { // launcher jeszcze nie pobrał
-			capeMissingAt.put(e.cape, now);
+			capeMissingAt.put(cid, now);
 			return null;
 		}
-		capeMissingAt.remove(e.cape);
+		capeMissingAt.remove(cid);
 		MibId t = null;
 		try {
-			t = MibClient.registerTexture("cape/p_" + e.cape, Files.readAllBytes(f.toPath()));
+			t = MibClient.registerTexture("cape/p_" + cid, Files.readAllBytes(f.toPath()));
 		} catch (Exception ex) {
 			t = null;
 		}
-		capes.put(e.cape, t);
-		capeStamps.put(e.cape, f.lastModified());
+		capes.put(cid, t);
+		capeStamps.put(cid, f.lastModified());
 		return t;
 	}
 

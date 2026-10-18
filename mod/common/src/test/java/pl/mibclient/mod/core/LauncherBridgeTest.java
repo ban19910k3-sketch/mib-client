@@ -19,6 +19,18 @@ class LauncherBridgeTest {
 	}
 
 	@Test
+	void writesServerStatusForFriends() throws Exception {
+		LauncherBridge b = new LauncherBridge(dir);
+		b.writeStatus("play.mib.pl", 1234L);
+		Map<?, ?> st = (Map<?, ?>) Json.parse(new String(Files.readAllBytes(new File(dir, "status.json").toPath()), StandardCharsets.UTF_8));
+		assertEquals("play.mib.pl", st.get("server"));
+		assertEquals(1234L, ((Number) st.get("at")).longValue());
+		b.writeStatus(null, 2000L);
+		st = (Map<?, ?>) Json.parse(new String(Files.readAllBytes(new File(dir, "status.json").toPath()), StandardCharsets.UTF_8));
+		assertNull(st.get("server"), "świat jednoosobowy bez adresu");
+	}
+
+	@Test
 	void missingFileMeansNoAccounts() {
 		assertTrue(new LauncherBridge(dir).accounts().isEmpty());
 		assertTrue(new LauncherBridge(new File(dir, "nie-ma")).accounts().isEmpty());

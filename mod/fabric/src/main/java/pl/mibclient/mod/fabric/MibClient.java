@@ -105,8 +105,10 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	/** Kosmetyki z launchera (czytane najwyżej co 2 s) i zarejestrowana tekstura założonej peleryny. */
 	private Cosmetics cosCache;
 	private long cosReadAt, equipAt, cosFailCheckedAt;
-	private String cosMessage, capeKey;
-	private MibId capeTexture;
+	private String cosMessage;
+	/** Własne założone kosmetyki: typ (cape, hat, wings) -> klucz (id i skrót PNG) i tekstura. */
+	private final java.util.Map<String, String> ownKeys = new java.util.HashMap<>();
+	private final java.util.Map<String, MibId> ownTex = new java.util.HashMap<>();
 	/** Snaplook i Auto perspective: widok sprzed włączenia (null = nie działa). */
 	private CameraType snapBefore, autoBefore;
 	/** Ostatnia śmierć {x, y, z, czas}, poprzedni stan „martwy” i ostatni serwer (Reconnect). */
@@ -237,7 +239,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			cinematicBefore = null;
 		}
 		tickFreelook(c);
-		tickCape(c);
+		tickCosmetics(c);
 		while (stopwatchKey.consumeClick()) {
 			if (modules.isOn("stopwatch") && Input.screen(c) == null) pvp.meters.stopwatch.press(System.currentTimeMillis());
 		}
@@ -555,29 +557,39 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	// ===== Kosmetyki =====
 
-	/** Założona peleryna z launchera trafia do tekstury gry (tylko gdy się zmieni). */
-	private void tickCape(Minecraft c) {
+	/** Założone kosmetyki z launchera (peleryna, czapka, skrzydła) trafiają do tekstur gry (tylko gdy się zmienią). */
+	private void tickCosmetics(Minecraft c) {
 		Cosmetics cs = cosmetics();
-		Cosmetics.Item cape = cs == null ? null : cs.equippedCape();
-		if (cape == null || cape.png == null) {
-			if (capeKey != null && !capeKey.startsWith("test:")) applyCape(null, null);
-			return;
-		}
-		String key = cape.id + ":" + cape.png.hashCode();
-		if (key.equals(capeKey)) return;
-		try {
-			applyCape(key, Base64.getDecoder().decode(cape.png));
-		} catch (IllegalArgumentException e) {
-			applyCape(null, null);
+		for (String type : new String[] {"cape", "hat", "wings"}) {
+			Cosmetics.Item it = cs == null ? null : cs.equipped(type);
+			String old = ownKeys.get(type);
+			if (it == null || it.png == null) {
+				if (old != null && !old.startsWith("test:")) applyCosmetic(type, null, null);
+				continue;
+			}
+			String key = it.id + ":" + it.png.hashCode();
+			if (key.equals(old)) continue;
+			try {
+				applyCosmetic(type, key, Base64.getDecoder().decode(it.png));
+			} catch (IllegalArgumentException e) {
+				applyCosmetic(type, null, null);
+			}
 		}
 	}
 
 	/** Rejestruje teksturę peleryny (PNG 64×32) albo ją zdejmuje (png = null). Publiczne dla testu gry. */
 	public void applyCape(String key, byte[] png) {
-		if (Objects.equals(key, capeKey)) return;
-		capeKey = key;
-		releaseTexture(capeTexture);
-		capeTexture = png == null ? null : registerTexture("cape/" + Integer.toHexString(key.hashCode()), png);
+		applyCosmetic("cape", key, png);
+	}
+
+	/** Tekstura własnego kosmetyku danego typu albo jego zdjęcie (png = null). Publiczne dla testu gry. */
+	public void applyCosmetic(String type, String key, byte[] png) {
+		if (Objects.equals(key, ownKeys.get(type))) return;
+		if (key == null) ownKeys.remove(type);
+		else ownKeys.put(type, key);
+		releaseTexture(ownTex.remove(type));
+		MibId t = png == null ? null : registerTexture(type + "/" + Integer.toHexString(key.hashCode()), png);
+		if (t != null) ownTex.put(type, t);
 	}
 
 	/** Tekstura z PNG pod mibclient:path albo null, gdy obrazek jest zły. */
@@ -603,8 +615,13 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	/** Peleryna MiB dla tego gracza: własna założona albo innego gracza MiB (z launchera); null = peleryna ze skórki. */
 	public MibId capeFor(AbstractClientPlayer player) {
-		MibId t = player == Minecraft.getInstance().player ? capeTexture : players.capeOf(player.getUUID(), player.getScoreboardName());
-		if (t != null) hooks.add("cape");
+		return cosmeticFor(player, "cape");
+	}
+
+	/** Kosmetyk MiB danego typu (cape, hat, wings) dla tego gracza: własny albo innego gracza MiB; null = brak. */
+	public MibId cosmeticFor(AbstractClientPlayer player, String type) {
+		MibId t = player == Minecraft.getInstance().player ? ownTex.get(type) : players.cosmeticOf(player.getUUID(), player.getScoreboardName(), type);
+		if (t != null) hooks.add(type);
 		return t;
 	}
 

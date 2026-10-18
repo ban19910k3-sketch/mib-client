@@ -653,7 +653,7 @@ public final class MenuView {
 			return;
 		}
 		c.text(Lang.t("cos.hint"), ct[0], ct[1] + 22, Theme.MUTED, false);
-		// peleryny (te da się założyć w grze) na górze, lista przewijana kółkiem
+		// peleryny na górze, potem czapki i skrzydła; lista przewijana kółkiem
 		List<Cosmetics.Item> items = new ArrayList<Cosmetics.Item>();
 		for (Cosmetics.Item it : cs.items) if ("cape".equals(it.type)) items.add(it);
 		for (Cosmetics.Item it : cs.items) if (!"cape".equals(it.type)) items.add(it);
@@ -673,10 +673,7 @@ public final class MenuView {
 			String kind = Lang.t("cos." + ("hat".equals(it.type) || "wings".equals(it.type) ? it.type : "cape"));
 			c.text(Shapes.ellipsize(c, it.name, ct[2] - 150, false), ct[0] + 8, y + 6, Theme.TEXT, false);
 			c.text(kind, ct[0] + ct[2] - 140, y + 6, FAINT, false);
-			if (!"cape".equals(it.type)) {
-				String t = Lang.t("cos.soon");
-				c.text(t, ct[0] + ct[2] - 8 - c.textWidth(t), y + 6, Theme.MUTED, false);
-			} else {
+			{
 				String t = Lang.t(it.equipped ? "cos.unequip" : "cos.equip");
 				int[] b = {ct[0] + ct[2] - 4 - (c.textWidth(t) + 16), y + 2, c.textWidth(t) + 16, 16};
 				button(c, b, null, t, !it.equipped, in(b, mx, my));

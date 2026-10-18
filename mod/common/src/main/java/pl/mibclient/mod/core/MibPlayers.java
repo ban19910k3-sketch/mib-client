@@ -19,14 +19,25 @@ import java.util.UUID;
 public final class MibPlayers {
 	public static final MibPlayers NONE = new MibPlayers(Collections.<Entry>emptyList());
 
-	/** Gracz MiB: UUID konta, nick i założona peleryna (id albo null). */
+	/** Gracz MiB: UUID konta, nick i założone kosmetyki (id albo null): peleryna, czapka, skrzydła. */
 	public static final class Entry {
-		public final String uuid, name, cape;
+		public final String uuid, name, cape, hat, wings;
 
 		public Entry(String uuid, String name, String cape) {
+			this(uuid, name, cape, null, null);
+		}
+
+		public Entry(String uuid, String name, String cape, String hat, String wings) {
 			this.uuid = uuid;
 			this.name = name;
 			this.cape = cape;
+			this.hat = hat;
+			this.wings = wings;
+		}
+
+		/** Id założonego kosmetyku danego typu (cape, hat, wings) albo null. */
+		public String cosmetic(String type) {
+			return "cape".equals(type) ? cape : "hat".equals(type) ? hat : "wings".equals(type) ? wings : null;
 		}
 	}
 
@@ -49,7 +60,7 @@ public final class MibPlayers {
 		return name == null ? null : byName.get(name.toLowerCase(Locale.ROOT));
 	}
 
-	/** players.json: {"players":[{"uuid","name","cape"}]}; zły plik = brak graczy. */
+	/** players.json: {"players":[{"uuid","name","cape","hat","wings"}]}; zły plik = brak graczy. */
 	public static MibPlayers parse(String json) {
 		Object v;
 		try {
@@ -63,10 +74,13 @@ public final class MibPlayers {
 			if (!(o instanceof Map)) continue;
 			Map<?, ?> m = (Map<?, ?>) o;
 			if (!(m.get("uuid") instanceof String) || !(m.get("name") instanceof String)) continue;
-			Object cape = m.get("cape");
-			out.add(new Entry((String) m.get("uuid"), (String) m.get("name"), cape instanceof String && validCapeId((String) cape) ? (String) cape : null));
+			out.add(new Entry((String) m.get("uuid"), (String) m.get("name"), id(m.get("cape")), id(m.get("hat")), id(m.get("wings"))));
 		}
 		return new MibPlayers(out);
+	}
+
+	private static String id(Object v) {
+		return v instanceof String && validCapeId((String) v) ? (String) v : null;
 	}
 
 	/** Id peleryny bezpieczne jako nazwa pliku (jak w bazie: a-z, 0-9, _). */

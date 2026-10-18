@@ -217,15 +217,16 @@ class MenuViewTest {
 		click("cosmetics");
 		assertEquals(MenuView.Page.COSMETICS, v.page());
 		render();
-		assertTrue(c.hasText("Załóż profil MiB w launcherze, żeby zbierać peleryny."));
+		assertTrue(c.hasText("Załóż profil MiB w launcherze, żeby zbierać kosmetyki."));
 		cosmetics = new Cosmetics(true, Arrays.asList(new Cosmetics.Item("c1", "Fiolet", "cape", true, "QUJD"),
 				new Cosmetics.Item("c2", "Złota", "cape", false, null), new Cosmetics.Item("h1", "Korona", "hat", false, null)));
 		render();
-		assertTrue(c.hasText("Założona") && c.hasText("Zdejmij") && c.hasText("Załóż") && c.hasText("Wkrótce w grze"));
-		assertNull(v.hitRect("cos:h1"), "czapki na razie tylko w launcherze");
+		assertTrue(c.hasText("Założona") && c.hasText("Zdejmij") && c.hasText("Załóż"));
+		assertFalse(c.hasText("Wkrótce w grze"), "czapki i skrzydła też zakłada się w grze");
 		click("cos:c2");
 		click("cos:c1");
-		assertEquals(Arrays.asList("equip:cape:c2", "equip:cape:null"), calls);
+		click("cos:h1");
+		assertEquals(Arrays.asList("equip:cape:c2", "equip:cape:null", "equip:hat:h1"), calls);
 		render();
 		assertTrue(c.hasText("Zmieniam…"));
 	}

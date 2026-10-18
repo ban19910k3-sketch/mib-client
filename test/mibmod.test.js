@@ -23,10 +23,12 @@ test('TARGETS: wszystkie wersje od 1.21 do 26.3, te same co mod/versions', () =>
   for (const v of ['1.20.6', '1.8.9', '26.4']) assert.strictEqual(m.planMod({ gv: v, loader: null, enabled: true, jarExists: true }).reason, 'unsupported');
 });
 
+const PERF = ['lithium', 'ferrite-core', 'entityculling', 'immediatelyfast'];
+const PERF_FILES = ['lithium-fabric-0.16.0+mc1.21.11.jar', 'ferritecore-8.0.0-fabric.jar', 'entityculling-fabric-1.9.0-mc1.21.11.jar', 'ImmediatelyFast-Fabric-1.13.0+1.21.11.jar'];
 test('missingDeps: wyłączony plik liczy się jako obecny', () => {
-  assert.deepStrictEqual(m.missingDeps(T, ['fabric-api-0.141.6+1.21.11.jar']).map(d => d.slug), ['sodium']);
-  assert.deepStrictEqual(m.missingDeps(T, ['sodium-fabric-0.6.13+mc1.21.11.jar.disabled', 'fabric-api-x.jar']), []);
-  assert.deepStrictEqual(m.missingDeps(T, []).map(d => d.slug), ['fabric-api', 'sodium']);
+  assert.deepStrictEqual(m.missingDeps(T, ['fabric-api-0.141.6+1.21.11.jar', ...PERF_FILES]).map(d => d.slug), ['sodium']);
+  assert.deepStrictEqual(m.missingDeps(T, ['sodium-fabric-0.6.13+mc1.21.11.jar.disabled', 'fabric-api-x.jar', ...PERF_FILES.map(f => f + '.disabled')]), []);
+  assert.deepStrictEqual(m.missingDeps(T, []).map(d => d.slug), ['fabric-api', 'sodium', ...PERF]);
 });
 
 test('cmpVersion: liczbowo, nie jak tekst', () => {
@@ -139,12 +141,14 @@ test('bridge: kosmetyki do gry i zakładanie z menu w grze', async () => {
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'cosmetic-result.json'), 'utf8')), { ok: false, message: 'Brak połączenia', at: 99 });
 });
 
+// Plik pobrany z Modrinth (nazwa jak u autora moda: FerriteCore bez myślnika)
+const jar = slug => (slug === 'ferrite-core' ? 'ferritecore' : slug) + '-1.0.jar';
 // Instalacja z katalogiem zasobów launchera (resDir), folderem mods instancji i zapisem mib-instance.json (inst)
 function setup() {
   const base = tmp(), resDir = path.join(base, 'res'), modsDir = path.join(base, 'inst', 'mods'), mibDir = path.join(base, 'mib');
   fs.mkdirSync(resDir); fs.writeFileSync(path.join(resDir, T.jar), 'JAR-MIB');
   const logs = [], deps = [], inst = {};
-  const ensureDep = async (slug, gv, loader) => { deps.push([slug, gv, loader]); fs.writeFileSync(path.join(modsDir, slug + '-1.0.jar'), 'x'); };
+  const ensureDep = async (slug, gv, loader) => { deps.push([slug, gv, loader]); fs.writeFileSync(path.join(modsDir, jar(slug)), 'x'); };
   const d = { base, resDir, modsDir, mibDir, logs, deps, inst, ensureDep, log: s => logs.push(s) };
   d.run = (o = {}) => m.prepareMibMod({ gv: '1.21.11', inst: { ...d.inst }, settings: {}, modsDir, resDir, mibDir, ensureDep, setInst: x => Object.assign(d.inst, x), log: d.log, ...o });
   return d;
@@ -157,12 +161,12 @@ test('prepareMibMod: aktywny — kopiuje mod, dociąga zależności, ustawia Fab
   const r = await d.run();
   assert.deepStrictEqual(r, { active: true, jvmArgs: ['-Dmib.dir=' + d.mibDir] });
   assert.strictEqual(fs.readFileSync(OWN(d), 'utf8'), 'JAR-MIB');
-  assert.deepStrictEqual(d.deps, [['fabric-api', '1.21.11', 'fabric'], ['sodium', '1.21.11', 'fabric']]);
-  assert.deepStrictEqual(d.inst, { mibDeps: ['fabric-api-1.0.jar', 'sodium-1.0.jar'], loader: 'fabric', loaderByMib: true });
+  assert.deepStrictEqual(d.deps, ['fabric-api', 'sodium', ...PERF].map(x => [x, '1.21.11', 'fabric']));
+  assert.deepStrictEqual(d.inst, { mibDeps: ['fabric-api', 'sodium', ...PERF].map(jar), loader: 'fabric', loaderByMib: true });
   // drugie uruchomienie: nic nie pobiera i nie zmienia instalacji
   await d.run();
-  assert.strictEqual(d.deps.length, 2);
-  assert.deepStrictEqual(d.inst.mibDeps, ['fabric-api-1.0.jar', 'sodium-1.0.jar']);
+  assert.strictEqual(d.deps.length, 6);
+  assert.deepStrictEqual(d.inst.mibDeps, ['fabric-api', 'sodium', ...PERF].map(jar));
 });
 
 test('prepareMibMod: wyłączony — usuwa mod i cofa to, co dodał (sam MiB w folderze)', async () => {
@@ -177,7 +181,7 @@ test('prepareMibMod: wyłączony — usuwa mod i cofa to, co dodał (sam MiB w f
   await d.run();
   assert.ok(has(d, 'sodium-1.0.jar') && has(d, 'fabric-api-1.0.jar') && fs.existsSync(OWN(d)));
   assert.strictEqual(d.inst.loader, 'fabric');
-  assert.strictEqual(d.deps.length, 2);
+  assert.strictEqual(d.deps.length, 6);
 });
 
 test('prepareMibMod: wyłączony przy innych modach — wyłącza tylko Sodium, Fabric API i loader zostają', async () => {
@@ -195,7 +199,7 @@ test('prepareMibMod: Sodium wyłączony ręcznie przez gracza zostaje wyłączon
   fs.renameSync(path.join(d.modsDir, 'sodium-1.0.jar'), path.join(d.modsDir, 'sodium-1.0.jar.disabled'));
   await d.run();
   assert.ok(has(d, 'sodium-1.0.jar.disabled'));
-  assert.strictEqual(d.deps.length, 2);
+  assert.strictEqual(d.deps.length, 6);
 });
 
 test('prepareMibMod: błąd pobrania Fabric API — gra bez moda', async () => {
@@ -214,6 +218,40 @@ test('prepareMibMod: błąd pobrania Sodium nie blokuje moda', async () => {
   assert.ok(fs.existsSync(OWN(d)));
 });
 
+test('prepareMibMod: mody na wydajność wyłączone w ustawieniach wracają po włączeniu bez pobierania', async () => {
+  const d = setup();
+  await d.run();
+  await d.run({ settings: { perfMods: false } });
+  for (const x of PERF) assert.ok(has(d, jar(x) + '.disabled'), x + ' wyłączony');
+  assert.ok(has(d, 'sodium-1.0.jar') && fs.existsSync(OWN(d)), 'Sodium i mod MiB zostają');
+  await d.run({ settings: { perfMods: false } });
+  for (const x of PERF) assert.ok(has(d, jar(x) + '.disabled'), x + ' dalej wyłączony');
+  await d.run();
+  for (const x of PERF) assert.ok(has(d, jar(x)), x + ' włączony z powrotem');
+  assert.strictEqual(d.deps.length, 6, 'bez ponownego pobierania');
+  // mod na wydajność od gracza (nie od MiB) zostaje włączony
+  const e = setup();
+  fs.mkdirSync(e.modsDir, { recursive: true }); fs.writeFileSync(path.join(e.modsDir, 'lithium-moj.jar'), 'x');
+  await e.run({ settings: { perfMods: false } });
+  assert.ok(has(e, 'lithium-moj.jar'));
+});
+
+test('prepareMibMod: brak wersji moda dla tej wersji gry — następna próba po dobie', async () => {
+  const d = setup();
+  let t = 1000;
+  const ensureDep = async (slug, gv, l) => { if (slug === 'entityculling') throw Object.assign(new Error('brak'), { code: 'no_version' }); return d.ensureDep(slug, gv, l); };
+  await d.run({ ensureDep, now: () => t });
+  assert.strictEqual(d.inst.mibMissing.entityculling, 1000);
+  assert.ok(d.logs.includes('Entity Culling nie ma jeszcze wersji dla 1.21.11 — gra uruchomi się bez niego.'));
+  const asked = d.deps.length;
+  await d.run({ ensureDep, now: () => t });
+  assert.strictEqual(d.deps.length, asked, 'bez pytania Modrinth przy każdym starcie');
+  t += 25 * 3600 * 1000;
+  await d.run({ now: () => t });
+  assert.ok(has(d, 'entityculling-1.0.jar'), 'po dobie pobrany');
+  assert.deepStrictEqual(d.inst.mibMissing, {});
+});
+
 test('prepareMibMod: instalacja z Forge', async () => {
   const d = setup();
   const r = await d.run({ inst: { loader: 'forge' } });
@@ -227,7 +265,7 @@ test('prepareMibMod: wyłączone ręcznie Fabric API zostaje włączone, inne we
   d.inst.loader = 'fabric';
   await d.run();
   assert.ok(has(d, 'fabric-api-0.1.jar'));
-  assert.deepStrictEqual(d.deps.map(x => x[0]), ['sodium']);
+  assert.deepStrictEqual(d.deps.map(x => x[0]), ['sodium', ...PERF]);
   assert.strictEqual(d.inst.loaderByMib, undefined, 'loader ustawiony przez gracza nie jest „od MiB”');
 
   const r = await d.run({ gv: '1.20.1' });

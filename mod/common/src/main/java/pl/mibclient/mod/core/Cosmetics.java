@@ -15,7 +15,7 @@ public final class Cosmetics {
 		this.items = Collections.unmodifiableList(items);
 	}
 
-	/** Przedmiot: id, nazwa, typ (cape, hat, wings), czy założony i tekstura PNG (base64, tylko peleryny). */
+	/** Przedmiot: id, nazwa, typ (cape, hat, wings), czy założony i tekstura PNG (base64, tylko założone). */
 	public static final class Item {
 		public final String id, name, type, png;
 		public final boolean equipped;
@@ -31,7 +31,12 @@ public final class Cosmetics {
 
 	/** Założona peleryna albo null. */
 	public Item equippedCape() {
-		for (Item i : items) if ("cape".equals(i.type) && i.equipped) return i;
+		return equipped("cape");
+	}
+
+	/** Założony przedmiot danego typu (cape, hat, wings) albo null. */
+	public Item equipped(String type) {
+		for (Item i : items) if (type.equals(i.type) && i.equipped) return i;
 		return null;
 	}
 }
