@@ -31,6 +31,7 @@ class ChatSenderTest {
 		assertEquals(-1, ChatSender.badgeAt("Alex: Steve: hej", MIB));
 		assertEquals(-1, ChatSender.badgeAt("<Steve> hej", Collections.<String>emptyList()));
 		assertEquals(-1, ChatSender.badgeAt("", MIB));
+		assertEquals(-1, ChatSender.badgeAt("[Steve: Ustawiono tryb gry]", MIB), "komunikat komendy w nawiasie");
 	}
 
 	@Test

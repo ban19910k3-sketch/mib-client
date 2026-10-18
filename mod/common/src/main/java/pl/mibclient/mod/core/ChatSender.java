@@ -31,7 +31,9 @@ public final class ChatSender {
 			if (n == null || n.isEmpty()) continue;
 			String name = n.toLowerCase(Locale.ROOT);
 			for (int i = head.indexOf(name); i >= 0; i = head.indexOf(name, i + 1)) {
-				if (!nameChar(head, i - 1) && !nameChar(head, i + name.length()) && i > best) best = i;
+				// „[Nick: …]” to komunikat komendy, nie wiadomość gracza
+				boolean command = i > 0 && head.charAt(i - 1) == '[' && i + name.length() == end;
+				if (!command && !nameChar(head, i - 1) && !nameChar(head, i + name.length()) && i > best) best = i;
 			}
 		}
 		return best > 0 && text.charAt(best - 1) == '<' ? best - 1 : best;
