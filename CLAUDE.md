@@ -22,7 +22,8 @@ Darmowy launcher Minecraft PvP w Electronie (czysty HTML/JS, bez frameworka). Ro
 
 ## Mod MiB w grze (od 0.12.0)
 
-- `mod/common` — cała logika i rysowanie (menu pod prawym Shiftem, HUD, edytor HUD, moduły etapów 1 i 2 z listy 87 w `docs/superpowers/specs/2026-10-16-mib-mod-design.md`), Java 8 bez klas Minecrafta.
+- `mod/common` — cała logika i rysowanie (menu pod prawym Shiftem z wyborem języka, HUD, edytor HUD, 63 moduły z listy 87 w `docs/superpowers/specs/2026-10-16-mib-mod-design.md`), Java 8 bez klas Minecrafta.
+- Zmiany w elementach gry: `VanillaHud.java` (nasycenie, Boss bar, Scoreboard, tytuły, napisy, ping w Tab, tło ekwipunku), `WorldTweaks.java` (napisy nad TNT/przedmiotami/mobami przez `EntityMixin`, pora dnia, blokada wyrzucania, kopie światów w `mib/backups`, filtr logów), ekran ładowania z logo i „Beta 1.0” (`LoadingOverlayMixin`, `textures/gui/loading.png`).
 - `mod/fabric/src` — jeden adapter (Canvas, GameInfo, ekrany, mixiny) na nazwach Mojanga dla wszystkich wersji 1.21–26.3. Różnice między wersjami w blokach `//#if MC >= 1.21.9` … `//#else` … `//#endif`; słowa `MibGraphics`, `MibId`, `MibHud` zamieniają się na klasy danej wersji (`mod/buildSrc/.../MibPp.groovy`). Wersje gry: katalogi `mod/versions/<wersja>/gradle.properties` (Minecraft + Fabric API); nowa wersja = nowy katalog + wpis w `VERSIONS` w `lib/mibmod.js`.
 - Logo MiB: ekran tytułowy przez `TitleScreenMixin` (duże logo, bez żółtego napisu i napisu z wersją), menu pauzy przez `Logo.java` (zamiast napisu „Menu gry”).
 - Logo przed nickiem: znak `\uE000` z czcionki `mibclient:badge` (`Players.java`, wstawki `PlayerMixin` i `PlayerTabOverlayMixin`); peleryny innych graczy MiB z `mib/capes/<id>.png`.
