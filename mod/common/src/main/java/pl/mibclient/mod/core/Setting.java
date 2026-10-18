@@ -101,6 +101,31 @@ public abstract class Setting<T> {
 		}
 	}
 
+	/** Tekst wpisywany w menu (np. wiadomość z Auto text); dłuższy niż maxLength jest przycinany. */
+	public static final class TextSetting extends Setting<String> {
+		public final int maxLength;
+
+		public TextSetting(String key, String pl, String en, String def, int maxLength) {
+			super(key, pl, en, def);
+			this.maxLength = maxLength;
+		}
+
+		@Override
+		public String get(ModuleState s) {
+			Object v = s.option(key);
+			return v instanceof String ? clip((String) v) : def;
+		}
+
+		@Override
+		public void set(ModuleState s, String v) {
+			super.set(s, clip(v == null ? "" : v));
+		}
+
+		private String clip(String v) {
+			return v.length() > maxLength ? v.substring(0, maxLength) : v;
+		}
+	}
+
 	public static final class ColorSetting extends Setting<Integer> {
 		/** Paleta kolorów do wyboru w menu (jak w launcherze). */
 		public static final int[] PALETTE = {0xFFD6B0FF, 0xFFFFFFFF, 0xFF4ADE80, 0xFFF87171, 0xFF60A5FA, 0xFFFACC15};

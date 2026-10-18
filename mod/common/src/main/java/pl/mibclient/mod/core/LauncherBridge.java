@@ -144,6 +144,14 @@ public final class LauncherBridge {
 		write("cosmetic-request.json", m);
 	}
 
+	/** Prośba do launchera: skopiuj ten zrzut ekranu do schowka (moduł Screenshot). */
+	public void requestScreenshotCopy(String path) {
+		Map<String, Object> m = new LinkedHashMap<String, Object>();
+		m.put("path", path);
+		m.put("at", System.currentTimeMillis());
+		write("screenshot-request.json", m);
+	}
+
 	/** Komunikat o nieudanej zmianie kosmetyku zapisany później niż sinceMs albo null. */
 	public String cosmeticFailure(long sinceMs) {
 		return failureIn("cosmetic-result.json", sinceMs);

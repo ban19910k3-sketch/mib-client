@@ -4,5 +4,10 @@
 	"key.mibclient.zoom": "Zoom",
 	"key.mibclient.perspective": "Perspective (kamera 360°)",
 	"key.mibclient.stopwatch": "Stoper",
-	"key.mibclient.snaplook": "Snaplook (podgląd za siebie)"
+	"key.mibclient.snaplook": "Snaplook (podgląd za siebie)",
+	"key.mibclient.autotext1": "Auto text: wiadomość 1",
+	"key.mibclient.autotext2": "Auto text: wiadomość 2",
+	"key.mibclient.autotext3": "Auto text: wiadomość 3",
+	"key.mibclient.emote": "Emotka",
+	"key.mibclient.waypoint": "Dodaj punkt (Waypoints)"
 }

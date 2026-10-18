@@ -10,10 +10,17 @@ import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import pl.mibclient.mod.fabric.MibClient;
+//#if MC >= 1.21.2
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import pl.mibclient.mod.fabric.MibSelfState;
+//#endif
 
 /**
  * Własny nick nad głową w kamerze 360° (Perspective) i w trzeciej osobie (Nametags), tak jak widzą go inni
- * (z logo MiB). Gra chowa nick postaci, z której patrzy kamera.
+ * (z logo MiB). Gra chowa nick postaci, z której patrzy kamera. Od 1.21.2 zaznacza też w stanie rysowania, czy to
+ * własna postać (emotki, ukrywanie elytry).
  */
 @Mixin(LivingEntityRenderer.class)
 public abstract class LivingEntityRendererMixin {
@@ -27,4 +34,12 @@ public abstract class LivingEntityRendererMixin {
 		}
 		return camera;
 	}
+
+	//#if MC >= 1.21.2
+	@Inject(method = "extractRenderState(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V",
+			at = @At("TAIL"))
+	private void mib$self(LivingEntity entity, LivingEntityRenderState state, float partialTick, CallbackInfo ci) {
+		if (state instanceof MibSelfState s) s.mib$self(entity == Minecraft.getInstance().player);
+	}
+	//#endif
 }

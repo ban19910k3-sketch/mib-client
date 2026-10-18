@@ -36,6 +36,7 @@ public final class Input {
 	static int menuKey(int key) {
 		if (key == InputConstants.KEY_ESCAPE) return MenuView.KEY_ESCAPE;
 		if (key == InputConstants.KEY_BACKSPACE) return MenuView.KEY_BACKSPACE;
+		if (key == InputConstants.KEY_RETURN) return MenuView.KEY_ENTER;
 		return -1;
 	}
 

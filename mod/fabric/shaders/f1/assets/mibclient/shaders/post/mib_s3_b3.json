@@ -1,0 +1,43 @@
+{
+  "targets": [
+    "swap",
+    "previous"
+  ],
+  "passes": [
+    {
+      "name": "mib_blur",
+      "intarget": "minecraft:main",
+      "outtarget": "swap",
+      "auxtargets": [
+        {
+          "name": "PrevSampler",
+          "id": "previous"
+        }
+      ],
+      "uniforms": [
+        {
+          "name": "Saturation",
+          "values": [
+            1.6
+          ]
+        },
+        {
+          "name": "Strength",
+          "values": [
+            0.82
+          ]
+        }
+      ]
+    },
+    {
+      "name": "blit",
+      "intarget": "swap",
+      "outtarget": "previous"
+    },
+    {
+      "name": "blit",
+      "intarget": "swap",
+      "outtarget": "minecraft:main"
+    }
+  ]
+}

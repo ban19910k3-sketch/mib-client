@@ -16,7 +16,7 @@ import pl.mibclient.mod.fabric.MibClient;
 
 /**
  * FOV changer: bez zmiany pola widzenia przy biegu i miksturach; luneta i napinanie łuku działają jak w grze.
- * Kosmetyki: założona peleryna MiB zamiast peleryny ze skórki (na własnej postaci).
+ * Kosmetyki: założona peleryna MiB zamiast peleryny ze skórki (na własnej postaci), z Elytras także na elytrze.
  */
 @Mixin(AbstractClientPlayer.class)
 public abstract class AbstractClientPlayerMixin {
@@ -41,10 +41,12 @@ public abstract class AbstractClientPlayerMixin {
 		MibId cape = MibClient.get().capeFor((AbstractClientPlayer) (Object) this);
 		if (cape == null) return;
 		PlayerSkin s = cir.getReturnValue();
+		boolean onElytra = pl.mibclient.mod.fabric.Looks.capeOnElytra();
 		//#if MC >= 1.21.9
-		cir.setReturnValue(new PlayerSkin(s.body(), new ClientAsset.ResourceTexture(cape, cape), s.elytra(), s.model(), s.secure()));
+		ClientAsset.Texture c = new ClientAsset.ResourceTexture(cape, cape);
+		cir.setReturnValue(new PlayerSkin(s.body(), c, onElytra ? c : s.elytra(), s.model(), s.secure()));
 		//#else
-		cir.setReturnValue(new PlayerSkin(s.texture(), s.textureUrl(), cape, s.elytraTexture(), s.model(), s.secure()));
+		cir.setReturnValue(new PlayerSkin(s.texture(), s.textureUrl(), cape, onElytra ? cape : s.elytraTexture(), s.model(), s.secure()));
 		//#endif
 	}
 }

@@ -9,6 +9,7 @@ import pl.mibclient.mod.core.Setting.BoolSetting;
 import pl.mibclient.mod.core.Setting.ChoiceSetting;
 import pl.mibclient.mod.core.Setting.ColorSetting;
 import pl.mibclient.mod.core.Setting.IntSetting;
+import pl.mibclient.mod.core.Setting.TextSetting;
 
 /** Moduły z listy 87 (spec: docs/superpowers/specs/2026-10-16-mib-mod-design.md). */
 public final class ModuleCatalog {
@@ -290,6 +291,95 @@ public final class ModuleCatalog {
 				new IntSetting("keep", "Ile kopii trzymać", "How many backups to keep", 3, 1, 10, 1))),
 		new ModuleDef("cull_logs", "Cull logs", Category.OTHER, "Nie zapisuje w logach gry tych samych komunikatów w kółko",
 			"Stops the game log from filling up with the same message over and over", "filter", false, null, list()),
+		// ===== Etapy 3 i 4: reszta listy =====
+		new ModuleDef("animations", "Animations", Category.LOOK, "Animacje jak w 1.7: blok mieczem pod prawym przyciskiem myszy i bez opadania przedmiotu po uderzeniu",
+			"1.7-style animations: sword blocking on right click and no item dip after hitting", "sword", false, null, list(
+				bool("block", "Blok mieczem (prawy przycisk)", "Sword blocking (right click)", true),
+				bool("no_dip", "Bez opadania przedmiotu po uderzeniu", "No item dip after hitting", true))),
+		new ModuleDef("block_overlay", "Block overlay", Category.LOOK, "Własny kolor i grubość obwódki bloku, na który patrzysz",
+			"Your own colour and thickness of the block outline", "frame", false, null, list(
+				new ColorSetting("color", "Kolor obwódki", "Outline colour", 0xFFD6B0FF),
+				new IntSetting("thickness", "Grubość (od 1.21.11)", "Thickness (1.21.11+)", 2, 1, 6, 1))),
+		new ModuleDef("color_saturation", "Color saturation", Category.LOOK, "Nasycenie kolorów świata", "Colour saturation of the world",
+			"colors-swatch", false, null, list(
+				new ChoiceSetting("level", "Nasycenie", "Saturation", "high", new String[] {"gray", "low", "high", "max"},
+					new String[] {"Szarość", "Słabe", "Mocne", "Bardzo mocne"}, new String[] {"Grayscale", "Low", "High", "Very high"}))),
+		new ModuleDef("motion_blur", "Motion blur", Category.LOOK, "Rozmycie ruchu przy obracaniu kamery", "Motion blur when turning the camera",
+			"speed-fast", false, null, list(
+				new ChoiceSetting("strength", "Siła", "Strength", "medium", new String[] {"low", "medium", "high"},
+					new String[] {"Słaba", "Średnia", "Mocna"}, new String[] {"Low", "Medium", "High"}))),
+		new ModuleDef("custom_fog", "Custom fog", Category.LOOK, "Bez mgły na odległość, pod wodą i w lawie", "No distance fog, underwater fog or lava fog",
+			"cloud", false, null, list(
+				bool("terrain", "Bez mgły na odległość", "No distance fog", true),
+				bool("fluids", "Bez mgły pod wodą i w lawie", "No fog in water and lava", false))),
+		new ModuleDef("dark_mode", "Dark mode", Category.LOOK, "Ciemny wygląd ekwipunku, skrzyń i innych okien z przedmiotami",
+			"Dark inventory, chests and other item windows", "moon", false, null, list()),
+		new ModuleDef("elytras", "Elytras", Category.LOOK, "Ukrywanie elytry i peleryna MiB na elytrze", "Hide elytras and show your MiB cape on the elytra",
+			"feather", false, null, list(
+				bool("hide", "Ukryj elytrę", "Hide the elytra", false),
+				bool("cape", "Peleryna MiB na elytrze", "MiB cape on the elytra", true))),
+		new ModuleDef("item_physic", "Item physic", Category.LOOK, "Wyrzucone przedmioty leżą płasko i nie wirują", "Dropped items lie flat and don't spin",
+			"diamond-gem", false, null, list()),
+		new ModuleDef("ui_scaling", "UI scaling", Category.LOOK, "Dokładniejsza skala interfejsu (od 1.21.6 gra przyjmuje tylko pełne liczby)",
+			"Finer interface scale (from 1.21.6 the game accepts whole numbers only)", "aspect-ratio", false, null, list(
+				new IntSetting("scale", "Skala (100 = 1×)", "Scale (100 = 1×)", 250, 100, 600, 25))),
+		new ModuleDef("custom_f3", "Custom F3", Category.HUD, "Krótszy ekran F3: wersja, FPS, pozycja, blok, kierunek, biom i światło",
+			"A shorter F3 screen: version, FPS, position, block, facing, biome and light", "debug", false, null, list(
+				bool("short", "Krótka lewa kolumna", "Short left column", true),
+				bool("hide_right", "Ukryj prawą kolumnę", "Hide the right column", false))),
+		new ModuleDef("tooltips", "Tooltips", Category.OTHER, "Jedzenie w opisie przedmiotu i rozmiar dymków z opisem",
+			"Food values in item tooltips and tooltip size", "article", false, null, list(
+				bool("food", "Głód i nasycenie jedzenia", "Food hunger and saturation", true),
+				new IntSetting("scale", "Rozmiar dymków (%)", "Tooltip size (%)", 100, 50, 150, 10))),
+		new ModuleDef("shulker_tooltips", "Shulker tooltips", Category.WORLD, "Podgląd zawartości shulkera w opisie przedmiotu",
+			"Shulker box contents preview in the item tooltip", "box", false, null, list()),
+		new ModuleDef("advancement_info", "Custom advancement requirements", Category.OTHER, "Czego brakuje do osiągnięcia (po najechaniu na nie)",
+			"What is missing for an advancement (when you hover it)", "trophy", false, null, list(
+				new IntSetting("max", "Najwięcej pozycji", "Max entries", 8, 3, 20, 1))),
+		new ModuleDef("hitbox", "Hitbox", Category.PVP, "Własny kolor ramek hitboxów, tylko gracze albo zawsze widoczne",
+			"Your own hitbox colour, players only or always visible", "expand", false, null, list(
+				new ColorSetting("color", "Kolor", "Colour", 0xFFFFFFFF),
+				bool("players", "Tylko gracze", "Players only", false),
+				bool("always", "Zawsze (bez F3+B)", "Always (without F3+B)", false))),
+		new ModuleDef("tier_tagger", "Tier tagger", Category.PVP, "Tier gracza z MCTiers obok nicku (nad głową i w Tab)",
+			"The player's MCTiers tier next to their name (above the head and in Tab)", "flag", false, null, list(
+				new ChoiceSetting("mode", "Tryb", "Mode", "best", pl.mibclient.mod.core.modules.Tiers.MODES,
+					new String[] {"Najlepszy", "Vanilla", "Sword", "Pot", "Nethop", "UHC", "Axe", "SMP", "Mace"},
+					new String[] {"Best", "Vanilla", "Sword", "Pot", "Nethop", "UHC", "Axe", "SMP", "Mace"}))),
+		new ModuleDef("light_level", "Light level overlay", Category.WORLD, "Gdzie mogą się pojawić moby: czerwone zawsze, żółte w nocy",
+			"Where mobs can spawn: red always, yellow at night", "lightbulb", false, null, list(
+				new IntSetting("radius", "Zasięg (bloki)", "Range (blocks)", 8, 4, 16, 1))),
+		new ModuleDef("loot_beams", "Loot beams", Category.WORLD, "Promienie nad leżącymi przedmiotami w kolorze rzadkości",
+			"Light beams above dropped items in their rarity colour", "zap", false, null, list(
+				bool("common", "Także zwykłe przedmioty", "Common items too", false),
+				new IntSetting("height", "Wysokość (bloki)", "Height (blocks)", 3, 1, 8, 1))),
+		new ModuleDef("uhc_overlay", "UHC overlay", Category.WORLD, "Większe sztabki złota, złote jabłka i głowy leżące na ziemi",
+			"Bigger gold ingots, golden apples and heads on the ground", "apple", false, null, list(
+				new IntSetting("scale", "Powiększenie (%)", "Size (%)", 200, 125, 300, 25))),
+		new ModuleDef("waypoints", "Waypoints", Category.WORLD, "Punkty w świecie z nazwą i odległością (dodajesz je klawiszem, domyślnie N)",
+			"Points in the world with name and distance (add them with a key, N by default)", "flag", false, null, list(
+				new IntSetting("max_distance", "Najdalej (bloki, 0 = bez limitu)", "Max distance (blocks, 0 = no limit)", 0, 0, 10000, 100))),
+		new ModuleDef("auto_text", "Auto text", Category.CHAT, "Klawisze wysyłające zapisane wiadomości lub komendy (przypisz je w Sterowaniu)",
+			"Keys that send saved messages or commands (bind them in Controls)", "comment", false, null, list(
+				new TextSetting("text1", "Wiadomość 1", "Message 1", "gg", 100),
+				new TextSetting("text2", "Wiadomość 2", "Message 2", "/spawn", 100),
+				new TextSetting("text3", "Wiadomość 3", "Message 3", "", 100))),
+		new ModuleDef("emotes", "Emotes", Category.OTHER, "Emotki postaci pod klawiszem (domyślnie B), widać je w trzeciej osobie",
+			"Character emotes on a key (B by default), visible in third person", "smile", false, null, list(
+				new ChoiceSetting("emote", "Emotka", "Emote", "wave", new String[] {"wave", "dance", "clap", "point", "cheer"},
+					new String[] {"Machanie", "Taniec", "Klaskanie", "Wskazywanie", "Radość"}, new String[] {"Wave", "Dance", "Clap", "Point", "Cheer"}),
+				new IntSetting("seconds", "Czas (sekundy)", "Duration (seconds)", 4, 2, 10, 1),
+				bool("camera", "Pokaż postać od przodu", "Show yourself from the front", true))),
+		new ModuleDef("screenshot", "Screenshot", Category.OTHER, "Zrzut ekranu (F2) od razu w schowku i jego podgląd w rogu ekranu",
+			"Screenshots (F2) copied to the clipboard right away, with a preview in the corner", "image", false, null, list(
+				bool("copy", "Kopiuj do schowka", "Copy to clipboard", true),
+				bool("preview", "Podgląd w rogu", "Preview in the corner", true))),
+		new ModuleDef("keybind_search", "Keybind search", Category.OTHER, "Wyszukiwarka w ustawieniach klawiszy (Sterowanie)",
+			"A search box in the key binds settings (Controls)", "keyboard", false, null, list()),
+		new ModuleDef("sound_filters", "Sound filters", Category.OTHER, "Pogłos w jaskiniach i wytłumione dźwięki pod wodą",
+			"Reverb in caves and muffled sounds underwater", "music", false, null, list(
+				bool("caves", "Pogłos w jaskiniach", "Cave reverb", true),
+				bool("water", "Wytłumienie pod wodą", "Underwater muffling", true))),
 		new ModuleDef("nick_hider", "Nick hider", Category.OTHER, "Ukrywa Twój nick na liście graczy i nad głową (np. do nagrywania)",
 			"Hides your name in the player list and above your head (e.g. for recording)", "eye-off", false, null, list())));
 

@@ -37,6 +37,7 @@ public final class Players {
 	private final Map<String, Long> capeStamps = new HashMap<>();
 	/** Kiedy ostatnio sprawdzono brakujący plik peleryny (getSkin woła się co klatkę). */
 	private final Map<String, Long> capeMissingAt = new HashMap<>();
+	private final TierCache tiers = new TierCache();
 	private int ticks;
 
 	Players(MibClient mib) {
@@ -103,15 +104,27 @@ public final class Players {
 		return list.find(id, name) != null;
 	}
 
-	/** Nick z logo MiB przed nim albo bez zmian; Nick hider zamienia własny nick na „Ty”. */
+	/** Nick z logo MiB przed nim (gracze MiB) i tierem MCTiers za nim (Tier tagger); Nick hider zamienia własny nick na „Ty”. */
 	public Component decorate(UUID id, String name, Component original) {
-		if (original == null || id == null || !isMib(id, name)) return original;
-		MibClient.hooks.add("badge");
-		Minecraft c = Minecraft.getInstance();
-		if (c.player != null && c.player.getUUID().equals(id) && mib.modules.isOn("nick_hider")) {
-			original = Component.literal(Lang.pl() ? "Ty" : "You");
+		if (original == null || id == null) return original;
+		Component out = original;
+		if (isMib(id, name)) {
+			MibClient.hooks.add("badge");
+			Minecraft c = Minecraft.getInstance();
+			if (c.player != null && c.player.getUUID().equals(id) && mib.modules.isOn("nick_hider")) {
+				out = Component.literal(Lang.pl() ? "Ty" : "You");
+			}
+			out = Component.empty().append(BADGE).append(" ").append(out);
 		}
-		return Component.empty().append(BADGE).append(" ").append(original);
+		if (mib.modules.isOn("tier_tagger")) {
+			String mode = ((pl.mibclient.mod.core.Setting.ChoiceSetting) mib.modules.def("tier_tagger").setting("mode")).get(mib.modules.state("tier_tagger"));
+			String t = tiers.tier(id, mode);
+			if (t != null) {
+				MibClient.hooks.add("tier");
+				out = Component.empty().append(out).append(Component.literal(" " + t).withColor(pl.mibclient.mod.core.modules.Tiers.color(t)));
+			}
+		}
+		return out;
 	}
 
 	/** Peleryna innego gracza MiB (tekstura z pliku od launchera) albo null. */

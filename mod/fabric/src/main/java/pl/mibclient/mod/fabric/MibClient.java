@@ -88,6 +88,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public Players players;
 	public Pvp pvp;
 	public WorldTweaks world;
+	public Extras extras;
 	public KeyMapping menuKey, zoomKey, perspectiveKey, stopwatchKey, snaplookKey;
 
 	private final long sessionStart = System.currentTimeMillis();
@@ -132,6 +133,9 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		pvp = new Pvp(this);
 		world = new WorldTweaks(this, base);
 		world.register();
+		extras = new Extras(this);
+		Extras.register();
+		Looks.register();
 
 		//#if MC >= 1.21.9
 		KeyMapping.Category cat = KeyMapping.Category.register(MibId.fromNamespaceAndPath("mibclient", "main"));
@@ -143,6 +147,11 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		perspectiveKey = register(new KeyMapping("key.mibclient.perspective", InputConstants.KEY_LALT, cat));
 		stopwatchKey = register(new KeyMapping("key.mibclient.stopwatch", InputConstants.KEY_J, cat));
 		snaplookKey = register(new KeyMapping("key.mibclient.snaplook", InputConstants.KEY_Z, cat));
+		for (int i = 0; i < extras.autoText.length; i++) {
+			extras.autoText[i] = register(new KeyMapping("key.mibclient.autotext" + (i + 1), InputConstants.UNKNOWN.getValue(), cat));
+		}
+		extras.emoteKey = register(new KeyMapping("key.mibclient.emote", InputConstants.KEY_B, cat));
+		extras.waypointKey = register(new KeyMapping("key.mibclient.waypoint", InputConstants.KEY_N, cat));
 
 		//#if MC >= 1.21.6
 		HudElementRegistry.addLast(MibId.fromNamespaceAndPath("mibclient", "hud"), (g, tick) -> renderHud(g));
@@ -159,6 +168,16 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		});
 		ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
 			if (screen instanceof DisconnectedScreen) addReconnect(client, screen, width);
+		});
+		ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
+			// Tooltips: głód i nasycenie jedzenia
+			net.minecraft.world.food.FoodProperties food = modules.isOn("tooltips") && boolOpt("tooltips", "food")
+					? stack.get(net.minecraft.core.component.DataComponents.FOOD) : null;
+			if (food != null) {
+				hooks.add("food_info");
+				lines.add(Component.literal(Lang.t("food.info", food.nutrition(), String.format(java.util.Locale.ROOT, "%.1f", food.saturation())))
+						.withStyle(ChatFormatting.GOLD));
+			}
 		});
 		ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
 			if (!modules.isOn("item_info") || !stack.isDamageableItem() || type.isAdvanced()) return;
@@ -225,6 +244,10 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		pvp.tick(c);
 		players.tick(c);
 		world.tick(c);
+		extras.tick(c);
+		SoundFilters.tick(c, this);
+		Looks.tickPost(c);
+		Looks.tickHitboxes(c);
 		tickCameraModes(c);
 		tickDeath(c);
 		tickReconnect(c);
@@ -242,6 +265,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			return;
 		}
 		FabricCanvas canvas = new FabricCanvas(g, c.font);
+		extras.render(g, canvas, c);
 		hud.render(canvas, info, g.guiWidth(), g.guiHeight(), null, false);
 		hud.overlay(canvas, info, g.guiWidth(), g.guiHeight());
 	}
@@ -634,6 +658,24 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		switchAt = System.currentTimeMillis();
 		bridge.requestSwitch(id);
 		switchMessage = Lang.t("acc.working");
+	}
+
+	@Override
+	public String worldKey() {
+		return Extras.worldKey(Minecraft.getInstance());
+	}
+
+	@Override
+	public String dimension() {
+		return Extras.dimension(Minecraft.getInstance());
+	}
+
+	@Override
+	public int[] playerBlockPos() {
+		Minecraft c = Minecraft.getInstance();
+		if (c.player == null) return null;
+		net.minecraft.core.BlockPos p = c.player.blockPosition();
+		return new int[] {p.getX(), p.getY(), p.getZ()};
 	}
 
 	@Override

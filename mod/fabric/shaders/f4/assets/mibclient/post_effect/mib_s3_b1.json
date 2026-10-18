@@ -1,0 +1,61 @@
+{
+  "targets": {
+    "swap": {},
+    "previous": {
+      "persistent": true
+    }
+  },
+  "passes": [
+    {
+      "vertex_shader": "minecraft:post/sobel",
+      "fragment_shader": "mibclient:post/mib_blur",
+      "inputs": [
+        {
+          "sampler_name": "In",
+          "target": "minecraft:main"
+        },
+        {
+          "sampler_name": "Prev",
+          "target": "previous"
+        }
+      ],
+      "output": "swap",
+      "uniforms": {
+        "MibConfig": [
+          {
+            "name": "Saturation",
+            "type": "float",
+            "value": 1.6
+          },
+          {
+            "name": "Strength",
+            "type": "float",
+            "value": 0.45
+          }
+        ]
+      }
+    },
+    {
+      "vertex_shader": "minecraft:post/sobel",
+      "fragment_shader": "mibclient:post/mib_copy",
+      "inputs": [
+        {
+          "sampler_name": "In",
+          "target": "swap"
+        }
+      ],
+      "output": "previous"
+    },
+    {
+      "vertex_shader": "minecraft:post/sobel",
+      "fragment_shader": "mibclient:post/mib_copy",
+      "inputs": [
+        {
+          "sampler_name": "In",
+          "target": "swap"
+        }
+      ],
+      "output": "minecraft:main"
+    }
+  ]
+}

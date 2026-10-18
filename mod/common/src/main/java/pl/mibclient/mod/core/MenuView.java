@@ -9,6 +9,8 @@ import pl.mibclient.mod.core.Setting.BoolSetting;
 import pl.mibclient.mod.core.Setting.ChoiceSetting;
 import pl.mibclient.mod.core.Setting.ColorSetting;
 import pl.mibclient.mod.core.Setting.IntSetting;
+import pl.mibclient.mod.core.Setting.TextSetting;
+import pl.mibclient.mod.core.modules.Waypoints;
 
 /**
  * Menu pod prawym Shiftem (makieta A): kategorie, wyszukiwarka, karty modułów, ustawienia modułu i zmiana konta.
@@ -17,7 +19,7 @@ import pl.mibclient.mod.core.Setting.IntSetting;
 public final class MenuView {
 	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS }
 
-	public static final int KEY_ESCAPE = 256, KEY_BACKSPACE = 259;
+	public static final int KEY_ESCAPE = 256, KEY_BACKSPACE = 259, KEY_ENTER = 257;
 	private static final int FAINT = 0xFF6F5F82, WHITE = 0xFFFFFFFF;
 	/** Tło karty włączonego modułu (lekko fioletowe). */
 	private static final int CARD_ON = 0xFF160A24;
@@ -43,6 +45,8 @@ public final class MenuView {
 	private String query = "";
 	private Category category;
 	private String selected;
+	/** Klucz pola tekstowego, do którego trafia pisanie (TextSetting), albo null. */
+	private String editing;
 	private int scroll, settingsScroll, maxSettingsScroll, cosScroll, maxCosScroll;
 	private MenuLayout layout;
 
@@ -412,7 +416,11 @@ public final class MenuView {
 		// Custom crosshair: podgląd celownika obok ustawień, zmienia się od razu
 		boolean preview = "custom_crosshair".equals(m.id);
 		int listRight = preview ? right - PREVIEW - 8 : right;
-		int listH = m.settings.size() * 18;
+		final boolean wp = "waypoints".equals(m.id);
+		final String world = wp ? actions.worldKey() : null, dim = wp ? actions.dimension() : null;
+		final List<Waypoints.Point> points = world == null ? java.util.Collections.<Waypoints.Point>emptyList() : Waypoints.in(st, world, dim);
+		int extra = wp ? 1 + Math.max(1, points.size()) : 0;
+		int listH = (m.settings.size() + extra) * 18;
 		maxSettingsScroll = Math.max(0, listH - (bottom - top));
 		settingsScroll = Math.max(0, Math.min(maxSettingsScroll, settingsScroll));
 		c.scissor(ct[0], top, listRight, bottom);
@@ -421,6 +429,7 @@ public final class MenuView {
 			if (y + 18 <= top || y >= bottom) continue;
 			row(c, m, st, m.settings.get(i), y, ct[0], listRight, mx, my, y >= top && y + 18 <= bottom);
 		}
+		if (wp) waypointRows(c, st, world, dim, points, top + m.settings.size() * 18 - settingsScroll, top, bottom, ct[0], listRight, mx, my);
 		c.unscissor();
 		if (preview) crosshairPreview(c, m, st, right - PREVIEW, top);
 
@@ -434,8 +443,51 @@ public final class MenuView {
 					actions.openHudEditor(m.id);
 				}
 			}));
+		} else if (wp) {
+			String t = Lang.t("wp.add");
+			final int[] b = {ct[0], ct[1] + ct[3] - 16, c.textWidth(t) + 28, 16};
+			if (world != null) {
+				button(c, b, "flag", t, true, in(b, mx, my));
+				hits.add(new Hit("wp_add", b, new Runnable() {
+					@Override
+					public void run() {
+						int[] p = actions.playerBlockPos();
+						if (p != null && Waypoints.add(st, world, dim, p[0], p[1], p[2], Lang.t("wp.name"))) modules.touched(m.id);
+					}
+				}));
+			} else c.text(Lang.t("wp.no_world"), ct[0], ct[1] + ct[3] - 12, FAINT, false);
 		} else if ("zoom".equals(m.id) || "perspective".equals(m.id)) {
 			c.text(Lang.t("menu.key_hint"), ct[0], ct[1] + ct[3] - 12, FAINT, false);
+		}
+	}
+
+	/** Waypoints: nagłówek i punkty tego świata (kolor, nazwa, współrzędne, usuwanie). */
+	private void waypointRows(Canvas c, final ModuleState st, final String world, final String dim, List<Waypoints.Point> points, int y, int top,
+			int bottom, int left, int right, int mx, int my) {
+		c.text(Lang.t("wp.title"), left + 6, y + 7, Theme.AM_HI, false);
+		y += 18;
+		if (points.isEmpty()) {
+			c.text(Lang.t(world == null ? "wp.no_world" : "wp.none"), left + 6, y + 5, FAINT, false);
+			return;
+		}
+		for (int i = 0; i < points.size(); i++, y += 18) {
+			if (y + 18 <= top || y >= bottom) continue;
+			Waypoints.Point p = points.get(i);
+			c.fill(left, y + 17, right, y + 18, ROW_LINE);
+			Shapes.pixelRect(c, left + 6, y + 5, 8, 8, p.color);
+			c.text(Shapes.ellipsize(c, p.name, (right - left) / 2 - 24, false), left + 20, y + 5, Theme.TEXT, false);
+			String xyz = p.x + " " + p.y + " " + p.z;
+			c.text(xyz, right - 26 - c.textWidth(xyz), y + 5, Theme.MUTED, false);
+			final int[] del = {right - 20, y + 2, 14, 14};
+			Shapes.icon(c, "close", del[0] + 1, del[1] + 1, in(del, mx, my) ? Theme.BAD : FAINT);
+			final int index = i;
+			if (y >= top && y + 18 <= bottom) hits.add(new Hit("wp_del:" + i, del, new Runnable() {
+				@Override
+				public void run() {
+					Waypoints.remove(st, world, dim, index);
+					modules.touched("waypoints");
+				}
+			}));
 		}
 	}
 
@@ -483,6 +535,20 @@ public final class MenuView {
 					modules.touched(m.id);
 				}
 			}));
+		} else if (s instanceof TextSetting) {
+			final TextSetting ts = (TextSetting) s;
+			boolean active = s.key.equals(editing) && m.id.equals(selected);
+			final int[] r = {left + (right - left) / 2, y + 1, (right - left) / 2, 16};
+			Shapes.panel(c, r[0], r[1], r[2], r[3], Theme.SLAB2, active ? Theme.AM : in(r, mx, my) ? Theme.AM_LO : Theme.EDGE2);
+			String v = ts.get(st) + (active ? "_" : "");
+			String shown = c.textWidth(v) > r[2] - 10 ? "…" + tail(c, v, r[2] - 16) : v;
+			c.text(shown, r[0] + 5, r[1] + 4, v.isEmpty() ? FAINT : Theme.TEXT, false);
+			if (clickable) hits.add(new Hit("setting:" + s.key, r, new Runnable() {
+				@Override
+				public void run() {
+					editing = ts.key;
+				}
+			}));
 		} else if (s instanceof ColorSetting) {
 			final ColorSetting cs = (ColorSetting) s;
 			int cur = cs.get(st);
@@ -501,6 +567,13 @@ public final class MenuView {
 				}));
 			}
 		}
+	}
+
+	/** Koniec tekstu mieszczący się w maxW (pole tekstowe pokazuje to, co się właśnie pisze). */
+	private static String tail(Canvas c, String s, int maxW) {
+		int i = 0;
+		while (i < s.length() && c.textWidth(s.substring(i)) > maxW) i++;
+		return s.substring(i);
 	}
 
 	/** Kliknięcie w suwak: wartość z miejsca kliknięcia (pozycja myszy znana dopiero przy kliknięciu). */
@@ -625,6 +698,7 @@ public final class MenuView {
 	// ===== Wejście =====
 
 	public boolean mouseClicked(double x, double y, int button) {
+		editing = null; // kliknięcie poza polem kończy pisanie (kliknięcie w pole włącza je znowu)
 		for (int i = hits.size() - 1; i >= 0; i--) {
 			Hit h = hits.get(i);
 			if (!in(h.r, x, y)) continue;
@@ -656,6 +730,22 @@ public final class MenuView {
 	}
 
 	public boolean keyPressed(int key) {
+		TextSetting ts = editedText();
+		if (ts != null) {
+			ModuleState st = modules.state(selected);
+			if (key == KEY_BACKSPACE) {
+				String v = ts.get(st);
+				if (!v.isEmpty()) {
+					ts.set(st, v.substring(0, v.length() - 1));
+					modules.touched(selected);
+				}
+				return true;
+			}
+			if (key == KEY_ESCAPE || key == KEY_ENTER) {
+				editing = null;
+				return true;
+			}
+		}
 		if (key == KEY_ESCAPE) {
 			if (page == Page.GRID) return false;
 			page = Page.GRID;
@@ -669,7 +759,30 @@ public final class MenuView {
 		return false;
 	}
 
+	/** Czy gracz pisze w polu tekstowym (wtedy klawisze gry nie zamykają menu). */
+	public boolean typing() {
+		return editedText() != null;
+	}
+
+	/** Pole tekstowe, w którym właśnie się pisze (tylko na stronie ustawień jego modułu). */
+	private TextSetting editedText() {
+		if (editing == null || page != Page.SETTINGS || modules.def(selected) == null) return null;
+		Setting<?> s = modules.def(selected).setting(editing);
+		return s instanceof TextSetting ? (TextSetting) s : null;
+	}
+
 	public boolean charTyped(char ch) {
+		TextSetting ts = editedText();
+		if (ts != null) {
+			if (ch < 32 || ch == 127) return true;
+			ModuleState st = modules.state(selected);
+			String v = ts.get(st);
+			if (v.length() < ts.maxLength) {
+				ts.set(st, v + ch);
+				modules.touched(selected);
+			}
+			return true;
+		}
 		if (page != Page.GRID || ch < 32 || ch == 127 || query.length() >= 32) return false;
 		query += ch;
 		scroll = 0;

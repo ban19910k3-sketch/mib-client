@@ -61,10 +61,14 @@ tasks.register('mibPreprocess') {
 	}
 }
 
+// Efekty pełnoekranowe (Color saturation, Motion blur) mają inny format w każdej rodzinie wersji (mod/tools/shaders.py)
+def shaderFamily = MibPp.cmp(mc, '26.3') >= 0 ? 'f6' : MibPp.cmp(mc, '26.1') >= 0 ? 'f5' : MibPp.cmp(mc, '1.21.6') >= 0 ? 'f4'
+		: MibPp.cmp(mc, '1.21.5') >= 0 ? 'f3' : MibPp.cmp(mc, '1.21.2') >= 0 ? 'f2' : 'f1'
+
 sourceSets {
 	main {
 		java.srcDirs = [new File(ppDir, 'main/java'), rootProject.file('common/src/main/java')]
-		resources.srcDirs = [new File(ppDir, 'main/resources'), rootProject.file('common/src/main/resources')]
+		resources.srcDirs = [new File(ppDir, 'main/resources'), rootProject.file('common/src/main/resources'), rootProject.file("fabric/shaders/$shaderFamily")]
 	}
 }
 if (hasGametest) {

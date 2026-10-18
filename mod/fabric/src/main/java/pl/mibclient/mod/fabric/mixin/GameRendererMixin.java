@@ -5,6 +5,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import pl.mibclient.mod.fabric.Extras;
 import pl.mibclient.mod.fabric.MibClient;
 //#if MC < 26.1
 import net.minecraft.client.renderer.GameRenderer;
@@ -21,16 +22,21 @@ public abstract class GameRendererMixin {
 	@Inject(method = "calculateFov", at = @At("RETURN"), cancellable = true)
 	private void mib$fov(float partialTick, CallbackInfoReturnable<Float> cir) {
 		cir.setReturnValue(MibClient.get().modifyFov(cir.getReturnValue()));
+		Extras.fov = cir.getReturnValue();
 	}
 	//#elif MC >= 1.21.2
 	@Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
 	private void mib$fov(Camera camera, float partialTick, boolean useFovSetting, CallbackInfoReturnable<Float> cir) {
-		if (useFovSetting) cir.setReturnValue(MibClient.get().modifyFov(cir.getReturnValue()));
+		if (!useFovSetting) return;
+		cir.setReturnValue(MibClient.get().modifyFov(cir.getReturnValue()));
+		Extras.fov = cir.getReturnValue();
 	}
 	//#else
 	@Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
 	private void mib$fov(Camera camera, float partialTick, boolean useFovSetting, CallbackInfoReturnable<Double> cir) {
-		if (useFovSetting) cir.setReturnValue((double) MibClient.get().modifyFov(cir.getReturnValue().floatValue()));
+		if (!useFovSetting) return;
+		cir.setReturnValue((double) MibClient.get().modifyFov(cir.getReturnValue().floatValue()));
+		Extras.fov = cir.getReturnValue();
 	}
 	//#endif
 }

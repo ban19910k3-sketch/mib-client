@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage, dialog, screen, clipboard, Notification, utilityProcess } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, dialog, screen, clipboard, nativeImage, Notification, utilityProcess } = require('electron');
 const { spawn } = require('child_process'), crypto = require('crypto');
 const path = require('path'), fs = require('fs');
 const { Client } = require('minecraft-launcher-core');
@@ -417,7 +417,9 @@ function startHud(pid, mibDir, gameAcc) {
         },
         onEquip: async (type, id) => { const r = await prof.equip({ type, id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się zmienić kosmetyku.'); },
         // gracze MiB z listy Tab (logo przed nickiem) i tekstury ich peleryn w <gra>/mib/capes
-        players: req => mibPresence.players(req, path.join(mibDir, 'capes')) }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
+        players: req => mibPresence.players(req, path.join(mibDir, 'capes')),
+        // moduł Screenshot: zrzut ekranu z gry od razu w schowku
+        onScreenshot: file => { const img = nativeImage.createFromPath(file); if (!img.isEmpty()) clipboard.writeImage(img); } }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
     return;
   }

@@ -22,6 +22,8 @@ class MenuViewTest {
 	List<String> calls = new ArrayList<String>();
 	String message, cosMessage;
 	Cosmetics cosmetics;
+	String world;
+	int[] pos = {10, 64, -20};
 
 	@BeforeEach
 	void setUp() {
@@ -63,6 +65,21 @@ class MenuViewTest {
 			@Override
 			public String cosmeticMessage() {
 				return cosMessage;
+			}
+
+			@Override
+			public String worldKey() {
+				return world;
+			}
+
+			@Override
+			public String dimension() {
+				return "minecraft:overworld";
+			}
+
+			@Override
+			public int[] playerBlockPos() {
+				return pos;
 			}
 		});
 		c = new RecordingCanvas();
@@ -121,7 +138,7 @@ class MenuViewTest {
 	void categoryFiltersCards() {
 		click("cat:PVP");
 		render();
-		assertEquals(10, cards());
+		assertEquals(12, cards());
 		assertEquals(Category.PVP, v.category());
 		click("cat:ALL");
 		render();
@@ -255,5 +272,46 @@ class MenuViewTest {
 		assertTrue(c.hasText("Search modules…"));
 		assertTrue(c.hasText("Edit HUD"));
 		assertTrue(c.hasText("Disabled"));
+	}
+
+	@Test
+	void textSettingIsTypedInMenu() {
+		v.openSettings("auto_text");
+		click("setting:text1");
+		assertTrue(v.typing());
+		assertTrue(v.keyPressed(MenuView.KEY_BACKSPACE));
+		assertTrue(v.keyPressed(MenuView.KEY_BACKSPACE));
+		for (char ch : "/hub".toCharArray()) assertTrue(v.charTyped(ch));
+		ModuleDef d = mm.def("auto_text");
+		assertEquals("/hub", ((Setting.TextSetting) d.setting("text1")).get(mm.state("auto_text")));
+		render();
+		assertTrue(c.hasText("/hub_"));
+		// Esc kończy pisanie, ale zostaje na stronie ustawień
+		assertTrue(v.keyPressed(MenuView.KEY_ESCAPE));
+		assertFalse(v.typing());
+		assertEquals(MenuView.Page.SETTINGS, v.page());
+		// kliknięcie obok też kończy pisanie
+		click("setting:text2");
+		assertTrue(v.typing());
+		v.mouseClicked(1, 1, 0);
+		assertFalse(v.typing());
+	}
+
+	@Test
+	void waypointsAddedAndRemovedFromMenu() {
+		v.openSettings("waypoints");
+		render();
+		assertNull(v.hitRect("wp_add"), "poza światem nie ma przycisku dodawania");
+		world = "mp:play.example.net";
+		click("wp_add");
+		pos = new int[] {1, 2, 3};
+		click("wp_add");
+		render();
+		assertTrue(c.hasText("Punkt 1"));
+		assertTrue(c.hasText("1 2 3"));
+		click("wp_del:0");
+		render();
+		assertFalse(c.hasText("Punkt 1"));
+		assertTrue(c.hasText("Punkt 2"));
 	}
 }

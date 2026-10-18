@@ -32,4 +32,19 @@ public interface MenuActions {
 	/** Zapisuje język menu wybrany w menu ("pl", "en", "auto"); Lang.choose robi już MenuView. */
 	default void languageChosen(String code) {
 	}
+
+	/** Świat, w którym jest gracz (serwer albo zapis gry), dla Waypoints; null = poza światem. */
+	default String worldKey() {
+		return null;
+	}
+
+	/** Wymiar gracza, np. "minecraft:overworld". */
+	default String dimension() {
+		return null;
+	}
+
+	/** Blok, na którym stoi gracz {x, y, z}, albo null. */
+	default int[] playerBlockPos() {
+		return null;
+	}
 }

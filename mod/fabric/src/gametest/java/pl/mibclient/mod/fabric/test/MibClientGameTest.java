@@ -177,11 +177,62 @@ public class MibClientGameTest implements FabricClientGameTest {
 			});
 			context.waitTicks(5);
 			check(context.computeOnClient(c -> !c.player.getMainHandItem().isEmpty()), "Drop prevention nie zatrzymał wyrzucenia miecza");
+			context.runOnClient(c -> {
+				if (!MibClient.get().modules.isOn("dark_mode")) MibClient.get().modules.toggle("dark_mode");
+			});
 			context.setScreen(() -> new net.minecraft.client.gui.screens.inventory.InventoryScreen(Minecraft.getInstance().player));
 			context.waitTicks(5);
 			context.takeScreenshot("06f-inventory");
 			context.setScreen(() -> null);
 			context.waitTicks(2);
+
+			// reszta listy: wygląd świata, przedmioty na ziemi, punkty, światło, emotki, animacje, efekty, klawisze, skala
+			context.runOnClient(c -> {
+				ModuleManager m = MibClient.get().modules;
+				for (String id : new String[] {"color_saturation", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "loot_beams", "light_level",
+						"waypoints", "animations", "emotes", "hitbox", "keybind_search", "custom_f3", "tooltips", "screenshot"}) {
+					if (!m.isOn(id)) m.toggle(id);
+				}
+				m.state("hitbox").setOption("always", true);
+				m.state("emotes").setOption("camera", false);
+			});
+			sp.getServer().runCommand("time set noon");
+			sp.getServer().runCommand("tp @p ~ ~ ~ 0 35");
+			context.waitTicks(5);
+			sp.getServer().runCommand("execute at @p anchored eyes run summon item ^ ^ ^3 {Item:{id:\"minecraft:golden_apple\",count:1},PickupDelay:32767}");
+			sp.getServer().runCommand("execute at @p anchored eyes run summon item ^1 ^ ^3 {Item:{id:\"minecraft:diamond\",count:3},PickupDelay:32767}");
+			context.runOnClient(c -> {
+				net.minecraft.core.BlockPos p = c.player.blockPosition().relative(c.player.getDirection(), 6);
+				pl.mibclient.mod.core.modules.Waypoints.add(MibClient.get().modules.state("waypoints"), pl.mibclient.mod.fabric.Extras.worldKey(c),
+						pl.mibclient.mod.fabric.Extras.dimension(c), p.getX(), p.getY(), p.getZ(), "Test");
+			});
+			context.waitTicks(30);
+			input.holdKey(o -> o.keyUse);
+			context.waitTicks(5);
+			context.takeScreenshot("06g-world2");
+			input.releaseKey(o -> o.keyUse);
+			context.runOnClient(c -> {
+				MibClient.get().extras.startEmoteForTest("wave");
+				c.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT);
+			});
+			context.waitTicks(5);
+			context.takeScreenshot("06h-emote");
+			context.runOnClient(c -> c.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
+			context.setScreen(() -> new net.minecraft.client.gui.screens.options.controls.KeyBindsScreen(null, Minecraft.getInstance().options));
+			context.waitTicks(5);
+			context.takeScreenshot("06i-keybinds");
+			context.setScreen(() -> null);
+			context.runOnClient(c -> {
+				ModuleManager m = MibClient.get().modules;
+				if (!m.isOn("ui_scaling")) m.toggle("ui_scaling");
+			});
+			context.waitTicks(3);
+			context.runOnClient(c -> {
+				ModuleManager m = MibClient.get().modules;
+				m.toggle("ui_scaling");
+				for (String id : new String[] {"color_saturation", "motion_blur", "dark_mode"}) if (m.isOn(id)) m.toggle(id);
+			});
+			context.waitTicks(3);
 
 			input.holdKey(MibClient.get().zoomKey);
 			context.waitTicks(10);
@@ -235,9 +286,14 @@ public class MibClientGameTest implements FabricClientGameTest {
 
 			// wszystkie wstawki w grę zadziałały (pole widzenia, jasność, kliknięcia, celownik, logo i ekran tytułowy)
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
-					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop"
+					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop",
+					"post_effect", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "light_level", "waypoints", "dark_mode", "anim_block", "anim_dip",
+					"emote", "keybind_search", "ui_scale"
 					//#if MC < 26.3
 					, "time"
+					//#endif
+					//#if MC < 1.21.9
+					, "hitbox"
 					//#endif
 					}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);

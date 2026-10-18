@@ -233,3 +233,26 @@ test('prepareMibMod: wyłączone ręcznie Fabric API zostaje włączone, inne we
   const r = await d.run({ gv: '1.20.1' });
   assert.strictEqual(r.active, false);
 });
+
+test('readScreenshot: tylko .png w folderze screenshots wewnątrz folderu gry', () => {
+  const root = path.join(os.tmpdir(), 'gra');
+  const ok = path.join(root, 'instances', '1.21', 'screenshots', '2026-10-18_10.00.00.png');
+  assert.strictEqual(m.readScreenshot(JSON.stringify({ path: ok }), root), ok);
+  assert.strictEqual(m.readScreenshot(JSON.stringify({ path: path.join(root, 'screenshots', 'a.jpg') }), root), null);
+  assert.strictEqual(m.readScreenshot(JSON.stringify({ path: path.join(root, 'mods', 'a.png') }), root), null);
+  assert.strictEqual(m.readScreenshot(JSON.stringify({ path: path.join(os.tmpdir(), 'inna', 'screenshots', 'a.png') }), root), null);
+  assert.strictEqual(m.readScreenshot(JSON.stringify({ path: path.join(root, 'screenshots', '..', '..', 'x', 'screenshots', 'a.png') }), root), null);
+  assert.strictEqual(m.readScreenshot('nie json', root), null);
+});
+
+test('most: screenshot-request.json trafia do onScreenshot i znika', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mib-shot-'));
+  const mibDir = path.join(dir, 'mib'), shot = path.join(dir, 'screenshots', 'a.png');
+  const got = [];
+  const b = m.createBridge({ dir: mibDir, accounts: () => ({ accounts: [], active: null }), onSwitch: async () => {}, onScreenshot: f => got.push(f) });
+  fs.mkdirSync(mibDir, { recursive: true });
+  fs.writeFileSync(path.join(mibDir, 'screenshot-request.json'), JSON.stringify({ path: shot }));
+  await b.pollOnce();
+  assert.deepStrictEqual(got, [shot]);
+  assert.ok(!fs.existsSync(path.join(mibDir, 'screenshot-request.json')));
+});
