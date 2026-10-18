@@ -157,18 +157,32 @@ const ok = m => console.log('PASS', m);
     assert.equal(fake.st.ideas[0].status, 'planned', 'status zapisany na serwerze');
     ok('(o) admin widzi pomysł z licznikiem nowych i zmienia jego status');
     await w.click('[data-tab="ann"]');
+    assert.equal(await w.textContent('[data-tab="ann"]'), 'Aktualności');
     await w.waitForSelector('#ad-title');
     await w.fill('#ad-title', 'Turniej w sobotę');
     await w.fill('#ad-body', 'Start o 18:00 na serwerze MiB.');
     await w.check('#ad-pin');
     await w.click('#ad-save');
     await w.waitForFunction(() => /Turniej w sobotę/.test(document.getElementById('ad-list').textContent));
+    // zmiana dodanej aktualności
+    await w.click('#ad-list .arow button.ghost');
+    assert.equal(await w.inputValue('#ad-title'), 'Turniej w sobotę');
+    await w.fill('#ad-title', 'Turniej w niedzielę');
+    await w.click('#ad-save');
+    await w.waitForFunction(() => /Turniej w niedzielę/.test(document.getElementById('ad-list').textContent) && !/sobotę/.test(document.getElementById('ad-list').textContent));
+    assert.equal(fake.st.ann.length, 1, 'zmiana nie dodała drugiego wpisu');
     await w.waitForTimeout(400);
     await shot('admin-ann.png');
     await w.click('.nav[data-p="home"]');
-    await w.waitForFunction(() => !document.getElementById('n-ann').hidden && /Turniej w sobotę/.test(document.getElementById('ann-home').textContent));
+    await w.waitForFunction(() => /Turniej w niedzielę/.test((document.querySelector('#ann-home .nw .nt') || {}).textContent || ''));
     await shot('home-ann.png');
-    ok('(k) admin publikuje ogłoszenie, gracze widzą je na stronie głównej');
+    // kliknięcie aktualności otwiera stronę Aktualności z pełną treścią i skrótem do panelu dla admina
+    await w.click('#ann-home .nw');
+    await w.waitForFunction(() => document.getElementById('p-news').classList.contains('on') && /Start o 18:00/.test(document.getElementById('ann-all').textContent));
+    assert.equal(await w.isVisible('#ad-quick'), true, 'admin widzi skrót do dodawania aktualności');
+    await w.click('#ad-quick');
+    await w.waitForSelector('#ad-title');
+    ok('(k) admin dodaje i zmienia aktualność, gracze widzą ją w panelu Aktualności na stronie głównej');
 
     await w.click('.nav[data-p="admin"]');
     await w.click('[data-tab="codes"]');

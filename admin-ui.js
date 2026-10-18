@@ -11,7 +11,7 @@
     cosmetic_missing: 'Najpierw dodaj ten przedmiot w zakładce Kosmetyki.',
     codes_invalid: 'Kody: od 1 do 100 naraz, użyć od 1 do 100 000, ważność od 1 do 3650 dni.',
     cannot_delete_admin: 'Nie można usunąć konta admina.',
-    announcement_missing: 'To ogłoszenie zostało już usunięte.',
+    announcement_missing: 'Ta aktualność została już usunięta.',
     texture_not_png: 'To nie jest plik PNG.',
     texture_size: 'Tekstura peleryny musi mieć 64×32 piksele (albo 128×64, 256×128, 512×256).',
     texture_too_big: 'Plik jest za duży (najwyżej 100 KB).',
@@ -35,15 +35,15 @@
     return capeCanvas;
   }
 
-  // ===== Ogłoszenia =====
+  // ===== Aktualności (panel Aktualności na stronie głównej i strona Aktualności) =====
   async function viewAnn(box) {
-    const title = h('input', { maxlength: 80, id: 'ad-title', placeholder: 'np. Turniej w sobotę o 18:00' });
+    const title = h('input', { maxlength: 80, id: 'ad-title', placeholder: 'np. Nowa peleryna w Kosmetykach' });
     const body = h('textarea', { maxlength: 1000, id: 'ad-body', placeholder: 'Treść (opcjonalnie)' });
     const pin = h('input', { type: 'checkbox', id: 'ad-pin' }), until = h('input', { type: 'date', id: 'ad-until' });
-    const e = h('p', { class: 'err' }), save = h('button', { class: 'b', id: 'ad-save', type: 'submit' }, 'Opublikuj');
+    const e = h('p', { class: 'err' }), save = h('button', { class: 'b', id: 'ad-save', type: 'submit' }, 'Dodaj aktualność');
     let editId = null;
-    const cancel = h('button', { class: 'b ghost', type: 'button', hidden: true, on: { click: () => reset() } }, 'Anuluj edycję');
-    const reset = () => { editId = null; title.value = body.value = until.value = ''; pin.checked = false; save.textContent = 'Opublikuj'; cancel.hidden = true; };
+    const cancel = h('button', { class: 'b ghost', type: 'button', hidden: true, on: { click: () => reset() } }, 'Anuluj zmiany');
+    const reset = () => { editId = null; title.value = body.value = until.value = ''; pin.checked = false; save.textContent = 'Dodaj aktualność'; cancel.hidden = true; };
     const list = h('div', { id: 'ad-list' });
     async function load() {
       const l = await call('admin_list_announcements');
@@ -56,30 +56,30 @@
           h('button', { class: 'b ghost', on: { click: () => {
             editId = a.id; title.value = a.title; body.value = a.body; pin.checked = a.pinned; until.value = a.visible_until ? a.visible_until.slice(0, 10) : '';
             save.textContent = 'Zapisz zmiany'; cancel.hidden = false; title.focus();
-          } } }, 'Edytuj'),
+          } } }, 'Zmień'),
           h('button', { class: 'b danger', on: { click: async () => {
-            if (!confirm('Usunąć ogłoszenie „' + a.title + '”?')) return;
+            if (!confirm('Usunąć aktualność „' + a.title + '”?')) return;
             const r = await call('admin_delete_announcement', { p_id: a.id });
             if (failed(r)) return toast(err(r), 1);
             load(); window.mibLoadAnn();
           } } }, 'Usuń'));
-      }) : [h('p', { class: 'empty' }, 'Nie ma jeszcze ogłoszeń.')]));
+      }) : [h('p', { class: 'empty' }, 'Nie ma jeszcze aktualności. Dodaj pierwszą powyżej.')]));
     }
     const form = h('form', { class: 'pform', on: { submit: async ev => {
       ev.preventDefault();
-      if (!title.value.trim()) { e.textContent = 'Wpisz tytuł ogłoszenia.'; return; }
+      if (!title.value.trim()) { e.textContent = 'Wpisz tytuł aktualności.'; return; }
       save.disabled = true;
       const r = await call('admin_save_announcement', { p_id: editId, p_title: title.value, p_body: body.value, p_pinned: pin.checked,
         p_until: until.value ? new Date(until.value + 'T23:59:59').toISOString() : null });
       save.disabled = false;
       if (failed(r)) { e.textContent = err(r); return; }
-      e.textContent = ''; toast(editId ? 'Ogłoszenie zapisane.' : 'Ogłoszenie opublikowane.'); reset(); load(); window.mibLoadAnn();
+      e.textContent = ''; toast(editId ? 'Aktualność zmieniona.' : 'Aktualność dodana.'); reset(); load(); window.mibLoadAnn();
     } } },
     h('label', { class: 'sr' }, h('span', {}, 'Tytuł'), title),
     h('label', { class: 'sr' }, h('span', {}, 'Treść'), body),
     h('label', { class: 'sr' }, h('span', {}, 'Widoczne do'), h('span', { class: 'fld' }, until, h('small', { class: 'mut' }, 'Puste = bez końca'))),
     h('label', { class: 'ck' }, pin, 'Przypnij na górze'), e, h('div', { class: 'row' }, save, cancel));
-    box.append(h('p', { class: 'lead' }, 'Ogłoszenia widzą wszyscy gracze na stronie głównej i w Aktualnościach, od razu, bez aktualizacji launchera.'), form, h('div', { class: 'sec' }, h('h3', {}, 'Opublikowane'), list));
+    box.append(h('p', { class: 'lead' }, 'Aktualności widzą wszyscy gracze: 3 najnowsze w panelu Aktualności na stronie głównej, wszystkie na stronie Aktualności. Zmiany widać od razu, bez aktualizacji launchera. Kliknij „Zmień”, żeby poprawić wpis.'), form, h('div', { class: 'sec' }, h('h3', {}, 'Dodane aktualności'), list));
     load();
   }
 
@@ -278,7 +278,7 @@
       ...(r.versions.length ? r.versions.map(v => row(v.version, window.MibProfile.formatPlaytime(v.min) + ', uruchomień: ' + v.runs)) : [h('p', { class: 'empty' }, 'Brak danych o grze.')])));
   }
 
-  const TABS = [['ann', 'Ogłoszenia', viewAnn], ['ideas', 'Pomysły', viewIdeas], ['cos', 'Kosmetyki', viewCos], ['codes', 'Kody', viewCodes], ['players', 'Gracze', viewPlayers], ['stats', 'Statystyki', viewStats]];
+  const TABS = [['ann', 'Aktualności', viewAnn], ['ideas', 'Pomysły', viewIdeas], ['cos', 'Kosmetyki', viewCos], ['codes', 'Kody', viewCodes], ['players', 'Gracze', viewPlayers], ['stats', 'Statystyki', viewStats]];
   function render() {
     const box = $('admin-box'), body = h('div', { id: 'admin-tab' });
     box.replaceChildren(h('h2', {}, 'Panel admina'),
@@ -287,4 +287,10 @@
     TABS.find(t => t[0] === tab)[2](body);
   }
   document.querySelector('.nav[data-p="admin"]').addEventListener('click', render);
+
+  // Na stronie Aktualności admin ma skrót do dodawania i zmieniania wpisów
+  const quick = h('div', { class: 'row', style: 'padding-bottom:10px', hidden: true },
+    h('button', { class: 'b', id: 'ad-quick', type: 'button', on: { click: () => { tab = 'ann'; document.querySelector('.nav[data-p="admin"]').click(); } } }, 'Dodaj lub zmień aktualności'));
+  $('ann-all').before(quick);
+  document.querySelector('.nav[data-p="news"]').addEventListener('click', () => { quick.hidden = document.querySelector('.nav[data-p="admin"]').hidden; });
 })();

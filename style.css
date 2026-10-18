@@ -108,6 +108,9 @@ h2,h3{text-wrap:balance}p,.lead,.lg{text-wrap:pretty}
 .n{padding:12px 0;border-top:2px solid var(--edge)}
 .n>b{display:block;font-size:12px;color:var(--m);font-weight:600;margin-bottom:6px}
 .n p{font-size:12px;line-height:1.5;color:#c9bad9}
+.nw{cursor:pointer}.nw:hover .nt{color:var(--am-hi)}.nw p{white-space:pre-line}
+.nt{font-size:14px;font-weight:600;color:var(--t);line-height:1.35;margin-bottom:4px}
+.nw.pin .nt::before{content:"";display:inline-block;width:6px;height:6px;background:var(--am);margin-right:7px;vertical-align:2px}
 .big{font-size:30px;line-height:1;color:var(--am-hi);margin:2px 0 6px}
 .tm{display:flex;align-items:center;gap:8px;padding:5px 4px;margin:0 -4px;font-size:12px;cursor:pointer}
 .tm:hover{background:var(--slab2)}
