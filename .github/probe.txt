@@ -1,79 +1,10 @@
 # <wersja> class|calls|members|code|asset|find|files ...   (wynik: adnotacje przebiegu "Podgląd klas gry")
-1.21 asset assets/minecraft/shaders/post/creeper.json
-1.21 asset assets/minecraft/shaders/program/color_convolve.json
-1.21 asset assets/minecraft/shaders/program/color_convolve.fsh
-1.21 asset assets/minecraft/shaders/program/blit.json
-1.21 asset assets/minecraft/shaders/program/blit.fsh
-1.21 asset assets/minecraft/shaders/program/blit.vsh
-1.21.2 asset assets/minecraft/post_effect/creeper.json
-1.21.2 asset assets/minecraft/shaders/post/color_convolve.json
-1.21.2 asset assets/minecraft/shaders/post/color_convolve.fsh
-1.21.2 asset assets/minecraft/shaders/post/blit.json
-1.21.2 asset assets/minecraft/shaders/post/blit.fsh
-1.21.2 asset assets/minecraft/shaders/post/blit.vsh
-1.21.5 asset assets/minecraft/post_effect/creeper.json
-1.21.6 asset assets/minecraft/post_effect/creeper.json
-1.21.5 asset assets/minecraft/post_effect/blur.json
-1.21.6 asset assets/minecraft/post_effect/blur.json
-1.21.5 asset assets/minecraft/shaders/post/color_convolve.fsh
-1.21.6 asset assets/minecraft/shaders/post/color_convolve.fsh
-1.21.5 asset assets/minecraft/shaders/post/blit.fsh
-1.21.6 asset assets/minecraft/shaders/post/blit.fsh
-1.21.5 asset assets/minecraft/shaders/post/blit.vsh
-1.21.6 asset assets/minecraft/shaders/post/blit.vsh
-26.1 asset assets/minecraft/post_effect/creeper.json
-26.3 asset assets/minecraft/post_effect/creeper.json
-26.1 asset assets/minecraft/post_effect/blur.json
-26.3 asset assets/minecraft/post_effect/blur.json
-26.1 asset assets/minecraft/shaders/post/color_convolve.fsh
-26.3 asset assets/minecraft/shaders/post/color_convolve.fsh
-26.1 asset assets/minecraft/shaders/post/blit.fsh
-26.3 asset assets/minecraft/shaders/post/blit.fsh
-26.1 files ^assets/minecraft/shaders/(core|include)/
-26.3 files ^assets/minecraft/shaders/(core|include)/
-1.21.2 find PostChainConfig
-1.21.5 find PostChainConfig
-1.21.2 class net.minecraft.client.renderer.PostChainConfig$FixedSizedTarget
-1.21.5 class net.minecraft.client.renderer.PostChainConfig$FixedSizedTarget
-1.21.2 class net.minecraft.client.renderer.PostChainConfig$ScreenRelativeTarget
-1.21.5 class net.minecraft.client.renderer.PostChainConfig$ScreenRelativeTarget
-1.21.9 code net.minecraft.client.renderer.blockentity.BeaconRenderer submit
-26.1 class net.minecraft.client.renderer.fog.FogData
-1.21.2 class net.minecraft.client.renderer.FogParameters
-1.21.5 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
-1.21.6 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
-1.21.11 code net.minecraft.client.renderer.entity.ItemEntityRenderer (render|submit)[(]
-1.21.5 class net.minecraft.client.renderer.entity.state.HitboxRenderState
-1.21.5 calls HitboxRenderState.<init> in net.minecraft.client.renderer
-1.21.9 calls HitboxRenderState.<init> in net.minecraft.client.renderer
-1.21.9 calls HitboxesRenderState in net.minecraft.client.renderer
-1.21.11 code net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer showHitboxes
-26.3 code net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer showHitboxes
-1.21.9 calls ENTITY_HITBOXES in net.minecraft.client
-1.21.11 calls ENTITY_HITBOXES in net.minecraft.client
-26.1 calls ENTITY_HITBOXES in net.minecraft.client
-1.21.5 calls setRenderHitBoxes in net.minecraft.client
-1.21 class net.minecraft.client.resources.PlayerSkin
-1.21.9 class net.minecraft.world.entity.player.PlayerSkin
-26.3 class net.minecraft.world.entity.player.PlayerSkin
-26.1 members net.minecraft.client.gui.screens.inventory.InventoryScreen (extract|render)
-26.1 members net.minecraft.client.gui.screens.inventory.AbstractContainerScreen (extract|render)
-1.21 members net.minecraft.client.Minecraft resizeDisplay
-26.3 members net.minecraft.client.Minecraft resizeDisplay
-1.21 members net.minecraft.world.item.ItemStack (getRarity|Rarity)
-26.3 members net.minecraft.world.item.ItemStack (getRarity|Rarity)
-1.21 members net.minecraft.client.gui.screens.options.controls.KeyBindsScreen [(]
-26.3 members net.minecraft.client.gui.screens.options.controls.KeyBindsScreen [(]
-1.21 members com.mojang.blaze3d.audio.Channel source
-26.3 members com.mojang.blaze3d.audio.Channel source
-1.21.2 class net.minecraft.client.renderer.entity.state.HumanoidRenderState
-1.21.9 class net.minecraft.client.renderer.entity.state.HumanoidRenderState
-26.3 class net.minecraft.client.renderer.entity.state.HumanoidRenderState
-1.21 members net.minecraft.client.player.AbstractClientPlayer (getSkin|Skin)
-1.21.5 members net.minecraft.client.player.AbstractClientPlayer (getSkin|Skin)
-1.21.9 members net.minecraft.client.player.AbstractClientPlayer (getSkin|Skin)
-26.3 members net.minecraft.client.player.AbstractClientPlayer (getSkin|Skin)
-1.21.5 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)[(]
-1.21.9 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)[(]
-26.1 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)[(]
-26.3 code net.minecraft.client.renderer.entity.layers.WingsLayer (render|submit)[(]
+26.1 members net.minecraft.client.Minecraft ([Rr]esize|[Gg]uiScale|Window)
+26.2 members net.minecraft.client.Minecraft ([Rr]esize|[Gg]uiScale|[Cc]amera)
+26.3 members net.minecraft.client.Minecraft ([Rr]esize|[Gg]uiScale|[Cc]amera)
+26.2 members net.minecraft.client.renderer.GameRenderer ([Cc]amera)
+26.3 members net.minecraft.client.renderer.GameRenderer ([Cc]amera)
+1.21.11 members net.minecraft.client.Camera (position|Rot|getPosition)
+26.3 members com.mojang.blaze3d.vertex.PoseStack [(]
+26.1 calls setGuiScale in net.minecraft.client
+26.2 calls getMainCamera in net.minecraft.client.gui
