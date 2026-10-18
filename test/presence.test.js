@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs'), os = require('os'), path = require('path');
-const { createMibPresence, JOIN_URL } = require('../lib/presence');
+const { createMibPresence, JOIN_URL, helloMessage } = require('../lib/presence');
 const m = require('../lib/mibmod');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mibp-'));
@@ -94,4 +94,12 @@ test('most: żądanie graczy z gry -> players.json, tylko poprawne dane', async 
   fs.writeFileSync(path.join(dir, 'players-request.json'), '{"ids":[],"names":["Inny"]}');
   await b.pollOnce();
   assert.deepStrictEqual(asked[1], { ids: [], names: ['Inny'] });
+});
+
+test('helloMessage: gracz wie, czy inni gracze MiB zobaczą jego logo i kosmetyki', () => {
+  assert.match(helloMessage(true), /widzą je inni gracze MiB/);
+  assert.match(helloMessage(true), /Gracze bez MiB ich nie widzą/);
+  assert.match(helloMessage(false), /tylko u Ciebie.*nie jest kontem Microsoft/);
+  assert.match(helloMessage(false, 'not_verified'), /nie zobaczą.*Mojang nie potwierdził konta/);
+  assert.match(helloMessage(false, 'Mojang 403'), /\(Mojang 403\)/);
 });

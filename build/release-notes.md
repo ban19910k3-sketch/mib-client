@@ -1,4 +1,4 @@
-<!-- 0.15.1 -->
-## Dodane
+<!-- 0.15.2 -->
+## Zmienione
 
-- Na podglądzie postaci w Kosmetykach widać założoną pelerynę. Bez peleryny widać skrzydła MiB, jeśli są założone.
+- Przy uruchamianiu gry launcher pisze, czy inni gracze MiB zobaczą Twoje logo przy nicku i kosmetyki, a jeśli nie, to dlaczego.

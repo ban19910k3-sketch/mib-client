@@ -11,7 +11,7 @@ const { buildActivity, createPresence } = require('./lib/discord');
 const { pngInfo, validCapeSize } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
-const { createMibPresence } = require('./lib/presence');
+const { createMibPresence, helloMessage } = require('./lib/presence');
 const skinApi = require('./lib/skin');
 let win, auth = null, launching = false;
 const dir = () => app.getPath('userData');
@@ -186,8 +186,8 @@ async function doLaunch(version, server) {
     // logo MiB przed nickiem: zgłoszenie konta przed startem gry (gra w tym czasie nie łączy się jeszcze z żadnym serwerem)
     if (mibDir) {
       presenceOn = true;
-      try { await Promise.race([mibPresence.start(auth.mclc()), new Promise((_, rej) => setTimeout(() => rej(new Error('brak odpowiedzi')), 6000))]); }
-      catch (e) { send('log', 'Logo MiB przy nicku chwilowo niedostępne (' + san(e.message) + ').'); }
+      try { const ok = await Promise.race([mibPresence.start(auth.mclc()), new Promise((_, rej) => setTimeout(() => rej(new Error('brak odpowiedzi')), 6000))]); if (launching) send('log', helloMessage(ok)); }
+      catch (e) { send('log', helloMessage(false, san(e.message))); }
     }
     if (!launching) { endPresence(); return 'Anulowano.'; }
     return await new Promise(res => {
