@@ -32,6 +32,11 @@
     idea_long: 'Pomysł może mieć najwyżej 1000 znaków.',
     idea_category: 'Wybierz, czego dotyczy pomysł.',
     idea_limit: 'Na dziś to już 5 pomysłów. Następne wyślesz jutro.',
+    friend_not_found: 'Nie ma gracza z takim nickiem albo ID MiB.',
+    friend_self: 'To Twój własny profil.',
+    friend_exists: 'Ten gracz jest już Twoim znajomym albo czeka na zaproszenie.',
+    friend_limit: 'Za dużo zaproszeń. Spróbuj jutro.',
+    friend_missing: 'To zaproszenie jest już nieaktualne.',
   };
   // Przy nieznanym błędzie pokazujemy też komunikat serwera, żeby dało się go przekazać
   const msg = (code, detail) => (ERR[code] ? tr(ERR[code]) : tr('Coś poszło nie tak. Spróbuj ponownie.') + ' (' + code + (detail && detail !== code ? ': ' + detail : '') + ')');
@@ -305,6 +310,82 @@
     loadMine();
   }
 
+  // ===== Strona Znajomi =====
+  // Status znajomego: w grze (serwer, wersja), w launcherze albo offline z czasem ostatniej obecności
+  const when = d => new Date(d).toLocaleString(LANG === 'en' ? 'en-GB' : 'pl-PL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  function statusText(f) {
+    if (f.status === 'game') return T('W grze') + (f.server ? ' · ' + f.server : '') + (f.version ? ' · ' + f.version : '');
+    if (f.status === 'launcher') return T('W launcherze');
+    return T('Offline') + (f.seen_at ? ' · ' + T('ostatnio') + ' ' + when(f.seen_at) : '');
+  }
+  let friendsTimer = null;
+  async function friendsBadge() {
+    const nav = document.querySelector('.nav[data-p="friends"]');
+    let b = nav.querySelector('.cnt');
+    if (!st.loggedIn) { if (b) b.hidden = true; return; }
+    const l = await mib.call('prof:friends');
+    if (!Array.isArray(l)) return;
+    const n = l.filter(f => f.state === 'incoming').length;
+    if (!b) { b = h('em', { class: 'cnt' }); nav.append(b); }
+    b.textContent = String(n); b.hidden = !n;
+  }
+  setInterval(() => { if (st.loggedIn) friendsBadge(); }, 2 * 60 * 1000);
+  async function renderFriends() {
+    const box = $('friends-box');
+    clearTimeout(friendsTimer);
+    const head = [h('h2', {}, T('Znajomi')), h('p', { class: 'lead' }, T('Zobacz, kto z Twoich znajomych gra teraz w MiB Client i na jakim serwerze, i dołącz do niego jednym kliknięciem.'))];
+    if (st.loading) return box.replaceChildren(...head, h('p', { class: 'mut' }, T('Wczytywanie…')));
+    if (!st.loggedIn) {
+      box.replaceChildren(...head, h('div', { class: 'empty-state' },
+        h('p', {}, st.offline ? T('Brak połączenia z serwerem MiB. Znajomi pokażą się, gdy połączenie wróci.') : T('Znajomych dodaje się z profilu MiB. Załóż profil, żeby zaprosić znajomych.')),
+        st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))));
+      return;
+    }
+    const who = h('input', { id: 'fr-who', maxlength: 20, autocomplete: 'off', placeholder: T('Nick albo ID MiB, np. MIB-000123') }), err = errBox();
+    const add = h('button', { class: 'b', id: 'fr-add', type: 'submit' }, T('Zaproś'));
+    const form = h('form', { class: 'row', on: { submit: async e => {
+      e.preventDefault();
+      if (!who.value.trim()) return;
+      add.disabled = true; err.textContent = '';
+      const r = await mib.call('prof:friendRequest', { who: who.value });
+      add.disabled = false;
+      if (r.error) { err.textContent = msg(r.error, r.detail); return; }
+      who.value = '';
+      toast(T(r.result === 'accepted' ? 'Jesteście teraz znajomymi.' : 'Zaproszenie wysłane.'));
+      load();
+    } } }, who, add);
+    const list = h('div', { id: 'fr-list' }, h('p', { class: 'mut' }, T('Wczytywanie…')));
+    const act = (label, cls, fn) => h('button', { class: 'b ' + cls, type: 'button', on: { click: async e => { e.currentTarget.disabled = true; const r = await fn(); if (r && r.error) toast(msg(r.error, r.detail), 1); load(); } } }, T(label));
+    const row = (f, ...buttons) => h('div', { class: 'card frow' + (f.status ? ' st-' + f.status : '') },
+      h('i', { class: 'dot', 'aria-hidden': 'true' }),
+      h('div', { class: 'fi' }, h('b', {}, f.nick), h('span', { class: 'mut' }, f.state === 'friend' ? statusText(f) : MibProfile.formatMibId(f.num))),
+      ...buttons);
+    async function load() {
+      clearTimeout(friendsTimer);
+      const l = await mib.call('prof:friends');
+      if (!box.isConnected || !$('p-friends').classList.contains('on')) return;
+      if (!Array.isArray(l)) return list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
+      const inc = l.filter(f => f.state === 'incoming'), out = l.filter(f => f.state === 'outgoing');
+      const order = { game: 0, launcher: 1, offline: 2 };
+      const fr = l.filter(f => f.state === 'friend').sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3) || a.nick.localeCompare(b.nick));
+      const sec = (title, items) => items.length ? h('div', { class: 'sec' }, h('h3', {}, T(title) + ' (' + items.length + ')'), ...items) : null;
+      list.replaceChildren(...[
+        sec('Zaproszenia do Ciebie', inc.map(f => row(f,
+          act('Przyjmij', '', () => mib.call('prof:friendAnswer', { id: f.id, accept: true })),
+          act('Odrzuć', 'ghost', () => mib.call('prof:friendAnswer', { id: f.id, accept: false }))))),
+        fr.length ? sec('Twoi znajomi', fr.map(f => row(f,
+          f.status === 'game' && f.server && f.version ? act('Dołącz', '', async () => { window.mibJoin(f.version, f.server); }) : null,
+          act('Usuń', 'ghost', () => confirm(T('Usunąć') + ' ' + f.nick + ' ' + T('ze znajomych?')) ? mib.call('prof:friendRemove', { id: f.id }) : null))))
+          : h('p', { class: 'empty' }, T('Nie masz jeszcze znajomych. Wpisz nick albo ID MiB kolegi i kliknij „Zaproś”.')),
+        sec('Wysłane zaproszenia', out.map(f => row(f, act('Anuluj', 'ghost', () => mib.call('prof:friendRemove', { id: f.id }))))),
+      ].filter(Boolean));
+      friendsBadge();
+      friendsTimer = setTimeout(load, 30000);
+    }
+    box.replaceChildren(...head, form, err, list);
+    load();
+  }
+
   // ===== Kopia modów na stronie Moje mody =====
   async function modsShown(gv) {
     const box = $('mbk');
@@ -348,12 +429,15 @@
     if ($('p-prof').classList.contains('on')) render();
     if ($('p-cos').classList.contains('on')) renderCos();
     if ($('p-ideas').classList.contains('on')) renderIdeas();
+    if ($('p-friends').classList.contains('on')) renderFriends();
+    friendsBadge();
     if (st.loggedIn && !was) { mibSync.pull(); if (window.mibWave) mibWave(); }
   }
   async function refresh() { apply(await mib.call('prof:state')); }
   document.querySelector('.nav[data-p="prof"]').addEventListener('click', () => { render(); refresh(); });
   document.querySelector('.nav[data-p="cos"]').addEventListener('click', renderCos);
   document.querySelector('.nav[data-p="ideas"]').addEventListener('click', renderIdeas);
+  document.querySelector('.nav[data-p="friends"]').addEventListener('click', renderFriends);
   // Efekt odblokowania nowego kosmetyku
   window.mibUnlock = item => {
     if (document.documentElement.classList.contains('noanim')) return toast(T('Nowy przedmiot') + ': ' + item.name);

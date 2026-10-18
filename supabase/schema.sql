@@ -407,17 +407,145 @@ begin
   return found;
 end $$;
 
--- Którzy z podanych graczy grają teraz w MiB (sygnał w ostatnich 10 minutach) i jaką pelerynę mają założoną.
--- Nicki są dla serwerów bez kont Microsoft (tam UUID gracza w grze jest inny niż prawdziwy).
-create or replace function public.mib_who(p_ids uuid[], p_names text[]) returns table (uuid uuid, name text, cape text)
+-- Którzy z podanych graczy grają teraz w MiB (sygnał w ostatnich 10 minutach) i jakie kosmetyki mają założone
+-- (tylko te, które naprawdę mają). Nicki są dla serwerów bez kont Microsoft (tam UUID gracza w grze jest inny niż prawdziwy).
+-- Od 0.15.0 także czapka i skrzydła: inny wynik funkcji, więc najpierw stara wersja znika.
+drop function if exists public.mib_who(uuid[], text[]);
+create or replace function public.mib_who(p_ids uuid[], p_names text[]) returns table (uuid uuid, name text, cape text, hat text, wings text)
 language sql stable security definer set search_path = '' as $$
   select m.uuid, m.name,
-    (select o.cosmetic_id from public.owned_cosmetics o
-      where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'cape'))
+    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'cape')),
+    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'hat')),
+    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'wings'))
   from private.mib_players m left join public.profiles p on p.id = m.user_id
   where m.seen_at > now() - interval '10 minutes'
     and (m.uuid = any ((coalesce(p_ids, '{}'::uuid[]))[1:200])
       or lower(m.name) = any (select lower(x) from unnest((coalesce(p_names, '{}'::text[]))[1:200]) x));
+$$;
+
+-- ===== Znajomi (od 0.15.0) =====
+-- Zaproszenie to wiersz (od, do); po przyjęciu accepted = true. Jedna para graczy ma najwyżej jeden wiersz.
+-- Obecność (launcher, gra, wersja, serwer) widzą tylko przyjęci znajomi.
+create table if not exists private.friends (
+  from_id uuid not null references public.profiles (id) on delete cascade,
+  to_id uuid not null references public.profiles (id) on delete cascade,
+  accepted boolean not null default false,
+  created_at timestamptz not null default now(),
+  primary key (from_id, to_id),
+  check (from_id <> to_id)
+);
+create index if not exists friends_to on private.friends (to_id);
+create unique index if not exists friends_pair on private.friends (least(from_id, to_id), greatest(from_id, to_id));
+-- Launcher wysyła obecność co 2 minuty; starsza niż 5 minut znaczy offline
+create table if not exists private.presence (
+  user_id uuid primary key references public.profiles (id) on delete cascade,
+  seen_at timestamptz not null default now(),
+  playing boolean not null default false,
+  version text,
+  server text
+);
+
+-- Profil po nicku albo numerze (MIB-000123, 123); nick ma pierwszeństwo
+create or replace function private.friend_target(p_who text) returns uuid
+language sql stable security definer set search_path = '' as $$
+  select id from public.profiles
+  where lower(nick) = lower(trim(p_who))
+     or num = case when trim(p_who) ~* '^(mib-?)?[0-9]{1,12}$' then regexp_replace(trim(p_who), '[^0-9]', '', 'g')::bigint end
+  order by lower(nick) = lower(trim(p_who)) desc
+  limit 1;
+$$;
+
+-- Wynik: 'sent' (zaproszenie wysłane) albo 'accepted' (ta osoba już zaprosiła nas — teraz jesteście znajomymi)
+create or replace function public.friend_request(p_who text) returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_to uuid;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if not exists (select 1 from public.profiles where id = v_me) then raise exception 'no_profile'; end if;
+  if length(trim(coalesce(p_who, ''))) not between 1 and 20 then raise exception 'friend_not_found'; end if;
+  v_to := private.friend_target(p_who);
+  if v_to is null then raise exception 'friend_not_found'; end if;
+  if v_to = v_me then raise exception 'friend_self'; end if;
+  update private.friends set accepted = true where from_id = v_to and to_id = v_me and not accepted;
+  if found then return 'accepted'; end if;
+  if exists (select 1 from private.friends where least(from_id, to_id) = least(v_me, v_to) and greatest(from_id, to_id) = greatest(v_me, v_to)) then
+    raise exception 'friend_exists';
+  end if;
+  if (select count(*) from private.friends where from_id = v_me or to_id = v_me) >= 200
+    or (select count(*) from private.friends where from_id = v_me and created_at > now() - interval '1 day') >= 30 then
+    raise exception 'friend_limit';
+  end if;
+  insert into private.friends (from_id, to_id) values (v_me, v_to);
+  return 'sent';
+exception when unique_violation then
+  raise exception 'friend_exists';
+end $$;
+
+-- Przyjęcie albo odrzucenie zaproszenia od p_from
+create or replace function public.friend_answer(p_from uuid, p_accept boolean) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if p_accept then
+    update private.friends set accepted = true where from_id = p_from and to_id = v_me and not accepted;
+  else
+    delete from private.friends where from_id = p_from and to_id = v_me and not accepted;
+  end if;
+  if not found then raise exception 'friend_missing'; end if;
+end $$;
+
+-- Usunięcie znajomego albo anulowanie wysłanego zaproszenia
+create or replace function public.friend_remove(p_user uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  delete from private.friends where (from_id = v_me and to_id = p_user) or (from_id = p_user and to_id = v_me and accepted);
+end $$;
+
+-- Znajomi i zaproszenia; status: game (w grze), launcher, offline — tylko u przyjętych znajomych
+create or replace function public.friends_list()
+returns table (id uuid, nick text, num bigint, state text, status text, version text, server text, seen_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select p.id, p.nick, p.num,
+    case when f.accepted then 'friend' when f.from_id = (select auth.uid()) then 'outgoing' else 'incoming' end,
+    case when not f.accepted then null
+         when pr.seen_at > now() - interval '5 minutes' then case when pr.playing then 'game' else 'launcher' end
+         else 'offline' end,
+    case when f.accepted and pr.playing and pr.seen_at > now() - interval '5 minutes' then pr.version end,
+    case when f.accepted and pr.playing and pr.seen_at > now() - interval '5 minutes' then pr.server end,
+    case when f.accepted then pr.seen_at end
+  from private.friends f
+  join public.profiles p on p.id = case when f.from_id = (select auth.uid()) then f.to_id else f.from_id end
+  left join private.presence pr on pr.user_id = p.id
+  where f.from_id = (select auth.uid()) or f.to_id = (select auth.uid())
+  order by f.accepted, p.nick;
+$$;
+
+-- Obecność z launchera: gra działa (wersja, adres serwera albo null) albo sam launcher
+create or replace function public.presence_ping(p_playing boolean, p_version text, p_server text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if not exists (select 1 from public.profiles where id = v_me) then raise exception 'no_profile'; end if;
+  insert into private.presence (user_id, seen_at, playing, version, server)
+    values (v_me, now(), coalesce(p_playing, false),
+      case when p_version ~ '^[0-9][0-9.]{0,15}$' then p_version end,
+      case when coalesce(p_playing, false) and p_server ~ '^[A-Za-z0-9._:-]{1,100}$' then lower(p_server) end)
+    on conflict (user_id) do update set seen_at = excluded.seen_at, playing = excluded.playing, version = excluded.version, server = excluded.server;
+end $$;
+
+-- Launcher zamknięty: od razu offline
+create or replace function public.presence_leave() returns void
+language sql security definer set search_path = '' as $$
+  delete from private.presence where user_id = (select auth.uid());
 $$;
 
 -- ===== Panel admina =====
@@ -661,6 +789,13 @@ revoke all on function public.equip_cosmetic(text, text) from public, anon, auth
 revoke all on function public.mib_hello(text, text) from public, anon, authenticated;
 revoke all on function public.mib_ping(uuid, text, boolean) from public, anon, authenticated;
 revoke all on function public.mib_who(uuid[], text[]) from public, anon, authenticated;
+revoke all on function private.friend_target(text) from public, anon, authenticated;
+revoke all on function public.friend_request(text) from public, anon, authenticated;
+revoke all on function public.friend_answer(uuid, boolean) from public, anon, authenticated;
+revoke all on function public.friend_remove(uuid) from public, anon, authenticated;
+revoke all on function public.friends_list() from public, anon, authenticated;
+revoke all on function public.presence_ping(boolean, text, text) from public, anon, authenticated;
+revoke all on function public.presence_leave() from public, anon, authenticated;
 revoke all on function private.make_profile(uuid, text) from public, anon, authenticated;
 revoke all on function private.norm_code(text) from public, anon, authenticated;
 grant execute on function public.nick_available(text) to anon, authenticated;
@@ -675,6 +810,12 @@ grant execute on function public.equip_cosmetic(text, text) to authenticated;
 grant execute on function public.mib_hello(text, text) to anon, authenticated;
 grant execute on function public.mib_ping(uuid, text, boolean) to anon, authenticated;
 grant execute on function public.mib_who(uuid[], text[]) to anon, authenticated;
+grant execute on function public.friend_request(text) to authenticated;
+grant execute on function public.friend_answer(uuid, boolean) to authenticated;
+grant execute on function public.friend_remove(uuid) to authenticated;
+grant execute on function public.friends_list() to authenticated;
+grant execute on function public.presence_ping(boolean, text, text) to authenticated;
+grant execute on function public.presence_leave() to authenticated;
 
 -- panel admina: wywołać może każdy zalogowany, ale każda funkcja sama sprawdza, czy to admin
 revoke all on function private.need_admin() from public, anon, authenticated;

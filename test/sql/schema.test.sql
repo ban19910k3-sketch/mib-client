@@ -301,6 +301,74 @@ set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 do $$ begin assert (select count(*) from public.mod_backups) = 0, 'cudza kopia niewidoczna'; end $$;
 select pg_temp.expect_error($q$insert into public.mod_backups (user_id, game_version) values ('11111111-1111-1111-1111-111111111111', 'x')$q$, 'row-level security');
 
+-- Znajomi: zaproszenie po nicku i numerze, przyjęcie, obecność widoczna tylko dla znajomych
+reset role;
+insert into auth.users (id, email, encrypted_password, raw_user_meta_data) values ('44444444-4444-4444-4444-444444444444', 'z@test.pl', 'x', '{"nick":"Trzeci"}');
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+select pg_temp.expect_error($q$select public.friend_request('Nikt_Taki')$q$, 'friend_not_found');
+select pg_temp.expect_error($q$select public.friend_request('gracz_1')$q$, 'friend_self');
+do $$ begin
+  assert public.friend_request('drugi_nowy') = 'sent', 'zaproszenie po nicku (bez wielkości liter)';
+end $$;
+select pg_temp.expect_error($q$select public.friend_request('Drugi_Nowy')$q$, 'friend_exists');
+select public.presence_ping(true, '1.21.11', 'MC.Hypixel.net');
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin
+  assert (select state from public.friends_list() where nick = 'Gracz_1') = 'incoming', 'zaproszenie widać u odbiorcy';
+  assert (select status from public.friends_list() where nick = 'Gracz_1') is null, 'przed przyjęciem bez obecności';
+end $$;
+select pg_temp.expect_error($q$select public.friend_answer('44444444-4444-4444-4444-444444444444', true)$q$, 'friend_missing');
+select public.friend_answer('11111111-1111-1111-1111-111111111111', true);
+do $$ begin
+  assert (select state from public.friends_list() where nick = 'Gracz_1') = 'friend', 'przyjęte';
+  assert (select status from public.friends_list() where nick = 'Gracz_1') = 'game', 'znajomy w grze';
+  assert (select server from public.friends_list() where nick = 'Gracz_1') = 'mc.hypixel.net', 'serwer znajomego';
+  assert (select version from public.friends_list() where nick = 'Gracz_1') = '1.21.11', 'wersja gry znajomego';
+end $$;
+-- zaproszenie po numerze MIB i przyjęcie przez wzajemne zaproszenie
+reset role;
+select lpad(num::text, 6, '0') as n3 from public.profiles where nick = 'Trzeci' \gset
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select public.friend_request('MIB-' || :'n3');
+set request.jwt.claim.sub = '44444444-4444-4444-4444-444444444444';
+do $$ begin
+  assert public.friend_request('Drugi_Nowy') = 'accepted', 'wzajemne zaproszenie od razu przyjmuje';
+  assert (select count(*) from public.friends_list()) = 1, 'Trzeci zna tylko Drugi_Nowy';
+  assert not exists (select 1 from public.friends_list() where nick = 'Gracz_1'), 'cudzych znajomych nie widać';
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from private.friends) = 2, 'jedna para = jeden wiersz';
+end $$;
+-- odrzucenie, usunięcie, zły serwer w obecności
+set role authenticated;
+set request.jwt.claim.sub = '44444444-4444-4444-4444-444444444444';
+select public.friend_request('Gracz_1');
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+select public.friend_answer('44444444-4444-4444-4444-444444444444', false);
+select public.presence_ping(true, '1.21.11', 'zły serwer; drop table');
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin
+  assert (select server from public.friends_list() where nick = 'Gracz_1') is null, 'zły adres serwera odrzucony';
+end $$;
+select public.friend_remove('44444444-4444-4444-4444-444444444444');
+do $$ begin
+  assert not exists (select 1 from public.friends_list() where nick = 'Trzeci'), 'znajomy usunięty';
+end $$;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+select public.presence_leave();
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin
+  assert (select status from public.friends_list() where nick = 'Gracz_1') = 'offline', 'po zamknięciu launchera offline';
+end $$;
+select pg_temp.expect_error($q$select * from private.friends$q$, 'permission denied');
+reset role;
+set role anon;
+select pg_temp.expect_error($q$select public.friend_request('Drugi_Nowy')$q$, 'permission denied');
+reset role;
+
 -- Usunięcie profilu (razem z wpisem o próbach resetu)
 reset role;
 insert into private.reset_attempts (email, fails) values ('a@test.pl', 2) on conflict (email) do update set fails = 2;
@@ -314,6 +382,7 @@ do $$ begin
   assert not exists (select 1 from public.mod_backups), 'kopia usunięta';
   assert not exists (select 1 from private.reset_attempts where email = 'a@test.pl'), 'e-mail usunięty z prób resetu';
   assert (select count(*) from public.ideas where user_id is null) = 4, 'pomysły zostają, ale bez autora';
+  assert not exists (select 1 from private.friends where '11111111-1111-1111-1111-111111111111' in (from_id, to_id)), 'znajomi usuniętego konta znikają';
 end $$;
 set role authenticated;
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
@@ -351,12 +420,16 @@ end $$;
 reset role;
 -- zalogowany gracz z założoną peleryną
 insert into public.owned_cosmetics (user_id, cosmetic_id) values ('22222222-2222-2222-2222-222222222222', 'cape_two') on conflict do nothing;
-update public.profiles set equipped = '{"cape":"cape_two"}' where id = '22222222-2222-2222-2222-222222222222';
+insert into public.cosmetics (id, name, type) values ('hat_one', 'Czapka', 'hat') on conflict do nothing;
+insert into public.owned_cosmetics (user_id, cosmetic_id) values ('22222222-2222-2222-2222-222222222222', 'hat_one') on conflict do nothing;
+update public.profiles set equipped = '{"cape":"cape_two","hat":"hat_one","wings":"nie_ma"}' where id = '22222222-2222-2222-2222-222222222222';
 set role authenticated;
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 select public.mib_hello('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') ->> 'token' as tok2 \gset
 do $$ begin
   assert (select cape from public.mib_who(null, array['Gracz'])) = 'cape_two', 'peleryna gracza MiB';
+  assert (select hat from public.mib_who(null, array['Gracz'])) = 'hat_one', 'czapka gracza MiB';
+  assert (select wings from public.mib_who(null, array['Gracz'])) is null, 'skrzydeł nie ma';
   assert not public.mib_ping('33333333-3333-3333-3333-333333333333', 'zly', true), 'stary token po ponownym zgłoszeniu nie działa';
 end $$;
 reset role;

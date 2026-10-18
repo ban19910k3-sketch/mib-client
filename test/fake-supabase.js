@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 function createFake() {
-  const st = { ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { friends: [], presence: {}, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -121,6 +121,41 @@ function createFake() {
           user.equipped = { ...(user.equipped || {}) };
           if (body.p_id) user.equipped[body.p_type] = body.p_id; else delete user.equipped[body.p_type];
           return json(res, 200, user.equipped);
+        }
+        // Znajomi: tak jak friend_* i friends_list w schema.sql (bez limitów)
+        if (fn.startsWith('friend') || fn.startsWith('presence')) {
+          const err = m => json(res, 400, { code: 'P0001', message: m });
+          const pair = (a, b) => st.friends.find(f => (f.from === a && f.to === b) || (f.from === b && f.to === a));
+          if (fn === 'friend_request') {
+            const w = String(body.p_who || '').trim(), n = /^(mib-?)?\d{1,12}$/i.test(w) ? +w.replace(/\D/g, '') : null;
+            const t = st.users.find(u => !u.noProfile && u.nick.toLowerCase() === w.toLowerCase()) || st.users.find(u => !u.noProfile && u.num === n);
+            if (!t) return err('friend_not_found');
+            if (t.id === user.id) return err('friend_self');
+            const f = pair(user.id, t.id);
+            if (f && !f.accepted && f.from === t.id) { f.accepted = true; return json(res, 200, 'accepted'); }
+            if (f) return err('friend_exists');
+            st.friends.push({ from: user.id, to: t.id, accepted: false });
+            return json(res, 200, 'sent');
+          }
+          if (fn === 'friend_answer') {
+            const f = st.friends.find(x => x.from === body.p_from && x.to === user.id && !x.accepted);
+            if (!f) return err('friend_missing');
+            if (body.p_accept) f.accepted = true; else st.friends = st.friends.filter(x => x !== f);
+            return json(res, 204);
+          }
+          if (fn === 'friend_remove') { st.friends = st.friends.filter(f => !((f.from === user.id && f.to === body.p_user) || (f.from === body.p_user && f.to === user.id && f.accepted))); return json(res, 204); }
+          if (fn === 'friends_list') {
+            const fresh = pr => pr && Date.now() - pr.at < 5 * 60000;
+            return json(res, 200, st.friends.filter(f => f.from === user.id || f.to === user.id).map(f => {
+              const o = st.users.find(u => u.id === (f.from === user.id ? f.to : f.from)), pr = st.presence[o.id];
+              const live = f.accepted && fresh(pr);
+              return { id: o.id, nick: o.nick, num: o.num, state: f.accepted ? 'friend' : f.from === user.id ? 'outgoing' : 'incoming',
+                status: !f.accepted ? null : live ? (pr.playing ? 'game' : 'launcher') : 'offline',
+                version: live && pr.playing ? pr.version : null, server: live && pr.playing ? pr.server : null, seen_at: f.accepted && pr ? new Date(pr.at).toISOString() : null };
+            }));
+          }
+          if (fn === 'presence_ping') { st.presence[user.id] = { at: Date.now(), playing: !!body.p_playing, version: body.p_version, server: body.p_playing ? body.p_server : null }; return json(res, 204); }
+          if (fn === 'presence_leave') { delete st.presence[user.id]; return json(res, 204); }
         }
         if (fn === 'delete_my_profile') { st.users = st.users.filter(u => u.id !== user.id); return json(res, 204); }
         return json(res, 404, { message: 'no function ' + fn });

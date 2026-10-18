@@ -17,7 +17,7 @@ const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
 const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(jf(f), 'utf8')); } catch { return d; } };
 const wr = (f, v) => fs.writeFileSync(jf(f), JSON.stringify(v, null, 2));
-const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true });
+const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true, shareServer: true, perfMods: true });
 const logBuf = []; let logCount = 0;
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
 // Profil MiB (Supabase). Klucz publiczny — bezpieczny w launcherze; uprawnienia pilnuje baza.
@@ -50,6 +50,15 @@ const prof = profileMain.createProfile({
 const modTimers = {};
 const modsChanged = gv => { clearTimeout(modTimers[gv]); modTimers[gv] = setTimeout(() => prof.modsChanged(gv).catch(() => {}), 1500); };
 profileMain.register(ipcMain, prof);
+// Znajomi widzą, czy grasz (wersja, serwer) albo masz otwarty launcher: obecność co 2 minuty, przy wyjściu od razu offline
+setInterval(() => prof.presence(), 120000);
+setTimeout(() => prof.presence(), 3000);
+let leaving = false;
+app.on('before-quit', e => {
+  if (leaving) return;
+  leaving = true; e.preventDefault();
+  Promise.race([prof.presenceLeave(), new Promise(r => setTimeout(r, 1500))]).finally(() => app.quit());
+});
 // Gracze MiB w grze: logo MiB przed nickiem i peleryny innych graczy MiB (lib/presence.js)
 const mibPresence = createMibPresence({ fetch: (...a) => fetch(...a), api: prof, randomBytes: crypto.randomBytes });
 const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); logCount++; if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };
@@ -133,8 +142,9 @@ ipcMain.handle('accounts:relaunch', async (_, id) => { try { return await relaun
 
 let worker = null, gamePid = null, lastVersion = null, pendingRelaunch = null, gameInfo = null;
 const notify = (t, b) => { try { if (Notification.isSupported()) new Notification({ title: t, body: b, icon: path.join(__dirname, 'icon.png') }).show(); } catch {} };
-ipcMain.handle('launch', (_, arg) => doLaunch(arg.version));
-async function doLaunch(version) {
+// server: „Dołącz” do znajomego — gra od razu łączy się z jego serwerem
+ipcMain.handle('launch', (_, arg) => doLaunch(arg.version, arg.server));
+async function doLaunch(version, server) {
   lastVersion = version;
   if (launching) return 'Już trwa uruchamianie.';
   if (!auth) return 'Najpierw zaloguj się kontem Microsoft (kliknij konto u góry).';
@@ -151,6 +161,7 @@ async function doLaunch(version) {
     const javaPath = s.java || await ensureJava(await javaMajor(version));
     const opts = { authorization: auth.mclc(), root, version: { number: version, type: 'release' }, javaPath, memory: { max: s.ram + 'M', min: Math.min(512, s.ram) + 'M' },
       window: { width: s.width, height: s.height }, customArgs: s.jvm ? s.jvm.split(/\s+/).filter(Boolean) : [] };
+    if (mibmod.validServer(server)) opts.quickPlay = { type: 'multiplayer', identifier: server };
     // Mod MiB (menu pod prawym Shiftem): przy błędzie gra startuje bez niego. Ustawienia moda i most kont są wspólne dla wszystkich wersji gry.
     let mibDir = null;
     const gameAcc = String((auth.profile && (auth.profile.id || auth.profile.name)) || 'unknown');
@@ -424,7 +435,9 @@ function startHud(pid, mibDir, gameAcc) {
         // gracze MiB z listy Tab (logo przed nickiem) i tekstury ich peleryn w <gra>/mib/capes
         players: req => mibPresence.players(req, path.join(mibDir, 'capes')),
         // moduł Screenshot: zrzut ekranu z gry od razu w schowku
-        onScreenshot: file => { const img = nativeImage.createFromPath(file); if (!img.isEmpty()) clipboard.writeImage(img); } }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
+        onScreenshot: file => { const img = nativeImage.createFromPath(file); if (!img.isEmpty()) clipboard.writeImage(img); },
+        // znajomi widzą serwer, na którym grasz (chyba że wyłączysz to w ustawieniach)
+        onStatus: server => prof.gameServer(server, ({ ...defaults(), ...rd('settings.json', {}) }).shareServer !== false) }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
     return;
   }

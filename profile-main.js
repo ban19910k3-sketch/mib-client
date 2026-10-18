@@ -11,7 +11,7 @@ const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_co
   'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea']);
 
 function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods }) {
-  let sess = null, restored = false, game = null, flushing = null, seq = 0;
+  let sess = null, restored = false, game = null, flushing = null, seq = 0, server = null, shareServer = true, lastPing = 0;
   const modLocks = {};
 
   function saveSession(s) {
@@ -83,6 +83,7 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       const [p] = await authed(t2 => supa.select('profiles', 'select=nick,num,founder,created_at,playtime_min,launches,version_stats&id=eq.' + sess.userId, t2));
       if (!p) return { needsProfile: true }; // konto bez profilu: gracz wybiera nick i dokańcza profil
       const admin = await authed(t2 => supa.rpc('is_admin', {}, t2)).then(Boolean, () => false);
+      safe.presence({ soft: true }); // znajomi od razu widzą, że launcher działa (nie częściej niż co minutę)
       return {
         admin,
         loggedIn: true, nick: p.nick, mibId: P.formatMibId(p.num), founder: p.founder, createdAt: p.created_at,
@@ -246,11 +247,51 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       await authed(t => supa.update('profiles', 'id=eq.' + sess.userId, { settings: P.pickSynced(settings), settings_updated_at: updatedAt }, t));
       return { ok: true };
     },
-    gameStarted(version) { game = { version, start: now() }; },
+    // ===== Znajomi =====
+    friends: () => authed(t => supa.rpc('friends_list', {}, t)),
+    async friendRequest({ who }) {
+      const w = String(who || '').trim();
+      if (!w || w.length > 20) return { error: 'friend_not_found' };
+      return { result: await authed(t => supa.rpc('friend_request', { p_who: w }, t)) };
+    },
+    async friendAnswer({ id, accept }) {
+      await authed(t => supa.rpc('friend_answer', { p_from: id, p_accept: !!accept }, t));
+      return { ok: true };
+    },
+    async friendRemove({ id }) {
+      await authed(t => supa.rpc('friend_remove', { p_user: id }, t));
+      return { ok: true };
+    },
+    // Obecność dla znajomych (co 2 minuty, przy starcie i końcu gry, przy zmianie serwera): launcher albo gra z wersją i serwerem
+    async presence({ soft } = {}) {
+      restore();
+      if (soft && now() - lastPing < 60000) return { ok: true };
+      if (!sess || !(await token())) return { ok: false };
+      lastPing = now();
+      await authed(t => supa.rpc('presence_ping', { p_playing: !!game, p_version: game ? game.version : null, p_server: game && shareServer ? server : null }, t));
+      return { ok: true };
+    },
+    async presenceLeave() {
+      restore();
+      if (!sess || !(await token())) return { ok: false };
+      await authed(t => supa.rpc('presence_leave', {}, t));
+      return { ok: true };
+    },
+    // Serwer z moda MiB (null = menu, świat jednoosobowy); share: ustawienie „pokazuj znajomym serwer”
+    gameServer(s, share = true) {
+      const next = typeof s === 'string' ? s : null;
+      shareServer = share !== false;
+      if (next === server) return;
+      server = next;
+      if (game) safe.presence();
+    },
+    gameStarted(version) { game = { version, start: now() }; server = null; safe.presence(); },
     async gameClosed() {
       if (!game) return;
       const g = game;
       game = null;
+      server = null;
+      safe.presence();
       restore();
       if (!sess || !sess.userId) return; // statystyki tylko z profilem
       const entry = { id: now() + '-' + ++seq, u: sess.userId, v: g.version, min: P.clampSessionMinutes(now() - g.start) };
@@ -274,7 +315,8 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
 
 const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:login', logout: 'prof:logout', newCode: 'prof:newCode', reset: 'prof:reset',
   remove: 'prof:delete', createProfile: 'prof:createProfile', nickFree: 'prof:nickFree', announcements: 'prof:announcements', allCosmetics: 'prof:allCosmetics', admin: 'prof:admin', cosmetics: 'prof:cosmetics', redeem: 'prof:redeem', pullSettings: 'prof:pullSettings', pushSettings: 'prof:pushSettings',
-  equip: 'prof:equip', modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace', submitIdea: 'prof:submitIdea', myIdeas: 'prof:myIdeas' };
+  equip: 'prof:equip', modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace', submitIdea: 'prof:submitIdea', myIdeas: 'prof:myIdeas',
+  friends: 'prof:friends', friendRequest: 'prof:friendRequest', friendAnswer: 'prof:friendAnswer', friendRemove: 'prof:friendRemove' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

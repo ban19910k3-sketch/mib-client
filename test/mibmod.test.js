@@ -256,3 +256,26 @@ test('most: screenshot-request.json trafia do onScreenshot i znika', async () =>
   assert.deepStrictEqual(got, [shot]);
   assert.ok(!fs.existsSync(path.join(mibDir, 'screenshot-request.json')));
 });
+
+test('readStatus: serwer z aktualnego pliku, inaczej null', () => {
+  const now = 100000;
+  assert.strictEqual(m.readStatus(JSON.stringify({ server: 'MC.Hypixel.net:25565', at: now - 5000 }), now), 'mc.hypixel.net:25565');
+  assert.strictEqual(m.readStatus(JSON.stringify({ server: 'mc.hypixel.net', at: now - 60000 }), now), null, 'stary plik = gracz w menu');
+  assert.strictEqual(m.readStatus(JSON.stringify({ server: null, at: now }), now), null, 'świat jednoosobowy');
+  assert.strictEqual(m.readStatus(JSON.stringify({ server: 'zły serwer; x', at: now }), now), null);
+  assert.strictEqual(m.readStatus('nie json', now), null);
+});
+
+test('most: zmiana serwera z status.json trafia do onStatus raz', async () => {
+  const dir = path.join(tmp(), 'mib'), got = [];
+  let t = 50000;
+  const b = m.createBridge({ dir, accounts: () => ({ list: [], active: null }), onSwitch: async () => {}, onStatus: s => got.push(s), now: () => t });
+  fs.mkdirSync(dir, { recursive: true });
+  await b.pollOnce();
+  fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ server: 'play.mib.pl', at: t }));
+  await b.pollOnce();
+  await b.pollOnce();
+  t += 30000;
+  await b.pollOnce();
+  assert.deepStrictEqual(got, [null, 'play.mib.pl', null]);
+});

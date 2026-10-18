@@ -115,6 +115,34 @@ const ok = m => console.log('PASS', m);
     await shot('ideas.png');
     ok('(n) gracz wysyła pomysł i widzi go na liście');
 
+    // Znajomi: zaproszenie po nicku, zaproszenie od kogoś innego, znajomy w grze z serwerem
+    const now = new Date().toISOString();
+    const kolega = { id: 'u-kolega', email: 'k@mib.pl', password: 'x', nick: 'Kolega', num: 50, created: now };
+    const ziomek = { id: 'u-ziomek', email: 'z@mib.pl', password: 'x', nick: 'Ziomek', num: 51, created: now };
+    fake.st.users.push(kolega, ziomek);
+    const me = fake.st.users.find(u => u.nick === 'Tester_1');
+    fake.st.friends.push({ from: ziomek.id, to: me.id, accepted: false });
+    fake.st.presence[kolega.id] = { at: Date.now(), playing: true, version: '1.21.11', server: 'play.mib.pl' };
+    await w.click('.nav[data-p="friends"]');
+    await w.waitForSelector('#fr-who');
+    await w.waitForFunction(() => /Ziomek/.test(document.getElementById('fr-list').textContent));
+    assert.equal(await w.textContent('.nav[data-p="friends"] .cnt'), '1', 'licznik zaproszeń przy Znajomi');
+    await w.fill('#fr-who', 'Nikt');
+    await w.click('#fr-add');
+    await w.waitForFunction(() => /Nie ma gracza/.test(document.querySelector('#friends-box .err').textContent));
+    await w.fill('#fr-who', 'kolega');
+    await w.click('#fr-add');
+    await w.waitForFunction(() => /Wysłane zaproszenia/.test(document.getElementById('fr-list').textContent));
+    fake.st.friends.find(f => f.to === kolega.id).accepted = true; // Kolega przyjął zaproszenie
+    await w.click('#fr-list .frow:has-text("Ziomek") button:has-text("Przyjmij")');
+    await w.waitForFunction(() => /Twoi znajomi \(2\)/.test(document.getElementById('fr-list').textContent));
+    assert.match(await w.textContent('#fr-list .frow.st-game'), /Kolega.*W grze · play\.mib\.pl · 1\.21\.11.*Dołącz/);
+    assert.equal(await w.isVisible('.nav[data-p="friends"] .cnt'), false, 'po przyjęciu licznik znika');
+    assert.ok(fake.st.presence[me.id] && fake.st.presence[me.id].playing === false, 'launcher zgłasza obecność gracza');
+    await w.waitForTimeout(300);
+    await shot('friends.png');
+    ok('(r) znajomi: zaproszenia, przyjęcie, znajomy w grze z serwerem i przyciskiem Dołącz');
+
     await w.click('.nav[data-p="prof"]');
     await w.waitForSelector('#p-prof.on .phead');
     await w.evaluate(() => { setLang('en'); });

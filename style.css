@@ -275,3 +275,11 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .tag.st-planned{background:#1d2b4a;color:#bcd3ff}.tag.st-done{background:#0f2a1c;color:#c8f7d4}.tag.st-rejected{background:#2a1520;color:#ffb3c4}.tag.st-seen{background:var(--slab2);color:var(--m)}
 #ideas-box .idea .ihead .tag:last-child,#ai-list .ihead .mut:last-child{margin-left:auto}
 .capeth{display:block;image-rendering:pixelated;background-repeat:no-repeat}
+
+/* ===== Znajomi ===== */
+.frow{display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:8px}
+.frow .fi{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.frow .fi b{font-size:14px}.frow .fi span{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.frow .dot{width:10px;height:10px;flex:none;background:var(--edge2)}
+.frow.st-game .dot{background:#4ade80;box-shadow:0 0 8px rgba(74,222,128,.6)}.frow.st-launcher .dot{background:var(--am)}
+.frow.st-game .fi span{color:#86efac}
+#fr-who{max-width:320px}
