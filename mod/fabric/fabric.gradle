@@ -95,11 +95,11 @@ if (project.hasProperty('withMods')) {
 		}
 	}
 	def without = (project.findProperty('withoutMods') ?: '').toString().split(',')*.trim().findAll { it }
-	// wersje, które padają w teście Fabric poza kodem MiB — test bierze poprzednią (następną wersję moda sprawdzi już sam);
-	// Sodium 0.9.2 dla 26.1.2: „Global terrain uniforms have not been updated” przy wczytywaniu terenu, także bez moda MiB
-	def brokenInTest = ['mc26.1.2-0.9.2-fabric']
-	(['sodium', 'lithium', 'ferrite-core', 'entityculling', 'immediatelyfast'] - without).each { slug ->
-		def list = modrinth("/project/$slug/version?$query").findAll { !(it.version_number in brokenInTest) }
+	// mody, które nie działają z samym testem Fabric (u graczy działają): 26.1.2 — zrzut ekranu testu rysuje klatkę
+	// z pominięciem przygotowania terenu przez Sodium („Global terrain uniforms have not been updated”)
+	def notWithTest = ['26.1.2': ['sodium']]
+	(['sodium', 'lithium', 'ferrite-core', 'entityculling', 'immediatelyfast'] - without - (notWithTest[mc] ?: [])).each { slug ->
+		def list = modrinth("/project/$slug/version?$query")
 		if (list) add(list[0].project_id, list[0])
 		else logger.lifecycle("MiB: $slug nie ma wersji dla $mc")
 	}
