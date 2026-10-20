@@ -165,7 +165,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			// moduły świata: zdrowie nad świnią, odliczanie TNT, tytuł, ping liczbami w Tab, pora dnia, ekwipunek, blokada wyrzucania
 			context.runOnClient(c -> {
 				ModuleManager m = MibClient.get().modules;
-				for (String id : new String[] {"player_overlay", "tnt_timer", "title_tweaker", "tablist", "time_changer", "inventory", "drop_prevention"}) {
+				for (String id : new String[] {"player_overlay", "tnt_timer", "title_tweaker", "time_changer", "inventory", "drop_prevention"}) {
 					if (!m.isOn(id)) m.toggle(id);
 				}
 				m.state("player_overlay").setOption("mobs", true);

@@ -14,7 +14,7 @@ import pl.mibclient.mod.core.Setting;
 
 /**
  * Zmiany w elementach gry (nie w HUD MiB): nasycenie na ikonach jedzenia, Boss bar, Scoreboard, Title tweaker, Subtitles,
- * powiadomienia (Toast control), pogoda (Weather changer), ping liczbami (Tablist) i tło ekwipunku (Inventory).
+ * powiadomienia (Toast control), pogoda (Weather changer), ping liczbą przed kreskami w Tab (zawsze) i tło ekwipunku (Inventory).
  * Wołane z wstawek w grę.
  */
 public final class VanillaHud {
@@ -132,15 +132,17 @@ public final class VanillaHud {
 		subtitlePushed = false;
 	}
 
-	/** Tablist: ping liczbą w miejscu kresek (prawa krawędź wpisu na x + width); false = zostaw kreski z gry. */
-	public static boolean ping(MibGraphics g, int width, int x, int y, int latency) {
-		if (!on("tablist")) return false;
+	/** Ping w Tab (zawsze): o tyle szersza kolumna na liczbę przed kreskami gry (4 cyfry i odstęp). */
+	public static final int PING_W = 26;
+
+	/** Ping w Tab: liczba w kolorze tuż przed kreskami gry (kreski zajmują 10 px przy prawej krawędzi wpisu x + width). */
+	public static void ping(MibGraphics g, int width, int x, int y, int latency) {
+		if (latency < 0) return; // gra jeszcze nie zna pingu: same kreski
 		MibClient.hooks.add("tablist");
 		net.minecraft.client.Minecraft c = net.minecraft.client.Minecraft.getInstance();
-		String t = latency < 0 ? "?" : String.valueOf(Math.min(latency, 9999));
+		String t = String.valueOf(Math.min(latency, 9999));
 		FabricCanvas canvas = new FabricCanvas(g, c.font);
-		canvas.text(t, x + width - 1 - canvas.textWidth(t), y, 0xFF000000 | pl.mibclient.mod.core.modules.Labels.pingColor(latency), true);
-		return true;
+		canvas.text(t, x + width - 13 - canvas.textWidth(t), y, 0xFF000000 | pl.mibclient.mod.core.modules.Labels.pingColor(latency), true);
 	}
 
 	/** Inventory: ekrany z ekwipunkiem i skrzyniami bez przyciemnienia gry w tle. */

@@ -21,11 +21,11 @@ class CatalogTest {
 				"boss_bar", "scoreboard", "toast_control", "camera", "snaplook", "auto_perspective", "viewmodel", "weather_changer",
 				"block_indicator", "death_info", "horses", "custom_chat", "reconnect", "item_info", "nick_hider",
 				"title_tweaker", "subtitles", "autohide_hud", "time_changer", "inventory", "tnt_timer", "item_despawn",
-				"tablist", "drop_prevention", "backups", "cull_logs",
+				"drop_prevention", "backups", "cull_logs",
 				"animations", "block_overlay", "color_saturation", "motion_blur", "custom_fog", "dark_mode", "elytras", "item_physic", "ui_scaling", "custom_f3", "tooltips", "shulker_tooltips", "advancement_info", "hitbox", "tier_tagger", "light_level", "loot_beams", "uhc_overlay", "waypoints", "auto_text", "emotes", "keybind_search", "sound_filters")), ids);
-		assertEquals(85, ModuleCatalog.ALL.size());
-		assertFalse(ids.contains("jump_reset") || ids.contains("nametags") || ids.contains("screenshot") || ids.contains("mob_overlay"),
-				"Jump reset usunięty, Nametags i Screenshot działają zawsze bez przełącznika, Mob overlay to teraz Player overlay");
+		assertEquals(84, ModuleCatalog.ALL.size());
+		assertFalse(ids.contains("jump_reset") || ids.contains("nametags") || ids.contains("screenshot") || ids.contains("mob_overlay") || ids.contains("tablist"),
+				"Jump reset usunięty, Nametags, Screenshot i ping w Tab działają zawsze bez przełącznika, Mob overlay to teraz Player overlay");
 	}
 
 	@Test
@@ -39,7 +39,7 @@ class CatalogTest {
 				"Boss bar", "Scoreboard", "Toast control", "Camera", "Snaplook", "Auto perspective", "Viewmodel", "Weather changer",
 				"Block indicator", "Death info", "Horses", "Custom chat", "Reconnect", "Item info", "Nick hider",
 				"Title tweaker", "Subtitles", "Autohide HUD", "Time changer", "Inventory", "TNT timer", "Item despawn",
-				"Tablist", "Drop prevention", "Backups", "Cull logs",
+				"Drop prevention", "Backups", "Cull logs",
 				"Animations", "Block overlay", "Color saturation", "Motion blur", "Custom fog", "Dark mode", "Elytras", "Item physic", "UI scaling", "Custom F3", "Tooltips", "Shulker tooltips", "Custom advancement requirements", "Hitbox", "Tier tagger", "Light level overlay", "Loot beams", "UHC overlay", "Waypoints", "Auto text", "Emotes", "Keybind search", "Sound filters")),
 				new HashSet<String>(names));
 	}
@@ -48,7 +48,7 @@ class CatalogTest {
 	void defaultsOn() {
 		Set<String> on = new HashSet<String>();
 		for (ModuleDef m : ModuleCatalog.ALL) if (m.defaultOn) on.add(m.id);
-		assertEquals(new HashSet<String>(Arrays.asList("fps", "cps", "keystrokes", "zoom", "reconnect", "item_info", "tablist")), on);
+		assertEquals(new HashSet<String>(Arrays.asList("fps", "cps", "keystrokes", "zoom", "reconnect", "item_info")), on);
 	}
 
 	@Test
@@ -56,7 +56,7 @@ class CatalogTest {
 		Set<String> notHud = new HashSet<String>(Arrays.asList("brightness", "custom_crosshair", "fov_changer", "perspective", "zoom", "hit_indicator", "saturation",
 				"boss_bar", "scoreboard", "toast_control", "camera", "snaplook", "auto_perspective", "viewmodel", "weather_changer",
 				"custom_chat", "reconnect", "item_info", "nick_hider", "title_tweaker", "subtitles", "autohide_hud", "time_changer", "inventory",
-				"tnt_timer", "item_despawn", "player_overlay", "auto_sprint", "tablist", "drop_prevention", "backups", "cull_logs",
+				"tnt_timer", "item_despawn", "player_overlay", "auto_sprint", "drop_prevention", "backups", "cull_logs",
 				"animations", "block_overlay", "color_saturation", "motion_blur", "custom_fog", "dark_mode", "elytras", "item_physic", "ui_scaling", "custom_f3", "tooltips", "shulker_tooltips", "advancement_info", "hitbox", "tier_tagger", "light_level", "loot_beams", "uhc_overlay", "waypoints", "auto_text", "emotes", "keybind_search", "sound_filters"));
 		for (ModuleDef m : ModuleCatalog.ALL) {
 			assertEquals(!notHud.contains(m.id), m.hud, m.id);

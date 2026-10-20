@@ -1,6 +1,8 @@
-<!-- 0.16.2 -->
+<!-- 0.16.3 -->
 ## Zmienione
 
-- Na liście graczy pod Tab widać ping każdego gracza jako liczbę w kolorze (zielony, żółty, pomarańczowy, czerwony) zamiast kresek. Można to wyłączyć w menu pod prawym Shiftem: moduł Tablist.
-- W grze, w menu kosmetyków pod prawym Shiftem, postać stoi teraz w swojej ramce i ma właściwy rozmiar. Wcześniej rysowała się w złym miejscu.
-- Moduł Player model po powiększeniu albo pomniejszeniu w edytorze HUD rysuje postać w swoim polu.
+- W Tab zostają zwykłe zielone kreski z Minecrafta, a ping każdego gracza widać jako liczbę tuż przed nimi. Działa zawsze, bez włączania.
+
+## Usunięte
+
+- Moduł Tablist z menu pod prawym Shiftem. Ping w Tab jest teraz zawsze widoczny.

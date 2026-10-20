@@ -264,8 +264,6 @@ public final class ModuleCatalog {
 		new ModuleDef("item_despawn", "Item despawn", Category.WORLD, "Czas do zniknięcia leżących przedmiotów (od kiedy je widzisz)",
 			"Time until dropped items disappear (since you first saw them)", "trash", false, null, list(
 				new IntSetting("radius", "Zasięg (bloki)", "Range (blocks)", 8, 4, 32, 2))),
-		new ModuleDef("tablist", "Tablist", Category.CHAT, "Ping liczbami na liście graczy (Tab)", "Ping as numbers in the player list (Tab)",
-			"list-box", true, null, list()),
 		new ModuleDef("custom_chat", "Custom chat", Category.CHAT, "Godzina przy wiadomościach i dłuższa historia czatu",
 			"Time next to messages and a longer chat history", "message", false, null, list(
 				bool("time", "Godzina przy wiadomościach", "Time next to messages", true),
