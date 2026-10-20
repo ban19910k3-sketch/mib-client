@@ -257,7 +257,8 @@ public class MibClientGameTest implements FabricClientGameTest {
 			input.setCursorPos(dab[0], dab[1]);
 			context.waitTick();
 			input.pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
-			context.waitTicks(5);
+			// na 26.3 w CI gra rysuje bardzo wolno: kilka ticków mija w jednej klatce, zanim gra obsłuży kliknięcie
+			for (int t = 0; t < 100 && context.computeOnClient(c -> Input.screen(c) != null); t++) context.waitTick();
 			String wheel = context.computeOnClient(c -> "dab".equals(MibClient.get().extras.currentEmote()) && Input.screen(c) == null ? null
 					: "emotka " + MibClient.get().extras.currentEmote() + ", ekran " + (Input.screen(c) == null ? "brak" : Input.screen(c).getClass().getSimpleName())
 					+ ", wybór " + MibClient.hooks.contains("emote_wheel_pick") + ", mysz " + Math.round(dab[0]) + "," + Math.round(dab[1]));
