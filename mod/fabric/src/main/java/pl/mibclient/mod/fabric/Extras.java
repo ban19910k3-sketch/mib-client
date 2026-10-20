@@ -72,8 +72,8 @@ public final class Extras {
 	/** Klawisz emotek wciśnięty: puszczony szybko = emotka z ustawień, przytrzymany = koło wyboru. */
 	private boolean emoteWaiting;
 	/** Podgląd w kole emotek: wskazana emotka (na postaci w kole i w świecie), póki koło jest otwarte. */
-	private String preview;
-	private long previewStart;
+	private String wheelPreview;
+	private long wheelPreviewStart;
 	private static final long WHEEL_DELAY_MS = 200;
 
 	/** Znaczniki światła: x, y, z, kolor (po 4 liczby). */
@@ -187,19 +187,19 @@ public final class Extras {
 
 	/** Koło emotek: emotka wskazana myszą (null = żadna, też po zamknięciu koła). */
 	public void previewEmote(String id) {
-		if (id == null) preview = null;
-		else if (!id.equals(preview)) {
-			preview = id;
-			previewStart = System.currentTimeMillis();
+		if (id == null) wheelPreview = null;
+		else if (!id.equals(wheelPreview)) {
+			wheelPreview = id;
+			wheelPreviewStart = System.currentTimeMillis();
 		}
 	}
 
 	/** Ułożenie ciała własnej postaci w trakcie emotki albo jej podglądu w kole (Emotes.pose) albo null. */
 	public float[] emotePose() {
-		String p = preview;
+		String p = wheelPreview;
 		if (p != null) {
 			MibClient.hooks.add("emote_preview");
-			return Emotes.pose(p, (System.currentTimeMillis() - previewStart) / 1000.0);
+			return Emotes.pose(p, (System.currentTimeMillis() - wheelPreviewStart) / 1000.0);
 		}
 		String e = emote;
 		if (e == null) return null;
