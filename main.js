@@ -455,6 +455,29 @@ const safe = f => f === path.basename(f);
 // Plik moda MiB należy do launchera: widoczny na liście, ale bez wyłączania, usuwania i aktualizacji z Modrinth
 ipcMain.handle('mods:list', (_, gv) => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), size: fs.statSync(path.join(modsDir(gv), f)).size, mib: mibmod.isMibFile(f) })); } catch { return []; } });
 ipcMain.handle('mods:toggle', (_, { gv, file }) => { if (!safe(file) || mibmod.isMibFile(file)) return false; const d = modsDir(gv); fs.renameSync(path.join(d, file), path.join(d, file.endsWith('.disabled') ? file.slice(0, -9) : file + '.disabled')); modsChanged(gv); return true; });
+// Mody przeciągnięte do „Moje mody”: tylko pliki .jar z modem na loader tej wersji gry (pierwszy mod wybiera loader jak w MiB Hub)
+ipcMain.handle('mods:add', (_, { gv, paths }) => {
+  const added = [], errors = [], dir = modsDir(gv);
+  for (const p of Array.isArray(paths) ? paths.slice(0, 50) : []) {
+    const name = typeof p === 'string' ? path.basename(p) : '';
+    try {
+      if (!/\.jar$/i.test(name)) throw new Error('not_jar');
+      if (mibmod.isMibFile(name)) throw new Error('mib_file');
+      const st = fs.statSync(p);
+      if (!st.isFile() || st.size > 200 * 1024 * 1024) throw new Error('not_mod');
+      const buf = fs.readFileSync(p), loader = mibmod.jarLoader(buf), cur = instGet(gv).loader || null;
+      const bad = mibmod.dropError(loader, cur);
+      if (bad) throw Object.assign(new Error(bad), { loader, cur });
+      if (fs.existsSync(path.join(dir, name)) || fs.existsSync(path.join(dir, name + '.disabled'))) throw new Error('exists');
+      if (!cur) instSet(gv, { loader });
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, name), buf);
+      added.push(name);
+    } catch (e) { errors.push({ file: name || String(p), code: e.message, loader: e.loader || null, cur: e.cur || null }); }
+  }
+  if (added.length) modsChanged(gv);
+  return { added, errors };
+});
 ipcMain.handle('mods:delete', (_, { gv, file }) => { if (!safe(file) || mibmod.isMibFile(file)) return false; fs.unlinkSync(path.join(modsDir(gv), file)); modsChanged(gv); return true; });
 ipcMain.handle('mods:updates', async (_, gv) => {
   try {

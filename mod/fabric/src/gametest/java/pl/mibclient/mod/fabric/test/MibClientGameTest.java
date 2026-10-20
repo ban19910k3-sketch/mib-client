@@ -252,13 +252,15 @@ public class MibClientGameTest implements FabricClientGameTest {
 				double k = c.getWindow().getGuiScale();
 				return new double[] {(r[0] + r[2] / 2.0) * k, (r[1] + r[3] / 2.0) * k};
 			});
-			input.setCursorPos(dab[0], dab[1]);
-			context.waitTicks(2);
 			context.takeScreenshot("06m-emote-wheel");
+			input.setCursorPos(dab[0], dab[1]);
+			context.waitTick();
 			input.pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
-			context.waitTicks(3);
-			check("dab".equals(context.computeOnClient(c -> MibClient.get().extras.currentEmote())), "klik w kole emotek nie włączył emotki Dab");
-			check(context.computeOnClient(c -> Input.screen(c) == null), "koło emotek nie zamknęło się po wyborze");
+			context.waitTicks(5);
+			String wheel = context.computeOnClient(c -> "dab".equals(MibClient.get().extras.currentEmote()) && Input.screen(c) == null ? null
+					: "emotka " + MibClient.get().extras.currentEmote() + ", ekran " + (Input.screen(c) == null ? "brak" : Input.screen(c).getClass().getSimpleName())
+					+ ", wybór " + MibClient.hooks.contains("emote_wheel_pick") + ", mysz " + Math.round(dab[0]) + "," + Math.round(dab[1]));
+			check(wheel == null, "klik w „Dab” w kole emotek nie zadziałał: " + wheel);
 			context.runOnClient(c -> c.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
 			// powiadomienie od launchera: znajomy zaprasza do gry (okienko w prawym górnym rogu)
 			context.runOnClient(c -> MibClient.get().showNotice(new pl.mibclient.mod.core.Notice("test", "invite", "Ala", "1.21.11", "play.mib.pl", System.currentTimeMillis())));

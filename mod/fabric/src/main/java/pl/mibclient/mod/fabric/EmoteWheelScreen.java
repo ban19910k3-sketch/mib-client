@@ -57,6 +57,7 @@ public final class EmoteWheelScreen extends Screen {
 
 	/** Emotka wskazana teraz myszą (-1 = żadna) i jej włączenie. */
 	private void choose() {
+		MibClient.hooks.add("emote_wheel_pick");
 		int i = wheel.pick(width, height, Input.guiX(minecraft), Input.guiY(minecraft));
 		onClose();
 		if (i >= 0) extras.playEmote(wheel.id(i));
