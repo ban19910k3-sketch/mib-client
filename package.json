@@ -1,6 +1,6 @@
 {
   "name": "mib-client",
-  "version": "0.15.2",
+  "version": "0.16.0",
   "description": "MiB Client - darmowy launcher Minecraft PvP",
   "main": "main.js",
   "author": "MiB",
