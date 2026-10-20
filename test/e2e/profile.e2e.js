@@ -38,6 +38,7 @@ function png(w, h, px) {
     await w.click('.nav[data-p="ideas"]');
     await w.waitForFunction(() => /Załóż profil MiB/.test(document.getElementById('ideas-box').textContent));
     assert.equal(await w.$('#id-body'), null, 'bez profilu nie ma formularza pomysłów');
+    assert.match(await w.textContent('#id-reward'), /ekskluzywny kosmetyk.*musi naprawdę występować/, 'informacja o nagrodzie za błąd');
     ok('(m) pomysły bez profilu: zachęta do założenia profilu');
     await w.click('#plbox');
     await w.waitForSelector('#p-prof.on #pf-nick');

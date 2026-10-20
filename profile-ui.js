@@ -467,7 +467,9 @@
   const IDEA_ST = { new: 'Wysłany', seen: 'Przeczytany', planned: 'W planach', done: 'Zrobione', rejected: 'Odrzucony' };
   async function renderIdeas() {
     const box = $('ideas-box');
-    const head = [h('h2', {}, T('Pomysły')), h('p', { class: 'lead' }, T('Masz pomysł, co dodać albo poprawić w MiB Client? Napisz go tutaj, a trafi prosto do twórcy launchera.'))];
+    const head = [h('h2', {}, T('Pomysły')), h('p', { class: 'lead' }, T('Masz pomysł, co dodać albo poprawić w MiB Client? Napisz go tutaj, a trafi prosto do twórcy launchera.')),
+      h('div', { class: 'card reward', id: 'id-reward' }, h('b', {}, T('Nagroda za znalezienie błędu')),
+        h('p', {}, T('Zgłoś błąd w MiB Client (wybierz „Błąd do naprawy”), a dostaniesz nagrodę: ekskluzywny kosmetyk. Błąd musi naprawdę występować — sprawdzimy go, zanim przyznamy nagrodę.')))];
     if (st.loading) return box.replaceChildren(...head, h('p', { class: 'mut' }, T('Wczytywanie…')));
     if (!st.loggedIn) {
       box.replaceChildren(...head, h('div', { class: 'empty-state' },
