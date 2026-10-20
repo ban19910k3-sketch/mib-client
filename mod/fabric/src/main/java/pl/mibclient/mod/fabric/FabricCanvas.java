@@ -124,6 +124,19 @@ public final class FabricCanvas implements Canvas {
 		//#endif
 	}
 
+	/** Obrót postaci rysowanej teraz w menu (stopnie, czyta InventoryScreenMixin) albo NaN, gdy bez obrotu. */
+	public static float previewYaw = Float.NaN;
+
+	@Override
+	public void playerTurned(int x1, int y1, int x2, int y2, int size, float yaw) {
+		previewYaw = yaw;
+		try {
+			player(x1, y1, x2, y2, size);
+		} finally {
+			previewYaw = Float.NaN;
+		}
+	}
+
 	@Override
 	public void player(int x1, int y1, int x2, int y2, int size) {
 		LocalPlayer p = Minecraft.getInstance().player;

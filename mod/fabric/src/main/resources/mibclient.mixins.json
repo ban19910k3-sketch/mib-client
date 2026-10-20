@@ -27,6 +27,7 @@
 		"HitboxMixin",
 		"HumanoidModelMixin",
 		"HumanoidRenderStateMixin",
+		"InventoryScreenMixin",
 		"ItemEntityRenderStateMixin",
 		"ItemEntityRendererMixin",
 		"ItemInHandRendererMixin",

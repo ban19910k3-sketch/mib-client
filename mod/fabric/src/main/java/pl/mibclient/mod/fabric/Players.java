@@ -36,7 +36,7 @@ public final class Players {
 	private final MibClient mib;
 	private MibPlayers list = MibPlayers.NONE;
 	/** Tekstury kosmetyków innych graczy: id kosmetyku -> tekstura (null = pliku nie da się wczytać) i data pliku. */
-	private final Map<String, MibId> capes = new HashMap<>();
+	private final Map<String, MibId[]> capes = new HashMap<>();
 	private final Map<String, Long> capeStamps = new HashMap<>();
 	/** Kiedy ostatnio sprawdzono brakujący plik peleryny (getSkin woła się co klatkę). */
 	private final Map<String, Long> capeMissingAt = new HashMap<>();
@@ -96,7 +96,7 @@ public final class Players {
 			for (String id : new ArrayList<>(capes.keySet())) {
 				File f = mib.bridge.capeFile(id);
 				if (f == null || f.lastModified() != capeStamps.getOrDefault(id, 0L)) {
-					MibClient.releaseTexture(capes.remove(id));
+					MibClient.releaseTextures(capes.remove(id));
 					capeStamps.remove(id);
 				}
 			}
@@ -161,8 +161,8 @@ public final class Players {
 		return out;
 	}
 
-	/** Kosmetyk innego gracza MiB danego typu (cape, hat, wings; tekstura z pliku od launchera) albo null. */
-	MibId cosmeticOf(UUID id, String name, String type) {
+	/** Kosmetyk innego gracza MiB danego typu (cape, hat, wings; klatki tekstury z pliku od launchera) albo null. */
+	MibId[] cosmeticOf(UUID id, String name, String type) {
 		if (mib.bridge == null) return null;
 		MibPlayers.Entry e = list.find(id, name);
 		String cid = e == null ? null : e.cosmetic(type);
@@ -176,9 +176,9 @@ public final class Players {
 			return null;
 		}
 		capeMissingAt.remove(cid);
-		MibId t = null;
+		MibId[] t = null;
 		try {
-			t = MibClient.registerTexture("cape/p_" + cid, Files.readAllBytes(f.toPath()));
+			t = MibClient.registerFrames("cape/p_" + cid, Files.readAllBytes(f.toPath()));
 		} catch (Exception ex) {
 			t = null;
 		}

@@ -275,6 +275,11 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .tag.st-planned{background:#1d2b4a;color:#bcd3ff}.tag.st-done{background:#0f2a1c;color:#c8f7d4}.tag.st-rejected{background:#2a1520;color:#ffb3c4}.tag.st-seen{background:var(--slab2);color:var(--m)}
 #ideas-box .idea .ihead .tag:last-child,#ai-list .ihead .mut:last-child{margin-left:auto}
 .capeth{display:block;image-rendering:pixelated;background-repeat:no-repeat}
+/* animowany kosmetyk: klatki jedna pod drugą (zmienne --k i --n ustawia profile-ui.js) */
+@keyframes capeanim{from{background-position-y:calc(var(--k) * -1px)}to{background-position-y:calc(var(--k) * var(--n) * -32px - var(--k) * 1px)}}
+.noanim .capeth.anim{animation:none!important}
+#cos-box .cosi{cursor:pointer}
+#cos-box .cosi.try{outline:2px dashed var(--am,#a855f7);outline-offset:-2px}
 
 /* ===== Znajomi ===== */
 .frow{display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:8px}

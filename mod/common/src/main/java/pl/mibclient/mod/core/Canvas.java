@@ -33,4 +33,9 @@ public interface Canvas {
 	/** Postać gracza w prostokącie [x1, x2) × [y1, y2), patrząca przed siebie (Player model); size = skala modelu. */
 	default void player(int x1, int y1, int x2, int y2, int size) {
 	}
+
+	/** Postać gracza obrócona o yaw stopni (0 = przodem, 180 = tyłem), np. podgląd kosmetyków w menu. */
+	default void playerTurned(int x1, int y1, int x2, int y2, int size, float yaw) {
+		player(x1, y1, x2, y2, size);
+	}
 }

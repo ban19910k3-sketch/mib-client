@@ -638,7 +638,10 @@ public final class MenuView {
 		}
 	}
 
-	/** Kosmetyki z profilu MiB: peleryny można zakładać i zdejmować, reszta jest na razie tylko w launcherze. */
+	/**
+	 * Kosmetyki z profilu MiB: z lewej obracająca się postać gracza (przodem i tyłem), z prawej lista. Klik w przedmiot
+	 * to przymiarka (widać ją na postaci, do zamknięcia menu), „Załóż” zakłada go naprawdę.
+	 */
 	private void cosmetics(Canvas c, int mx, int my) {
 		int[] ct = layout.content;
 		header(c, Lang.t("menu.cosmetics"), mx, my);
@@ -659,9 +662,16 @@ public final class MenuView {
 		for (Cosmetics.Item it : cs.items) if (!"cape".equals(it.type)) items.add(it);
 		String msg = actions.cosmeticMessage();
 		int top = y, bottom = ct[1] + ct[3] - (msg != null ? 22 : 2);
+		// podgląd postaci: obrót 50° na sekundę, więc co kilka sekund widać pelerynę i skrzydła z tyłu
+		int pw = ct[2] >= 300 ? 84 : 0, lx = ct[0] + (pw > 0 ? pw + 8 : 0), lw = ct[2] - (lx - ct[0]);
+		if (pw > 0) {
+			Shapes.panel(c, ct[0], top, pw, bottom - top, Theme.SLAB, Theme.EDGE);
+			int size = Math.max(20, Math.min(pw * 2 / 5, (bottom - top) * 2 / 7));
+			c.playerTurned(ct[0] + 2, top + 2, ct[0] + pw - 2, bottom - 2, size, (System.currentTimeMillis() / 20) % 360);
+		}
 		maxCosScroll = Math.max(0, items.size() * 24 - 4 - (bottom - top));
 		cosScroll = Math.max(0, Math.min(maxCosScroll, cosScroll));
-		c.scissor(ct[0], top, ct[0] + ct[2], bottom);
+		c.scissor(lx, top, lx + lw, bottom);
 		y = top - cosScroll;
 		for (final Cosmetics.Item it : items) {
 			if (y + 20 <= top || y >= bottom) {
@@ -669,21 +679,28 @@ public final class MenuView {
 				continue;
 			}
 			boolean clickable = y >= top && y + 20 <= bottom;
-			Shapes.panel(c, ct[0], y, ct[2], 20, Theme.SLAB, it.equipped ? Theme.AM_LO : Theme.EDGE);
+			final boolean trying = it.id.equals(actions.tryingOn(it.type));
+			Shapes.panel(c, lx, y, lw, 20, Theme.SLAB, it.equipped ? Theme.AM_LO : trying ? Theme.AM_HI : Theme.EDGE);
 			String kind = Lang.t("cos." + ("hat".equals(it.type) || "wings".equals(it.type) ? it.type : "cape"));
-			c.text(Shapes.ellipsize(c, it.name, ct[2] - 150, false), ct[0] + 8, y + 6, Theme.TEXT, false);
-			c.text(kind, ct[0] + ct[2] - 140, y + 6, FAINT, false);
+			c.text(Shapes.ellipsize(c, it.name, lw - 150, false), lx + 8, y + 6, Theme.TEXT, false);
+			c.text(kind, lx + lw - 140, y + 6, FAINT, false);
+			// przymiarka: cały wiersz (przycisk niżej ma pierwszeństwo, bo sprawdzany jest od końca)
+			if (clickable && it.png != null && !it.equipped) hits.add(new Hit("try:" + it.id, new int[] {lx, y, lw, 20}, new Runnable() {
+				@Override
+				public void run() {
+					actions.tryOn(it.type, trying ? null : it.id);
+				}
+			}));
 			{
 				String t = Lang.t(it.equipped ? "cos.unequip" : "cos.equip");
-				int[] b = {ct[0] + ct[2] - 4 - (c.textWidth(t) + 16), y + 2, c.textWidth(t) + 16, 16};
+				int[] b = {lx + lw - 4 - (c.textWidth(t) + 16), y + 2, c.textWidth(t) + 16, 16};
 				button(c, b, null, t, !it.equipped, in(b, mx, my));
-				if (it.equipped) {
-					String on = Lang.t("cos.on");
-					c.text(on, b[0] - 6 - c.textWidth(on), y + 6, Theme.AM_HI, false);
-				}
+				String label = it.equipped ? Lang.t("cos.on") : trying ? Lang.t("cos.trying") : null;
+				if (label != null) c.text(label, b[0] - 6 - c.textWidth(label), y + 6, Theme.AM_HI, false);
 				if (clickable) hits.add(new Hit("cos:" + it.id, b, new Runnable() {
 					@Override
 					public void run() {
+						if (trying) actions.tryOn(it.type, null);
 						actions.equip(it.type, it.equipped ? null : it.id);
 					}
 				}));

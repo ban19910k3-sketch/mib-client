@@ -15,7 +15,22 @@ public final class Cosmetics {
 		this.items = Collections.unmodifiableList(items);
 	}
 
-	/** Przedmiot: id, nazwa, typ (cape, hat, wings), czy założony i tekstura PNG (base64, tylko założone). */
+	/** Animowana tekstura: klatka co tyle ms (tak samo w launcherze: CAPE_FRAME_MS w lib/profile.js). */
+	public static final int FRAME_MS = 100, MAX_FRAMES = 32;
+
+	/** Liczba klatek tekstury w×h (klatki 2:1 jedna pod drugą, szerokość 64–512) albo 0, gdy rozmiar jest zły. */
+	public static int frames(int w, int h) {
+		if (w % 64 != 0 || w < 64 || w > 512 || h <= 0 || h % (w / 2) != 0) return 0;
+		int n = h / (w / 2);
+		return n <= MAX_FRAMES ? n : 0;
+	}
+
+	/** Klatka do pokazania w chwili timeMs dla tekstury o n klatkach. */
+	public static int frame(int n, long timeMs) {
+		return n <= 1 ? 0 : (int) ((timeMs / FRAME_MS) % n);
+	}
+
+	/** Przedmiot: id, nazwa, typ (cape, hat, wings), czy założony i tekstura PNG (base64; do przymiarki także niezałożone). */
 	public static final class Item {
 		public final String id, name, type, png;
 		public final boolean equipped;

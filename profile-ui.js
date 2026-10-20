@@ -233,7 +233,24 @@
   // ===== Strona Kosmetyki =====
   const GLYPH = { cape: '▚', hat: '▀', wings: '▞' };
   // Miniatura peleryny: zewnętrzna strona z tekstury Minecrafta (pole 10×16 od piksela 1,1), powiększona k razy
-  const capeThumb = (url, k) => h('span', { class: 'capeth', style: `width:${10 * k}px;height:${16 * k}px;background-image:url("${url}");background-size:${64 * k}px ${32 * k}px;background-position:-${k}px -${k}px` });
+  // (animowana tekstura: klatki jedna pod drugą przewijane animacją capeanim ze style.css)
+  function capeThumb(url, k) {
+    const el = h('span', { class: 'capeth', style: `width:${10 * k}px;height:${16 * k}px;background-image:url("${url}");background-size:${64 * k}px ${32 * k}px;background-position:-${k}px -${k}px` });
+    loadImg(url).then(img => {
+      const n = MibProfile.capeFrames(img.width, img.height);
+      if (n < 2) return;
+      el.style.backgroundSize = `${64 * k}px ${32 * n * k}px`;
+      el.style.setProperty('--k', k); el.style.setProperty('--n', n);
+      el.style.animation = `capeanim ${(n * MibProfile.CAPE_FRAME_MS) / 1000}s steps(${n}) infinite`;
+      el.classList.add('anim');
+    }, () => {});
+    return el;
+  }
+  const imgCache = new Map();
+  function loadImg(url) {
+    if (!imgCache.has(url)) imgCache.set(url, new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url; }));
+    return imgCache.get(url);
+  }
   const itemImage = (c, k) => (c.imageUrl && c.type === 'cape' && c.imageUrl.startsWith('data:image/png') ? capeThumb(c.imageUrl, k) : c.imageUrl ? h('img', { src: c.imageUrl, alt: '' }) : GLYPH[c.type] || '◆');
   // ===== Skin konta Minecraft (na górze strony Kosmetyki; wystarczy konto Microsoft) =====
   let skinViewer = null;
@@ -249,8 +266,13 @@
   async function skinSection() {
     const err = errBox(), sec = h('div', { class: 'sec skinsec' }, h('h3', {}, T('Skin')));
     const cur = await mib.call('skin:current');
-    if (cur.error === 'skin_no_account') { sec.append(h('p', { class: 'mut' }, msg('skin_no_account'))); return sec; }
     try { if (!skinViewer) { skinViewer = new skinview3d.SkinViewer({ canvas: skinCanvas, width: 200, height: 260 }); skinViewer.autoRotate = true; skinViewer.autoRotateSpeed = 0.7; skinViewer.controls.enableZoom = false; } } catch {}
+    // bez konta Microsoft: postać Steve (na niej też da się przymierzać kosmetyki), bez zmiany skina
+    if (cur.error === 'skin_no_account') {
+      try { if (skinViewer) await skinViewer.loadSkin(await mib.call('skin', 'MHF_Steve')); } catch {}
+      sec.append(h('div', { class: 'skinbox' }, skinCanvas, h('div', { class: 'skinside' }, h('p', { class: 'mut' }, msg('skin_no_account')))));
+      return sec;
+    }
     let picked = null;
     const variant = h('select', { id: 'skin-var' }, h('option', { value: 'classic' }, T('Klasyczny (szersze ręce)')), h('option', { value: 'slim' }, T('Smukły (węższe ręce)')));
     variant.value = cur.variant || 'classic';
@@ -297,18 +319,87 @@
     return sec;
   }
 
-  // Na podglądzie skina to, co gracz ma założone: peleryna, a bez niej skrzydła MiB (rysowane jak elytra, tak jak w grze).
-  // data-back na płótnie mówi, co widać (cape, elytra albo pusto).
-  async function backPreview(list) {
+  // ===== Kosmetyki na postaci 3D (skinview3d): peleryna albo skrzydła (jak elytra) i czapka (jak hełm) =====
+  // Animowana tekstura ma klatki jedna pod drugą; klatki zmieniają się co CAPE_FRAME_MS, tak jak w grze.
+  async function frames(url) {
+    const img = await loadImg(url), n = MibProfile.capeFrames(img.width, img.height);
+    if (!n) return null;
+    const fh = img.width / 2;
+    return Array.from({ length: n }, (_, i) => {
+      const c = document.createElement('canvas'); c.width = img.width; c.height = fh;
+      c.getContext('2d').drawImage(img, 0, i * fh, img.width, fh, 0, 0, img.width, fh);
+      return c;
+    });
+  }
+  const dressed = new WeakMap();
+  // back: { texture, kind: 'cape' | 'elytra' } albo null; hat: tekstura czapki albo null. Zwraca, co widać.
+  async function dress(viewer, { back = null, hat = null } = {}) {
+    const st = dressed.get(viewer) || {};
+    dressed.set(viewer, st);
+    const my = st.gen = (st.gen || 0) + 1;
+    const [bf, hf] = await Promise.all([back ? frames(back.texture).catch(() => null) : null, hat ? frames(hat).catch(() => null) : null]);
+    if (st.gen !== my) return null;
+    clearInterval(st.timer); st.timer = null;
+    try { if (bf) viewer.loadCape(bf[0], { backEquipment: back.kind }); else viewer.resetCape(); } catch {}
+    await putHat(viewer, st, hf, my);
+    const n = Math.max(bf ? bf.length : 1, hf ? hf.length : 1);
+    if (n > 1) {
+      let i = 0;
+      st.timer = setInterval(() => {
+        if (!viewer.canvas || !viewer.canvas.isConnected) { clearInterval(st.timer); st.timer = null; return; }
+        i++;
+        if (bf && bf.length > 1 && viewer.capeTexture) draw(viewer.capeCanvas, bf[i % bf.length], 0, viewer.capeTexture);
+        if (hf && hf.length > 1 && st.hatTex) draw(st.hatCanvas, hf[i % hf.length], 0, st.hatTex);
+      }, MibProfile.CAPE_FRAME_MS);
+    }
+    return { back: bf ? back.kind : '', hat: !!(hf && st.hat), frames: n };
+  }
+  function draw(canvas, frame, y, tex) {
+    const x = canvas.getContext('2d');
+    x.clearRect(0, y, canvas.width, frame.height * canvas.width / frame.width);
+    x.drawImage(frame, 0, y, canvas.width, frame.height * canvas.width / frame.width);
+    tex.needsUpdate = true;
+  }
+  // Czapka: kopia głowy postaci powiększona jak hełm (10 i 11 pikseli zamiast 8), z teksturą czapki w górnej połowie
+  // płótna 64×64 — tak samo leżą głowa i nakładka na skinie, więc pasują współrzędne tekstury
+  async function putHat(viewer, st, hf, my) {
+    const head = viewer.playerObject && viewer.playerObject.skin && viewer.playerObject.skin.head;
+    if (st.hat) { for (const m of st.hat) { if (m.parent) m.parent.remove(m); m.material.dispose(); } st.hat = null; }
+    if (st.hatTex) { st.hatTex.dispose(); st.hatTex = null; }
+    if (!hf || !head || !head.innerLayer || !head.outerLayer) return;
+    // klasa tekstury z samego skinview3d; skin ładuje się osobno, więc chwilę na nią czekamy
+    for (let i = 0; i < 20 && !(viewer.skinTexture || viewer.capeTexture); i++) { await new Promise(r => setTimeout(r, 100)); if (st.gen !== my) return; }
+    const Tex = (viewer.skinTexture || viewer.capeTexture || {}).constructor;
+    if (!Tex) return;
+    st.hatCanvas = document.createElement('canvas');
+    st.hatCanvas.width = st.hatCanvas.height = hf[0].width;
+    st.hatTex = new Tex(st.hatCanvas);
+    st.hatTex.magFilter = st.hatTex.minFilter = 1003;
+    if (viewer.skinTexture) st.hatTex.colorSpace = viewer.skinTexture.colorSpace;
+    draw(st.hatCanvas, hf[0], 0, st.hatTex);
+    st.hat = [[head.innerLayer, 10], [head.outerLayer, 11]].map(([src, size]) => {
+      const m = src.clone();
+      m.material = head.outerLayer.material.clone();
+      m.material.map = st.hatTex;
+      const w = (src.geometry && src.geometry.parameters && src.geometry.parameters.width) || 8;
+      m.scale.multiplyScalar(size / w);
+      head.add(m);
+      return m;
+    });
+  }
+  window.mibDress = dress;
+
+  // Strona Kosmetyki: na postaci założone przedmioty, a klik w przedmiot to przymiarka (bez zakładania).
+  // data-back i data-hat na płótnie mówią, co widać.
+  let trying = {};
+  async function dressPage(list) {
     if (!skinViewer) return;
-    const on = t => list.find(c => c.equipped && c.type === t && c.texture);
-    const cape = on('cape'), wings = on('wings');
-    try {
-      if (cape) await skinViewer.loadCape(cape.texture, { backEquipment: 'cape' });
-      else if (wings) await skinViewer.loadCape(wings.texture, { backEquipment: 'elytra' });
-      else skinViewer.resetCape();
-      skinCanvas.dataset.back = cape ? 'cape' : wings ? 'elytra' : '';
-    } catch {}
+    const on = t => trying[t] || list.find(c => c.equipped && c.type === t && c.texture);
+    const tried = trying.wings && !trying.cape ? 'wings' : null;
+    const cape = tried ? null : on('cape'), wings = on('wings'), hat = on('hat');
+    const back = cape ? { texture: cape.texture, kind: 'cape' } : wings ? { texture: wings.texture, kind: 'elytra' } : null;
+    const r = await dress(skinViewer, { back, hat: hat ? hat.texture : null });
+    if (r) { skinCanvas.dataset.back = r.back; skinCanvas.dataset.hat = r.hat ? '1' : ''; }
   }
 
   async function renderCos() {
@@ -316,7 +407,8 @@
     if (st.loading) return box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'mut' }, T('Wczytywanie…')));
     const skin = await skinSection();
     if (!st.loggedIn) {
-      backPreview([]);
+      trying = {};
+      dressPage([]);
       box.replaceChildren(h('h2', {}, T('Kosmetyki')), skin, h('div', { class: 'empty-state' },
         h('p', {}, st.offline ? T('Brak połączenia z serwerem MiB. Kosmetyki pokażą się, gdy połączenie wróci.') : T('Peleryny i inne przedmioty zapisują się na profilu MiB. Załóż profil, żeby je zbierać.')),
         st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))));
@@ -336,9 +428,20 @@
       renderCos();
     } } }, inp, btn);
     const list = await mib.call('prof:cosmetics');
-    backPreview(Array.isArray(list) ? list : []);
+    const items = Array.isArray(list) ? list : [];
+    // przymiarka tylko przedmiotów, które gracz dalej ma i które nie są już założone
+    for (const t of Object.keys(trying)) { const x = trying[t] && items.find(c => c.id === trying[t].id); if (!x || x.equipped) delete trying[t]; }
+    dressPage(items);
+    const tryToggle = c => {
+      if (!c.texture || c.equipped) return;
+      trying[c.type] = trying[c.type] && trying[c.type].id === c.id ? null : c;
+      if (!trying[c.type]) delete trying[c.type];
+      for (const el of document.querySelectorAll('#cos-box .cosi')) el.classList.toggle('try', Object.values(trying).some(t => t.id === el.dataset.id));
+      dressPage(items);
+    };
     const grid = Array.isArray(list) && list.length
-      ? h('div', { class: 'cos-grid' }, ...list.map(c => h('div', { class: 'cosi' + (c.equipped ? ' on' : '') },
+      ? h('div', { class: 'cos-grid' }, ...list.map(c => h('div', { class: 'cosi' + (c.equipped ? ' on' : '') + (trying[c.type] && trying[c.type].id === c.id ? ' try' : ''),
+          'data-id': c.id, title: c.texture && !c.equipped ? T('Kliknij, żeby przymierzyć') : null, on: { click: e => { if (!e.target.closest('button')) tryToggle(c); } } },
         h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)),
         h('b', {}, c.name), h('small', { class: 'mut' }, c.equipped ? '✓ ' + T('Założona — widać ją w grze') : T('Odebrano') + ' ' + fmtDate(c.acquiredAt)),
         h('button', { class: c.equipped ? 'b ghost' : 'b', type: 'button', on: { click: async e => {
@@ -348,7 +451,8 @@
           renderCos();
         } } }, T(c.equipped ? 'Zdejmij' : 'Załóż')))))
       : h('p', { class: 'empty' }, Array.isArray(list) ? T('Nie masz jeszcze żadnych przedmiotów. Masz kod z konkursu? Wpisz go wyżej.') : msg(list.error));
-    box.replaceChildren(h('h2', {}, T('Kosmetyki')), skin, h('div', { class: 'sec' }, h('h3', {}, T('Przedmioty MiB')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err, grid));
+    box.replaceChildren(h('h2', {}, T('Kosmetyki')), skin, h('div', { class: 'sec' }, h('h3', {}, T('Przedmioty MiB')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err,
+      items.length ? h('p', { class: 'mut' }, T('Kliknij przedmiot, żeby przymierzyć go na postaci. „Załóż” zakłada go w grze.')) : null, grid));
   }
 
   // ===== Strona Pomysły =====

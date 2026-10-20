@@ -20,6 +20,8 @@ public class RecordingCanvas implements Canvas {
 	public final List<int[]> fills = new ArrayList<int[]>();
 	public final List<Text> texts = new ArrayList<Text>();
 	public final List<String> items = new ArrayList<String>();
+	/** Ile razy narysowano postać gracza (podgląd w menu). */
+	public int players;
 	public int pushes, pops;
 
 	@Override
@@ -106,5 +108,10 @@ public class RecordingCanvas implements Canvas {
 	public boolean hasFillColor(int color) {
 		for (int[] f : fills) if (f[4] == color) return true;
 		return false;
+	}
+
+	@Override
+	public void playerTurned(int x1, int y1, int x2, int y2, int size, float yaw) {
+		players++;
 	}
 }

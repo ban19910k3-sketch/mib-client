@@ -108,7 +108,10 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	private String cosMessage;
 	/** Własne założone kosmetyki: typ (cape, hat, wings) -> klucz (id i skrót PNG) i tekstura. */
 	private final java.util.Map<String, String> ownKeys = new java.util.HashMap<>();
-	private final java.util.Map<String, MibId> ownTex = new java.util.HashMap<>();
+	private final java.util.Map<String, MibId[]> ownTex = new java.util.HashMap<>();
+	/** Przymiarka w menu kosmetyków: id i tekstury przedmiotów (do zamknięcia menu). */
+	private final java.util.Map<String, String> tryIds = new java.util.HashMap<>();
+	private final java.util.Map<String, MibId[]> tryTex = new java.util.HashMap<>();
 	/** Snaplook i Auto perspective: widok sprzed włączenia (null = nie działa). */
 	private CameraType snapBefore, autoBefore;
 	/** Ostatnia śmierć {x, y, z, czas}, poprzedni stan „martwy” i ostatni serwer (Reconnect). */
@@ -253,6 +256,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		}
 		tickFreelook(c);
 		tickCosmetics(c);
+		if (!tryIds.isEmpty() && !(Input.screen(c) instanceof MenuScreen)) endTryOn();
 		while (stopwatchKey.consumeClick()) {
 			if (modules.isOn("stopwatch") && Input.screen(c) == null) pvp.meters.stopwatch.press(System.currentTimeMillis());
 		}
@@ -600,8 +604,8 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		if (Objects.equals(key, ownKeys.get(type))) return;
 		if (key == null) ownKeys.remove(type);
 		else ownKeys.put(type, key);
-		releaseTexture(ownTex.remove(type));
-		MibId t = png == null ? null : registerTexture(type + "/" + Integer.toHexString(key.hashCode()), png);
+		releaseTextures(ownTex.remove(type));
+		MibId[] t = png == null ? null : registerFrames(type + "/" + Integer.toHexString(key.hashCode()), png);
 		if (t != null) ownTex.put(type, t);
 	}
 
@@ -609,21 +613,57 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	static MibId registerTexture(String path, byte[] png) {
 		try {
 			// read(byte[]) do 1.21.3 kopiuje plik na stos LWJGL (64 KB) — większe obrazki (ekran ładowania) go przepełniają
-			NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(png));
-			MibId id = MibId.fromNamespaceAndPath("mibclient", path);
-			//#if MC >= 1.21.5
-			Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> "mibclient " + path, img));
-			//#else
-			Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(img));
-			//#endif
-			return id;
+			return register(path, NativeImage.read(new java.io.ByteArrayInputStream(png)));
 		} catch (Exception e) {
 			return null;
 		}
 	}
 
+	/**
+	 * Tekstura kosmetyku: jedna klatka albo animacja (klatki 2:1 jedna pod drugą, każda pod mibclient:path/i);
+	 * null, gdy obrazek jest zły.
+	 */
+	static MibId[] registerFrames(String path, byte[] png) {
+		try {
+			NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(png));
+			int w = img.getWidth(), n = Cosmetics.frames(w, img.getHeight());
+			if (n <= 1) return new MibId[] {register(path, img)};
+			MibId[] out = new MibId[n];
+			int fh = w / 2;
+			for (int i = 0; i < n; i++) {
+				NativeImage f = new NativeImage(w, fh, true);
+				img.copyRect(f, 0, i * fh, 0, 0, w, fh, false, false);
+				out[i] = register(path + "/" + i, f);
+			}
+			img.close();
+			hooks.add("cos_anim");
+			return out;
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private static MibId register(String path, NativeImage img) {
+		MibId id = MibId.fromNamespaceAndPath("mibclient", path);
+		//#if MC >= 1.21.5
+		Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> "mibclient " + path, img));
+		//#else
+		Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(img));
+		//#endif
+		return id;
+	}
+
+	/** Klatka animacji na teraz (jedna klatka: zawsze ta sama) albo null. */
+	static MibId frameOf(MibId[] t) {
+		return t == null ? null : t[Cosmetics.frame(t.length, System.currentTimeMillis())];
+	}
+
 	static void releaseTexture(MibId id) {
 		if (id != null) Minecraft.getInstance().getTextureManager().release(id);
+	}
+
+	static void releaseTextures(MibId[] t) {
+		if (t != null) for (MibId id : t) releaseTexture(id);
 	}
 
 	/** Peleryna MiB dla tego gracza: własna założona albo innego gracza MiB (z launchera); null = peleryna ze skórki. */
@@ -633,9 +673,45 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	/** Kosmetyk MiB danego typu (cape, hat, wings) dla tego gracza: własny albo innego gracza MiB; null = brak. */
 	public MibId cosmeticFor(AbstractClientPlayer player, String type) {
-		MibId t = player == Minecraft.getInstance().player ? ownTex.get(type) : players.cosmeticOf(player.getUUID(), player.getScoreboardName(), type);
+		MibId[] all;
+		if (player == Minecraft.getInstance().player) all = tryTex.containsKey(type) ? tryTex.get(type) : ownTex.get(type);
+		else all = players.cosmeticOf(player.getUUID(), player.getScoreboardName(), type);
+		MibId t = frameOf(all);
 		if (t != null) hooks.add(type);
 		return t;
+	}
+
+	@Override
+	public void tryOn(String type, String id) {
+		releaseTextures(tryTex.remove(type));
+		tryIds.remove(type);
+		if (id == null) return;
+		Cosmetics cs = cosmetics();
+		Cosmetics.Item it = null;
+		if (cs != null) for (Cosmetics.Item i : cs.items) if (i.id.equals(id) && i.type.equals(type)) it = i;
+		if (it == null || it.png == null) return;
+		MibId[] t;
+		try {
+			t = registerFrames("try/" + type, Base64.getDecoder().decode(it.png));
+		} catch (IllegalArgumentException e) {
+			t = null;
+		}
+		if (t == null) return;
+		tryIds.put(type, id);
+		tryTex.put(type, t);
+		hooks.add("try_on");
+	}
+
+	@Override
+	public String tryingOn(String type) {
+		return tryIds.get(type);
+	}
+
+	/** Koniec przymiarki (menu zamknięte). Publiczne dla testu gry. */
+	public void endTryOn() {
+		for (MibId[] t : tryTex.values()) releaseTextures(t);
+		tryTex.clear();
+		tryIds.clear();
 	}
 
 	@Override

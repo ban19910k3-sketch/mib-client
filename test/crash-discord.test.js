@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const net = require('node:net'), path = require('node:path'), os = require('node:os'), fs = require('node:fs');
 const { diagnoseCrash } = require('../lib/crash');
 const { buildActivity, createPresence, encode } = require('../lib/discord');
-const { pngInfo, validCapeSize } = require('../lib/profile');
+const { pngInfo, validCapeSize, capeFrames, CAPE_FRAME_MS } = require('../lib/profile');
 
 test('diagnoseCrash recognizes common causes', () => {
   assert.equal(diagnoseCrash('Exception in thread "main" java.lang.OutOfMemoryError: Java heap space'), 'memory');
@@ -93,8 +93,20 @@ test('pngInfo and cape sizes', () => {
   assert.equal(validCapeSize(64, 32), true);
   assert.equal(validCapeSize(128, 64), true);
   assert.equal(validCapeSize(22, 17), false);
-  assert.equal(validCapeSize(64, 64), false);
+  assert.equal(validCapeSize(64, 48), false);
   assert.equal(validCapeSize(1024, 512), false);
+});
+
+test('animowane kosmetyki: klatki 2:1 jedna pod drugą, najwyżej 32', () => {
+  assert.equal(capeFrames(64, 32), 1);
+  assert.equal(capeFrames(64, 64), 2, 'dwie klatki 64×32');
+  assert.equal(capeFrames(128, 64 * 8), 8, 'HD też');
+  assert.equal(capeFrames(64, 32 * 32), 32);
+  assert.equal(capeFrames(64, 32 * 33), 0, 'za dużo klatek');
+  assert.equal(capeFrames(64, 48), 0, 'niepełna klatka');
+  assert.equal(capeFrames(22, 17), 0);
+  assert.equal(validCapeSize(64, 64 * 4), true, 'animowana tekstura przechodzi');
+  assert.equal(CAPE_FRAME_MS, 100);
 });
 
 // ===== Odporność klienta Discorda (po recenzji) =====

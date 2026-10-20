@@ -13,7 +13,7 @@
     cannot_delete_admin: 'Nie można usunąć konta admina.',
     announcement_missing: 'Ta aktualność została już usunięta.',
     texture_not_png: 'To nie jest plik PNG.',
-    texture_size: 'Tekstura peleryny musi mieć 64×32 piksele (albo 128×64, 256×128, 512×256).',
+    texture_size: 'Tekstura musi mieć 64×32 piksele (albo 128×64, 256×128, 512×256). Animowana: klatki 64×32 jedna pod drugą, najwyżej 32 (np. 64×128 to 4 klatki).',
     texture_too_big: 'Plik jest za duży (najwyżej 100 KB).',
     idea_missing: 'Ten pomysł został już usunięty.',
   };
@@ -25,11 +25,15 @@
   let tab = 'ann';
   // Jeden podgląd 3D na cały panel (każdy nowy SkinViewer zajmuje kontekst WebGL)
   let capeCanvas = null, capeViewer = null;
-  function capePreview(dataUrl) {
+  // Podgląd 3D przedmiotu na postaci (peleryna, skrzydła jak elytra, czapka jak hełm; animowane też się ruszają)
+  function capePreview(dataUrl, type = 'cape') {
     if (!capeCanvas) capeCanvas = h('canvas', { width: 180, height: 220, class: 'cape3d', hidden: true });
     try {
-      if (dataUrl && !capeViewer) { capeViewer = new skinview3d.SkinViewer({ canvas: capeCanvas, width: 180, height: 220 }); capeViewer.autoRotate = true; capeViewer.autoRotateSpeed = 0.8; capeViewer.controls.enableZoom = false; }
-      if (dataUrl) capeViewer.loadCape(dataUrl);
+      if (dataUrl && !capeViewer) {
+        capeViewer = new skinview3d.SkinViewer({ canvas: capeCanvas, width: 180, height: 220 }); capeViewer.autoRotate = true; capeViewer.autoRotateSpeed = 0.8; capeViewer.controls.enableZoom = false;
+        mib.call('skin', 'MHF_Steve').then(s => capeViewer.loadSkin(s)).catch(() => {});
+      }
+      if (capeViewer) window.mibDress(capeViewer, dataUrl ? { back: type === 'hat' ? null : { texture: dataUrl, kind: type === 'wings' ? 'elytra' : 'cape' }, hat: type === 'hat' ? dataUrl : null } : {});
       capeCanvas.hidden = !dataUrl;
     } catch { capeCanvas.hidden = true; }
     return capeCanvas;
@@ -145,7 +149,9 @@
     const prevImg = h('img', { class: 'texprev', alt: '', hidden: true }), cv = capePreview(null);
     const e = h('p', { class: 'err' }), save = h('button', { class: 'b', type: 'submit', id: 'ac-save' }, 'Zapisz przedmiot');
     let texture = null, editing = false, known = new Set();
-    function preview(dataUrl) { prevImg.src = dataUrl || ''; prevImg.hidden = !dataUrl; capePreview(dataUrl); }
+    let shown = null;
+    function preview(dataUrl) { shown = dataUrl; prevImg.src = dataUrl || ''; prevImg.hidden = !dataUrl; capePreview(dataUrl, type.value); }
+    type.onchange = () => preview(shown);
     const pick = h('button', { class: 'b ghost', type: 'button', on: { click: async () => {
       const r = await mib.call('admin:pickTexture');
       if (!r) return;
@@ -180,7 +186,7 @@
     } } },
     h('label', { class: 'sr' }, h('span', {}, 'ID (stałe)'), id), h('label', { class: 'sr' }, h('span', {}, 'Nazwa'), name),
     h('label', { class: 'sr' }, h('span', {}, 'Rodzaj'), type),
-    h('div', { class: 'sr' }, h('span', {}, 'Tekstura'), h('span', { class: 'fld' }, h('span', { class: 'row', style: 'align-items:center' }, pick, prevImg), h('small', { class: 'mut' }, 'PNG 64×32 jak peleryna w Minecrafcie'))),
+    h('div', { class: 'sr' }, h('span', {}, 'Tekstura'), h('span', { class: 'fld' }, h('span', { class: 'row', style: 'align-items:center' }, pick, prevImg), h('small', { class: 'mut' }, 'PNG 64×32 jak peleryna w Minecrafcie. Animowana: klatki jedna pod drugą (64×128 = 4 klatki), 10 klatek na sekundę.'))),
     cv, e, h('div', { class: 'row' }, save));
     box.append(form, h('div', { class: 'sec' }, h('h3', {}, 'Katalog'), list));
     load();

@@ -63,4 +63,18 @@ class MibPlayersTest {
 		assertNotNull(b.capeFile("cape_a"));
 		assertNull(b.capeFile("../cape_a"));
 	}
+
+	@Test
+	void animatedCosmeticFrames() {
+		assertEquals(1, Cosmetics.frames(64, 32));
+		assertEquals(4, Cosmetics.frames(64, 128));
+		assertEquals(8, Cosmetics.frames(128, 512));
+		assertEquals(0, Cosmetics.frames(64, 48), "niepełna klatka");
+		assertEquals(0, Cosmetics.frames(64, 32 * 33), "najwyżej 32 klatki");
+		assertEquals(0, Cosmetics.frames(22, 17));
+		assertEquals(0, Cosmetics.frame(1, 123456), "jedna klatka: zawsze pierwsza");
+		assertEquals(0, Cosmetics.frame(4, 0));
+		assertEquals(1, Cosmetics.frame(4, Cosmetics.FRAME_MS));
+		assertEquals(0, Cosmetics.frame(4, 4 * Cosmetics.FRAME_MS), "po ostatniej znowu pierwsza");
+	}
 }

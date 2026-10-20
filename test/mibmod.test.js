@@ -102,13 +102,15 @@ test('bridge: konta, żądanie zmiany, błąd', async () => {
 const COS = { loggedIn: true, items: [
   { id: 'c1', name: 'Fiolet', type: 'cape', equipped: true, texture: 'data:image/png;base64,QUJD' },
   { id: 'c2', name: 'Link', type: 'cape', equipped: false, texture: 'https://evil.example/x.png' },
-  { id: 'h1', name: 'Czapka', type: 'hat', equipped: false }] };
+  { id: 'h1', name: 'Czapka', type: 'hat', equipped: false },
+  { id: 'w1', name: 'Skrzydła', type: 'wings', equipped: false, texture: 'data:image/png;base64,REVG' }] };
 
-test('cosmeticsPayload: tylko tekstura założonej peleryny (PNG w base64), bez adresów zewnętrznych', () => {
+test('cosmeticsPayload: tekstury przedmiotów (PNG w base64, też niezałożonych — do przymiarki w grze), bez adresów zewnętrznych', () => {
   assert.deepStrictEqual(JSON.parse(m.cosmeticsPayload(COS)).items, [
     { id: 'c1', name: 'Fiolet', type: 'cape', equipped: true, png: 'QUJD' },
     { id: 'c2', name: 'Link', type: 'cape', equipped: false, png: null },
-    { id: 'h1', name: 'Czapka', type: 'hat', equipped: false, png: null }]);
+    { id: 'h1', name: 'Czapka', type: 'hat', equipped: false, png: null },
+    { id: 'w1', name: 'Skrzydła', type: 'wings', equipped: false, png: 'REVG' }]);
   assert.deepStrictEqual(JSON.parse(m.cosmeticsPayload(null)), { loggedIn: false, items: [] });
 });
 

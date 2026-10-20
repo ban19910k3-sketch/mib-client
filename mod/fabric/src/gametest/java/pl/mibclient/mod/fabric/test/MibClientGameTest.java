@@ -26,6 +26,8 @@ import pl.mibclient.mod.fabric.MibClient;
 /** Automatyczny test w prawdziwym kliencie: menu, wyszukiwarka, ustawienia, edytor HUD, HUD, zoom, celownik + zrzuty. */
 public class MibClientGameTest implements FabricClientGameTest {
 	/** Peleryna 64×32 do testu (fioletowa z białym kwadratem). */
+	/** Animowana peleryna: 2 klatki 64×32 jedna pod drugą (fiolet, złoto). */
+	private static final String CAPE_ANIM_PNG = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAbElEQVR42u3aMRGAMBAAwX+s0COEAhPRFRMUCEmPlqAiM2GyK+Hqy3q9PQYo957xA1ssTgABBBBAAAEEEEAAAQQQQAABAAAAgBVkb+eQPyCPxx8ggAACCCCAAAIIIIAAAggggAACAAAAAHP4AFL9CEMyiPRnAAAAAElFTkSuQmCC";
 	private static final String CAPE_PNG = "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAcklEQVR42u3UMQ2AMBBG4b9NBZBQAyADE3hAB2N11AMmkAEGIMEBrAwMLAxc37ddctPL5dzY7ac+kOba6QeCJDXxeLW8bpWs8Spc8QHCfRim9nEp9wsXQAACEMD+E7T87LgAAhCAAAQgAAEAAAAAAIB0ATapC/N+AwboAAAAAElFTkSuQmCC";
 
 	private final List<String> errors = new ArrayList<>();
@@ -290,7 +292,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 
 			// peleryna MiB (jak po założeniu w menu Kosmetyki) — widać ją na zrzucie z kamery 360°
 			context.runOnClient(c -> {
-				MibClient.get().applyCape("test:cape", Base64.getDecoder().decode(CAPE_PNG));
+				MibClient.get().applyCape("test:cape", Base64.getDecoder().decode(CAPE_ANIM_PNG));
 				// skrzydła MiB bez elytry: gra rysuje je jak elytrę z teksturą skrzydeł
 				MibClient.get().applyCosmetic("wings", "test:wings", Base64.getDecoder().decode(CAPE_PNG));
 				MibClient.get().applyCosmetic("hat", "test:hat", Base64.getDecoder().decode(CAPE_PNG));
@@ -321,7 +323,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
 					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop",
 					"post_effect", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "light_level", "waypoints", "dark_mode", "anim_block", "anim_dip",
-					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "time", "hitbox", "hitbox_players", "world_marks"
+					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "time", "hitbox", "hitbox_players", "world_marks", "cos_anim"
 					//#if MC >= 1.21.2 && MC < 1.21.6
 					, "blur_previous"
 					//#endif

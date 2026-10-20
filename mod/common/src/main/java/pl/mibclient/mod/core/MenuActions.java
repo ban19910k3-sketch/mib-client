@@ -29,6 +29,15 @@ public interface MenuActions {
 		return null;
 	}
 
+	/** Przymiarka (tylko na tym komputerze, do zamknięcia menu): przedmiot id danego typu albo koniec (id = null). */
+	default void tryOn(String type, String id) {
+	}
+
+	/** Przymierzany przedmiot danego typu albo null. */
+	default String tryingOn(String type) {
+		return null;
+	}
+
 	/** Zapisuje język menu wybrany w menu ("pl", "en", "auto"); Lang.choose robi już MenuView. */
 	default void languageChosen(String code) {
 	}

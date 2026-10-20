@@ -22,6 +22,7 @@ class MenuViewTest {
 	List<String> calls = new ArrayList<String>();
 	String message, cosMessage;
 	Cosmetics cosmetics;
+	final java.util.Map<String, String> trying = new java.util.HashMap<String, String>();
 	String world;
 	int[] pos = {10, 64, -20};
 
@@ -65,6 +66,18 @@ class MenuViewTest {
 			@Override
 			public String cosmeticMessage() {
 				return cosMessage;
+			}
+
+			@Override
+			public void tryOn(String type, String id) {
+				calls.add("try:" + type + ":" + id);
+				if (id == null) trying.remove(type);
+				else trying.put(type, id);
+			}
+
+			@Override
+			public String tryingOn(String type) {
+				return trying.get(type);
 			}
 
 			@Override
@@ -229,6 +242,24 @@ class MenuViewTest {
 		assertEquals(Arrays.asList("equip:cape:c2", "equip:cape:null", "equip:hat:h1"), calls);
 		render();
 		assertTrue(c.hasText("Zmieniam…"));
+	}
+
+	@Test
+	void cosmeticsPageTriesItemsOnBeforeEquipping() {
+		cosmetics = new Cosmetics(true, Arrays.asList(new Cosmetics.Item("c1", "Fiolet", "cape", true, "QUJD"),
+				new Cosmetics.Item("c2", "Złota", "cape", false, "REVG"), new Cosmetics.Item("h1", "Korona", "hat", false, null)));
+		click("cosmetics");
+		render();
+		assertTrue(c.hasText("Kliknij przedmiot, żeby go przymierzyć."));
+		assertNull(v.hitRect("try:c1"), "założonej się nie przymierza");
+		assertNull(v.hitRect("try:h1"), "bez tekstury nie ma przymiarki");
+		click("try:c2");
+		render();
+		assertTrue(c.hasText("Przymierzasz"));
+		click("try:c2");
+		click("cos:c2");
+		assertEquals(Arrays.asList("try:cape:c2", "try:cape:null", "equip:cape:c2"), calls);
+		assertTrue(c.players > 0, "postać z przymierzanym przedmiotem w podglądzie");
 	}
 
 	@Test
