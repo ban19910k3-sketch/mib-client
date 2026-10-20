@@ -72,7 +72,7 @@ public final class EmoteWheelScreen extends Screen {
 	//#if MC >= 1.21.9
 	@Override
 	public boolean mouseClicked(MouseButtonEvent e, boolean doubled) {
-		if (e.button() != 0) return super.mouseClicked(e, doubled);
+		if (Input.button(e.button()) != 0) return super.mouseClicked(e, doubled);
 		choose();
 		return true;
 	}
@@ -84,7 +84,7 @@ public final class EmoteWheelScreen extends Screen {
 	//#else
 	@Override
 	public boolean mouseClicked(double x, double y, int button) {
-		if (button != 0) return super.mouseClicked(x, y, button);
+		if (Input.button(button) != 0) return super.mouseClicked(x, y, button);
 		choose();
 		return true;
 	}
