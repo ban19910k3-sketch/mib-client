@@ -4,10 +4,11 @@ import pl.mibclient.mod.core.modules.Emotes;
 
 /**
  * Koło emotek (przytrzymanie B): emotki rozłożone po okręgu wokół środka ekranu, pierwsza na górze, dalej zgodnie
- * z ruchem wskazówek zegara. Wybiera kierunek myszy od środka (jak w grach); środek koła to „nic”.
+ * z ruchem wskazówek zegara. Wybiera kierunek myszy od środka (jak w grach); środek koła to „nic”. W środku stoi
+ * postać gracza i pokazuje wskazaną emotkę (gra ustawia jej pozę, gdy rysuje postać).
  */
 public final class EmoteWheel {
-	public static final int BW = 76, BH = 18, DEAD = 16;
+	public static final int BW = 76, BH = 18, DEAD = 16, PW = 128, PH = 112;
 	private final String[] ids;
 
 	public EmoteWheel() {
@@ -84,11 +85,14 @@ public final class EmoteWheel {
 				c.fill(x - 1, y - 1, x + 1, y + 1, Theme.AM);
 			}
 		}
-		String title = Lang.t("emotes.title"), hint = hovered >= 0 ? Emotes.label(ids[hovered], Lang.pl()) : Lang.t("emotes.hint");
-		int w = Math.max(c.textWidth(title), c.textWidth(hint)) + 16;
-		Shapes.panel(c, cx - w / 2, cy - 13, w, 26, Theme.SLAB, hovered >= 0 ? Theme.AM : Theme.EDGE2);
-		c.text(title, cx - c.textWidth(title) / 2, cy - 10, Theme.AM_HI, false);
-		c.text(hint, cx - c.textWidth(hint) / 2, cy + 2, hovered >= 0 ? Theme.TEXT : Theme.MUTED, false);
+		// środek: podgląd emotki na postaci gracza, nad nim nazwa, pod nim podpowiedź
+		int px = cx - PW / 2, py = cy - PH / 2;
+		Shapes.panel(c, px, py, PW, PH, Theme.SLAB, hovered >= 0 ? Theme.AM : Theme.EDGE2);
+		String title = hovered >= 0 ? Emotes.label(ids[hovered], Lang.pl()) : Lang.t("emotes.title");
+		String hint = Shapes.ellipsize(c, Lang.t(hovered >= 0 ? "emotes.release" : "emotes.hint"), PW - 8, false);
+		c.text(title, cx - c.textWidth(title) / 2, py + 5, Theme.AM_HI, hovered >= 0);
+		c.playerTurned(px + 4, py + 16, px + PW - 4, py + PH - 16, (PH - 32) * 2 / 5, 20);
+		c.text(hint, cx - c.textWidth(hint) / 2, py + PH - 12, hovered >= 0 ? Theme.TEXT : Theme.MUTED, false);
 		for (int i = 0; i < ids.length; i++) {
 			int[] s = slot(i, sw, sh);
 			boolean on = i == hovered;

@@ -253,9 +253,11 @@ public class MibClientGameTest implements FabricClientGameTest {
 				com.mojang.blaze3d.platform.Window w = c.getWindow();
 				return new double[] {(r[0] + r[2] / 2.0) * w.getScreenWidth() / w.getGuiScaledWidth(), (r[1] + r[3] / 2.0) * w.getScreenHeight() / w.getGuiScaledHeight()};
 			});
-			context.takeScreenshot("06m-emote-wheel");
 			input.setCursorPos(dab[0], dab[1]);
-			context.waitTick();
+			// wskazana emotka: postać w środku koła ją pokazuje (podgląd z pozą emotki)
+			for (int t = 0; t < 100 && !MibClient.hooks.contains("emote_preview"); t++) context.waitTick();
+			context.takeScreenshot("06m-emote-wheel");
+			check(MibClient.hooks.contains("emote_preview"), "postać w kole emotek nie pokazuje wskazanej emotki");
 			input.pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
 			// na 26.3 w CI gra rysuje bardzo wolno: kilka ticków mija w jednej klatce, zanim gra obsłuży kliknięcie
 			for (int t = 0; t < 100 && context.computeOnClient(c -> Input.screen(c) != null); t++) context.waitTick();

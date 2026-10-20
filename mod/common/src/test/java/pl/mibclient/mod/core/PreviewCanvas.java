@@ -105,4 +105,16 @@ public class PreviewCanvas implements Canvas {
 		f.getParentFile().mkdirs();
 		ImageIO.write(img, "png", f);
 	}
+
+	/** Postać w podglądzie: prosta sylwetka (jak skin Steve'a) wyśrodkowana w prostokącie, wysokość ok. 1,8 × size. */
+	@Override
+	public void player(int x1, int y1, int x2, int y2, int size) {
+		int h = size * 9 / 5, u = Math.max(1, h / 32), cx = (x1 + x2) / 2, top = y2 - 4 - 32 * u;
+		fill(cx - 4 * u, top, cx + 4 * u, top + 8 * u, 0xFF8D6044);
+		fill(cx - 4 * u, top + 8 * u, cx + 4 * u, top + 20 * u, 0xFF00A8A8);
+		fill(cx - 8 * u, top + 8 * u, cx - 4 * u, top + 20 * u, 0xFF8D6044);
+		fill(cx + 4 * u, top + 8 * u, cx + 8 * u, top + 20 * u, 0xFF8D6044);
+		fill(cx - 4 * u, top + 20 * u, cx, top + 32 * u, 0xFF3B3B9E);
+		fill(cx, top + 20 * u, cx + 4 * u, top + 32 * u, 0xFF3B3B9E);
+	}
 }

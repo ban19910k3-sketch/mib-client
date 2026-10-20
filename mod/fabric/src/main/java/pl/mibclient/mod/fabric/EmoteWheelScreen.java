@@ -52,7 +52,17 @@ public final class EmoteWheelScreen extends Screen {
 
 	private void draw(MibGraphics g, int mouseX, int mouseY) {
 		MibClient.hooks.add("emote_wheel");
-		wheel.render(new FabricCanvas(g, font), width, height, Input.guiX(minecraft), Input.guiY(minecraft));
+		double mx = Input.guiX(minecraft), my = Input.guiY(minecraft);
+		int i = wheel.pick(width, height, mx, my);
+		// postać w środku koła pokazuje wskazaną emotkę
+		extras.previewEmote(i >= 0 ? wheel.id(i) : null);
+		wheel.render(new FabricCanvas(g, font), width, height, mx, my);
+	}
+
+	@Override
+	public void removed() {
+		extras.previewEmote(null);
+		super.removed();
 	}
 
 	/** Emotka wskazana teraz myszą (-1 = żadna) i jej włączenie. */

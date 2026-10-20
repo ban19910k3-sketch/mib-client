@@ -24,8 +24,11 @@ class EmoteWheelTest {
 	void buttonsDoNotOverlapAndFitTheScreen() {
 		for (int[] size : new int[][] {{320, 240}, {480, 270}, {640, 360}, {960, 540}}) {
 			EmoteWheel w = new EmoteWheel();
+			int[] mid = {size[0] / 2 - EmoteWheel.PW / 2, size[1] / 2 - EmoteWheel.PH / 2, EmoteWheel.PW, EmoteWheel.PH};
 			for (int i = 0; i < w.size(); i++) {
 				int[] a = w.slot(i, size[0], size[1]);
+				boolean clear = a[0] + a[2] <= mid[0] || mid[0] + mid[2] <= a[0] || a[1] + a[3] <= mid[1] || mid[1] + mid[3] <= a[1];
+				assertTrue(clear, w.id(i) + " zasłania podgląd w środku na " + size[0] + "x" + size[1]);
 				assertTrue(a[0] >= 0 && a[1] >= 0 && a[0] + a[2] <= size[0] && a[1] + a[3] <= size[1], "na ekranie " + size[0] + "x" + size[1]);
 				for (int j = i + 1; j < w.size(); j++) {
 					int[] b = w.slot(j, size[0], size[1]);
@@ -43,10 +46,12 @@ class EmoteWheelTest {
 		RecordingCanvas c = new RecordingCanvas();
 		w.render(c, 640, 360, 320, 180);
 		for (String id : Emotes.IDS) assertTrue(c.hasText(Emotes.label(id, true)), id);
-		assertTrue(c.hasText("Wskaż myszką i puść B"));
+		assertTrue(c.hasText("Wskaż emotkę myszką") && c.hasText("Emotki"));
+		assertEquals(1, c.players, "w środku koła stoi postać gracza");
 		int[] s = w.slot(7, 640, 360);
 		c = new RecordingCanvas();
 		w.render(c, 640, 360, s[0] + 5, s[1] + 5);
 		assertEquals(2, c.texts.stream().filter(t -> t.s.equals("Floss")).count(), "wskazana emotka też w środku koła");
+		assertTrue(c.hasText("Puść B albo kliknij"));
 	}
 }
