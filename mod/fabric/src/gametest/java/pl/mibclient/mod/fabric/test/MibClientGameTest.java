@@ -249,8 +249,9 @@ public class MibClientGameTest implements FabricClientGameTest {
 			double[] dab = context.computeOnClient(c -> {
 				pl.mibclient.mod.fabric.EmoteWheelScreen s = (pl.mibclient.mod.fabric.EmoteWheelScreen) Input.screen(c);
 				int[] r = s.wheel().slot(5, s.width, s.height);
-				double k = c.getWindow().getGuiScale();
-				return new double[] {(r[0] + r[2] / 2.0) * k, (r[1] + r[3] / 2.0) * k};
+				// odwrotnie niż Input.guiX/guiY: kursor w pikselach okna (od 26.3 skala GUI nie dzieli rozmiaru okna)
+				com.mojang.blaze3d.platform.Window w = c.getWindow();
+				return new double[] {(r[0] + r[2] / 2.0) * w.getScreenWidth() / w.getGuiScaledWidth(), (r[1] + r[3] / 2.0) * w.getScreenHeight() / w.getGuiScaledHeight()};
 			});
 			context.takeScreenshot("06m-emote-wheel");
 			input.setCursorPos(dab[0], dab[1]);
