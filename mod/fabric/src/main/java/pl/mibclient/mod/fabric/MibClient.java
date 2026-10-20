@@ -121,6 +121,8 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	private ServerData lastServer;
 	private Button reconnectButton;
 	private long reconnectAt;
+	/** Kosmetyki podane przez test gry (bez launchera); null = z launchera. */
+	public static volatile Cosmetics testCosmetics;
 	/** Powiadomienia od launchera (znajomy gra albo zaprasza), notice.json czytany co sekundę. */
 	private final Notice.Board notices = new Notice.Board();
 	private long noticeReadAt;
@@ -736,6 +738,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	@Override
 	public Cosmetics cosmetics() {
+		if (testCosmetics != null) return testCosmetics;
 		if (bridge == null) return null;
 		long now = System.currentTimeMillis();
 		if (now - cosReadAt > 2000) {

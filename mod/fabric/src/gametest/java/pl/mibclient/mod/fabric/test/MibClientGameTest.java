@@ -240,6 +240,32 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.runOnClient(c -> MibClient.get().showNotice(new pl.mibclient.mod.core.Notice("test", "invite", "Ala", "1.21.11", "play.mib.pl", System.currentTimeMillis())));
 			context.waitTicks(20);
 			context.takeScreenshot("06j-notice");
+			// Kosmetyki w menu: obracająca się postać stoi w ramce podglądu (menu jest przeskalowane, a od 1.21.6
+			// gra rysuje postać osobno, bez skali menu)
+			context.runOnClient(c -> {
+				MibClient.testCosmetics = new pl.mibclient.mod.core.Cosmetics(true, java.util.Arrays.asList(
+						new pl.mibclient.mod.core.Cosmetics.Item("test_cape", "Peleryna testowa", "cape", false, null)));
+				pl.mibclient.mod.fabric.FabricCanvas.lastPlayerBox = null;
+			});
+			context.setScreen(() -> new MenuScreen(MibClient.get(), null));
+			context.waitTicks(3);
+			click(context, "cosmetics");
+			context.waitTicks(10);
+			context.takeScreenshot("06k-cos-preview");
+			String box = context.computeOnClient(c -> {
+				if (!(Input.screen(c) instanceof MenuScreen)) return "menu kosmetyków się zamknęło";
+				MenuScreen s = (MenuScreen) Input.screen(c);
+				int[] ct = s.view().layout().content, b = pl.mibclient.mod.fabric.FabricCanvas.lastPlayerBox;
+				if (b == null) return "postać w podglądzie kosmetyków się nie narysowała";
+				float f = s.menuScale() / (float) c.getWindow().getGuiScale();
+				int[] want = {Math.round((ct[0] + 2) * f), Math.round((ct[1] + 42) * f), Math.round((ct[0] + 82) * f)};
+				if (Math.abs(b[0] - want[0]) > 2 || Math.abs(b[1] - want[1]) > 2 || Math.abs(b[2] - want[2]) > 2)
+					return "postać poza ramką podglądu: " + java.util.Arrays.toString(b) + " zamiast " + java.util.Arrays.toString(want);
+				return null;
+			});
+			check(box == null, box);
+			context.setScreen(() -> null);
+			context.runOnClient(c -> MibClient.testCosmetics = null);
 			context.setScreen(() -> new net.minecraft.client.gui.screens.options.controls.KeyBindsScreen(null, Minecraft.getInstance().options));
 			context.waitTicks(5);
 			context.takeScreenshot("06i-keybinds");

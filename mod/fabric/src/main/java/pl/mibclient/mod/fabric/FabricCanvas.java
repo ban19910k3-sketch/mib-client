@@ -124,6 +124,9 @@ public final class FabricCanvas implements Canvas {
 		//#endif
 	}
 
+	/** Prostokąt ostatnio narysowanej postaci w jednostkach GUI ekranu (sprawdza go test gry). */
+	public static volatile int[] lastPlayerBox;
+
 	/** Obrót postaci rysowanej teraz w menu (stopnie, czyta InventoryScreenMixin) albo NaN, gdy bez obrotu. */
 	public static float previewYaw = Float.NaN;
 
@@ -141,6 +144,23 @@ public final class FabricCanvas implements Canvas {
 	public void player(int x1, int y1, int x2, int y2, int size) {
 		LocalPlayer p = Minecraft.getInstance().player;
 		if (p == null) return;
+		//#if MC >= 1.21.6
+		// od 1.21.6 gra rysuje postać osobno (obraz w obrazie) i pomija przesunięcie i skalę z pose():
+		// menu i HUD są przeskalowane, więc pozycję i rozmiar przeliczamy sami
+		Matrix3x2fStack m = g.pose();
+		org.joml.Vector2f a = m.transformPosition(new org.joml.Vector2f(x1, y1)), b = m.transformPosition(new org.joml.Vector2f(x2, y2));
+		float k = (float) Math.sqrt(Math.abs(m.determinant()));
+		x1 = Math.round(Math.min(a.x, b.x));
+		y1 = Math.round(Math.min(a.y, b.y));
+		x2 = Math.round(Math.max(a.x, b.x));
+		y2 = Math.round(Math.max(a.y, b.y));
+		size = Math.max(1, Math.round(size * k));
+		lastPlayerBox = new int[] {x1, y1, x2, y2};
+		//#else
+		org.joml.Matrix4f m = g.pose().last().pose();
+		org.joml.Vector3f a = m.transformPosition(new org.joml.Vector3f(x1, y1, 0)), b = m.transformPosition(new org.joml.Vector3f(x2, y2, 0));
+		lastPlayerBox = new int[] {Math.round(a.x), Math.round(a.y), Math.round(b.x), Math.round(b.y)};
+		//#endif
 		// „mysz” na środku: postać patrzy prosto przed siebie
 		float cx = (x1 + x2) / 2f, cy = (y1 + y2) / 2f;
 		//#if MC >= 26.1
