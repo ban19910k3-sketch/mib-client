@@ -455,3 +455,69 @@ set role anon;
 select pg_temp.expect_error($q$select public.mib_hello('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')$q$, 'busy');
 reset role;
 delete from private.hello_log;
+
+-- „Teraz gra” w statystykach admina: gracze w grze i w launcherze (ostatnie 5 minut), w grze z modem MiB,
+-- najpopularniejsze serwery i wersje (tylko zbiorczo)
+delete from private.presence;
+delete from private.mib_players;
+insert into private.presence (user_id, seen_at, playing, version, server)
+  select id, now(), true, '1.21.11', 'play.mib.pl' from public.profiles where id <> '22222222-2222-2222-2222-222222222222' order by num limit 1;
+insert into private.presence (user_id, seen_at, playing, version, server) values ('22222222-2222-2222-2222-222222222222', now(), false, null, null);
+insert into private.mib_players (uuid, name, user_id, token_hash, seen_at) values
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'GraczMiB', null, 'x', now()),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Dawno', null, 'x', now() - interval '1 hour');
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$
+declare s json := public.admin_stats();
+begin
+  assert (s ->> 'nowGame')::int = 1, 'w grze teraz';
+  assert (s ->> 'nowLauncher')::int = 1, 'w launcherze teraz';
+  assert (s ->> 'nowMod')::int = 1, 'w grze z modem MiB teraz (dawne zgłoszenie się nie liczy)';
+  assert (s -> 'nowServers' -> 0 ->> 'server') = 'play.mib.pl' and (s -> 'nowServers' -> 0 ->> 'players')::int = 1, 'serwery teraz';
+  assert (s -> 'nowVersions' -> 0 ->> 'version') = '1.21.11', 'wersje teraz';
+end $$;
+reset role;
+
+-- Zaproszenie znajomego do gry: tylko znajomi, tylko gdy zapraszający gra teraz na serwerze; zaproszenie widać
+-- 10 minut, można je odrzucić; ponowne zaproszenie tylko je odświeża
+insert into auth.users (id, email, encrypted_password, raw_user_meta_data) values
+  ('55555555-5555-5555-5555-555555555555', 'inv1@test.pl', 'x', '{"nick":"Zapraszam"}'),
+  ('66666666-6666-6666-6666-666666666666', 'inv2@test.pl', 'x', '{"nick":"Zaproszony"}'),
+  ('77777777-7777-7777-7777-777777777777', 'inv3@test.pl', 'x', '{"nick":"Obcy"}');
+set role authenticated;
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+select public.friend_request('Zaproszony');
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+select public.friend_answer('55555555-5555-5555-5555-555555555555', true);
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+select pg_temp.expect_error($q$select public.game_invite('66666666-6666-6666-6666-666666666666')$q$, 'invite_no_server');
+select public.presence_ping(true, '1.21.11', 'Play.MiB.pl');
+select pg_temp.expect_error($q$select public.game_invite('77777777-7777-7777-7777-777777777777')$q$, 'invite_not_friend');
+do $$ begin
+  assert (public.game_invite('66666666-6666-6666-6666-666666666666') ->> 'server') = 'play.mib.pl', 'zaproszenie na mój serwer';
+  perform public.game_invite('66666666-6666-6666-6666-666666666666');
+  assert (select count(*) from public.game_invites_list()) = 0, 'zaproszenia do mnie: brak';
+end $$;
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+do $$ begin
+  assert (select count(*) from public.game_invites_list()) = 1, 'jedno zaproszenie mimo dwóch kliknięć';
+  assert (select nick || ' ' || server || ' ' || version from public.game_invites_list()) = 'Zapraszam play.mib.pl 1.21.11', 'od kogo i dokąd';
+  perform public.game_invite_dismiss('55555555-5555-5555-5555-555555555555');
+  assert (select count(*) from public.game_invites_list()) = 0, 'odrzucone znika';
+end $$;
+reset role;
+update private.game_invites set created_at = now() - interval '11 minutes';
+insert into private.game_invites (from_id, to_id, server, version, created_at)
+  values ('55555555-5555-5555-5555-555555555555', '66666666-6666-6666-6666-666666666666', 'play.mib.pl', '1.21.11', now() - interval '11 minutes')
+  on conflict do nothing;
+set role authenticated;
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+do $$ begin
+  assert (select count(*) from public.game_invites_list()) = 0, 'stare zaproszenie (ponad 10 minut) nie wraca';
+end $$;
+select pg_temp.expect_error($q$select * from private.game_invites$q$, 'permission denied');
+reset role;
+set role anon;
+select pg_temp.expect_error($q$select public.game_invite('66666666-6666-6666-6666-666666666666')$q$, 'permission denied');
+reset role;

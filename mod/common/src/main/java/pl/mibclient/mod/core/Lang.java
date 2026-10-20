@@ -41,6 +41,12 @@ public final class Lang {
 		put("cos.hat", "Czapka", "Hat");
 		put("cos.wings", "Skrzydła", "Wings");
 		put("cos.working", "Zmieniam…", "Changing…");
+		put("notice.started", "Znajomy w grze", "Friend playing");
+		put("notice.started.body", "%s gra teraz w Minecraft", "%s is now playing Minecraft");
+		put("notice.on", "na %s", "on %s");
+		put("notice.invite", "Zaproszenie do gry", "Game invite");
+		put("notice.invite.body", "%s zaprasza Cię na %s (Minecraft %s). Dołącz w launcherze: Znajomi.",
+				"%s invites you to %s (Minecraft %s). Join from the launcher: Friends.");
 		put("cos.failed", "Nie udało się: %s", "Failed: %s");
 		put("menu.empty", "Nie znaleziono modułów", "No modules found");
 		put("menu.key_hint", "Klawisz zmienisz w Sterowaniu Minecrafta", "Change the key in Minecraft Controls");

@@ -114,4 +114,22 @@ class PreviewTest {
 		hud.render(e, g, 640, 360, new HudEditorModel(mm), true);
 		e.save(new File(out, "hud-editor.png"));
 	}
+
+	@Test
+	void renderNotice() throws Exception {
+		File out = out();
+		Lang.setGame("pl_pl");
+		Notice.Board b = new Notice.Board();
+		b.offer(new Notice("a", "invite", "Kolega", "1.21.11", "play.mib.pl", 0), 0);
+		PreviewCanvas c = new PreviewCanvas(1280, 720, 2);
+		c.gameBackground(640, 360);
+		b.render(c, 640, 2000);
+		c.save(new File(out, "notice-invite.png"));
+		Notice.Board s = new Notice.Board();
+		s.offer(new Notice("b", "started", "Kolega", "1.21.11", "play.mib.pl", 0), 0);
+		PreviewCanvas d = new PreviewCanvas(1280, 720, 2);
+		d.gameBackground(640, 360);
+		s.render(d, 640, 2000);
+		d.save(new File(out, "notice-started.png"));
+	}
 }

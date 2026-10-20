@@ -262,6 +262,17 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       await authed(t => supa.rpc('friend_remove', { p_user: id }, t));
       return { ok: true };
     },
+    // Zaproszenia do gry: na serwer, na którym gracz gra teraz (baza bierze go z obecności)
+    async inviteFriend({ id }) {
+      return { result: await authed(t => supa.rpc('game_invite', { p_user: id }, t)) };
+    },
+    invites: () => authed(t => supa.rpc('game_invites_list', {}, t)),
+    // Serwer, na który można teraz zaprosić znajomych (gra działa, mod zgłosił serwer, gracz go pokazuje)
+    nowPlaying: () => ({ playing: !!game, server: game && shareServer ? server : null }),
+    async inviteDismiss({ id }) {
+      await authed(t => supa.rpc('game_invite_dismiss', { p_from: id }, t));
+      return { ok: true };
+    },
     // Obecność dla znajomych (co 2 minuty, przy starcie i końcu gry, przy zmianie serwera): launcher albo gra z wersją i serwerem
     async presence({ soft } = {}) {
       restore();
@@ -316,7 +327,8 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
 const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:login', logout: 'prof:logout', newCode: 'prof:newCode', reset: 'prof:reset',
   remove: 'prof:delete', createProfile: 'prof:createProfile', nickFree: 'prof:nickFree', announcements: 'prof:announcements', allCosmetics: 'prof:allCosmetics', admin: 'prof:admin', cosmetics: 'prof:cosmetics', redeem: 'prof:redeem', pullSettings: 'prof:pullSettings', pushSettings: 'prof:pushSettings',
   equip: 'prof:equip', modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace', submitIdea: 'prof:submitIdea', myIdeas: 'prof:myIdeas',
-  friends: 'prof:friends', friendRequest: 'prof:friendRequest', friendAnswer: 'prof:friendAnswer', friendRemove: 'prof:friendRemove' };
+  friends: 'prof:friends', friendRequest: 'prof:friendRequest', friendAnswer: 'prof:friendAnswer', friendRemove: 'prof:friendRemove',
+  inviteFriend: 'prof:inviteFriend', invites: 'prof:invites', inviteDismiss: 'prof:inviteDismiss', nowPlaying: 'prof:nowPlaying' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

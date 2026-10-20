@@ -236,6 +236,10 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(5);
 			context.takeScreenshot("06h-emote");
 			context.runOnClient(c -> c.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
+			// powiadomienie od launchera: znajomy zaprasza do gry (okienko w prawym górnym rogu)
+			context.runOnClient(c -> MibClient.get().showNotice(new pl.mibclient.mod.core.Notice("test", "invite", "Ala", "1.21.11", "play.mib.pl", System.currentTimeMillis())));
+			context.waitTicks(20);
+			context.takeScreenshot("06j-notice");
 			context.setScreen(() -> new net.minecraft.client.gui.screens.options.controls.KeyBindsScreen(null, Minecraft.getInstance().options));
 			context.waitTicks(5);
 			context.takeScreenshot("06i-keybinds");
@@ -323,7 +327,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
 					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop",
 					"post_effect", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "light_level", "waypoints", "dark_mode", "anim_block", "anim_dip",
-					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "time", "hitbox", "hitbox_players", "world_marks", "cos_anim"
+					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "time", "hitbox", "hitbox_players", "world_marks", "cos_anim", "notice"
 					//#if MC >= 1.21.2 && MC < 1.21.6
 					, "blur_previous"
 					//#endif

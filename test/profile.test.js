@@ -89,3 +89,31 @@ test('backupDecision', () => {
   assert.equal(P.backupDecision({ hasRemote: false, reviewed: false }), 'push');
   assert.equal(P.backupDecision({ hasRemote: false, reviewed: true }), 'push');
 });
+
+test('friendsStarted: powiadomienie tylko, gdy znajomy właśnie wszedł do gry (nie przy pierwszym sprawdzeniu)', () => {
+  const l1 = [{ id: 'a', nick: 'Ala', state: 'friend', status: 'launcher' }, { id: 'b', nick: 'Bob', state: 'friend', status: 'game', server: 'x.pl' },
+    { id: 'c', nick: 'Cyryl', state: 'incoming', status: null }];
+  const r1 = P.friendsStarted(null, l1);
+  assert.deepStrictEqual(r1.started, [], 'pierwszy raz: bez powiadomień o tych, co już grają');
+  const l2 = [{ id: 'a', nick: 'Ala', state: 'friend', status: 'game', version: '1.21.11', server: 'play.mib.pl' }, { id: 'b', nick: 'Bob', state: 'friend', status: 'game' },
+    { id: 'd', nick: 'Darek', state: 'friend', status: 'game' }];
+  const r2 = P.friendsStarted(r1.map, l2);
+  assert.deepStrictEqual(r2.started.map(f => f.nick), ['Ala', 'Darek'], 'Bob już grał; Darek to nowy znajomy w grze');
+  assert.deepStrictEqual(P.friendsStarted(r2.map, l2).started, [], 'bez powtórek');
+});
+
+test('newInvites: każde zaproszenie raz, ponowne zaproszenie (nowy czas) znowu', () => {
+  const i1 = [{ from_id: 'a', nick: 'Ala', server: 'play.mib.pl', version: '1.21.11', created_at: 't1' }];
+  const r1 = P.newInvites(new Set(), i1);
+  assert.deepStrictEqual(r1.fresh.map(i => i.nick), ['Ala']);
+  assert.deepStrictEqual(P.newInvites(r1.seen, i1).fresh, []);
+  assert.deepStrictEqual(P.newInvites(r1.seen, [{ ...i1[0], created_at: 't2' }]).fresh.length, 1);
+});
+
+test('friendNotice: krótkie teksty powiadomień po polsku i po angielsku', () => {
+  assert.deepEqual(P.friendNotice({ type: 'started', nick: 'Ala', version: '1.21.11', server: 'play.mib.pl' }), { title: 'Znajomy w grze', body: 'Ala gra teraz w Minecraft 1.21.11 na play.mib.pl.' });
+  assert.equal(P.friendNotice({ type: 'started', nick: 'Bob' }).body, 'Bob gra teraz w Minecraft.');
+  assert.deepEqual(P.friendNotice({ type: 'invite', nick: 'Ala', version: '1.21.11', server: 'play.mib.pl' }), { title: 'Zaproszenie do gry', body: 'Ala zaprasza Cię do gry na play.mib.pl (Minecraft 1.21.11).' });
+  assert.equal(P.friendNotice({ type: 'started', nick: 'Ala', version: '1.21.11', server: 'play.mib.pl' }, 'en').body, 'Ala is now playing Minecraft 1.21.11 on play.mib.pl.');
+  assert.equal(P.friendNotice({ type: 'invite', nick: 'Ala', version: '26.1', server: 'mc.x.pl' }, 'en').title, 'Game invite');
+});

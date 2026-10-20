@@ -335,3 +335,16 @@ test('most: zmiana serwera z status.json trafia do onStatus raz', async () => {
   await b.pollOnce();
   assert.deepStrictEqual(got, [null, 'play.mib.pl', null]);
 });
+
+test('most: powiadomienie o znajomym trafia do notice.json, każde z nowym id', () => {
+  const dir = path.join(tmp(), 'mib');
+  const b = m.createBridge({ dir, accounts: () => ({ list: [], active: null }), onSwitch: async () => {}, now: () => 777 });
+  b.notice({ type: 'invite', nick: 'Ala', version: '1.21.11', server: 'play.mib.pl' });
+  const a = JSON.parse(fs.readFileSync(path.join(dir, 'notice.json'), 'utf8'));
+  assert.deepStrictEqual(a, { id: '777-1', type: 'invite', nick: 'Ala', version: '1.21.11', server: 'play.mib.pl', at: 777 });
+  b.notice({ type: 'cokolwiek', nick: 'Bob' });
+  const c = JSON.parse(fs.readFileSync(path.join(dir, 'notice.json'), 'utf8'));
+  assert.deepStrictEqual(c, { id: '777-2', type: 'started', nick: 'Bob', version: null, server: null, at: 777 });
+  b.start(); b.stop();
+  assert.ok(!fs.existsSync(path.join(dir, 'notice.json')), 'stare powiadomienie znika przy starcie gry');
+});

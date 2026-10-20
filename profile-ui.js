@@ -37,6 +37,9 @@
     friend_exists: 'Ten gracz jest już Twoim znajomym albo czeka na zaproszenie.',
     friend_limit: 'Za dużo zaproszeń. Spróbuj jutro.',
     friend_missing: 'To zaproszenie jest już nieaktualne.',
+    invite_not_friend: 'Zaprosić do gry możesz tylko znajomego.',
+    invite_no_server: 'Najpierw wejdź w grze na serwer. Zaproszenie prowadzi na serwer, na którym grasz.',
+    invite_limit: 'Za dużo zaproszeń do gry. Spróbuj za godzinę.',
     skin_no_account: 'Zaloguj się kontem Microsoft (przycisk u góry), żeby zmienić skina.',
     skin_not_png: 'To nie jest plik PNG.',
     skin_size: 'Skin musi mieć 64×64 piksele (albo stary format 64×32).',
@@ -399,7 +402,7 @@
     const cape = tried ? null : on('cape'), wings = on('wings'), hat = on('hat');
     const back = cape ? { texture: cape.texture, kind: 'cape' } : wings ? { texture: wings.texture, kind: 'elytra' } : null;
     const r = await dress(skinViewer, { back, hat: hat ? hat.texture : null });
-    if (r) { skinCanvas.dataset.back = r.back; skinCanvas.dataset.hat = r.hat ? '1' : ''; }
+    if (r) { skinCanvas.dataset.back = r.back; skinCanvas.dataset.hat = r.hat ? '1' : ''; skinCanvas.dataset.frames = r.frames; }
   }
 
   async function renderCos() {
@@ -513,13 +516,16 @@
     const nav = document.querySelector('.nav[data-p="friends"]');
     let b = nav.querySelector('.cnt');
     if (!st.loggedIn) { if (b) b.hidden = true; return; }
-    const l = await mib.call('prof:friends');
+    const [l, inv] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites')]);
     if (!Array.isArray(l)) return;
-    const n = l.filter(f => f.state === 'incoming').length;
+    const n = l.filter(f => f.state === 'incoming').length + (Array.isArray(inv) ? inv.length : 0);
     if (!b) { b = h('em', { class: 'cnt' }); nav.append(b); }
     b.textContent = String(n); b.hidden = !n;
   }
   setInterval(() => { if (st.loggedIn) friendsBadge(); }, 2 * 60 * 1000);
+  // Launcher sprawdza znajomych co 30 s (main.js): nowe zaproszenie do gry albo kliknięte powiadomienie
+  mib.on('friends:changed', () => { if (!st.loggedIn) return; if ($('p-friends').classList.contains('on')) renderFriends(); else friendsBadge(); });
+  mib.on('friends:open', () => go('friends'));
   async function renderFriends() {
     const box = $('friends-box');
     clearTimeout(friendsTimer);
@@ -552,19 +558,33 @@
       ...buttons);
     async function load() {
       clearTimeout(friendsTimer);
-      const l = await mib.call('prof:friends');
+      const [l, inv, me] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites'), mib.call('prof:nowPlaying')]);
       if (!box.isConnected || !$('p-friends').classList.contains('on')) return;
       if (!Array.isArray(l)) return list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
+      const games = Array.isArray(inv) ? inv : [], here = me && me.server;
+      // Zaproś do gry: gdy grasz na serwerze, znajomych w launcherze albo w grze (nie tych na tym samym serwerze)
+      const canInvite = f => here && (f.status === 'launcher' || (f.status === 'game' && f.server !== here));
+      const invite = f => act('Zaproś do gry', 'ghost', async () => {
+        const r = await mib.call('prof:inviteFriend', { id: f.id });
+        if (!r.error) toast(T('Zaproszenie do gry wysłane do') + ' ' + f.nick + '.');
+        return r;
+      });
       const inc = l.filter(f => f.state === 'incoming'), out = l.filter(f => f.state === 'outgoing');
       const order = { game: 0, launcher: 1, offline: 2 };
       const fr = l.filter(f => f.state === 'friend').sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3) || a.nick.localeCompare(b.nick));
       const sec = (title, items) => items.length ? h('div', { class: 'sec' }, h('h3', {}, T(title) + ' (' + items.length + ')'), ...items) : null;
       list.replaceChildren(...[
+        sec('Zaproszenia do gry', games.map(i => h('div', { class: 'card frow st-game ginv' },
+          h('i', { class: 'dot', 'aria-hidden': 'true' }),
+          h('div', { class: 'fi' }, h('b', {}, i.nick), h('span', { class: 'mut' }, T('Zaprasza na') + ' ' + i.server + ' · ' + i.version)),
+          act('Dołącz', '', async () => { await mib.call('prof:inviteDismiss', { id: i.from_id }); window.mibJoin(i.version, i.server); }),
+          act('Odrzuć', 'ghost', () => mib.call('prof:inviteDismiss', { id: i.from_id }))))),
         sec('Zaproszenia do Ciebie', inc.map(f => row(f,
           act('Przyjmij', '', () => mib.call('prof:friendAnswer', { id: f.id, accept: true })),
           act('Odrzuć', 'ghost', () => mib.call('prof:friendAnswer', { id: f.id, accept: false }))))),
         fr.length ? sec('Twoi znajomi', fr.map(f => row(f,
-          f.status === 'game' && f.server && f.version ? act('Dołącz', '', async () => { window.mibJoin(f.version, f.server); }) : null,
+          f.status === 'game' && f.server && f.version && f.server !== here ? act('Dołącz', '', async () => { window.mibJoin(f.version, f.server); }) : null,
+          canInvite(f) ? invite(f) : null,
           act('Usuń', 'ghost', () => confirm(T('Usunąć') + ' ' + f.nick + ' ' + T('ze znajomych?')) ? mib.call('prof:friendRemove', { id: f.id }) : null))))
           : h('p', { class: 'empty' }, T('Nie masz jeszcze znajomych. Wpisz nick albo ID MiB kolegi i kliknij „Zaproś”.')),
         sec('Wysłane zaproszenia', out.map(f => row(f, act('Anuluj', 'ghost', () => mib.call('prof:friendRemove', { id: f.id }))))),

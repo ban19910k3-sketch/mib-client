@@ -8,7 +8,7 @@ const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
 const { diagnoseCrash } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
-const { pngInfo, validCapeSize } = require('./lib/profile');
+const { pngInfo, validCapeSize, friendsStarted, newInvites, friendNotice } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
 const { createMibPresence, helloMessage } = require('./lib/presence');
@@ -18,7 +18,7 @@ const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
 const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(jf(f), 'utf8')); } catch { return d; } };
 const wr = (f, v) => fs.writeFileSync(jf(f), JSON.stringify(v, null, 2));
-const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true, shareServer: true, perfMods: true });
+const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true, shareServer: true, perfMods: true, friendNotify: true });
 const logBuf = []; let logCount = 0;
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
 // Profil MiB (Supabase). Klucz publiczny — bezpieczny w launcherze; uprawnienia pilnuje baza.
@@ -60,6 +60,38 @@ app.on('before-quit', e => {
   leaving = true; e.preventDefault();
   Promise.race([prof.presenceLeave(), new Promise(r => setTimeout(r, 1500))]).finally(() => app.quit());
 });
+// Znajomi: powiadomienie Windows (i w grze z modem MiB), gdy znajomy zaczyna grać albo zaprasza do gry; co 30 s
+let friendsPrev = null, invitesSeen = null;
+const shown = new Set(); // powiadomienia trzymane do kliknięcia (bez tego Windows gubi kliknięcie)
+function friendPopup(n) {
+  const s = { ...defaults(), ...rd('settings.json', {}) }, t = friendNotice(n, s.lang);
+  if (bridge) { try { bridge.notice(n); } catch {} }
+  try {
+    if (!Notification.isSupported()) return;
+    const x = new Notification({ title: 'MiB Client — ' + t.title, body: t.body, icon: path.join(__dirname, 'icon.png') });
+    shown.add(x);
+    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); send('friends:open'); } });
+    x.on('close', () => shown.delete(x));
+    x.show();
+  } catch {}
+}
+async function watchFriends() {
+  if (({ ...defaults(), ...rd('settings.json', {}) }).friendNotify === false) { friendsPrev = null; invitesSeen = null; return; }
+  const l = await prof.friends();
+  if (!Array.isArray(l)) { friendsPrev = null; invitesSeen = null; return; } // bez profilu albo bez sieci: od nowa, bez zaległych powiadomień
+  const f = friendsStarted(friendsPrev, l), first = !invitesSeen;
+  friendsPrev = f.map;
+  for (const x of f.started) friendPopup({ type: 'started', nick: x.nick, version: x.version, server: x.server });
+  const inv = await prof.invites();
+  if (!Array.isArray(inv)) return;
+  const r = newInvites(invitesSeen, inv);
+  invitesSeen = r.seen;
+  // zaproszenia sprzed uruchomienia launchera (do 10 min) też się pokazują: są po to, żeby dołączyć
+  for (const i of r.fresh) friendPopup({ type: 'invite', nick: i.nick, version: i.version, server: i.server });
+  if (r.fresh.length || f.started.length || first) send('friends:changed');
+}
+setInterval(() => watchFriends().catch(() => {}), 30000);
+setTimeout(() => watchFriends().catch(() => {}), 8000);
 // Gracze MiB w grze: logo MiB przed nickiem i peleryny innych graczy MiB (lib/presence.js)
 const mibPresence = createMibPresence({ fetch: (...a) => fetch(...a), api: prof, randomBytes: crypto.randomBytes });
 const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); logCount++; if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };

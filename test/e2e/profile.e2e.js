@@ -149,15 +149,31 @@ function png(w, h, px) {
     await shot('skin.png');
     ok('(s) skin: wybór pliku, model postaci i ustawienie przez Mojanga');
 
-    // Założona peleryna widać na podglądzie skina
-    fake.cosmetics.cape_start.texture = 'data:image/png;base64,' + png(64, 32, (x, y) => (x < 22 && y < 17 ? [255, 210, 74, 255] : [0, 0, 0, 0])).toString('base64');
-    await w.click('.cosi .b');
-    await w.waitForFunction(() => document.getElementById('skin3d').dataset.back === 'cape');
+    // Przymiarka: klik w przedmiot pokazuje go na postaci bez zakładania (animowana peleryna: 2 klatki), czapka też;
+    // „Załóż” zakłada naprawdę, a po zdjęciu postać jest bez peleryny
+    fake.cosmetics.cape_start.texture = 'data:image/png;base64,' + png(64, 64, (x, y) => (x < 22 && y % 32 < 17 ? (y < 32 ? [255, 210, 74, 255] : [157, 78, 221, 255]) : [0, 0, 0, 0])).toString('base64');
+    fake.cosmetics.hat_mib = { id: 'hat_mib', name: 'Korona MiB', type: 'hat', image_url: null, texture: 'data:image/png;base64,' + png(64, 32, (x, y) => (y < 16 ? [255, 210, 74, 255] : [0, 0, 0, 0])).toString('base64') };
+    const tester = fake.st.users.find(u => u.nick === 'Tester_1');
+    fake.st.owned.push({ user: tester.id, cosmetic: 'hat_mib', at: new Date().toISOString() });
+    await w.click('.nav[data-p="home"]');
+    await w.click('.nav[data-p="cos"]');
+    await w.waitForSelector('.cosi[data-id="hat_mib"]');
+    await w.click('.cosi[data-id="cape_start"] b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.back === 'cape' && document.getElementById('skin3d').dataset.frames === '2');
+    assert.ok(await w.$('.cosi[data-id="cape_start"].try'), 'karta przymierzanej peleryny wyróżniona');
+    assert.deepEqual(tester.equipped || {}, {}, 'przymiarka niczego nie zakłada');
+    await w.click('.cosi[data-id="hat_mib"] b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.hat === '1');
     await w.waitForTimeout(1500);
-    await shot('skin-cape.png');
-    await w.click('.cosi .b');
+    await shot('skin-try.png');
+    await w.click('.cosi[data-id="cape_start"] .b');
+    await w.waitForFunction(() => /Założona/.test(document.querySelector('.cosi[data-id="cape_start"]').textContent));
+    assert.deepEqual(tester.equipped, { cape: 'cape_start' });
+    assert.equal(await w.$('.cosi[data-id="cape_start"].try'), null, 'po założeniu już bez przymiarki');
+    await w.click('.cosi[data-id="cape_start"] .b');
+    await w.waitForFunction(() => document.querySelector('.cosi[data-id="cape_start"] .b').textContent === 'Załóż');
     await w.waitForFunction(() => document.getElementById('skin3d').dataset.back === '');
-    ok('(t) założona peleryna na podglądzie skina, po zdjęciu znika');
+    ok('(t) przymiarka peleryny (animowanej) i czapki na podglądzie skina, Załóż i Zdejmij');
 
     // Znajomi: zaproszenie po nicku, zaproszenie od kogoś innego, znajomy w grze z serwerem
     const now = new Date().toISOString();
@@ -186,6 +202,20 @@ function png(w, h, px) {
     await w.waitForTimeout(300);
     await shot('friends.png');
     ok('(r) znajomi: zaproszenia, przyjęcie, znajomy w grze z serwerem i przyciskiem Dołącz');
+
+    // Zaproszenie do gry od znajomego: sekcja na górze, licznik, Odrzuć
+    assert.equal(await w.$('#fr-list button:has-text("Zaproś do gry")'), null, 'bez gry na serwerze nie ma „Zaproś do gry”');
+    fake.st.invites.push({ from: kolega.id, to: me.id, server: 'play.mib.pl', version: '1.21.11', at: Date.now() });
+    await w.click('.nav[data-p="friends"]');
+    await w.waitForFunction(() => /Zaproszenia do gry \(1\)/.test(document.getElementById('fr-list').textContent));
+    assert.match(await w.textContent('#fr-list .ginv'), /Kolega.*Zaprasza na play\.mib\.pl · 1\.21\.11.*Dołącz.*Odrzuć/);
+    await w.waitForFunction(() => document.querySelector('.nav[data-p="friends"] .cnt').textContent === '1');
+    await shot('friends-invite.png');
+    await w.click('#fr-list .ginv button:has-text("Odrzuć")');
+    await w.waitForFunction(() => !document.querySelector('#fr-list .ginv'));
+    assert.equal(fake.st.invites.length, 0, 'odrzucone zaproszenie znika z bazy');
+    await w.waitForFunction(() => document.querySelector('.nav[data-p="friends"] .cnt').hidden);
+    ok('(v) zaproszenie do gry od znajomego: sekcja, licznik i Odrzuć');
 
     await w.click('.nav[data-p="prof"]');
     await w.waitForSelector('#p-prof.on .phead');
@@ -264,6 +294,7 @@ function png(w, h, px) {
     await w.waitForFunction(() => (document.querySelector('#ak-out pre') || {}).textContent?.split('\n').length === 2);
     await w.click('[data-tab="stats"]');
     await w.waitForFunction(() => /Profile MiB/.test(document.getElementById('admin-tab').textContent));
+    assert.match(await w.textContent('#as-now'), /W grze \(profile MiB\).*W launcherze.*play\.mib\.pl2 graczy.*1\.21\.11/s, '„Teraz”: liczniki, serwery i wersje');
     await shot('admin-stats.png');
     await w.click('[data-tab="players"]');
     await w.waitForFunction(() => /Tester_1/.test(document.getElementById('ap-res').textContent));

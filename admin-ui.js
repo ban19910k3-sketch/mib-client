@@ -277,6 +277,12 @@
     if (failed(r)) return box.append(h('p', { class: 'err' }, err(r)));
     const row = (l, v) => h('div', { class: 'sr' }, h('span', {}, l), h('b', {}, String(v)));
     const tile = (l, v) => h('div', { class: 'stat' }, h('b', {}, String(v)), h('span', {}, l));
+    const list = (l, key, empty) => l && l.length ? l.map(x => row(x[key], x.players + (x.players === 1 ? ' gracz' : ' graczy'))) : [h('p', { class: 'empty' }, empty)];
+    box.append(h('div', { class: 'sec', id: 'as-now' }, h('h3', {}, 'Teraz'), h('div', { class: 'stats' },
+      tile('W grze (profile MiB)', r.nowGame || 0), tile('W launcherze', r.nowLauncher || 0), tile('W grze z modem MiB (też bez profilu)', r.nowMod || 0)),
+      h('p', { class: 'mut' }, 'Najpopularniejsze serwery (tylko gracze, którzy pokazują serwer znajomym) i wersje gry teraz:'),
+      ...list(r.nowServers, 'server', 'Nikt nie gra teraz na serwerze.'), ...list(r.nowVersions, 'version', 'Nikt nie gra teraz.'),
+      h('div', { class: 'row' }, h('button', { class: 'b ghost', type: 'button', on: { click: () => { box.replaceChildren(); viewStats(box); } } }, 'Odśwież'))));
     box.append(h('div', { class: 'sec' }, h('h3', {}, 'Gracze'), h('div', { class: 'stats' },
       tile('Profile MiB', r.profiles), tile('Nowe w ostatnich 7 dniach', r.new7), tile('Grali w ostatnich 7 dniach', r.active7), tile('Wolne miejsca Założyciela', r.foundersLeft))),
     h('div', { class: 'sec' }, h('h3', {}, 'Kosmetyki'), h('div', { class: 'stats' }, tile('Przedmioty w katalogu', r.cosmetics), tile('Przedmioty u graczy', r.owned))),

@@ -287,6 +287,7 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .frow .dot{width:10px;height:10px;flex:none;background:var(--edge2)}
 .frow.st-game .dot{background:#4ade80;box-shadow:0 0 8px rgba(74,222,128,.6)}.frow.st-launcher .dot{background:var(--am)}
 .frow.st-game .fi span{color:#86efac}
+.frow.ginv{background:linear-gradient(90deg,rgba(168,85,247,.22),rgba(168,85,247,.04) 70%)}
 #fr-who{max-width:320px}
 
 /* ===== Skin ===== */

@@ -16,7 +16,7 @@ import java.util.Map;
  * accounts.json (launcher -> mod: konta bez tokenów), switch-request.json (mod -> launcher),
  * switch-result.json (launcher -> mod, tylko gdy zmiana konta się nie udała), kosmetyki (cosmetics.json,
  * cosmetic-request.json, cosmetic-result.json) i gracze MiB na serwerze (players-request.json od moda,
- * players.json i capes/ID.png od launchera).
+ * players.json i capes/ID.png od launchera), status.json (serwer dla znajomych) i notice.json (powiadomienie o znajomym).
  */
 public final class LauncherBridge {
 	private final File dir;
@@ -144,7 +144,6 @@ public final class LauncherBridge {
 		write("cosmetic-request.json", m);
 	}
 
-	/** Prośba do launchera: skopiuj ten zrzut ekranu do schowka (moduł Screenshot). */
 	/** Znajomi: serwer, na którym gracz właśnie gra (null = świat jednoosobowy); co kilka sekund, póki gracz jest w świecie. */
 	public void writeStatus(String server, long now) {
 		Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -153,11 +152,30 @@ public final class LauncherBridge {
 		write("status.json", m);
 	}
 
+	/** Prośba do launchera: skopiuj ten zrzut ekranu do schowka (moduł Screenshot). */
 	public void requestScreenshotCopy(String path) {
 		Map<String, Object> m = new LinkedHashMap<String, Object>();
 		m.put("path", path);
 		m.put("at", System.currentTimeMillis());
 		write("screenshot-request.json", m);
+	}
+
+	private byte[] noticeBytes;
+	private Notice noticeParsed;
+
+	/** Powiadomienie o znajomym z notice.json albo null (plik parsowany tylko po zmianie). */
+	public Notice notice() {
+		byte[] b;
+		try {
+			File f = new File(dir, "notice.json");
+			b = f.isFile() ? Files.readAllBytes(f.toPath()) : null;
+		} catch (IOException e) {
+			b = null;
+		}
+		if (java.util.Arrays.equals(b, noticeBytes)) return noticeParsed;
+		noticeBytes = b;
+		noticeParsed = b == null ? null : Notice.parse(new String(b, StandardCharsets.UTF_8));
+		return noticeParsed;
 	}
 
 	/** Komunikat o nieudanej zmianie kosmetyku zapisany później niż sinceMs albo null. */

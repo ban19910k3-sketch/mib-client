@@ -47,6 +47,7 @@ import pl.mibclient.mod.core.LauncherBridge;
 import pl.mibclient.mod.core.MenuActions;
 import pl.mibclient.mod.core.ModuleCatalog;
 import pl.mibclient.mod.core.ModuleDef;
+import pl.mibclient.mod.core.Notice;
 import pl.mibclient.mod.core.ModuleManager;
 import pl.mibclient.mod.core.ModuleState;
 import pl.mibclient.mod.core.ServerRules;
@@ -120,6 +121,9 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	private ServerData lastServer;
 	private Button reconnectButton;
 	private long reconnectAt;
+	/** Powiadomienia od launchera (znajomy gra albo zaprasza), notice.json czytany co sekundę. */
+	private final Notice.Board notices = new Notice.Board();
+	private long noticeReadAt;
 	private final SmokeTest smoke = System.getProperty("mib.smoketest") != null ? new SmokeTest() : null;
 
 	@Override
@@ -271,6 +275,11 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		tickCameraModes(c);
 		tickDeath(c);
 		tickReconnect(c);
+		long now = System.currentTimeMillis();
+		if (bridge != null && now - noticeReadAt >= 1000) {
+			noticeReadAt = now;
+			notices.offer(bridge.notice(), now);
+		}
 		if (smoke != null) smoke.tick(c);
 	}
 
@@ -278,16 +287,27 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		Minecraft c = Minecraft.getInstance();
 		Screen screen = Input.screen(c);
 		if (screen instanceof HudEditorScreen) return;
+		FabricCanvas canvas = new FabricCanvas(g, c.font);
 		// Autohide HUD: bez HUD MiB pod ekwipunkiem i innymi menu (czat tylko z opcją)
 		if (screen != null && modules.isOn("autohide_hud")
 				&& (!(screen instanceof net.minecraft.client.gui.screens.ChatScreen) || boolOpt("autohide_hud", "chat"))) {
 			hooks.add("autohide");
-			return;
+		} else {
+			extras.render(g, canvas, c);
+			hud.render(canvas, info, g.guiWidth(), g.guiHeight(), null, false);
+			hud.overlay(canvas, info, g.guiWidth(), g.guiHeight());
 		}
-		FabricCanvas canvas = new FabricCanvas(g, c.font);
-		extras.render(g, canvas, c);
-		hud.render(canvas, info, g.guiWidth(), g.guiHeight(), null, false);
-		hud.overlay(canvas, info, g.guiWidth(), g.guiHeight());
+		// powiadomienie o znajomym nad HUD
+		long now = System.currentTimeMillis();
+		if (notices.current(now) != null) {
+			notices.render(canvas, g.guiWidth(), now);
+			hooks.add("notice");
+		}
+	}
+
+	/** Powiadomienie w rogu ekranu (z launchera przez notice.json; test gry podaje je wprost). */
+	public void showNotice(Notice n) {
+		notices.offer(n, System.currentTimeMillis());
 	}
 
 	/** Napis nad paskiem przedmiotów (jak komunikaty gry). */

@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 function createFake() {
-  const st = { friends: [], presence: {}, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { friends: [], presence: {}, invites: [], ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -89,7 +89,7 @@ function createFake() {
               st.ann = [...st.ann.filter(x => x.id !== a.id), a]; return a.id;
             },
             admin_delete_announcement: () => { st.ann = st.ann.filter(x => x.id !== body.p_id); return null; },
-            admin_stats: () => ({ profiles: st.users.length, new7: st.users.length, active7: 0, foundersLeft: 1000 - st.num, cosmetics: Object.keys(cosmetics).length, owned: st.owned.length, versions: [] }),
+            admin_stats: () => ({ profiles: st.users.length, new7: st.users.length, active7: 0, foundersLeft: 1000 - st.num, cosmetics: Object.keys(cosmetics).length, owned: st.owned.length, versions: [], nowGame: 2, nowLauncher: 1, nowMod: 3, nowServers: [{ server: 'play.mib.pl', players: 2 }], nowVersions: [{ version: '1.21.11', players: 2 }] }),
             admin_create_codes: () => Array.from({ length: body.p_count }, (_, i) => { const c = 'MIB-TEST-' + String(Object.keys(st.codes).length + 1).padStart(4, '0'); st.codes[c] = { cosmetic: body.p_cosmetic, max: body.p_max_uses, used: 0 }; return c; }),
             admin_list_codes: () => Object.entries(st.codes).map(([code, c]) => ({ code, cosmetic_id: c.cosmetic, cosmetic_name: cosmetics[c.cosmetic].name, used_count: c.used, max_uses: c.max, expires_at: null, created_at: new Date().toISOString() })),
             admin_delete_code: () => { delete st.codes[body.p_code]; return null; },
@@ -123,7 +123,7 @@ function createFake() {
           return json(res, 200, user.equipped);
         }
         // Znajomi: tak jak friend_* i friends_list w schema.sql (bez limitów)
-        if (fn.startsWith('friend') || fn.startsWith('presence')) {
+        if (fn.startsWith('friend') || fn.startsWith('presence') || fn.startsWith('game_invite')) {
           const err = m => json(res, 400, { code: 'P0001', message: m });
           const pair = (a, b) => st.friends.find(f => (f.from === a && f.to === b) || (f.from === b && f.to === a));
           if (fn === 'friend_request') {
@@ -156,6 +156,21 @@ function createFake() {
           }
           if (fn === 'presence_ping') { st.presence[user.id] = { at: Date.now(), playing: !!body.p_playing, version: body.p_version, server: body.p_playing ? body.p_server : null }; return json(res, 204); }
           if (fn === 'presence_leave') { delete st.presence[user.id]; return json(res, 204); }
+          // Zaproszenia do gry: tak jak game_invite* w schema.sql (bez limitu)
+          if (fn === 'game_invite') {
+            const f = pair(user.id, body.p_user);
+            if (!f || !f.accepted) return err('invite_not_friend');
+            const pr = st.presence[user.id];
+            if (!pr || !pr.playing || !pr.server || Date.now() - pr.at > 5 * 60000) return err('invite_no_server');
+            st.invites = st.invites.filter(i => !(i.from === user.id && i.to === body.p_user));
+            st.invites.push({ from: user.id, to: body.p_user, server: pr.server, version: pr.version, at: Date.now() });
+            return json(res, 200, { server: pr.server, version: pr.version });
+          }
+          if (fn === 'game_invites_list') {
+            return json(res, 200, st.invites.filter(i => i.to === user.id && Date.now() - i.at < 10 * 60000 && pair(i.from, i.to)?.accepted).map(i => ({
+              from_id: i.from, nick: st.users.find(u => u.id === i.from).nick, server: i.server, version: i.version, created_at: new Date(i.at).toISOString() })));
+          }
+          if (fn === 'game_invite_dismiss') { st.invites = st.invites.filter(i => !(i.to === user.id && i.from === body.p_from)); return json(res, 204); }
         }
         if (fn === 'delete_my_profile') { st.users = st.users.filter(u => u.id !== user.id); return json(res, 204); }
         return json(res, 404, { message: 'no function ' + fn });

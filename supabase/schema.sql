@@ -548,6 +548,59 @@ language sql security definer set search_path = '' as $$
   delete from private.presence where user_id = (select auth.uid());
 $$;
 
+-- Zaproszenie znajomego do gry (od 0.16.0): na serwer, na którym zapraszający gra teraz (z jego obecności, więc tylko
+-- gdy pokazuje serwer znajomym). Jedno zaproszenie na parę; ponowne je odświeża. Zaproszenie widać przez 10 minut.
+create table if not exists private.game_invites (
+  from_id uuid not null references public.profiles (id) on delete cascade,
+  to_id uuid not null references public.profiles (id) on delete cascade,
+  server text not null,
+  version text not null,
+  created_at timestamptz not null default now(),
+  primary key (from_id, to_id)
+);
+create index if not exists game_invites_to on private.game_invites (to_id, created_at);
+
+create or replace function public.game_invite(p_user uuid) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_server text;
+  v_version text;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if not exists (select 1 from private.friends where accepted
+                 and ((from_id = v_me and to_id = p_user) or (from_id = p_user and to_id = v_me))) then
+    raise exception 'invite_not_friend';
+  end if;
+  select server, version into v_server, v_version from private.presence
+    where user_id = v_me and playing and seen_at > now() - interval '5 minutes';
+  if v_server is null or v_version is null then raise exception 'invite_no_server'; end if;
+  if (select count(*) from private.game_invites where from_id = v_me and created_at > now() - interval '1 hour') >= 30 then
+    raise exception 'invite_limit';
+  end if;
+  insert into private.game_invites (from_id, to_id, server, version) values (v_me, p_user, v_server, v_version)
+    on conflict (from_id, to_id) do update set server = excluded.server, version = excluded.version, created_at = now();
+  return json_build_object('server', v_server, 'version', v_version);
+end $$;
+
+-- Zaproszenia do mnie z ostatnich 10 minut (tylko od obecnych znajomych)
+create or replace function public.game_invites_list()
+returns table (from_id uuid, nick text, server text, version text, created_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select i.from_id, p.nick, i.server, i.version, i.created_at
+  from private.game_invites i join public.profiles p on p.id = i.from_id
+  where i.to_id = (select auth.uid()) and i.created_at > now() - interval '10 minutes'
+    and exists (select 1 from private.friends f where f.accepted
+                and ((f.from_id = i.from_id and f.to_id = i.to_id) or (f.from_id = i.to_id and f.to_id = i.from_id)))
+  order by i.created_at desc;
+$$;
+
+-- Zaproszenie przyjęte albo odrzucone: znika
+create or replace function public.game_invite_dismiss(p_from uuid) returns void
+language sql security definer set search_path = '' as $$
+  delete from private.game_invites where to_id = (select auth.uid()) and from_id = p_from;
+$$;
+
 -- ===== Panel admina =====
 -- Admin jest zapisany jako konto (nie numer MIB): przy pierwszym uruchomieniu tego pliku zostaje nim profil MIB-000002.
 -- Późniejsze uruchomienia niczego tu nie zmieniają, nawet gdy numeracja zostanie wyzerowana.
@@ -597,6 +650,17 @@ begin
     'foundersLeft', greatest(0, 1000 - coalesce(pg_sequence_last_value('public.profiles_num_seq'::regclass), 0)),
     'cosmetics', (select count(*) from public.cosmetics),
     'owned', (select count(*) from public.owned_cosmetics),
+    -- teraz (od 0.16.0): profile MiB w grze i w launcherze (sygnał w ostatnich 5 minutach), konta w grze z modem MiB
+    -- (10 minut, też bez profilu) oraz zbiorczo najpopularniejsze serwery (tylko udostępniane znajomym) i wersje
+    'nowGame', (select count(*) from private.presence where seen_at > now() - interval '5 minutes' and playing),
+    'nowLauncher', (select count(*) from private.presence where seen_at > now() - interval '5 minutes' and not playing),
+    'nowMod', (select count(*) from private.mib_players where seen_at > now() - interval '10 minutes'),
+    'nowServers', (select coalesce(json_agg(x), '[]'::json) from (
+      select server, count(*) as players from private.presence
+      where seen_at > now() - interval '5 minutes' and playing and server is not null group by server order by 2 desc, 1 limit 5) x),
+    'nowVersions', (select coalesce(json_agg(x), '[]'::json) from (
+      select version, count(*) as players from private.presence
+      where seen_at > now() - interval '5 minutes' and playing and version is not null group by version order by 2 desc, 1 limit 5) x),
     'versions', (select coalesce(json_agg(v), '[]'::json) from (
       select key as version, sum((value ->> 'min')::integer) as min, sum((value ->> 'runs')::integer) as runs
       from public.profiles, jsonb_each(version_stats) group by key order by 2 desc limit 5) v));
@@ -816,6 +880,12 @@ grant execute on function public.friend_remove(uuid) to authenticated;
 grant execute on function public.friends_list() to authenticated;
 grant execute on function public.presence_ping(boolean, text, text) to authenticated;
 grant execute on function public.presence_leave() to authenticated;
+revoke all on function public.game_invite(uuid) from public, anon;
+revoke all on function public.game_invites_list() from public, anon;
+revoke all on function public.game_invite_dismiss(uuid) from public, anon;
+grant execute on function public.game_invite(uuid) to authenticated;
+grant execute on function public.game_invites_list() to authenticated;
+grant execute on function public.game_invite_dismiss(uuid) to authenticated;
 
 -- panel admina: wywołać może każdy zalogowany, ale każda funkcja sama sprawdza, czy to admin
 revoke all on function private.need_admin() from public, anon, authenticated;
