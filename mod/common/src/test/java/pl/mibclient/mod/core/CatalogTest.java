@@ -48,7 +48,7 @@ class CatalogTest {
 	void defaultsOn() {
 		Set<String> on = new HashSet<String>();
 		for (ModuleDef m : ModuleCatalog.ALL) if (m.defaultOn) on.add(m.id);
-		assertEquals(new HashSet<String>(Arrays.asList("fps", "cps", "keystrokes", "zoom", "reconnect", "item_info")), on);
+		assertEquals(new HashSet<String>(Arrays.asList("fps", "cps", "keystrokes", "zoom", "reconnect", "item_info", "tablist")), on);
 	}
 
 	@Test
