@@ -295,6 +295,27 @@ function png(w, h, px) {
     await shot('prof-offline.png');
     ok('(e) bez serwera: komunikat, GRAJ dalej aktywny');
 
+    // Usunięcie aktywnego konta Minecraft = wylogowanie z launchera: także z profilu MiB, a okno logowania Microsoftu
+    // zapomina zapisane konta (ciasteczka Microsoftu znikają, inne zostają)
+    const userData = await app.evaluate(({ app }) => app.getPath('userData'));
+    fs.writeFileSync(path.join(userData, 'accounts.json'), JSON.stringify({ active: 'acc1', list: [{ id: 'acc1', name: 'Gracz_MS', t: 'x' }] }));
+    await app.evaluate(async ({ session }) => {
+      const exp = Date.now() / 1000 + 3600;
+      await session.defaultSession.cookies.set({ url: 'https://login.live.com/', name: 'MSPAuth', value: '1', expirationDate: exp });
+      await session.defaultSession.cookies.set({ url: 'https://example.com/', name: 'keep', value: '1', expirationDate: exp });
+      await session.fromPartition('persist:mslogin').cookies.set({ url: 'https://login.microsoftonline.com/', name: 'ESTSAUTH', value: '1', expirationDate: exp });
+    });
+    w.once('dialog', d => d.accept());
+    await w.click('#accname');
+    await w.click('#accmenu .ai[data-id="acc1"] .rm');
+    await w.waitForFunction(() => document.getElementById('plname').textContent === 'Załóż profil MiB');
+    const left = await app.evaluate(async ({ session }) => ({ def: (await session.defaultSession.cookies.get({})).map(c => c.name),
+      ms: (await session.fromPartition('persist:mslogin').cookies.get({})).length }));
+    assert.deepEqual(left.def.filter(n => n === 'MSPAuth' || n === 'keep'), ['keep'], 'ciasteczko Microsoftu usunięte, inne zostaje');
+    assert.equal(left.ms, 0, 'sesja okna logowania Microsoftu wyczyszczona');
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(userData, 'accounts.json'), 'utf8')), { active: null, list: [] });
+    ok('(u) usunięcie aktywnego konta: wylogowanie z profilu MiB i zapomniane konta w oknie Microsoftu');
+
     assert.deepEqual(errors, []);
     ok('brak błędów JavaScript na stronie');
     console.log('ALL E2E PASSED, zrzuty w', OUT);

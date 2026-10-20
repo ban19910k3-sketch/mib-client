@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage, dialog, screen, clipboard, nativeImage, Notification, utilityProcess } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, dialog, screen, clipboard, nativeImage, Notification, utilityProcess, session } = require('electron');
 const { spawn } = require('child_process'), crypto = require('crypto');
 const path = require('path'), fs = require('fs');
 const { Client } = require('minecraft-launcher-core');
@@ -113,9 +113,27 @@ async function switchAccount(id) {
   const rec = accLoad().list.find(x => x.id === id); if (!rec) throw new Error('brak konta');
   return profile(await new Auth('select_account').refresh(safeStorage.decryptString(Buffer.from(rec.t, 'base64'))));
 }
+// Okno logowania Microsoftu ma osobną sesję przeglądarki: po usunięciu konta z launchera da się ją wyczyścić,
+// żeby Microsoft nie podpowiadał już zapisanego konta („Pick an account”)
+const MS_LOGIN = 'persist:mslogin';
+const MS_DOMAIN = /(^|\.)(live\.com|live\.net|microsoft\.com|microsoftonline\.com|xboxlive\.com|msauth\.net|msftauth\.net)$/i;
+async function clearMsLogin() {
+  try { await session.fromPartition(MS_LOGIN).clearStorageData(); } catch {}
+  // logowania sprzed osobnej sesji zostały w domyślnej sesji launchera: stamtąd tylko ciasteczka i dane Microsoftu
+  const def = session.defaultSession;
+  let cookies = []; try { cookies = await def.cookies.get({}); } catch {}
+  for (const c of cookies) {
+    const host = String(c.domain || '').replace(/^\./, '');
+    if (!MS_DOMAIN.test(host)) continue;
+    try { await def.cookies.remove((c.secure ? 'https://' : 'http://') + host + (c.path || '/'), c.name); } catch {}
+  }
+  for (const origin of ['https://login.live.com', 'https://login.microsoftonline.com', 'https://account.live.com']) {
+    try { await def.clearStorageData({ origin, storages: ['localstorage', 'indexdb', 'serviceworkers', 'cachestorage'] }); } catch {}
+  }
+}
 ipcMain.handle('login', async () => {
   const mgr = new Auth('select_account');
-  return profile(await mgr.launch('electron'));
+  return profile(await mgr.launch('electron', { width: 500, height: 650, resizable: false, title: 'Sign in to Minecraft', webPreferences: { partition: MS_LOGIN } }));
 });
 ipcMain.handle('restore', async () => {
   try {
@@ -127,7 +145,15 @@ ipcMain.handle('restore', async () => {
 ipcMain.handle('logout', () => { auth = null; return true; });
 ipcMain.handle('accounts:list', () => { const a = accLoad(); return a.list.map(x => ({ id: x.id, name: x.name, active: x.id === a.active })); });
 ipcMain.handle('accounts:switch', async (_, id) => { try { return await switchAccount(id); } catch { return { error: 'Sesja wygasła — dodaj to konto ponownie.' }; } });
-ipcMain.handle('accounts:remove', (_, id) => { const a = accLoad(); a.list = a.list.filter(x => x.id !== id); if (a.active === id) { a.active = null; auth = null; } accSave(a); return true; });
+// Usunięcie konta: okno logowania Microsoftu zapomina zapisane konta; usunięcie aktywnego konta (wylogowanie z launchera)
+// wylogowuje też z profilu MiB
+ipcMain.handle('accounts:remove', async (_, id) => {
+  const a = accLoad(), wasActive = a.active === id;
+  a.list = a.list.filter(x => x.id !== id); if (wasActive) { a.active = null; auth = null; } accSave(a);
+  await clearMsLogin();
+  if (wasActive) { try { await prof.logout(); } catch {} }
+  return { mibLoggedOut: wasActive };
+});
 // Zmiana konta z menu w grze: Minecraft nie pozwala zmienić sesji w trakcie gry, więc gra jest zamykana i uruchamiana ponownie na nowym koncie
 async function relaunchWithAccount(id) {
   const pid = gamePid;

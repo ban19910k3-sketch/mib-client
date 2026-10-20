@@ -535,7 +535,7 @@
     document.body.append(o);
     setTimeout(() => { if (o.isConnected) close(); }, 2200);
   };
-  window.mibProfileUI = { modsShown, refresh };
+  window.mibProfileUI = { modsShown, refresh, get loggedIn() { return !!(st.loggedIn || st.offline); } };
   window.mibUI = { h, msg, fmtDate, capeThumb };
   sidebar();
   render();
