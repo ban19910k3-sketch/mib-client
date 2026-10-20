@@ -16,7 +16,8 @@ import java.util.Map;
  * accounts.json (launcher -> mod: konta bez tokenów), switch-request.json (mod -> launcher),
  * switch-result.json (launcher -> mod, tylko gdy zmiana konta się nie udała), kosmetyki (cosmetics.json,
  * cosmetic-request.json, cosmetic-result.json) i gracze MiB na serwerze (players-request.json od moda,
- * players.json i capes/ID.png od launchera), status.json (serwer dla znajomych) i notice.json (powiadomienie o znajomym).
+ * players.json i capes/ID.png od launchera), status.json (serwer dla znajomych), notice.json (powiadomienie o znajomym) i rozmowy
+ * ze znajomymi (friends.json i chat.json od launchera, chat-request.json i chat-send.json od moda, chat-result.json przy błędzie).
  */
 public final class LauncherBridge {
 	private final File dir;
@@ -176,6 +177,61 @@ public final class LauncherBridge {
 		noticeBytes = b;
 		noticeParsed = b == null ? null : Notice.parse(new String(b, StandardCharsets.UTF_8));
 		return noticeParsed;
+	}
+
+	private byte[] friendsBytes, chatBytes;
+	private Friends friendsParsed;
+	private Friends.Chat chatParsed;
+
+	private byte[] bytes(String name) {
+		try {
+			File f = new File(dir, name);
+			return f.isFile() ? Files.readAllBytes(f.toPath()) : null;
+		} catch (IOException e) {
+			return null;
+		}
+	}
+
+	/** Znajomi z friends.json albo null, gdy launcher jeszcze ich nie zapisał (plik parsowany tylko po zmianie). */
+	public Friends friends() {
+		byte[] b = bytes("friends.json");
+		if (java.util.Arrays.equals(b, friendsBytes)) return friendsParsed;
+		friendsBytes = b;
+		friendsParsed = b == null ? null : Friends.parse(new String(b, StandardCharsets.UTF_8));
+		return friendsParsed;
+	}
+
+	/** Rozmowa z chat.json (ta, o którą prosił requestChat) albo null. */
+	public Friends.Chat chat() {
+		byte[] b = bytes("chat.json");
+		if (java.util.Arrays.equals(b, chatBytes)) return chatParsed;
+		chatBytes = b;
+		chatParsed = b == null ? null : Friends.parseChat(new String(b, StandardCharsets.UTF_8));
+		return chatParsed;
+	}
+
+	/** Rozmowa z tym znajomym jest otwarta w menu: launcher odświeża chat.json, póki prośba jest świeża (co kilka sekund). */
+	public void requestChat(String friendId, long now) {
+		Map<String, Object> m = new LinkedHashMap<String, Object>();
+		m.put("with", friendId);
+		m.put("at", now);
+		write("chat-request.json", m);
+	}
+
+	/** Wiadomość do wysłania przez launcher; false, gdy launcher nie odebrał jeszcze poprzedniej (spróbuj później). */
+	public boolean requestSend(String friendId, String body, long now) {
+		if (new File(dir, "chat-send.json").exists()) return false;
+		Map<String, Object> m = new LinkedHashMap<String, Object>();
+		m.put("to", friendId);
+		m.put("body", body);
+		m.put("at", now);
+		write("chat-send.json", m);
+		return true;
+	}
+
+	/** Kod błędu po nieudanym wysłaniu wiadomości (np. message_limit) zapisany później niż sinceMs albo null. */
+	public String chatFailure(long sinceMs) {
+		return failureIn("chat-result.json", sinceMs);
 	}
 
 	/** Komunikat o nieudanej zmianie kosmetyku zapisany później niż sinceMs albo null. */

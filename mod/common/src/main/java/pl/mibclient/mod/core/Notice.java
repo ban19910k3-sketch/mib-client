@@ -3,22 +3,28 @@ package pl.mibclient.mod.core;
 import java.util.Map;
 
 /**
- * Powiadomienie od launchera (notice.json): znajomy z MiB zaczął grać albo zaprasza na swój serwer.
+ * Powiadomienie od launchera (notice.json): znajomy z MiB zaczął grać, zaprasza na swój serwer albo napisał wiadomość.
  * Board pokazuje je w prawym górnym rogu przez SHOW_MS (wsuwa się z boku); nowe zastępuje poprzednie.
  */
 public final class Notice {
 	public static final long SHOW_MS = 7000, MAX_AGE_MS = 60000, SLIDE_MS = 250;
 	private static final int W = 190, PAD = 5, ICON = 12, GAP = 6, MARGIN = 4;
 
-	public final String id, type, nick, version, server;
+	public final String id, type, nick, version, server, text;
 	public final long at;
 
 	public Notice(String id, String type, String nick, String version, String server, long at) {
+		this(id, type, nick, version, server, null, at);
+	}
+
+	/** type: "started", "invite" (z serwerem i wersją) albo "message" (text = treść wiadomości). */
+	public Notice(String id, String type, String nick, String version, String server, String text, long at) {
 		this.id = id;
-		this.type = "invite".equals(type) ? "invite" : "started";
+		this.type = "invite".equals(type) || "message".equals(type) ? type : "started";
 		this.nick = nick;
 		this.version = version;
 		this.server = server;
+		this.text = text;
 		this.at = at;
 	}
 
@@ -35,10 +41,11 @@ public final class Notice {
 		if (!(m.get("id") instanceof String) || !(m.get("nick") instanceof String) || !(m.get("at") instanceof Number)) return null;
 		String nick = ((String) m.get("nick")).trim();
 		if (nick.isEmpty()) return null;
-		boolean invite = "invite".equals(m.get("type"));
-		String server = str(m.get("server")), version = str(m.get("version"));
-		if (invite && server == null) return null;
-		return new Notice((String) m.get("id"), invite ? "invite" : "started", nick, version, server, ((Number) m.get("at")).longValue());
+		Object type = m.get("type");
+		String server = str(m.get("server")), version = str(m.get("version")), text = str(m.get("text"));
+		if ("invite".equals(type) && server == null || "message".equals(type) && text == null) return null;
+		return new Notice((String) m.get("id"), type instanceof String ? (String) type : "started", nick, version, server, text,
+				((Number) m.get("at")).longValue());
 	}
 
 	private static String str(Object o) {
@@ -49,11 +56,17 @@ public final class Notice {
 		return "invite".equals(type);
 	}
 
+	public boolean message() {
+		return "message".equals(type);
+	}
+
 	public String title() {
+		if (message()) return Lang.t("notice.message", nick);
 		return Lang.t(invite() ? "notice.invite" : "notice.started");
 	}
 
 	public String body() {
+		if (message()) return text + " " + Lang.t("notice.message.reply");
 		if (invite()) return Lang.t("notice.invite.body", nick, server, version == null ? "?" : version);
 		String s = Lang.t("notice.started.body", nick);
 		if (version != null) s += " " + version;
@@ -94,7 +107,7 @@ public final class Notice {
 			int x = sw - MARGIN - w + (int) Math.round((1 - p) * (w + MARGIN)), y = MARGIN;
 			Shapes.panel(c, x, y, w, h, Theme.SLAB, Theme.AM);
 			c.fill(x + 1, y + 2, x + 3, y + h - 2, Theme.AM);
-			Shapes.icon(c, n.invite() ? "server" : "user", x + PAD + 1, y + PAD - 1, Theme.AM_HI);
+			Shapes.icon(c, n.invite() ? "server" : n.message() ? "message" : "user", x + PAD + 1, y + PAD - 1, Theme.AM_HI);
 			c.text(Shapes.ellipsize(c, n.title(), w - tx - PAD, false), x + tx, y + PAD, Theme.AM_HI, false);
 			for (int i = 0; i < lines.length; i++) c.text(lines[i], x + tx, y + PAD + lh + 3 + i * lh, Theme.TEXT, false);
 		}

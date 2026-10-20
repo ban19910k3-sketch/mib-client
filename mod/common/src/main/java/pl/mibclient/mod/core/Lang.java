@@ -47,6 +47,27 @@ public final class Lang {
 		put("notice.invite", "Zaproszenie do gry", "Game invite");
 		put("notice.invite.body", "%s zaprasza Cię na %s (Minecraft %s). Dołącz w launcherze: Znajomi.",
 				"%s invites you to %s (Minecraft %s). Join from the launcher: Friends.");
+		put("notice.message", "Wiadomość od %s", "Message from %s");
+		put("notice.message.reply", "(odpowiesz pod prawym Shiftem: Znajomi)", "(reply in the Right Shift menu: Friends)");
+		put("menu.friends", "Znajomi", "Friends");
+		put("friends.game", "W grze", "In game");
+		put("friends.launcher", "W launcherze", "In the launcher");
+		put("friends.offline", "Offline", "Offline");
+		put("friends.hint", "Kliknij znajomego, żeby do niego napisać.", "Click a friend to send them a message.");
+		put("friends.login", "Zaloguj się do profilu MiB w launcherze, żeby pisać do znajomych.", "Sign in to your MiB profile in the launcher to message your friends.");
+		put("friends.empty", "Nie masz jeszcze znajomych. Dodasz ich w launcherze, na stronie Znajomi.", "You don't have any friends yet. Add them in the launcher, on the Friends page.");
+		put("friends.new", "%d nowe", "%d new");
+		put("chat.placeholder", "Napisz wiadomość i naciśnij Enter…", "Type a message and press Enter…");
+		put("chat.send", "Wyślij", "Send");
+		put("chat.loading", "Wczytywanie rozmowy…", "Loading the conversation…");
+		put("chat.empty", "Napisz pierwszą wiadomość do %s.", "Write your first message to %s.");
+		put("chat.read", "przeczytana", "read");
+		put("chat.message_not_friend", "Pisać możesz tylko do znajomych.", "You can only message your friends.");
+		put("chat.message_empty", "Wiadomość jest pusta.", "The message is empty.");
+		put("chat.message_long", "Wiadomość może mieć najwyżej 500 znaków.", "A message can be at most 500 characters long.");
+		put("chat.message_limit", "Za dużo wiadomości naraz. Odczekaj chwilę.", "Too many messages at once. Wait a moment.");
+		put("chat.offline", "Brak połączenia z serwerem MiB. Wiadomość nie została wysłana.", "Can't reach the MiB server. The message wasn't sent.");
+		put("chat.failed", "Nie udało się wysłać wiadomości.", "Couldn't send the message.");
 		put("cos.failed", "Nie udało się: %s", "Failed: %s");
 		put("menu.empty", "Nie znaleziono modułów", "No modules found");
 		put("menu.key_hint", "Klawisz zmienisz w Sterowaniu Minecrafta", "Change the key in Minecraft Controls");

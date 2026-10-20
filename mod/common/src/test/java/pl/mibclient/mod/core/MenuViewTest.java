@@ -25,6 +25,9 @@ class MenuViewTest {
 	final java.util.Map<String, String> trying = new java.util.HashMap<String, String>();
 	String world;
 	int[] pos = {10, 64, -20};
+	Friends friends;
+	Friends.Chat chat;
+	String chatErr;
 
 	@BeforeEach
 	void setUp() {
@@ -93,6 +96,27 @@ class MenuViewTest {
 			@Override
 			public int[] playerBlockPos() {
 				return pos;
+			}
+
+			@Override
+			public Friends friends() {
+				return friends;
+			}
+
+			@Override
+			public Friends.Chat chat(String friendId) {
+				calls.add("chat:" + friendId);
+				return chat != null && chat.with.equals(friendId) ? chat : null;
+			}
+
+			@Override
+			public void sendMessage(String friendId, String body) {
+				calls.add("send:" + friendId + ":" + body);
+			}
+
+			@Override
+			public String chatMessage() {
+				return chatErr;
 			}
 		});
 		c = new RecordingCanvas();
@@ -357,5 +381,87 @@ class MenuViewTest {
 		render();
 		assertFalse(c.hasText("Punkt 1"));
 		assertTrue(c.hasText("Punkt 2"));
+	}
+
+	private Friends twoFriends(int unread) {
+		return new Friends(true, Arrays.asList(new Friends.Friend("b", "Bob", "offline", null, 0),
+				new Friends.Friend("a", "Ala", "game", "play.mib.pl", unread)));
+	}
+
+	@Test
+	void friendsPageListsFriendsAndOpensChat() {
+		render();
+		assertNull(v.hitRect("friends"), "bez launchera nie ma przycisku Znajomi");
+		friends = Friends.LOGGED_OUT;
+		click("friends");
+		assertEquals(MenuView.Page.FRIENDS, v.page());
+		render();
+		assertTrue(c.hasTextContaining("Zaloguj się do profilu MiB"));
+		friends = twoFriends(2);
+		render();
+		assertTrue(c.hasText("Znajomi (2)"), "licznik nowych wiadomości na przycisku");
+		assertTrue(c.hasText("2 nowe") && c.hasText("W grze · play.mib.pl") && c.hasText("Offline"));
+		assertTrue(v.hitRect("friend:a")[1] < v.hitRect("friend:b")[1], "z nowymi wiadomościami i w grze na górze");
+		click("friend:a");
+		assertEquals(MenuView.Page.CHAT, v.page());
+		render();
+		assertTrue(c.hasText("Wczytywanie rozmowy…"));
+		assertTrue(calls.contains("chat:a"), "menu prosi launcher o rozmowę");
+		chat = new Friends.Chat("a", 1, Arrays.asList(new Friends.Message(1, false, "Siema, gramy?", true, false),
+				new Friends.Message(2, true, "Jasne", true, false)));
+		render();
+		assertTrue(c.hasText("Siema, gramy?") && c.hasText("Jasne") && c.hasText("przeczytana"));
+		for (char ch : "Wchodzę§!".toCharArray()) assertTrue(v.charTyped(ch));
+		assertEquals("Wchodzę!", v.draft(), "bez kodów kolorów §");
+		assertTrue(v.typing(), "w rozmowie klawisze piszą, nie sterują grą");
+		v.keyPressed(MenuView.KEY_BACKSPACE);
+		v.charTyped('!');
+		v.keyPressed(MenuView.KEY_ENTER);
+		assertTrue(calls.contains("send:a:Wchodzę!"));
+		assertEquals("", v.draft(), "po wysłaniu pole jest puste");
+		v.keyPressed(MenuView.KEY_ENTER);
+		assertEquals(1, calls.stream().filter(x -> x.startsWith("send:")).count(), "pustej wiadomości się nie wysyła");
+		assertTrue(v.keyPressed(MenuView.KEY_ESCAPE));
+		assertEquals(MenuView.Page.FRIENDS, v.page(), "Esc w rozmowie wraca do listy znajomych");
+		assertTrue(v.keyPressed(MenuView.KEY_ESCAPE));
+		assertEquals(MenuView.Page.GRID, v.page());
+	}
+
+	@Test
+	void chatWrapsLongMessagesAndShowsErrors() {
+		friends = twoFriends(0);
+		v.openChat("a");
+		StringBuilder link = new StringBuilder("https://");
+		for (int i = 0; i < 120; i++) link.append('x');
+		chat = new Friends.Chat("a", 1, Arrays.asList(new Friends.Message(1, false, link.toString(), false, false),
+				new Friends.Message(2, true, "krótka", false, true)));
+		chatErr = Lang.t("chat.message_limit");
+		render();
+		int[] ct = v.layout().content;
+		for (RecordingCanvas.Text t : c.texts) assertTrue(t.x + c.textWidth(t.s) <= ct[0] + ct[2], "tekst w panelu: " + t.s);
+		assertTrue(c.hasText("Za dużo wiadomości naraz. Odczekaj chwilę."));
+		assertTrue(c.hasText("krótka"), "wiadomość w drodze też widać");
+		for (int i = 0; i < 2000; i++) v.charTyped('a');
+		assertEquals(Friends.MAX_MESSAGE, v.draft().length(), "najwyżej 500 znaków");
+		click("send");
+		assertTrue(calls.contains("send:a:" + v.draft()) || calls.stream().anyMatch(x -> x.startsWith("send:a:aaa")));
+		friends = new Friends(true, Arrays.asList(new Friends.Friend("b", "Bob", "offline", null, 0)));
+		render();
+		assertEquals(MenuView.Page.FRIENDS, v.page(), "usunięty znajomy: wraca lista");
+	}
+
+	@Test
+	void friendsJsonAndChatJsonParse() {
+		Friends f = Friends.parse("{\"loggedIn\":true,\"list\":[{\"id\":\"a\",\"nick\":\"Ala\",\"status\":\"game\",\"server\":\"play.mib.pl\",\"unread\":3},{\"id\":5}]}");
+		assertEquals(1, f.list.size());
+		assertEquals(3, f.unread());
+		assertEquals("W grze · play.mib.pl", f.get("a").statusText());
+		assertSame(Friends.LOGGED_OUT, Friends.parse("{\"loggedIn\":false}"));
+		assertNull(Friends.parse("zepsute"));
+		Friends.Chat ch = Friends.parseChat("{\"with\":\"a\",\"at\":5,\"messages\":[{\"id\":1,\"mine\":true,\"body\":\"hej\",\"read\":true},{\"body\":\"bez id\"}]}");
+		assertEquals("a", ch.with);
+		assertEquals(1, ch.messages.size());
+		assertTrue(ch.messages.get(0).mine && ch.messages.get(0).read);
+		assertEquals(2, ch.withPending(Arrays.asList("w drodze")).messages.size());
 	}
 }

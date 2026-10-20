@@ -34,6 +34,15 @@ class NoticeTest {
 	}
 
 	@Test
+	void parsesMessageNotice() {
+		Notice n = Notice.parse("{\"id\":\"7-3\",\"type\":\"message\",\"nick\":\"Ala\",\"text\":\"Gramy?\",\"at\":7}");
+		assertTrue(n.message());
+		assertEquals("Wiadomość od Ala", n.title());
+		assertEquals("Gramy? (odpowiesz pod prawym Shiftem: Znajomi)", n.body());
+		assertNull(Notice.parse("{\"id\":\"7-4\",\"type\":\"message\",\"nick\":\"Ala\",\"at\":7}"), "wiadomość bez treści");
+	}
+
+	@Test
 	void rejectsBrokenNotices() {
 		assertNull(Notice.parse("nie json"));
 		assertNull(Notice.parse("{\"id\":\"1\",\"nick\":\"  \",\"at\":1}"));

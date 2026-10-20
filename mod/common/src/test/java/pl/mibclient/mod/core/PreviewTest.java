@@ -45,6 +45,19 @@ class PreviewTest {
 				return new Cosmetics(true, Arrays.asList(new Cosmetics.Item("c1", "Peleryna Founder", "cape", true, null),
 						new Cosmetics.Item("c2", "Peleryna Fiolet", "cape", false, null), new Cosmetics.Item("h1", "Korona MiB", "hat", false, null)));
 			}
+
+			@Override
+			public Friends friends() {
+				return new Friends(true, Arrays.asList(new Friends.Friend("a", "Kolega", "game", "play.mib.pl", 2),
+						new Friends.Friend("b", "Ziomek", "launcher", null, 0), new Friends.Friend("c", "Dawny_Kumpel", "offline", null, 0)));
+			}
+
+			@Override
+			public Friends.Chat chat(String friendId) {
+				return new Friends.Chat(friendId, 1, Arrays.asList(new Friends.Message(1, false, "Siema! Wchodzisz na play.mib.pl? Robimy bedwarsy w czwórkę.", true, false),
+						new Friends.Message(2, true, "Jasne, za 5 minut", true, false), new Friends.Message(3, false, "Ok, czekamy", true, false),
+						new Friends.Message(4, true, "Już jestem", true, false))).withPending(Arrays.asList("Gdzie jesteście?"));
+			}
 		};
 	}
 
@@ -82,6 +95,15 @@ class PreviewTest {
 		int[] k = v.hitRect("cosmetics");
 		v.mouseClicked(k[0] + 1, k[1] + 1, 0);
 		menu(out, "menu-cosmetics", 1280, 720, v);
+		v.keyPressed(MenuView.KEY_ESCAPE);
+		v.render(new RecordingCanvas(), 640, 360, -1, -1);
+		int[] f = v.hitRect("friends");
+		v.mouseClicked(f[0] + 1, f[1] + 1, 0);
+		menu(out, "menu-friends", 1280, 720, v);
+		v.openChat("a");
+		for (char ch : "Lecę na spawn".toCharArray()) v.charTyped(ch);
+		menu(out, "menu-chat", 1280, 720, v);
+		v.keyPressed(MenuView.KEY_ESCAPE);
 		Lang.setGame("en_us");
 		v.keyPressed(MenuView.KEY_ESCAPE);
 		menu(out, "menu-en", 1920, 1080, v);

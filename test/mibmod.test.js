@@ -348,3 +348,40 @@ test('most: powiadomienie o znajomym trafia do notice.json, każde z nowym id', 
   b.start(); b.stop();
   assert.ok(!fs.existsSync(path.join(dir, 'notice.json')), 'stare powiadomienie znika przy starcie gry');
 });
+
+test('most: znajomi i rozmowa dla menu w grze, wysyłanie wiadomości i błąd z kodem', async () => {
+  const dir = path.join(tmp(), 'mib'), sent = [];
+  let t = 100000, fail = null;
+  const msgs = [{ id: 1, mine: false, body: 'Siema', read: true }];
+  const b = m.createBridge({ dir, accounts: () => ({ list: [], active: null }), onSwitch: async () => {}, now: () => t,
+    friends: async () => ({ loggedIn: true, list: [{ id: 'a', nick: 'Ala', status: 'game', server: 'play.mib.pl', unread: 2 }] }),
+    chat: async id => (id === 'a' ? msgs : []),
+    onSend: async (to, body) => { if (fail) throw new Error(fail); sent.push(to + ':' + body); msgs.push({ id: 2, mine: true, body, read: false }); } });
+  fs.mkdirSync(dir, { recursive: true });
+  const read = n => JSON.parse(fs.readFileSync(path.join(dir, n), 'utf8'));
+  await b.pollOnce();
+  assert.deepStrictEqual(read('friends.json'), { loggedIn: true, list: [{ id: 'a', nick: 'Ala', status: 'game', server: 'play.mib.pl', unread: 2 }] });
+  assert.ok(!fs.existsSync(path.join(dir, 'chat.json')), 'bez prośby moda nie ma rozmowy');
+  fs.writeFileSync(path.join(dir, 'chat-request.json'), JSON.stringify({ with: 'a', at: t }));
+  await b.pollOnce();
+  assert.deepStrictEqual(read('chat.json'), { with: 'a', at: t, messages: [{ id: 1, mine: false, body: 'Siema', read: true }] });
+  t += 1000;
+  fs.writeFileSync(path.join(dir, 'chat-send.json'), JSON.stringify({ to: 'a', body: 'Hej!', at: t }));
+  await b.pollOnce();
+  assert.deepStrictEqual(sent, ['a:Hej!']);
+  assert.ok(!fs.existsSync(path.join(dir, 'chat-send.json')), 'wiadomość odebrana');
+  assert.equal(read('chat.json').messages.length, 2, 'rozmowa odświeżona od razu po wysłaniu');
+  assert.equal(read('chat.json').at, t);
+  fail = 'message_limit';
+  fs.writeFileSync(path.join(dir, 'chat-send.json'), JSON.stringify({ to: 'a', body: 'Znowu', at: t }));
+  await b.pollOnce();
+  assert.deepStrictEqual(read('chat-result.json'), { ok: false, message: 'message_limit', at: t });
+  t += 20000;
+  const before = fs.readFileSync(path.join(dir, 'chat.json'), 'utf8');
+  msgs.push({ id: 3, mine: false, body: 'Nowa', read: false });
+  for (let i = 0; i < 3; i++) await b.pollOnce();
+  assert.equal(fs.readFileSync(path.join(dir, 'chat.json'), 'utf8'), before, 'stara prośba (ponad 10 s): rozmowa już się nie odświeża');
+  b.notice({ type: 'message', nick: 'Ala', text: 'Siema' });
+  assert.equal(read('notice.json').text, 'Siema');
+  assert.equal(read('notice.json').type, 'message');
+});

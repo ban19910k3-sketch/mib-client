@@ -13,11 +13,12 @@ import pl.mibclient.mod.core.Setting.TextSetting;
 import pl.mibclient.mod.core.modules.Waypoints;
 
 /**
- * Menu pod prawym Shiftem (makieta A): kategorie, wyszukiwarka, karty modułów, ustawienia modułu i zmiana konta.
+ * Menu pod prawym Shiftem (makieta A): kategorie, wyszukiwarka, karty modułów, ustawienia modułu, zmiana konta, kosmetyki
+ * i znajomi z rozmowami.
  * Rysuje przez Canvas w jednostkach menu; kliknięcia trafiają w te same prostokąty, które zostały narysowane.
  */
 public final class MenuView {
-	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS }
+	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS, FRIENDS, CHAT }
 
 	public static final int KEY_ESCAPE = 256, KEY_BACKSPACE = 259, KEY_ENTER = 257;
 	private static final int FAINT = 0xFF6F5F82, WHITE = 0xFFFFFFFF;
@@ -47,7 +48,9 @@ public final class MenuView {
 	private String selected;
 	/** Klucz pola tekstowego, do którego trafia pisanie (TextSetting), albo null. */
 	private String editing;
-	private int scroll, settingsScroll, maxSettingsScroll, cosScroll, maxCosScroll;
+	private int scroll, settingsScroll, maxSettingsScroll, cosScroll, maxCosScroll, friendsScroll, maxFriendsScroll, chatScroll, maxChatScroll;
+	/** Rozmowa otwarta na stronie CHAT (id znajomego) i pisana wiadomość. */
+	private String chatWith, draft = "";
 	private MenuLayout layout;
 
 	public MenuView(ModuleManager modules, MenuActions actions) {
@@ -73,6 +76,19 @@ public final class MenuView {
 
 	public MenuLayout layout() {
 		return layout;
+	}
+
+	/** Wiadomość, którą gracz właśnie pisze w rozmowie. */
+	public String draft() {
+		return draft;
+	}
+
+	/** Otwiera rozmowę ze znajomym (strona CHAT). */
+	public void openChat(String friendId) {
+		if (!friendId.equals(chatWith)) draft = "";
+		chatWith = friendId;
+		chatScroll = 0;
+		page = Page.CHAT;
 	}
 
 	/** Prostokąt elementu z ostatniego rysowania, np. "pill:fps", "gear:fps", "cat:PVP", "edit_hud", "back". */
@@ -139,6 +155,8 @@ public final class MenuView {
 		if (page == Page.SETTINGS && modules.def(selected) != null) settings(c, mx, my);
 		else if (page == Page.ACCOUNTS) accounts(c, mx, my);
 		else if (page == Page.COSMETICS) cosmetics(c, mx, my);
+		else if (page == Page.FRIENDS) friends(c, mx, my);
+		else if (page == Page.CHAT && chatWith != null) chat(c, mx, my);
 		else {
 			page = Page.GRID;
 			grid(c, vis, mx, my);
@@ -200,6 +218,18 @@ public final class MenuView {
 				@Override
 				public void run() {
 					page = Page.COSMETICS;
+				}
+			}));
+		}
+		Friends fs = actions.friends();
+		if (fs != null) {
+			int[] r = layout.sidebarButton(slot++), n = fs.unread() > 0 ? new int[] {fs.unread()} : null;
+			boolean here = page == Page.FRIENDS || page == Page.CHAT;
+			button(c, r, "message", Lang.t("menu.friends") + (n != null ? " (" + n[0] + ")" : ""), n != null && !here, in(r, mx, my));
+			hits.add(new Hit("friends", r, new Runnable() {
+				@Override
+				public void run() {
+					page = Page.FRIENDS;
 				}
 			}));
 		}
@@ -347,7 +377,7 @@ public final class MenuView {
 		hits.add(new Hit("back", back, new Runnable() {
 			@Override
 			public void run() {
-				page = Page.GRID;
+				page = page == Page.CHAT ? Page.FRIENDS : Page.GRID;
 			}
 		}));
 		int tx = ct[0] + 22;
@@ -715,6 +745,152 @@ public final class MenuView {
 		}
 	}
 
+	/** Znajomi: lista (najpierw w grze, potem w launcherze, offline), klik otwiera rozmowę; licznik nowych wiadomości. */
+	private void friends(Canvas c, int mx, int my) {
+		int[] ct = layout.content;
+		header(c, Lang.t("menu.friends"), mx, my);
+		Friends fs = actions.friends();
+		if (fs == null || !fs.loggedIn || fs.list.isEmpty()) {
+			int ty = ct[1] + 22;
+			for (String l : Shapes.wrap(c, Lang.t(fs == null || !fs.loggedIn ? "friends.login" : "friends.empty"), ct[2], 3)) {
+				c.text(l, ct[0], ty, Theme.MUTED, false);
+				ty += 10;
+			}
+			return;
+		}
+		c.text(Lang.t("friends.hint"), ct[0], ct[1] + 22, Theme.MUTED, false);
+		List<Friends.Friend> list = new ArrayList<Friends.Friend>(fs.list);
+		Collections.sort(list, new Comparator<Friends.Friend>() {
+			@Override
+			public int compare(Friends.Friend a, Friends.Friend b) {
+				int d = rank(a) - rank(b);
+				return d != 0 ? d : a.nick.compareToIgnoreCase(b.nick);
+			}
+		});
+		int top = ct[1] + 40, bottom = ct[1] + ct[3] - 2;
+		maxFriendsScroll = Math.max(0, list.size() * 24 - 4 - (bottom - top));
+		friendsScroll = Math.max(0, Math.min(maxFriendsScroll, friendsScroll));
+		c.scissor(ct[0], top, ct[0] + ct[2], bottom);
+		int y = top - friendsScroll;
+		for (final Friends.Friend f : list) {
+			if (y + 20 <= top || y >= bottom) {
+				y += 24;
+				continue;
+			}
+			final int[] r = {ct[0], y, ct[2], 20};
+			boolean clickable = y >= top && y + 20 <= bottom, hover = clickable && in(r, mx, my);
+			Shapes.panel(c, r[0], y, r[2], 20, hover ? Theme.SLAB2 : Theme.SLAB, f.unread > 0 ? Theme.AM : hover ? Theme.EDGE2 : Theme.EDGE);
+			Shapes.pixelRect(c, r[0] + 7, y + 7, 6, 6, "game".equals(f.status) ? Theme.GOOD : "launcher".equals(f.status) ? Theme.AM : Theme.OFF);
+			String right = f.unread > 0 ? Lang.t("friends.new", f.unread) : null;
+			int rw = right != null ? c.textWidth(right) + 12 : 16;
+			String nick = Shapes.ellipsize(c, f.nick, Math.min(110, r[2] / 3), false);
+			c.text(nick, r[0] + 19, y + 6, Theme.TEXT, false);
+			int sx = r[0] + 19 + c.textWidth(nick) + 10;
+			c.text(Shapes.ellipsize(c, f.statusText(), r[0] + r[2] - rw - 8 - sx, false), sx, y + 6, "game".equals(f.status) ? Theme.GOOD : FAINT, false);
+			if (right != null) c.text(right, r[0] + r[2] - 8 - c.textWidth(right), y + 6, Theme.AM_HI, false);
+			else Shapes.icon(c, "message", r[0] + r[2] - 16, y + 4, hover ? Theme.AM_HI : FAINT);
+			if (clickable) hits.add(new Hit("friend:" + f.id, r, new Runnable() {
+				@Override
+				public void run() {
+					openChat(f.id);
+				}
+			}));
+			y += 24;
+		}
+		c.unscissor();
+	}
+
+	private static int rank(Friends.Friend f) {
+		return f.unread > 0 ? 0 : "game".equals(f.status) ? 1 : "launcher".equals(f.status) ? 2 : 3;
+	}
+
+	/**
+	 * Rozmowa: wiadomości jak w launcherze (moje z prawej na fiolecie, znajomego z lewej), najnowsze na dole, przewijane
+	 * kółkiem; na dole pole do pisania (Enter wysyła) i przycisk „Wyślij”.
+	 */
+	private void chat(Canvas c, int mx, int my) {
+		int[] ct = layout.content;
+		Friends fs = actions.friends();
+		Friends.Friend f = fs == null ? null : fs.get(chatWith);
+		if (f == null) { // już nie znajomy albo wylogowany: wraca lista
+			page = Page.FRIENDS;
+			friends(c, mx, my);
+			return;
+		}
+		header(c, Shapes.ellipsize(c, f.nick, ct[2] / 2 - 30, false), mx, my);
+		String st = Shapes.ellipsize(c, f.statusText(), ct[2] / 2, false);
+		c.text(st, ct[0] + ct[2] - c.textWidth(st), ct[1] + 4, "game".equals(f.status) ? Theme.GOOD : FAINT, false);
+		Friends.Chat ch = actions.chat(f.id);
+		String err = actions.chatMessage();
+		int inputY = ct[1] + ct[3] - 16, top = ct[1] + 22, bottom = inputY - (err != null ? 14 : 4);
+		Shapes.panel(c, ct[0], top, ct[2], bottom - top, Theme.SLAB, Theme.EDGE);
+		int lh = c.lineHeight() + 1, bw = Math.max(60, ct[2] * 3 / 4);
+		if (ch == null || ch.messages.isEmpty()) {
+			String t = ch == null ? Lang.t("chat.loading") : Lang.t("chat.empty", f.nick);
+			c.text(Shapes.ellipsize(c, t, ct[2] - 12, false), ct[0] + (ct[2] - Math.min(ct[2] - 12, c.textWidth(t))) / 2, (top + bottom) / 2 - 4, Theme.MUTED, false);
+		} else {
+			int lastMine = -1;
+			for (int i = 0; i < ch.messages.size(); i++) if (ch.messages.get(i).mine && !ch.messages.get(i).pending) lastMine = i;
+			List<List<String>> lines = new ArrayList<List<String>>();
+			int total = 0;
+			for (int i = 0; i < ch.messages.size(); i++) {
+				List<String> l = Shapes.wrapAll(c, ch.messages.get(i).body, bw - 12);
+				lines.add(l);
+				total += l.size() * lh + 6 + 4 + (i == lastMine && ch.messages.get(i).read ? 10 : 0);
+			}
+			maxChatScroll = Math.max(0, total - (bottom - top - 8));
+			chatScroll = Math.max(0, Math.min(maxChatScroll, chatScroll));
+			c.scissor(ct[0] + 1, top + 1, ct[0] + ct[2] - 1, bottom - 1);
+			int y = bottom - 4 + chatScroll;
+			for (int i = ch.messages.size() - 1; i >= 0 && y > top; i--) {
+				Friends.Message m = ch.messages.get(i);
+				List<String> l = lines.get(i);
+				if (i == lastMine && m.read) {
+					y -= 10;
+					String t = Lang.t("chat.read");
+					c.text(t, ct[0] + ct[2] - 6 - c.textWidth(t), y, FAINT, false);
+				}
+				int w = 0;
+				for (String s : l) w = Math.max(w, c.textWidth(s));
+				int h = l.size() * lh + 6, x = m.mine ? ct[0] + ct[2] - 6 - (w + 12) : ct[0] + 6;
+				y -= h;
+				if (y + h > top) {
+					if (m.mine) {
+						Shapes.pixelRect(c, x, y, w + 12, h, m.pending ? Theme.OFF : Theme.AM_LO);
+						if (!m.pending) c.fill(x + 1, y, x + w + 11, y + 1, Theme.BTN_HI);
+					} else Shapes.panel(c, x, y, w + 12, h, Theme.SLAB2, Theme.EDGE2);
+					for (int k = 0; k < l.size(); k++) c.text(l.get(k), x + 6, y + 4 + k * lh, m.pending ? Theme.MUTED : m.mine ? WHITE : Theme.TEXT, false);
+				}
+				y -= 4;
+			}
+			c.unscissor();
+		}
+		if (err != null) c.text(Shapes.ellipsize(c, err, ct[2], false), ct[0], inputY - 12, Theme.BAD, false);
+		String t = Lang.t("chat.send");
+		int[] sb = {ct[0] + ct[2] - (c.textWidth(t) + 16), inputY, c.textWidth(t) + 16, 16};
+		int[] field = {ct[0], inputY, sb[0] - 6 - ct[0], 16};
+		Shapes.panel(c, field[0], field[1], field[2], field[3], Theme.SLAB2, Theme.AM);
+		String shown = draft.isEmpty() ? Lang.t("chat.placeholder") : draft + "_";
+		if (!draft.isEmpty() && c.textWidth(shown) > field[2] - 10) shown = "…" + tail(c, shown, field[2] - 16);
+		c.text(Shapes.ellipsize(c, shown, field[2] - 10, false), field[0] + 5, field[1] + 4, draft.isEmpty() ? FAINT : Theme.TEXT, false);
+		hits.add(new Hit("chat_input", field, null));
+		button(c, sb, null, t, true, in(sb, mx, my));
+		hits.add(new Hit("send", sb, new Runnable() {
+			@Override
+			public void run() {
+				send();
+			}
+		}));
+	}
+
+	private void send() {
+		String b = draft.trim();
+		if (b.isEmpty() || chatWith == null) return;
+		actions.sendMessage(chatWith, b);
+		draft = "";
+		chatScroll = 0;
+	}
+
 	// ===== Wejście =====
 
 	public boolean mouseClicked(double x, double y, int button) {
@@ -744,6 +920,14 @@ public final class MenuView {
 			cosScroll = Math.max(0, Math.min(maxCosScroll, cosScroll - (int) Math.round(amount * 24)));
 			return true;
 		}
+		if (page == Page.FRIENDS) {
+			friendsScroll = Math.max(0, Math.min(maxFriendsScroll, friendsScroll - (int) Math.round(amount * 24)));
+			return true;
+		}
+		if (page == Page.CHAT) {
+			chatScroll = Math.max(0, Math.min(maxChatScroll, chatScroll + (int) Math.round(amount * 20)));
+			return true;
+		}
 		if (page != Page.GRID || layout == null) return false;
 		scroll = Math.max(0, Math.min(layout.maxScroll, scroll - (int) Math.round(amount * 24)));
 		return true;
@@ -766,6 +950,20 @@ public final class MenuView {
 				return true;
 			}
 		}
+		if (page == Page.CHAT) {
+			if (key == KEY_BACKSPACE) {
+				if (!draft.isEmpty()) draft = draft.substring(0, draft.length() - 1);
+				return true;
+			}
+			if (key == KEY_ENTER) {
+				send();
+				return true;
+			}
+			if (key == KEY_ESCAPE) {
+				page = Page.FRIENDS;
+				return true;
+			}
+		}
 		if (key == KEY_ESCAPE) {
 			if (page == Page.GRID) return false;
 			page = Page.GRID;
@@ -781,7 +979,7 @@ public final class MenuView {
 
 	/** Czy gracz pisze w polu tekstowym (wtedy klawisze gry nie zamykają menu). */
 	public boolean typing() {
-		return editedText() != null;
+		return editedText() != null || page == Page.CHAT;
 	}
 
 	/** Pole tekstowe, w którym właśnie się pisze (tylko na stronie ustawień jego modułu). */
@@ -801,6 +999,10 @@ public final class MenuView {
 				ts.set(st, v + ch);
 				modules.touched(selected);
 			}
+			return true;
+		}
+		if (page == Page.CHAT) {
+			if (ch >= 32 && ch != 127 && ch != '\u00a7' && draft.length() < Friends.MAX_MESSAGE) draft += ch;
 			return true;
 		}
 		if (page != Page.GRID || ch < 32 || ch == 127 || query.length() >= 32) return false;

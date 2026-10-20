@@ -66,8 +66,8 @@ const shown = new Set(); // powiadomienia trzymane do kliknięcia (bez tego Wind
 function friendPopup(n) {
   const s = { ...defaults(), ...rd('settings.json', {}) }, t = friendNotice(n, s.lang);
   if (bridge) { try { bridge.notice(n); } catch {} }
-  // wiadomość przy otwartym launcherze: wystarczy dymek w oknie (renderer dostaje chat:new)
-  if (n.type === 'message' && win && !win.isDestroyed() && win.isFocused()) return;
+  // wiadomość przy otwartym launcherze wystarczy dymek w oknie (renderer dostaje chat:new), a w grze z modem okienko w grze
+  if (n.type === 'message' && (bridge || (win && !win.isDestroyed() && win.isFocused()))) return;
   try {
     if (!Notification.isSupported()) return;
     const x = new Notification({ title: 'MiB Client — ' + t.title, body: t.body, icon: path.join(__dirname, 'icon.png') });
@@ -101,7 +101,7 @@ async function watchMessages() {
   if (!Array.isArray(l)) { msgSeen = null; if (unreadKey) { unreadKey = ''; unreadRows = []; send('chat:unread', []); } return; }
   unreadRows = l;
   const key = l.map(u => u.from_id + ':' + u.last_id).join(',');
-  if (key !== unreadKey) { unreadKey = key; send('chat:unread', l); }
+  if (key !== unreadKey) { unreadKey = key; send('chat:unread', l); if (bridge) bridge.friendsChanged(); }
   const r = newMessages(msgSeen, l);
   msgSeen = r.seen;
   if (!r.fresh.length) return;
@@ -570,7 +570,22 @@ function startHud(pid, mibDir, gameAcc) {
         // moduł Screenshot: zrzut ekranu z gry od razu w schowku
         onScreenshot: file => { const img = nativeImage.createFromPath(file); if (!img.isEmpty()) clipboard.writeImage(img); },
         // znajomi widzą serwer, na którym grasz (chyba że wyłączysz to w ustawieniach)
-        onStatus: server => prof.gameServer(server, ({ ...defaults(), ...rd('settings.json', {}) }).shareServer !== false) }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
+        onStatus: server => prof.gameServer(server, ({ ...defaults(), ...rd('settings.json', {}) }).shareServer !== false),
+        // znajomi i rozmowy w menu pod prawym Shiftem (licznik nowych z watchMessages)
+        friends: async () => {
+          const l = await prof.friends();
+          if (!Array.isArray(l)) return l && l.error === 'not_logged_in' ? { loggedIn: false, list: [] } : null;
+          const un = {};
+          for (const u of unreadRows) un[u.from_id] = Number(u.unread) || 0;
+          return { loggedIn: true, list: l.filter(f => f.state === 'friend').map(f => ({ id: f.id, nick: f.nick, status: f.status, server: f.server, unread: un[f.id] || 0 })) };
+        },
+        chat: async id => {
+          const l = await prof.chat({ id });
+          if (!Array.isArray(l)) return null;
+          if (l.some(m => !m.mine && !m.read)) { await prof.chatRead({ id }); watchMessages().catch(() => {}); }
+          return l;
+        },
+        onSend: async (id, body) => { const r = await prof.chatSend({ id, body }); if (r && r.error) throw new Error(r.error); } }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
     return;
   }

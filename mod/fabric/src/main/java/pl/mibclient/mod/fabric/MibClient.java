@@ -40,6 +40,7 @@ import net.minecraft.resources.MibId;
 import pl.mibclient.mod.core.Account;
 import pl.mibclient.mod.core.Config;
 import pl.mibclient.mod.core.Cosmetics;
+import pl.mibclient.mod.core.Friends;
 import pl.mibclient.mod.core.HudEditorModel;
 import pl.mibclient.mod.core.HudView;
 import pl.mibclient.mod.core.Lang;
@@ -123,6 +124,17 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	private long reconnectAt;
 	/** Kosmetyki podane przez test gry (bez launchera); null = z launchera. */
 	public static volatile Cosmetics testCosmetics;
+	/** Znajomi i rozmowa podane przez test gry (bez launchera); null = z launchera. */
+	public static volatile Friends testFriends;
+	public static volatile Friends.Chat testChat;
+	/** Znajomi z launchera (czytani najwyżej co sekundę), otwarta rozmowa i wiadomości w drodze do launchera. */
+	private Friends friendsCache;
+	private long friendsReadAt, chatAskedAt, chatReadAt, sendAt, chatFailCheckedAt;
+	private String chatAsked, chatError;
+	private Friends.Chat chatCache;
+	/** Wiadomości czekające na odebranie przez launcher {id znajomego, treść} i wysłane, ale niepotwierdzone (treść, kiedy). */
+	private final java.util.ArrayDeque<String[]> outbox = new java.util.ArrayDeque<>();
+	private final List<Object[]> pending = new java.util.ArrayList<>();
 	/** Powiadomienia od launchera (znajomy gra albo zaprasza), notice.json czytany co sekundę. */
 	private final Notice.Board notices = new Notice.Board();
 	private long noticeReadAt;
@@ -278,6 +290,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		tickDeath(c);
 		tickReconnect(c);
 		long now = System.currentTimeMillis();
+		tickOutbox(now);
 		if (bridge != null && now - noticeReadAt >= 1000) {
 			noticeReadAt = now;
 			notices.offer(bridge.notice(), now);
@@ -769,6 +782,83 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			else if (now - equipAt > 4000 && Lang.t("cos.working").equals(cosMessage)) cosMessage = null;
 		}
 		return cosMessage;
+	}
+
+	// ===== Znajomi i rozmowy (MenuActions) =====
+
+	@Override
+	public Friends friends() {
+		if (testFriends != null) return testFriends;
+		if (bridge == null) return null;
+		long now = System.currentTimeMillis();
+		if (now - friendsReadAt > 1000) {
+			Friends f = bridge.friends();
+			if (f != null) friendsCache = f;
+			friendsReadAt = now;
+		}
+		return friendsCache;
+	}
+
+	@Override
+	public Friends.Chat chat(String friendId) {
+		if (testChat != null) return friendId.equals(testChat.with) ? testChat : null;
+		if (bridge == null) return null;
+		long now = System.currentTimeMillis();
+		// launcher odświeża rozmowę, póki prośba jest świeża
+		if (!friendId.equals(chatAsked) || now - chatAskedAt > 2000) {
+			bridge.requestChat(friendId, now);
+			chatAsked = friendId;
+			chatAskedAt = now;
+		}
+		if (now - chatReadAt > 300) {
+			chatCache = bridge.chat();
+			chatReadAt = now;
+		}
+		Friends.Chat c = chatCache != null && friendId.equals(chatCache.with) ? chatCache : null;
+		if (c == null) return null;
+		// wiadomości w drodze: znikają, gdy launcher zapisze rozmowę po ich wysłaniu
+		List<String> wait = new java.util.ArrayList<>();
+		for (java.util.Iterator<Object[]> it = pending.iterator(); it.hasNext();) {
+			Object[] p = it.next();
+			if (c.at >= (Long) p[2] || now - (Long) p[2] > 30000) it.remove();
+			else if (friendId.equals(p[0])) wait.add((String) p[1]);
+		}
+		for (String[] o : outbox) if (friendId.equals(o[0])) wait.add(o[1]);
+		return c.withPending(wait);
+	}
+
+	@Override
+	public void sendMessage(String friendId, String body) {
+		if (bridge == null || outbox.size() >= 20) return;
+		outbox.add(new String[] {friendId, body});
+		chatError = null;
+		tickOutbox(System.currentTimeMillis());
+	}
+
+	/** Wiadomości po kolei do launchera: następna, gdy launcher odebrał poprzednią. */
+	private void tickOutbox(long now) {
+		if (bridge == null || outbox.isEmpty()) return;
+		String[] o = outbox.peek();
+		if (!bridge.requestSend(o[0], o[1], now)) return;
+		outbox.poll();
+		pending.add(new Object[] {o[0], o[1], now});
+		sendAt = now;
+	}
+
+	@Override
+	public String chatMessage() {
+		long now = System.currentTimeMillis();
+		if (bridge != null && sendAt > 0 && now - chatFailCheckedAt > 500) {
+			chatFailCheckedAt = now;
+			String code = bridge.chatFailure(sendAt - 1);
+			if (code != null) {
+				String t = Lang.t("chat." + code);
+				chatError = t.equals("chat." + code) ? Lang.t("chat.failed") : t;
+				pending.clear();
+				sendAt = 0;
+			}
+		}
+		return chatError;
 	}
 
 	// ===== MenuActions =====

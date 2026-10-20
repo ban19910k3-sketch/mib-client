@@ -266,6 +266,28 @@ public class MibClientGameTest implements FabricClientGameTest {
 			check(box == null, box);
 			context.setScreen(() -> null);
 			context.runOnClient(c -> MibClient.testCosmetics = null);
+			// Znajomi w menu: lista, rozmowa i pisanie wiadomości
+			context.runOnClient(c -> {
+				MibClient.testFriends = new pl.mibclient.mod.core.Friends(true, java.util.Arrays.asList(
+						new pl.mibclient.mod.core.Friends.Friend("a", "Kolega", "game", "play.mib.pl", 1),
+						new pl.mibclient.mod.core.Friends.Friend("b", "Ziomek", "offline", null, 0)));
+				MibClient.testChat = new pl.mibclient.mod.core.Friends.Chat("a", 1, java.util.Arrays.asList(
+						new pl.mibclient.mod.core.Friends.Message(1, false, "Siema, wchodzisz?", true, false),
+						new pl.mibclient.mod.core.Friends.Message(2, true, "Jasne", true, false)));
+			});
+			context.setScreen(() -> new MenuScreen(MibClient.get(), null));
+			context.waitTicks(3);
+			click(context, "friends");
+			click(context, "friend:a");
+			input.typeChars("Hej MiB");
+			context.waitTicks(3);
+			check("Hej MiB".equals(context.computeOnClient(c -> view(c) != null ? view(c).draft() : null)), "pisanie w rozmowie nie trafiło do pola wiadomości");
+			context.takeScreenshot("06l-chat");
+			context.setScreen(() -> null);
+			context.runOnClient(c -> {
+				MibClient.testFriends = null;
+				MibClient.testChat = null;
+			});
 			context.setScreen(() -> new net.minecraft.client.gui.screens.options.controls.KeyBindsScreen(null, Minecraft.getInstance().options));
 			context.waitTicks(5);
 			context.takeScreenshot("06i-keybinds");

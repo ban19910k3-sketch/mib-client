@@ -83,6 +83,29 @@ public final class Shapes {
 		return out;
 	}
 
+	/** Wszystkie linie tekstu w szerokości maxW; słowa dłuższe niż linia są łamane (np. linki w wiadomościach). */
+	public static List<String> wrapAll(Canvas c, String text, int maxW) {
+		List<String> lines = new ArrayList<String>();
+		String line = "";
+		for (String w : text.trim().split("\\s+")) {
+			String next = line.isEmpty() ? w : line + " " + w;
+			if (c.textWidth(next) <= maxW) {
+				line = next;
+				continue;
+			}
+			if (!line.isEmpty()) lines.add(line);
+			line = w;
+			while (c.textWidth(line) > maxW && line.length() > 1) {
+				int n = line.length() - 1;
+				while (n > 1 && c.textWidth(line.substring(0, n)) > maxW) n--;
+				lines.add(line.substring(0, n));
+				line = line.substring(n);
+			}
+		}
+		if (!line.isEmpty() || lines.isEmpty()) lines.add(line);
+		return lines;
+	}
+
 	public static String ellipsize(Canvas c, String s, int maxW, boolean force) {
 		if (!force && c.textWidth(s) <= maxW) return s;
 		String e = "…";

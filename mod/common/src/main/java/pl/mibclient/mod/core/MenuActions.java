@@ -38,6 +38,25 @@ public interface MenuActions {
 		return null;
 	}
 
+	/** Znajomi z profilu MiB albo null, gdy gra działa bez launchera (przycisk „Znajomi” jest wtedy schowany). */
+	default Friends friends() {
+		return null;
+	}
+
+	/** Rozmowa ze znajomym (launcher odświeża ją, póki menu o nią pyta) albo null, gdy jeszcze się wczytuje. */
+	default Friends.Chat chat(String friendId) {
+		return null;
+	}
+
+	/** Wysyła wiadomość do znajomego (przez launcher). */
+	default void sendMessage(String friendId, String body) {
+	}
+
+	/** Komunikat po nieudanym wysłaniu wiadomości albo null. */
+	default String chatMessage() {
+		return null;
+	}
+
 	/** Zapisuje język menu wybrany w menu ("pl", "en", "auto"); Lang.choose robi już MenuView. */
 	default void languageChosen(String code) {
 	}
