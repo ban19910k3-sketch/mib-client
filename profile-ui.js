@@ -511,7 +511,7 @@
     if (f.status === 'launcher') return T('W launcherze');
     return T('Offline') + (f.seen_at ? ' · ' + T('ostatnio') + ' ' + when(f.seen_at) : '');
   }
-  let friendsTimer = null;
+  let friendsTimer = null, friendsReload = null; // friendsReload: odświeżenie listy bez czyszczenia pola z nickiem
   async function friendsBadge() {
     const nav = document.querySelector('.nav[data-p="friends"]');
     let b = nav.querySelector('.cnt');
@@ -524,7 +524,7 @@
   }
   setInterval(() => { if (st.loggedIn) friendsBadge(); }, 2 * 60 * 1000);
   // Launcher sprawdza znajomych co 30 s (main.js): nowe zaproszenie do gry albo kliknięte powiadomienie
-  mib.on('friends:changed', () => { if (!st.loggedIn) return; if ($('p-friends').classList.contains('on')) renderFriends(); else friendsBadge(); });
+  mib.on('friends:changed', () => { if (!st.loggedIn) return; if ($('p-friends').classList.contains('on') && friendsReload) friendsReload(); else friendsBadge(); });
   mib.on('friends:open', () => go('friends'));
   async function renderFriends() {
     const box = $('friends-box');
@@ -593,6 +593,7 @@
       friendsTimer = setTimeout(load, 30000);
     }
     box.replaceChildren(...head, form, err, list);
+    friendsReload = load;
     load();
   }
 
