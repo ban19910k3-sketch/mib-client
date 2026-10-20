@@ -385,3 +385,19 @@ test('most: znajomi i rozmowa dla menu w grze, wysyłanie wiadomości i błąd z
   assert.equal(read('notice.json').text, 'Siema');
   assert.equal(read('notice.json').type, 'message');
 });
+
+test('jarLoader i dropError: rozpoznanie moda z .jar i zgodność z loaderem wersji gry', () => {
+  const AdmZip = require('adm-zip');
+  const jar = files => { const z = new AdmZip(); for (const f of files) z.addFile(f, Buffer.from('{}')); return z.toBuffer(); };
+  assert.equal(m.jarLoader(jar(['fabric.mod.json'])), 'fabric');
+  assert.equal(m.jarLoader(jar(['META-INF/mods.toml'])), 'forge');
+  assert.equal(m.jarLoader(jar(['META-INF/neoforge.mods.toml'])), 'neoforge');
+  assert.equal(m.jarLoader(jar(['quilt.mod.json'])), 'quilt');
+  assert.equal(m.jarLoader(jar(['readme.txt'])), null, 'zip bez opisu moda');
+  assert.equal(m.jarLoader(Buffer.from('to nie zip')), null);
+  assert.equal(m.dropError('fabric', 'fabric'), null);
+  assert.equal(m.dropError('fabric', null), null, 'pierwszy mod wybiera loader');
+  assert.equal(m.dropError('forge', 'fabric'), 'wrong_loader');
+  assert.equal(m.dropError('neoforge', null), 'wrong_loader', 'launcher obsługuje Fabric i Forge');
+  assert.equal(m.dropError(null, 'fabric'), 'not_mod');
+});

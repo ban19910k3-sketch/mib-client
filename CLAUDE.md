@@ -3,6 +3,7 @@
 Darmowy launcher Minecraft PvP w Electronie (czysty HTML/JS, bez frameworka). Rozmawiaj z właścicielem po polsku.
 
 - `main.js` — proces główny (logowanie msmc, uruchamianie gry, mody z Modrinth, aktualizacje). Okno logowania Microsoftu ma osobną sesję `persist:mslogin`; usunięcie konta (`accounts:remove`) ją czyści (`clearMsLogin`, też ciasteczka Microsoftu z domyślnej sesji), a usunięcie aktywnego konta wylogowuje też z profilu MiB.
+- Moje mody: pliki .jar przeciągnięte na stronę (`mib.filePath` w `preload.js` przez `webUtils`) dodaje kanał `mods:add` w `main.js` — tylko mody (`jarLoader` w `lib/mibmod.js`) na loader tej wersji gry.
 - `index.html` + `style.css` + `ui.js` — interfejs. Teksty są po polsku; tłumaczenia angielskie są w słowniku `EN` w `ui.js` (klucz = polski tekst), więc każdy nowy napis w UI dopisz też do `EN`.
 - Wygląd: czerń i ametystowy fiolet, pikselowe ramki (`clip-path: var(--px)`), font Pixelify tylko w nagłówkach i na przycisku GRAJ, zawsze `font-weight:400` (pogrubiony Pixelify psuje literę C). Reszta tekstu: Geist z `fonts/`. Ikony menu: pixelarticons wklejone w `index.html`, zawsze 24 px (w innym rozmiarze się rozmywają). Licencje: `fonts/LICENSES.txt`.
 

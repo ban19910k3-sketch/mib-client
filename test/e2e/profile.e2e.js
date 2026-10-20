@@ -342,6 +342,30 @@ function png(w, h, px) {
     await w.check('#s-mib'); await w.click('#s-save');
     ok('(p) ustawienie „Mod MiB w grze” zapisuje się');
 
+    // Moje mody: pliki .jar przeciągnięte do okna (ten sam kanał co upuszczenie na stronę)
+    {
+      const AdmZip = require(path.join(ROOT, 'node_modules/adm-zip'));
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mib-drop-'));
+      const mk = (name, entry) => { const z = new AdmZip(); z.addFile(entry, Buffer.from('{}')); z.writeZip(path.join(dir, name)); return path.join(dir, name); };
+      const fab = mk('sodium-test.jar', 'fabric.mod.json'), forge = mk('forge-only.jar', 'META-INF/mods.toml'), junk = mk('notatki.jar', 'readme.txt');
+      fs.writeFileSync(path.join(dir, 'obraz.png'), 'x');
+      const r = await w.evaluate(p => mib.call('mods:add', { gv: '1.21.11', paths: p }), [fab, forge, junk, path.join(dir, 'obraz.png')]);
+      assert.deepEqual(r.added, ['sodium-test.jar']);
+      assert.deepEqual(r.errors.map(e => e.code), ['wrong_loader', 'not_mod', 'not_jar'], 'Forge do wersji z Fabricem, nie-mod i nie-.jar odrzucone');
+      const again = await w.evaluate(p => mib.call('mods:add', { gv: '1.21.11', paths: [p] }), fab);
+      assert.equal(again.errors[0].code, 'exists');
+      const list = await w.evaluate(() => mib.call('mods:list', '1.21.11'));
+      assert.ok(list.some(m => m.file === 'sodium-test.jar'), 'mod na liście Moje mody');
+      await w.click('.nav[data-p="mods"]');
+      await w.waitForSelector('#p-mods.on #mdrop');
+      await w.dispatchEvent('#p-mods', 'dragenter', { dataTransfer: await w.evaluateHandle(() => { const d = new DataTransfer(); d.items.add(new File(['x'], 'a.jar')); return d; }) });
+      assert.ok(await w.$('#p-mods.drop'), 'pole upuszczania podświetla się przy przeciąganiu pliku');
+      await shot('mods-drop.png');
+      await w.dispatchEvent('#p-mods', 'dragleave');
+      assert.equal(await w.$('#p-mods.drop'), null);
+      ok('(x) mody przeciągnięte do Moje mody: tylko .jar z modem na loader tej wersji');
+    }
+
     await new Promise(r => { fake.server.closeAllConnections && fake.server.closeAllConnections(); fake.server.close(r); });
     await w.click('.nav[data-p="prof"]');
     await w.waitForFunction(() => /Brak połączenia z serwerem MiB/.test(document.getElementById('prof-box').textContent), null, { timeout: 15000 });
