@@ -506,6 +506,8 @@ declare
 begin
   if v_me is null then raise exception 'not_logged_in'; end if;
   delete from private.friends where (from_id = v_me and to_id = p_user) or (from_id = p_user and to_id = v_me and accepted);
+  -- bez znajomości nie ma rozmowy: wiadomości tej pary znikają
+  delete from private.friend_messages where (from_id = v_me and to_id = p_user) or (from_id = p_user and to_id = v_me);
 end $$;
 
 -- Znajomi i zaproszenia; status: game (w grze), launcher, offline — tylko u przyjętych znajomych
@@ -599,6 +601,84 @@ $$;
 create or replace function public.game_invite_dismiss(p_from uuid) returns void
 language sql security definer set search_path = '' as $$
   delete from private.game_invites where to_id = (select auth.uid()) and from_id = p_from;
+$$;
+
+-- ===== Wiadomości do znajomych (od 0.17.0) =====
+-- Rozmowa dwóch przyjętych znajomych (launcher i menu w grze). Wiadomość ma 1–500 znaków w jednej linii; po 30 dniach
+-- znika, a usunięcie ze znajomych kasuje całą rozmowę. Czytać ją mogą tylko te dwie osoby (przez funkcje poniżej).
+create table if not exists private.friend_messages (
+  id bigint generated always as identity primary key,
+  from_id uuid not null references public.profiles (id) on delete cascade,
+  to_id uuid not null references public.profiles (id) on delete cascade,
+  body text not null check (length(body) between 1 and 500),
+  created_at timestamptz not null default now(),
+  read_at timestamptz,
+  check (from_id <> to_id)
+);
+create index if not exists friend_messages_pair on private.friend_messages (least(from_id, to_id), greatest(from_id, to_id), id);
+create index if not exists friend_messages_to on private.friend_messages (to_id, read_at);
+create index if not exists friend_messages_from on private.friend_messages (from_id, created_at);
+
+create or replace function private.are_friends(a uuid, b uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from private.friends where accepted and ((from_id = a and to_id = b) or (from_id = b and to_id = a)));
+$$;
+
+-- Wysłanie wiadomości: znaki sterujące i kody kolorów Minecrafta (§) znikają; najwyżej 20 na minutę i 1000 na dobę
+create or replace function public.message_send(p_to uuid, p_body text) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_body text := btrim(regexp_replace(regexp_replace(coalesce(p_body, ''), '§.?', '', 'g'), '[[:cntrl:]]+', ' ', 'g'));
+  v_id bigint;
+  v_at timestamptz;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if p_to is null or not private.are_friends(v_me, p_to) then raise exception 'message_not_friend'; end if;
+  if length(v_body) = 0 then raise exception 'message_empty'; end if;
+  if length(v_body) > 500 then raise exception 'message_long'; end if;
+  if (select count(*) from private.friend_messages where from_id = v_me and created_at > now() - interval '1 minute') >= 20
+    or (select count(*) from private.friend_messages where from_id = v_me and created_at > now() - interval '1 day') >= 1000 then
+    raise exception 'message_limit';
+  end if;
+  delete from private.friend_messages where created_at < now() - interval '30 days'
+    and ((from_id = v_me and to_id = p_to) or (from_id = p_to and to_id = v_me));
+  insert into private.friend_messages (from_id, to_id, body) values (v_me, p_to, v_body) returning id, created_at into v_id, v_at;
+  return json_build_object('id', v_id, 'created_at', v_at);
+end $$;
+
+-- Rozmowa ze znajomym: ostatnie 50 wiadomości (albo 50 przed p_before), od najstarszej
+create or replace function public.messages_with(p_user uuid, p_before bigint default null)
+returns table (id bigint, mine boolean, body text, created_at timestamptz, read boolean)
+language sql stable security definer set search_path = '' as $$
+  select x.id, x.mine, x.body, x.created_at, x.read from (
+    select m.id, m.from_id = (select auth.uid()) as mine, m.body, m.created_at, m.read_at is not null as read
+    from private.friend_messages m
+    where private.are_friends((select auth.uid()), p_user)
+      and ((m.from_id = (select auth.uid()) and m.to_id = p_user) or (m.from_id = p_user and m.to_id = (select auth.uid())))
+      and m.created_at > now() - interval '30 days'
+      and (p_before is null or m.id < p_before)
+    order by m.id desc limit 50) x
+  order by x.id;
+$$;
+
+-- Rozmowa otwarta: wiadomości od tej osoby są przeczytane
+create or replace function public.messages_read(p_user uuid) returns void
+language sql security definer set search_path = '' as $$
+  update private.friend_messages set read_at = now()
+  where to_id = (select auth.uid()) and from_id = p_user and read_at is null;
+$$;
+
+-- Nieprzeczytane wiadomości od znajomych: ile od kogo i ostatnia (do licznika i powiadomień)
+create or replace function public.messages_unread()
+returns table (from_id uuid, nick text, unread bigint, last_id bigint, last_body text, last_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select m.from_id, p.nick, count(*), max(m.id), (array_agg(m.body order by m.id desc))[1], max(m.created_at)
+  from private.friend_messages m join public.profiles p on p.id = m.from_id
+  where m.to_id = (select auth.uid()) and m.read_at is null and m.created_at > now() - interval '30 days'
+    and private.are_friends(m.to_id, m.from_id)
+  group by m.from_id, p.nick
+  order by max(m.id) desc;
 $$;
 
 -- ===== Panel admina =====
@@ -886,6 +966,15 @@ revoke all on function public.game_invite_dismiss(uuid) from public, anon;
 grant execute on function public.game_invite(uuid) to authenticated;
 grant execute on function public.game_invites_list() to authenticated;
 grant execute on function public.game_invite_dismiss(uuid) to authenticated;
+revoke all on function private.are_friends(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.message_send(uuid, text) from public, anon;
+revoke all on function public.messages_with(uuid, bigint) from public, anon;
+revoke all on function public.messages_read(uuid) from public, anon;
+revoke all on function public.messages_unread() from public, anon;
+grant execute on function public.message_send(uuid, text) to authenticated;
+grant execute on function public.messages_with(uuid, bigint) to authenticated;
+grant execute on function public.messages_read(uuid) to authenticated;
+grant execute on function public.messages_unread() to authenticated;
 
 -- panel admina: wywołać może każdy zalogowany, ale każda funkcja sama sprawdza, czy to admin
 revoke all on function private.need_admin() from public, anon, authenticated;

@@ -521,3 +521,46 @@ reset role;
 set role anon;
 select pg_temp.expect_error($q$select public.game_invite('66666666-6666-6666-6666-666666666666')$q$, 'permission denied');
 reset role;
+
+-- Wiadomości do znajomych: tylko znajomi, 1–500 znaków bez znaków sterujących i kodów §, nieprzeczytane do licznika,
+-- rozmowę widzą tylko te dwie osoby, usunięcie ze znajomych kasuje rozmowę
+set role authenticated;
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+select pg_temp.expect_error($q$select public.message_send('77777777-7777-7777-7777-777777777777', 'hej')$q$, 'message_not_friend');
+select pg_temp.expect_error($q$select public.message_send('66666666-6666-6666-6666-666666666666', '  ')$q$, 'message_empty');
+select pg_temp.expect_error($q$select public.message_send('66666666-6666-6666-6666-666666666666', repeat('a', 501))$q$, 'message_long');
+do $$ begin
+  assert (public.message_send('66666666-6666-6666-6666-666666666666', E'  §cHej\n co  tam? ') ->> 'id') is not null, 'wysłana';
+  perform public.message_send('66666666-6666-6666-6666-666666666666', 'Wchodzisz na serwer?');
+  assert (select string_agg(body, '|' order by id) from public.messages_with('66666666-6666-6666-6666-666666666666')) = 'Hej  co  tam?|Wchodzisz na serwer?', 'treść bez kodu §c i nowej linii';
+  assert (select bool_and(mine) from public.messages_with('66666666-6666-6666-6666-666666666666')), 'moje wiadomości';
+  assert (select count(*) from public.messages_unread()) = 0, 'moje wiadomości nie są dla mnie nieprzeczytane';
+end $$;
+set request.jwt.claim.sub = '77777777-7777-7777-7777-777777777777';
+do $$ begin
+  assert (select count(*) from public.messages_with('55555555-5555-5555-5555-555555555555')) = 0, 'obcy nie widzi cudzej rozmowy';
+end $$;
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+do $$ begin
+  assert (select nick || ' ' || unread || ' ' || last_body from public.messages_unread()) = 'Zapraszam 2 Wchodzisz na serwer?', 'licznik nieprzeczytanych i ostatnia';
+  assert (select count(*) from public.messages_with('55555555-5555-5555-5555-555555555555') where not mine) = 2, 'odbiorca widzi rozmowę';
+  perform public.messages_read('55555555-5555-5555-5555-555555555555');
+  assert (select count(*) from public.messages_unread()) = 0, 'po otwarciu przeczytane';
+  perform public.message_send('55555555-5555-5555-5555-555555555555', 'Już!');
+end $$;
+select pg_temp.expect_error($q$select * from private.friend_messages$q$, 'permission denied');
+select pg_temp.expect_error($q$select private.are_friends('55555555-5555-5555-5555-555555555555', '66666666-6666-6666-6666-666666666666')$q$, 'permission denied');
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+do $$ begin
+  assert (select read from public.messages_with('66666666-6666-6666-6666-666666666666') where mine order by id limit 1), 'nadawca widzi, że przeczytane';
+  for i in 1..17 loop perform public.message_send('66666666-6666-6666-6666-666666666666', 'spam ' || i); end loop;
+end $$;
+select pg_temp.expect_error($q$select public.message_send('66666666-6666-6666-6666-666666666666', 'za dużo')$q$, 'message_limit');
+select public.friend_remove('66666666-6666-6666-6666-666666666666');
+reset role;
+do $$ begin
+  assert (select count(*) from private.friend_messages where '55555555-5555-5555-5555-555555555555' in (from_id, to_id)) = 0, 'usunięcie ze znajomych kasuje rozmowę';
+end $$;
+set role anon;
+select pg_temp.expect_error($q$select public.messages_unread()$q$, 'permission denied');
+reset role;

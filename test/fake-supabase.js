@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 function createFake() {
-  const st = { friends: [], presence: {}, invites: [], ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { friends: [], presence: {}, invites: [], messages: [], msgId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -123,7 +123,7 @@ function createFake() {
           return json(res, 200, user.equipped);
         }
         // Znajomi: tak jak friend_* i friends_list w schema.sql (bez limitów)
-        if (fn.startsWith('friend') || fn.startsWith('presence') || fn.startsWith('game_invite')) {
+        if (fn.startsWith('friend') || fn.startsWith('presence') || fn.startsWith('game_invite') || fn.startsWith('message')) {
           const err = m => json(res, 400, { code: 'P0001', message: m });
           const pair = (a, b) => st.friends.find(f => (f.from === a && f.to === b) || (f.from === b && f.to === a));
           if (fn === 'friend_request') {
@@ -143,7 +143,35 @@ function createFake() {
             if (body.p_accept) f.accepted = true; else st.friends = st.friends.filter(x => x !== f);
             return json(res, 204);
           }
-          if (fn === 'friend_remove') { st.friends = st.friends.filter(f => !((f.from === user.id && f.to === body.p_user) || (f.from === body.p_user && f.to === user.id && f.accepted))); return json(res, 204); }
+          if (fn === 'friend_remove') {
+            st.friends = st.friends.filter(f => !((f.from === user.id && f.to === body.p_user) || (f.from === body.p_user && f.to === user.id && f.accepted)));
+            st.messages = st.messages.filter(m => !((m.from === user.id && m.to === body.p_user) || (m.from === body.p_user && m.to === user.id)));
+            return json(res, 204);
+          }
+          // Wiadomości: tak jak message_send, messages_with, messages_read, messages_unread w schema.sql (bez limitów)
+          const friends = (a, b) => !!(pair(a, b) || {}).accepted;
+          if (fn === 'message_send') {
+            if (!friends(user.id, body.p_to)) return err('message_not_friend');
+            const b = String(body.p_body || '').replace(/§./g, '').replace(/[\u0000-\u001f]+/g, ' ').trim();
+            if (!b) return err('message_empty');
+            if (b.length > 500) return err('message_long');
+            const m = { id: ++st.msgId, from: user.id, to: body.p_to, body: b, at: new Date().toISOString(), read: false };
+            st.messages.push(m);
+            return json(res, 200, { id: m.id, created_at: m.at });
+          }
+          if (fn === 'messages_with') {
+            if (!friends(user.id, body.p_user)) return json(res, 200, []);
+            return json(res, 200, st.messages.filter(m => (m.from === user.id && m.to === body.p_user) || (m.from === body.p_user && m.to === user.id))
+              .filter(m => !body.p_before || m.id < body.p_before).slice(-50)
+              .map(m => ({ id: m.id, mine: m.from === user.id, body: m.body, created_at: m.at, read: m.read })));
+          }
+          if (fn === 'messages_read') { for (const m of st.messages) if (m.to === user.id && m.from === body.p_user) m.read = true; return json(res, 204); }
+          if (fn === 'messages_unread') {
+            const by = {};
+            for (const m of st.messages) if (m.to === user.id && !m.read && friends(m.from, m.to)) (by[m.from] = by[m.from] || []).push(m);
+            return json(res, 200, Object.entries(by).map(([from, l]) => ({ from_id: from, nick: st.users.find(u => u.id === from).nick, unread: l.length,
+              last_id: l[l.length - 1].id, last_body: l[l.length - 1].body, last_at: l[l.length - 1].at })));
+          }
           if (fn === 'friends_list') {
             const fresh = pr => pr && Date.now() - pr.at < 5 * 60000;
             return json(res, 200, st.friends.filter(f => f.from === user.id || f.to === user.id).map(f => {

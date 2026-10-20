@@ -273,6 +273,19 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       await authed(t => supa.rpc('game_invite_dismiss', { p_from: id }, t));
       return { ok: true };
     },
+    // ===== Wiadomości do znajomych =====
+    chat: ({ id, before }) => authed(t => supa.rpc('messages_with', { p_user: id, p_before: before || null }, t)),
+    async chatSend({ id, body }) {
+      const b = String(body == null ? '' : body).trim();
+      if (!b) return { error: 'message_empty' };
+      if (b.length > 500) return { error: 'message_long' };
+      return { result: await authed(t => supa.rpc('message_send', { p_to: id, p_body: b }, t)) };
+    },
+    async chatRead({ id }) {
+      await authed(t => supa.rpc('messages_read', { p_user: id }, t));
+      return { ok: true };
+    },
+    chatUnread: () => authed(t => supa.rpc('messages_unread', {}, t)),
     // Obecność dla znajomych (co 2 minuty, przy starcie i końcu gry, przy zmianie serwera): launcher albo gra z wersją i serwerem
     async presence({ soft } = {}) {
       restore();
@@ -328,7 +341,8 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   remove: 'prof:delete', createProfile: 'prof:createProfile', nickFree: 'prof:nickFree', announcements: 'prof:announcements', allCosmetics: 'prof:allCosmetics', admin: 'prof:admin', cosmetics: 'prof:cosmetics', redeem: 'prof:redeem', pullSettings: 'prof:pullSettings', pushSettings: 'prof:pushSettings',
   equip: 'prof:equip', modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace', submitIdea: 'prof:submitIdea', myIdeas: 'prof:myIdeas',
   friends: 'prof:friends', friendRequest: 'prof:friendRequest', friendAnswer: 'prof:friendAnswer', friendRemove: 'prof:friendRemove',
-  inviteFriend: 'prof:inviteFriend', invites: 'prof:invites', inviteDismiss: 'prof:inviteDismiss', nowPlaying: 'prof:nowPlaying' };
+  inviteFriend: 'prof:inviteFriend', invites: 'prof:invites', inviteDismiss: 'prof:inviteDismiss', nowPlaying: 'prof:nowPlaying',
+  chat: 'prof:chat', chatSend: 'prof:chatSend', chatRead: 'prof:chatRead', chatUnread: 'prof:chatUnread' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

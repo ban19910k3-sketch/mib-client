@@ -8,7 +8,7 @@ const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
 const { diagnoseCrash } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
-const { pngInfo, validCapeSize, friendsStarted, newInvites, friendNotice } = require('./lib/profile');
+const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, friendNotice } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
 const { createMibPresence, helloMessage } = require('./lib/presence');
@@ -66,11 +66,13 @@ const shown = new Set(); // powiadomienia trzymane do kliknięcia (bez tego Wind
 function friendPopup(n) {
   const s = { ...defaults(), ...rd('settings.json', {}) }, t = friendNotice(n, s.lang);
   if (bridge) { try { bridge.notice(n); } catch {} }
+  // wiadomość przy otwartym launcherze: wystarczy dymek w oknie (renderer dostaje chat:new)
+  if (n.type === 'message' && win && !win.isDestroyed() && win.isFocused()) return;
   try {
     if (!Notification.isSupported()) return;
     const x = new Notification({ title: 'MiB Client — ' + t.title, body: t.body, icon: path.join(__dirname, 'icon.png') });
     shown.add(x);
-    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); send('friends:open'); } });
+    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); if (n.type === 'message') send('chat:open', n.from); else send('friends:open'); } });
     x.on('close', () => shown.delete(x));
     x.show();
   } catch {}
@@ -92,6 +94,24 @@ async function watchFriends() {
 }
 setInterval(() => watchFriends().catch(() => {}), 30000);
 setTimeout(() => watchFriends().catch(() => {}), 8000);
+// Wiadomości od znajomych: co 10 s licznik nieprzeczytanych (launcher i menu w grze), powiadomienie o nowych
+let msgSeen = null, unreadKey = '', unreadRows = [];
+async function watchMessages() {
+  const l = await prof.chatUnread();
+  if (!Array.isArray(l)) { msgSeen = null; if (unreadKey) { unreadKey = ''; unreadRows = []; send('chat:unread', []); } return; }
+  unreadRows = l;
+  const key = l.map(u => u.from_id + ':' + u.last_id).join(',');
+  if (key !== unreadKey) { unreadKey = key; send('chat:unread', l); }
+  const r = newMessages(msgSeen, l);
+  msgSeen = r.seen;
+  if (!r.fresh.length) return;
+  send('chat:new', r.fresh);
+  if (({ ...defaults(), ...rd('settings.json', {}) }).friendNotify === false) return;
+  for (const u of r.fresh) friendPopup({ type: 'message', nick: u.nick, text: u.last_body, from: u.from_id });
+}
+setInterval(() => watchMessages().catch(() => {}), 10000);
+setTimeout(() => watchMessages().catch(() => {}), 6000);
+ipcMain.handle('chat:check', () => watchMessages().catch(() => {}));
 // Gracze MiB w grze: logo MiB przed nickiem i peleryny innych graczy MiB (lib/presence.js)
 const mibPresence = createMibPresence({ fetch: (...a) => fetch(...a), api: prof, randomBytes: crypto.randomBytes });
 const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); logCount++; if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };

@@ -297,3 +297,15 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .skhist .row{gap:6px;flex-wrap:wrap;margin-top:6px}
 .skh{padding:3px;background:var(--slab2);border:2px solid var(--edge2);clip-path:var(--px);cursor:pointer;line-height:0}.skh:hover{border-color:var(--am)}
 .skface{width:32px;height:32px;image-rendering:pixelated}
+/* Rozmowa ze znajomym */
+#chat .chat-m{width:580px;height:min(660px,86vh);padding:16px 18px}
+#chat .chat-head{margin:0;padding:0 0 12px;border-bottom:2px solid var(--edge)}
+.chat-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 4px 4px 0}
+.chat-list .empty{margin:auto;color:var(--m);text-align:center}
+.msg{max-width:78%;align-self:flex-start;background:var(--slab2);box-shadow:inset 0 0 0 2px var(--edge2);clip-path:var(--px);padding:7px 12px 6px;display:flex;flex-direction:column;gap:3px}
+.msg .tx{font-size:14px;line-height:1.4;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+.msg small{font-size:11px;color:var(--m)}
+.msg.me{align-self:flex-end;background:var(--am-lo);box-shadow:inset 0 2px 0 #8f52ec,inset 0 -3px 0 #4c1694}
+.msg.me small{color:var(--am-hi)}
+.chat-form{gap:8px;flex-wrap:nowrap}.chat-form input{flex:1;min-width:0}
+#chat .err:empty{display:none}

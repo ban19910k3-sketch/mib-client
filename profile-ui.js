@@ -40,6 +40,10 @@
     invite_not_friend: 'Zaprosić do gry możesz tylko znajomego.',
     invite_no_server: 'Najpierw wejdź w grze na serwer. Zaproszenie prowadzi na serwer, na którym grasz.',
     invite_limit: 'Za dużo zaproszeń do gry. Spróbuj za godzinę.',
+    message_not_friend: 'Pisać możesz tylko do znajomych.',
+    message_empty: 'Wiadomość jest pusta.',
+    message_long: 'Wiadomość może mieć najwyżej 500 znaków.',
+    message_limit: 'Za dużo wiadomości naraz. Odczekaj chwilę.',
     skin_no_account: 'Zaloguj się kontem Microsoft (przycisk u góry), żeby zmienić skina.',
     skin_not_png: 'To nie jest plik PNG.',
     skin_size: 'Skin musi mieć 64×64 piksele (albo stary format 64×32).',
@@ -516,9 +520,10 @@
     const nav = document.querySelector('.nav[data-p="friends"]');
     let b = nav.querySelector('.cnt');
     if (!st.loggedIn) { if (b) b.hidden = true; return; }
-    const [l, inv] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites')]);
+    const [l, inv, un] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites'), mib.call('prof:chatUnread')]);
     if (!Array.isArray(l)) return;
-    const n = l.filter(f => f.state === 'incoming').length + (Array.isArray(inv) ? inv.length : 0);
+    const n = l.filter(f => f.state === 'incoming').length + (Array.isArray(inv) ? inv.length : 0)
+      + (Array.isArray(un) ? un.reduce((a, u) => a + Number(u.unread || 0), 0) : 0);
     if (!b) { b = h('em', { class: 'cnt' }); nav.append(b); }
     b.textContent = String(n); b.hidden = !n;
   }
@@ -526,6 +531,91 @@
   // Launcher sprawdza znajomych co 30 s (main.js): nowe zaproszenie do gry albo kliknięte powiadomienie
   mib.on('friends:changed', () => { if (!st.loggedIn) return; if ($('p-friends').classList.contains('on') && friendsReload) friendsReload(); else friendsBadge(); });
   mib.on('friends:open', () => go('friends'));
+  // Wiadomości (main.js sprawdza co 10 s): licznik, dymek, gdy rozmowa z tą osobą nie jest otwarta
+  mib.on('chat:unread', () => { if (!st.loggedIn) return; if ($('p-friends').classList.contains('on') && friendsReload) friendsReload(); else friendsBadge(); });
+  mib.on('chat:new', rows => {
+    for (const u of rows || []) {
+      if (chatWith && chatWith.id === u.from_id) { if (chatReload) chatReload(); continue; }
+      if (document.hasFocus()) toast(T('Nowa wiadomość od') + ' ' + u.nick + ': ' + String(u.last_body || '').slice(0, 80));
+    }
+  });
+  mib.on('chat:open', async id => {
+    go('friends');
+    const l = await mib.call('prof:friends');
+    const f = Array.isArray(l) && l.find(x => x.id === id && x.state === 'friend');
+    if (f) openChat(f);
+  });
+
+  // ===== Rozmowa ze znajomym (okno nad stroną Znajomi) =====
+  let chatWith = null, chatTimer = null, chatReload = null;
+  const timeOf = d => {
+    const x = new Date(d), today = x.toDateString() === new Date().toDateString();
+    return x.toLocaleString(LANG === 'en' ? 'en-GB' : 'pl-PL', today ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+  function closeChat() {
+    clearTimeout(chatTimer);
+    const was = chatWith;
+    chatWith = null; chatReload = null;
+    const o = $('chat'); if (o) o.remove();
+    if (was && friendsReload && $('p-friends').classList.contains('on')) friendsReload();
+  }
+  function openChat(f) {
+    closeChat();
+    chatWith = f;
+    let shown = '', first = true;
+    const list = h('div', { class: 'chat-list', id: 'chat-list' }, h('p', { class: 'mut' }, T('Wczytywanie…')));
+    const input = h('input', { id: 'chat-in', maxlength: 500, autocomplete: 'off', placeholder: T('Napisz wiadomość…') });
+    const sendB = h('button', { class: 'b', id: 'chat-send', type: 'submit' }, T('Wyślij'));
+    const err = h('p', { class: 'err', id: 'chat-err' });
+    const form = h('form', { class: 'row chat-form', on: { submit: async e => {
+      e.preventDefault();
+      const body = input.value.trim();
+      if (!body || sendB.disabled) return;
+      sendB.disabled = true; err.textContent = '';
+      const r = await mib.call('prof:chatSend', { id: f.id, body });
+      sendB.disabled = false;
+      if (r.error) { err.textContent = msg(r.error, r.detail); return; }
+      input.value = '';
+      first = true;
+      load();
+      input.focus();
+    } } }, input, sendB);
+    const ov = h('div', { class: 'ov on', id: 'chat' }, h('div', { class: 'm chat-m', role: 'dialog', 'aria-label': T('Rozmowa z') + ' ' + f.nick },
+      h('div', { class: 'frow chat-head st-' + f.status },
+        h('i', { class: 'dot', 'aria-hidden': 'true' }),
+        h('div', { class: 'fi' }, h('b', {}, f.nick), h('span', { class: 'mut' }, statusText(f))),
+        h('button', { class: 'b ghost', id: 'chat-x', type: 'button', on: { click: closeChat } }, T('Zamknij'))),
+      list, err, form));
+    ov.addEventListener('mousedown', e => { if (e.target === ov) closeChat(); });
+    ov.addEventListener('keydown', e => { if (e.key === 'Escape') closeChat(); });
+    document.body.append(ov);
+    input.focus();
+    async function load() {
+      clearTimeout(chatTimer);
+      if (chatWith !== f) return;
+      const l = await mib.call('prof:chat', { id: f.id });
+      if (chatWith !== f) return;
+      if (!Array.isArray(l)) list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
+      else {
+        const key = l.map(m => m.id + (m.read ? 'r' : '')).join(',');
+        if (key !== shown) {
+          shown = key;
+          const bottom = first || list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+          const lastMine = l.reduce((a, m, i) => (m.mine ? i : a), -1);
+          list.replaceChildren(...(l.length ? l.map((m, i) => h('div', { class: 'msg' + (m.mine ? ' me' : '') },
+            h('span', { class: 'tx' }, m.body),
+            h('small', {}, timeOf(m.created_at) + (i === lastMine && m.read ? ' · ' + T('przeczytana') : ''))))
+            : [h('p', { class: 'empty' }, T('Napisz pierwszą wiadomość do') + ' ' + f.nick + '.')]));
+          if (bottom) list.scrollTop = list.scrollHeight;
+          first = false;
+        }
+        if (l.some(m => !m.mine && !m.read)) { await mib.call('prof:chatRead', { id: f.id }); friendsBadge(); }
+      }
+      chatTimer = setTimeout(load, 4000);
+    }
+    chatReload = load;
+    load();
+  }
   async function renderFriends() {
     const box = $('friends-box');
     clearTimeout(friendsTimer);
@@ -558,9 +648,13 @@
       ...buttons);
     async function load() {
       clearTimeout(friendsTimer);
-      const [l, inv, me] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites'), mib.call('prof:nowPlaying')]);
+      const [l, inv, me, un] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites'), mib.call('prof:nowPlaying'), mib.call('prof:chatUnread')]);
       if (!box.isConnected || !$('p-friends').classList.contains('on')) return;
       if (!Array.isArray(l)) return list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
+      const unread = {};
+      for (const u of Array.isArray(un) ? un : []) unread[u.from_id] = Number(u.unread) || 0;
+      const write = f => h('button', { class: 'b' + (unread[f.id] ? '' : ' ghost') + ' chat-b', type: 'button', on: { click: () => openChat(f) } },
+        T('Napisz') + (unread[f.id] ? ' (' + unread[f.id] + ')' : ''));
       const games = Array.isArray(inv) ? inv : [], here = me && me.server;
       // Zaproś do gry: gdy grasz na serwerze, znajomych w launcherze albo w grze (nie tych na tym samym serwerze)
       const canInvite = f => here && (f.status === 'launcher' || (f.status === 'game' && f.server !== here));
@@ -585,6 +679,7 @@
         fr.length ? sec('Twoi znajomi', fr.map(f => row(f,
           f.status === 'game' && f.server && f.version && f.server !== here ? act('Dołącz', '', async () => { window.mibJoin(f.version, f.server); }) : null,
           canInvite(f) ? invite(f) : null,
+          write(f),
           act('Usuń', 'ghost', () => confirm(T('Usunąć') + ' ' + f.nick + ' ' + T('ze znajomych?')) ? mib.call('prof:friendRemove', { id: f.id }) : null))))
           : h('p', { class: 'empty' }, T('Nie masz jeszcze znajomych. Wpisz nick albo ID MiB kolegi i kliknij „Zaproś”.')),
         sec('Wysłane zaproszenia', out.map(f => row(f, act('Anuluj', 'ghost', () => mib.call('prof:friendRemove', { id: f.id }))))),

@@ -117,3 +117,20 @@ test('friendNotice: krótkie teksty powiadomień po polsku i po angielsku', () =
   assert.equal(P.friendNotice({ type: 'started', nick: 'Ala', version: '1.21.11', server: 'play.mib.pl' }, 'en').body, 'Ala is now playing Minecraft 1.21.11 on play.mib.pl.');
   assert.equal(P.friendNotice({ type: 'invite', nick: 'Ala', version: '26.1', server: 'mc.x.pl' }, 'en').title, 'Game invite');
 });
+
+test('newMessages: powiadomienie tylko o nowych wiadomościach, pierwsze sprawdzenie bez powiadomień', () => {
+  const a = { from_id: 'a', nick: 'Ala', unread: 1, last_id: 10, last_body: 'hej' };
+  let r = P.newMessages(null, [a]);
+  assert.deepEqual(r.fresh, [], 'to, co czekało przed startem, pokazuje licznik');
+  r = P.newMessages(r.seen, [a]);
+  assert.deepEqual(r.fresh, [], 'ta sama wiadomość drugi raz bez powiadomienia');
+  r = P.newMessages(r.seen, [{ ...a, unread: 2, last_id: 12, last_body: 'jesteś?' }]);
+  assert.equal(r.fresh.length, 1);
+  r = P.newMessages(r.seen, []);
+  r = P.newMessages(r.seen, [{ from_id: 'b', nick: 'Bob', unread: 1, last_id: 13, last_body: 'siema' }]);
+  assert.deepEqual(r.fresh.map(x => x.nick), ['Bob'], 'po przeczytaniu nowa wiadomość od kogoś innego');
+  const n = P.friendNotice({ type: 'message', nick: 'Ala', text: 'x'.repeat(200) });
+  assert.equal(n.title, 'Wiadomość od Ala');
+  assert.equal(n.body.length, 140);
+  assert.equal(P.friendNotice({ type: 'message', nick: 'Ala', text: 'hi' }, 'en').title, 'Message from Ala');
+});

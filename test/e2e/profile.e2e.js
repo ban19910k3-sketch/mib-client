@@ -217,6 +217,28 @@ function png(w, h, px) {
     await w.waitForFunction(() => document.querySelector('.nav[data-p="friends"] .cnt').hidden);
     ok('(v) zaproszenie do gry od znajomego: sekcja, licznik i Odrzuć');
 
+    // Wiadomości: od znajomego (licznik i „Napisz (1)”), rozmowa w oknie, odpowiedź Enterem, przeczytanie
+    fake.st.messages.push({ id: ++fake.st.msgId, from: kolega.id, to: me.id, body: 'Siema, gramy?', at: new Date().toISOString(), read: false });
+    await w.click('.nav[data-p="friends"]');
+    await w.waitForFunction(() => /Napisz \(1\)/.test(document.getElementById('fr-list').textContent));
+    await w.waitForFunction(() => document.querySelector('.nav[data-p="friends"] .cnt').textContent === '1');
+    await w.click('#fr-list .frow:has-text("Kolega") .chat-b');
+    await w.waitForSelector('#chat .msg:has-text("Siema, gramy?")');
+    await w.waitForFunction(() => document.querySelector('.nav[data-p="friends"] .cnt').hidden);
+    assert.ok(fake.st.messages[0].read, 'otwarta rozmowa oznacza wiadomość jako przeczytaną');
+    await w.fill('#chat-in', 'Jasne, wchodzę!');
+    await w.press('#chat-in', 'Enter');
+    await w.waitForSelector('#chat .msg.me:has-text("Jasne, wchodzę!")');
+    assert.equal(await w.inputValue('#chat-in'), '', 'pole czyste po wysłaniu');
+    const sent = fake.st.messages.find(m => m.from === me.id);
+    assert.ok(sent && sent.to === kolega.id && sent.body === 'Jasne, wchodzę!', 'wiadomość trafiła do bazy');
+    sent.read = true; // Kolega przeczytał
+    await w.waitForFunction(() => /przeczytana/.test(document.querySelector('#chat .msg.me small').textContent), null, { timeout: 8000 });
+    await shot('chat.png');
+    await w.press('#chat-in', 'Escape');
+    await w.waitForFunction(() => !document.getElementById('chat'));
+    ok('(w) wiadomości do znajomego: licznik, okno rozmowy, wysyłanie Enterem, przeczytane');
+
     await w.click('.nav[data-p="prof"]');
     await w.waitForSelector('#p-prof.on .phead');
     await w.evaluate(() => { setLang('en'); });
