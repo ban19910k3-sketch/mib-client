@@ -248,7 +248,7 @@ public final class Looks {
 
 	public static float[] emote() {
 		MibClient m = mib();
-		return m == null || m.extras == null ? null : m.extras.emoteArms();
+		return m == null || m.extras == null ? null : m.extras.emotePose();
 	}
 
 	// ===== Color saturation, Motion blur =====

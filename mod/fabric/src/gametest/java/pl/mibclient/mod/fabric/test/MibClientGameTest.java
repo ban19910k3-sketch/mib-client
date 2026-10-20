@@ -235,6 +235,30 @@ public class MibClientGameTest implements FabricClientGameTest {
 			});
 			context.waitTicks(5);
 			context.takeScreenshot("06h-emote");
+			// nowe emotki całego ciała (głowa, tułów, nogi)
+			for (String id : new String[] {"dab", "take_l", "floss", "facepalm", "zombie"}) {
+				context.runOnClient(c -> MibClient.get().extras.startEmoteForTest(id));
+				context.waitTicks(4);
+				context.takeScreenshot("06h-emote-" + id);
+			}
+			context.runOnClient(c -> c.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
+			// koło emotek (przytrzymanie B): klik w „Dab” włącza emotkę i zamyka koło
+			context.runOnClient(c -> MibClient.get().extras.startEmoteForTest("wave"));
+			context.setScreen(() -> new pl.mibclient.mod.fabric.EmoteWheelScreen(MibClient.get().extras));
+			context.waitTicks(3);
+			double[] dab = context.computeOnClient(c -> {
+				pl.mibclient.mod.fabric.EmoteWheelScreen s = (pl.mibclient.mod.fabric.EmoteWheelScreen) Input.screen(c);
+				int[] r = s.wheel().slot(5, s.width, s.height);
+				double k = c.getWindow().getGuiScale();
+				return new double[] {(r[0] + r[2] / 2.0) * k, (r[1] + r[3] / 2.0) * k};
+			});
+			input.setCursorPos(dab[0], dab[1]);
+			context.waitTicks(2);
+			context.takeScreenshot("06m-emote-wheel");
+			input.pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+			context.waitTicks(3);
+			check("dab".equals(context.computeOnClient(c -> MibClient.get().extras.currentEmote())), "klik w kole emotek nie włączył emotki Dab");
+			check(context.computeOnClient(c -> Input.screen(c) == null), "koło emotek nie zamknęło się po wyborze");
 			context.runOnClient(c -> c.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON));
 			// powiadomienie od launchera: znajomy zaprasza do gry (okienko w prawym górnym rogu)
 			context.runOnClient(c -> MibClient.get().showNotice(new pl.mibclient.mod.core.Notice("test", "invite", "Ala", "1.21.11", "play.mib.pl", System.currentTimeMillis())));
@@ -375,7 +399,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
 					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop",
 					"post_effect", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "light_level", "waypoints", "dark_mode", "anim_block", "anim_dip",
-					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "time", "hitbox", "hitbox_players", "world_marks", "cos_anim", "notice"
+					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "time", "hitbox", "hitbox_players", "world_marks", "cos_anim", "notice", "emote_wheel"
 					//#if MC >= 1.21.2 && MC < 1.21.6
 					, "blur_previous"
 					//#endif

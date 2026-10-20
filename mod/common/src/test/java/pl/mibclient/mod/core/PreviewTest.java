@@ -138,6 +138,18 @@ class PreviewTest {
 	}
 
 	@Test
+	void renderEmoteWheel() throws Exception {
+		File out = out();
+		Lang.setGame("pl_pl");
+		EmoteWheel w = new EmoteWheel();
+		PreviewCanvas c = new PreviewCanvas(1280, 720, 2);
+		c.gameBackground(640, 360);
+		int[] s = w.slot(7, 640, 360);
+		w.render(c, 640, 360, s[0] + 10, s[1] + 8);
+		c.save(new File(out, "emote-wheel.png"));
+	}
+
+	@Test
 	void renderNotice() throws Exception {
 		File out = out();
 		Lang.setGame("pl_pl");

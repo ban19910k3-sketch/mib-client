@@ -10,6 +10,7 @@ import pl.mibclient.mod.core.Setting.ChoiceSetting;
 import pl.mibclient.mod.core.Setting.ColorSetting;
 import pl.mibclient.mod.core.Setting.IntSetting;
 import pl.mibclient.mod.core.Setting.TextSetting;
+import pl.mibclient.mod.core.modules.Emotes;
 
 /** Moduły menu pod prawym Shiftem (lista ze spec: docs/superpowers/specs/2026-10-16-mib-mod-design.md, bez Jump reset; Nametags i Screenshot działają zawsze, poza menu). */
 public final class ModuleCatalog {
@@ -359,10 +360,9 @@ public final class ModuleCatalog {
 				new TextSetting("text1", "Wiadomość 1", "Message 1", "gg", 100),
 				new TextSetting("text2", "Wiadomość 2", "Message 2", "/spawn", 100),
 				new TextSetting("text3", "Wiadomość 3", "Message 3", "", 100))),
-		new ModuleDef("emotes", "Emotes", Category.OTHER, "Emotki postaci pod klawiszem (domyślnie B), widać je w trzeciej osobie",
-			"Character emotes on a key (B by default), visible in third person", "smile", false, null, list(
-				new ChoiceSetting("emote", "Emotka", "Emote", "wave", new String[] {"wave", "dance", "clap", "point", "cheer"},
-					new String[] {"Machanie", "Taniec", "Klaskanie", "Wskazywanie", "Radość"}, new String[] {"Wave", "Dance", "Clap", "Point", "Cheer"}),
+		new ModuleDef("emotes", "Emotes", Category.OTHER, "Emotki postaci: przytrzymaj B, żeby wybrać z koła, krótkie B włącza emotkę z ustawień",
+			"Character emotes: hold B to pick one from the wheel, a quick B press plays the one from settings", "smile", false, null, list(
+				new ChoiceSetting("emote", "Emotka (krótkie B)", "Emote (quick B)", "wave", Emotes.IDS, Emotes.PL, Emotes.EN),
 				new IntSetting("seconds", "Czas (sekundy)", "Duration (seconds)", 4, 2, 10, 1),
 				bool("camera", "Pokaż postać od przodu", "Show yourself from the front", true))),
 		new ModuleDef("keybind_search", "Keybind search", Category.OTHER, "Wyszukiwarka w ustawieniach klawiszy (Sterowanie)",

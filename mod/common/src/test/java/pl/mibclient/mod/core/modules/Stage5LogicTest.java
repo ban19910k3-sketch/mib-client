@@ -97,14 +97,25 @@ class Stage5LogicTest {
 	}
 
 	@Test
-	void emotesMoveArms() {
-		for (String id : new String[] {"wave", "dance", "clap", "point", "cheer"}) {
-			float[] a = WorldOverlay.emote(id, 0.3);
+	void emotesPoseTheBody() {
+		for (String id : Emotes.IDS) {
+			float[] a = Emotes.pose(id, 0.3);
 			assertNotNull(a, id);
-			assertEquals(4, a.length);
+			assertEquals(18, a.length);
+			assertFalse(Float.isNaN(a[Emotes.RIGHT_ARM]), id + ": każda emotka rusza prawą ręką");
+			for (float v : a) assertTrue(Float.isNaN(v) || Math.abs(v) <= Math.PI, id + ": kąt w zakresie");
 		}
-		assertTrue(WorldOverlay.emote("wave", 0)[0] < -2, "ręka w górze");
-		assertNull(WorldOverlay.emote("nope", 0));
+		assertTrue(Emotes.pose("wave", 0)[Emotes.RIGHT_ARM] < -2, "ręka w górze");
+		assertTrue(Float.isNaN(Emotes.pose("wave", 0)[Emotes.RIGHT_LEG]), "machanie nie rusza nóg (chodzenie zostaje)");
+		float[] kick = Emotes.pose("take_l", 0.15), kick2 = Emotes.pose("take_l", 0.47);
+		assertTrue(kick[Emotes.RIGHT_LEG + 2] > 0.3 && kick2[Emotes.LEFT_LEG + 2] < -0.3, "Take the L: kopnięcia na zmianę");
+		float[] f1 = Emotes.pose("floss", 0.18), f2 = Emotes.pose("floss", 0.54);
+		assertTrue(f1[Emotes.RIGHT_ARM + 2] > 0 && f2[Emotes.RIGHT_ARM + 2] < 0, "Floss: ręce z boku na bok");
+		assertEquals(Math.signum(f1[Emotes.RIGHT_ARM + 2]), Math.signum(f1[Emotes.LEFT_ARM + 2]), "Floss: obie ręce w tę samą stronę");
+		assertTrue(Emotes.pose("dab", 1)[Emotes.HEAD] > 0.3, "Dab: głowa w dół");
+		assertEquals("Take the L", Emotes.label("take_l", true));
+		assertEquals("Wave", Emotes.label("wave", false));
+		assertNull(Emotes.pose("nope", 0));
 	}
 
 	@Test

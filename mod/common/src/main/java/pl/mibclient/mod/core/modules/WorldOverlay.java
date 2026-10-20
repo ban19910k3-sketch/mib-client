@@ -37,24 +37,4 @@ public final class WorldOverlay {
 		}
 		return out;
 	}
-
-	/**
-	 * Emotki: kąty rąk {prawa X, prawa Z, lewa X, lewa Z} w radianach dla emotki w chwili t (sekundy od startu).
-	 * X: -π/2 = ręka do przodu, -π = w górę; Z prawej ręki dodatni = od ciała (lewej odwrotnie).
-	 */
-	public static float[] emote(String id, double t) {
-		double s = Math.sin(t * Math.PI * 4);
-		if ("wave".equals(id)) return new float[] {-2.8f, (float) (0.3 + 0.35 * s), 0f, 0f};
-		if ("dance".equals(id)) {
-			double a = Math.sin(t * Math.PI * 3);
-			return new float[] {(float) (-1.2 + 0.9 * a), 0.5f, (float) (-1.2 - 0.9 * a), -0.5f};
-		}
-		if ("clap".equals(id)) {
-			float z = (float) (0.35 + 0.25 * Math.abs(s));
-			return new float[] {-1.4f, -z, -1.4f, z};
-		}
-		if ("point".equals(id)) return new float[] {(float) (-Math.PI / 2), 0f, 0f, 0f};
-		if ("cheer".equals(id)) return new float[] {(float) (-2.9 + 0.2 * s), 0.4f, (float) (-2.9 + 0.2 * s), -0.4f};
-		return null;
-	}
 }

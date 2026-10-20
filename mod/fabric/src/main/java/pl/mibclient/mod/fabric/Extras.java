@@ -43,6 +43,7 @@ import pl.mibclient.mod.core.Setting;
 import pl.mibclient.mod.core.Theme;
 import pl.mibclient.mod.core.modules.Waypoints;
 import pl.mibclient.mod.core.modules.WorldMarks;
+import pl.mibclient.mod.core.modules.Emotes;
 import pl.mibclient.mod.core.modules.WorldOverlay;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -66,8 +67,11 @@ public final class Extras {
 	KeyMapping emoteKey, waypointKey;
 
 	private String emote;
-	private long emoteStart, emoteEnd;
+	private long emoteStart, emoteEnd, emotePressAt;
 	private CameraType emoteCameraBefore;
+	/** Klawisz emotek wciśnięty: puszczony szybko = emotka z ustawień, przytrzymany = koło wyboru. */
+	private boolean emoteWaiting;
+	private static final long WHEEL_DELAY_MS = 200;
 
 	/** Znaczniki światła: x, y, z, kolor (po 4 liczby). */
 	private int[] light = new int[0];
@@ -139,12 +143,17 @@ public final class Extras {
 		long now = System.currentTimeMillis();
 		while (emoteKey.consumeClick()) {
 			if (!on("emotes") || c.player == null || Input.screen(c) != null) continue;
-			emote = choice("emotes", "emote");
-			emoteStart = now;
-			emoteEnd = now + mib.intOpt("emotes", "seconds") * 1000L;
-			if (mib.boolOpt("emotes", "camera") && emoteCameraBefore == null) {
-				emoteCameraBefore = c.options.getCameraType();
-				c.options.setCameraType(CameraType.THIRD_PERSON_FRONT);
+			emotePressAt = now;
+			emoteWaiting = true;
+		}
+		if (emoteWaiting) {
+			if (!on("emotes") || c.player == null || Input.screen(c) != null) emoteWaiting = false;
+			else if (!Input.held(c, emoteKey)) {
+				emoteWaiting = false;
+				playEmote(choice("emotes", "emote"));
+			} else if (now - emotePressAt >= WHEEL_DELAY_MS) {
+				emoteWaiting = false;
+				Input.open(c, new EmoteWheelScreen(this));
 			}
 		}
 		if (emote != null && (now > emoteEnd || !on("emotes") || c.player == null)) {
@@ -154,12 +163,31 @@ public final class Extras {
 		}
 	}
 
-	/** Kąty rąk własnej postaci w trakcie emotki ({prawa X, prawa Z, lewa X, lewa Z}) albo null. */
-	public float[] emoteArms() {
+	/** Włącza emotkę id na czas z ustawień (z koła albo krótkim naciśnięciem klawisza). */
+	public void playEmote(String id) {
+		Minecraft c = Minecraft.getInstance();
+		if (c.player == null || Emotes.pose(id, 0) == null) return;
+		long now = System.currentTimeMillis();
+		emote = id;
+		emoteStart = now;
+		emoteEnd = now + mib.intOpt("emotes", "seconds") * 1000L;
+		if (mib.boolOpt("emotes", "camera") && emoteCameraBefore == null) {
+			emoteCameraBefore = c.options.getCameraType();
+			c.options.setCameraType(CameraType.THIRD_PERSON_FRONT);
+		}
+	}
+
+	/** Emotka, która właśnie trwa, albo null. */
+	public String currentEmote() {
+		return emote;
+	}
+
+	/** Ułożenie ciała własnej postaci w trakcie emotki (Emotes.pose) albo null. */
+	public float[] emotePose() {
 		String e = emote;
 		if (e == null) return null;
 		MibClient.hooks.add("emote");
-		return WorldOverlay.emote(e, (System.currentTimeMillis() - emoteStart) / 1000.0);
+		return Emotes.pose(e, (System.currentTimeMillis() - emoteStart) / 1000.0);
 	}
 
 	public void startEmoteForTest(String id) {

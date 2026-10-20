@@ -68,6 +68,8 @@ public final class Lang {
 		put("chat.message_limit", "Za dużo wiadomości naraz. Odczekaj chwilę.", "Too many messages at once. Wait a moment.");
 		put("chat.offline", "Brak połączenia z serwerem MiB. Wiadomość nie została wysłana.", "Can't reach the MiB server. The message wasn't sent.");
 		put("chat.failed", "Nie udało się wysłać wiadomości.", "Couldn't send the message.");
+		put("emotes.title", "Emotki", "Emotes");
+		put("emotes.hint", "Wskaż myszką i puść B", "Point with the mouse, release B");
 		put("cos.failed", "Nie udało się: %s", "Failed: %s");
 		put("menu.empty", "Nie znaleziono modułów", "No modules found");
 		put("menu.key_hint", "Klawisz zmienisz w Sterowaniu Minecrafta", "Change the key in Minecraft Controls");
