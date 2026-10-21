@@ -104,3 +104,7 @@ test('unknown errors keep the server message for the player to report', async ()
 test('a missing database function means schema.sql must be run again', async () => {
   assert.equal(await code(mk({ status: 404, body: { code: 'PGRST202', message: 'Could not find the function public.create_my_profile' } }).s.rpc('create_my_profile', {}, 'AT')), 'schema_outdated');
 });
+
+test('a missing column also means schema.sql must be run again', async () => {
+  assert.equal(await code(mk({ status: 400, body: { code: '42703', message: 'column profiles.warnings does not exist' } }).s.select('profiles', 'select=warnings', 'AT')), 'schema_outdated');
+});

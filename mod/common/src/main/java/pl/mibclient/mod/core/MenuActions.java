@@ -24,6 +24,10 @@ public interface MenuActions {
 	default void equip(String type, String id) {
 	}
 
+	/** Odbiera prezent od MiB (przez launcher); komunikat jak przy zmianie kosmetyku. */
+	default void claimGift(long id) {
+	}
+
 	/** Komunikat po próbie zmiany kosmetyku albo null. */
 	default String cosmeticMessage() {
 		return null;

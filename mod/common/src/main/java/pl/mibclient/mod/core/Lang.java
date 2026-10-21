@@ -41,6 +41,8 @@ public final class Lang {
 		put("cos.hat", "Czapka", "Hat");
 		put("cos.wings", "Skrzydła", "Wings");
 		put("cos.working", "Zmieniam…", "Changing…");
+		put("cos.gift", "Prezent: %s", "Gift: %s");
+		put("cos.claim", "Odbierz", "Claim");
 		put("notice.started", "Znajomy w grze", "Friend playing");
 		put("notice.started.body", "%s gra teraz w Minecraft", "%s is now playing Minecraft");
 		put("notice.on", "na %s", "on %s");
@@ -48,6 +50,7 @@ public final class Lang {
 		put("notice.invite.body", "%s zaprasza Cię na %s (Minecraft %s). Dołącz w launcherze: Znajomi.",
 				"%s invites you to %s (Minecraft %s). Join from the launcher: Friends.");
 		put("notice.gift", "Prezent od MiB!", "A gift from MiB!");
+		put("notice.news", "Ważna aktualność MiB", "Important MiB news");
 		put("notice.gift.body", "%s czeka na Ciebie. Odbierz w launcherze.", "%s is waiting for you. Claim it in the launcher.");
 		put("notice.message", "Wiadomość od %s", "Message from %s");
 		put("notice.message.reply", "(odpowiesz pod prawym Shiftem: Znajomi)", "(reply in the Right Shift menu: Friends)");

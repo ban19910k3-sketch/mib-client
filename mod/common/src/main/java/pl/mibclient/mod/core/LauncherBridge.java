@@ -18,6 +18,7 @@ import java.util.Map;
  * cosmetic-request.json, cosmetic-result.json) i gracze MiB na serwerze (players-request.json od moda,
  * players.json i capes/ID.png od launchera), status.json (serwer dla znajomych), notice.json (powiadomienie o znajomym) i rozmowy
  * ze znajomymi (friends.json i chat.json od launchera, chat-request.json i chat-send.json od moda, chat-result.json przy błędzie).
+ * Prezenty od MiB są w cosmetics.json (gifts); „Odbierz” w grze to cosmetic-request.json z polem gift.
  */
 public final class LauncherBridge {
 	private final File dir;
@@ -93,7 +94,15 @@ public final class LauncherBridge {
 			out.add(new Cosmetics.Item((String) x.get("id"), (String) x.get("name"), (String) x.get("type"), Boolean.TRUE.equals(x.get("equipped")),
 					x.get("png") instanceof String ? (String) x.get("png") : null));
 		}
-		return new Cosmetics(true, out);
+		List<Cosmetics.Gift> gifts = new ArrayList<Cosmetics.Gift>();
+		if (m.get("gifts") instanceof List) for (Object o : (List<?>) m.get("gifts")) {
+			if (!(o instanceof Map)) continue;
+			Map<?, ?> x = (Map<?, ?>) o;
+			if (!(x.get("id") instanceof Number) || !(x.get("name") instanceof String) || !(x.get("type") instanceof String)) continue;
+			gifts.add(new Cosmetics.Gift(((Number) x.get("id")).longValue(), (String) x.get("name"), (String) x.get("type"),
+					x.get("message") instanceof String ? (String) x.get("message") : null));
+		}
+		return new Cosmetics(true, out, gifts);
 	}
 
 	private String playersAsked;
@@ -141,6 +150,14 @@ public final class LauncherBridge {
 		Map<String, Object> m = new LinkedHashMap<String, Object>();
 		m.put("type", type);
 		m.put("id", id);
+		m.put("at", System.currentTimeMillis());
+		write("cosmetic-request.json", m);
+	}
+
+	/** Prośba do launchera: odbierz prezent od MiB (kosmetyk trafia na profil). */
+	public void requestClaim(long giftId) {
+		Map<String, Object> m = new LinkedHashMap<String, Object>();
+		m.put("gift", giftId);
 		m.put("at", System.currentTimeMillis());
 		write("cosmetic-request.json", m);
 	}

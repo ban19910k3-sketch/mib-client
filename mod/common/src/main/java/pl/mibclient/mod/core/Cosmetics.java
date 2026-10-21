@@ -3,16 +3,35 @@ package pl.mibclient.mod.core;
 import java.util.Collections;
 import java.util.List;
 
-/** Kosmetyki z profilu MiB (z launchera): czy gracz ma profil i jego przedmioty. */
+/** Kosmetyki z profilu MiB (z launchera): czy gracz ma profil, jego przedmioty i prezenty od MiB do odebrania. */
 public final class Cosmetics {
 	public static final Cosmetics LOGGED_OUT = new Cosmetics(false, Collections.<Item>emptyList());
 
 	public final boolean loggedIn;
 	public final List<Item> items;
+	public final List<Gift> gifts;
 
 	public Cosmetics(boolean loggedIn, List<Item> items) {
+		this(loggedIn, items, Collections.<Gift>emptyList());
+	}
+
+	public Cosmetics(boolean loggedIn, List<Item> items, List<Gift> gifts) {
 		this.loggedIn = loggedIn;
 		this.items = Collections.unmodifiableList(items);
+		this.gifts = Collections.unmodifiableList(gifts);
+	}
+
+	/** Prezent od MiB: kosmetyk, który trafi na profil po „Odbierz” (w launcherze albo w menu gry), z wiadomością twórcy. */
+	public static final class Gift {
+		public final long id;
+		public final String name, type, message;
+
+		public Gift(long id, String name, String type, String message) {
+			this.id = id;
+			this.name = name;
+			this.type = type;
+			this.message = message;
+		}
 	}
 
 	/** Animowana tekstura: klatka co tyle ms (tak samo w launcherze: CAPE_FRAME_MS w lib/profile.js). */

@@ -74,6 +74,13 @@ class LauncherBridgeTest {
 		b.requestEquip("cape", null);
 		String req = new String(Files.readAllBytes(new File(dir, "cosmetic-request.json").toPath()), StandardCharsets.UTF_8);
 		assertTrue(req.startsWith("{\"type\":\"cape\",\"id\":null,\"at\":"), req);
+		write("cosmetics.json", "{\"loggedIn\":true,\"items\":[],\"gifts\":[{\"id\":7,\"name\":\"Korona\",\"type\":\"hat\",\"message\":\"Dzięki!\"},{\"id\":\"zle\"}]}");
+		assertEquals(1, b.cosmetics().gifts.size());
+		assertEquals("Korona", b.cosmetics().gifts.get(0).name);
+		assertEquals(7L, b.cosmetics().gifts.get(0).id);
+		b.requestClaim(7);
+		String claim = new String(Files.readAllBytes(new File(dir, "cosmetic-request.json").toPath()), StandardCharsets.UTF_8);
+		assertTrue(claim.startsWith("{\"gift\":7,\"at\":"), claim);
 		write("cosmetic-result.json", "{\"ok\":false,\"message\":\"Brak sieci\",\"at\":" + (System.currentTimeMillis() + 5) + "}");
 		assertEquals("Brak sieci", b.cosmeticFailure(System.currentTimeMillis() - 1000));
 	}

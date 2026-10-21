@@ -8,9 +8,12 @@ const QUEUE_MAX = 200;
 const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_cosmetics', 'admin_grant', 'admin_revoke', 'admin_delete_player',
   'admin_save_cosmetic', 'admin_delete_cosmetic', 'admin_create_codes', 'admin_list_codes', 'admin_delete_code',
   'admin_list_announcements', 'admin_save_announcement', 'admin_delete_announcement',
-  'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea', 'admin_answer_idea', 'admin_gift']);
+  'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea', 'admin_answer_idea', 'admin_gift', 'admin_gift_all',
+  'admin_idea_details', 'admin_list_reports', 'admin_count_new_reports', 'admin_warn', 'admin_ban', 'admin_unban', 'admin_dismiss_report', 'admin_activity']);
+const CRASH_MAX = 20000;
 
-function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods }) {
+// hidden(): tryb niewidoczny (znajomi widzą offline)
+function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods, hidden = () => false }) {
   let sess = null, restored = false, game = null, flushing = null, seq = 0, server = null, shareServer = true, lastPing = 0;
   const modLocks = {};
 
@@ -80,13 +83,16 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     if (!t) return { loggedIn: false };
     await flushStats().catch(() => {});
     try {
-      const [p] = await authed(t2 => supa.select('profiles', 'select=nick,num,founder,created_at,playtime_min,launches,version_stats,bugs_found&id=eq.' + sess.userId, t2));
+      const sel = cols => authed(t2 => supa.select('profiles', 'select=' + cols + '&id=eq.' + sess.userId, t2)), base = 'nick,num,founder,created_at,playtime_min,launches,version_stats,bugs_found';
+      // ostrzeżenia i ban od 0.20.0; baza bez nowego schema.sql: profil działa bez nich
+      const [p] = await sel(base + ',warnings,banned_at,ban_reason').catch(e => (e.code === 'schema_outdated' ? sel(base) : Promise.reject(e)));
       if (!p) return { needsProfile: true }; // konto bez profilu: gracz wybiera nick i dokańcza profil
       const admin = await authed(t2 => supa.rpc('is_admin', {}, t2)).then(Boolean, () => false);
       safe.presence({ soft: true }); // znajomi od razu widzą, że launcher działa (nie częściej niż co minutę)
       return {
         admin,
         loggedIn: true, nick: p.nick, mibId: P.formatMibId(p.num), founder: p.founder, createdAt: p.created_at, bugsFound: p.bugs_found || 0,
+        warnings: p.warnings || 0, banned: !!p.banned_at, banReason: p.ban_reason || null,
         playtimeMin: p.playtime_min, launches: p.launches, versionStats: p.version_stats || {},
       };
     } catch (e) {
@@ -187,7 +193,8 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       return withCode(await state());
     },
     // Ogłoszenia widzą wszyscy, także bez profilu (baza pokazuje tylko aktualne)
-    announcements: () => supa.select('announcements', 'select=id,title,body,pinned,created_at&order=pinned.desc,created_at.desc&limit=10'),
+    announcements: () => supa.select('announcements', 'select=id,title,body,pinned,popup,created_at&order=pinned.desc,created_at.desc&limit=10')
+      .catch(e => (e.code === 'schema_outdated' ? supa.select('announcements', 'select=id,title,body,pinned,created_at&order=pinned.desc,created_at.desc&limit=10') : Promise.reject(e))),
     // lite: bez tekstur (do list wyboru), żeby nie pobierać ich niepotrzebnie
     allCosmetics: ({ lite } = {}) => supa.select('cosmetics', 'select=id,name,type' + (lite ? '' : ',texture') + '&order=created_at.desc'),
     async admin({ fn, args }) {
@@ -242,6 +249,14 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     // Zmiany w moich pomysłach (status, odpowiedź twórcy) i ich obejrzenie
     ideaUpdates: () => authed(t => supa.rpc('ideas_updates', {}, t)),
     async ideasSeen() { await authed(t => supa.rpc('ideas_seen', {}, t)); return { ok: true }; },
+    // Raport awarii jako zgłoszenie błędu (raport składa main.js bez tokenów); za długi: początek i koniec
+    async submitCrash({ body, details }) {
+      const b = String(body || '').trim();
+      if (b.length < 10) return { error: 'idea_short' };
+      let d = String(details || '');
+      if (d.length > CRASH_MAX) d = d.slice(0, 4000) + '\n[…]\n' + d.slice(-(CRASH_MAX - 4010));
+      return { ok: true, id: await authed(t => supa.rpc('submit_crash', { p_body: b.slice(0, 1000), p_details: d }, t)) };
+    },
     // Prezenty od MiB: do odebrania (kosmetyk trafia na profil dopiero po „Odbierz”)
     gifts: () => authed(t => supa.rpc('my_gifts', {}, t)),
     async claimGift({ id }) { return { cosmetic: await authed(t => supa.rpc('claim_gift', { p_id: id }, t)) }; },
@@ -274,11 +289,23 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     },
     invites: () => authed(t => supa.rpc('game_invites_list', {}, t)),
     // Serwer, na który można teraz zaprosić znajomych (gra działa, mod zgłosił serwer, gracz go pokazuje)
-    nowPlaying: () => ({ playing: !!game, server: game && shareServer ? server : null }),
+    nowPlaying: () => ({ playing: !!game, server: game && shareServer && !hidden() ? server : null }),
     async inviteDismiss({ id }) {
       await authed(t => supa.rpc('game_invite_dismiss', { p_from: id }, t));
       return { ok: true };
     },
+    // ===== Bezpieczeństwo: blokowanie, zgłoszenia, ostrzeżenia =====
+    async block({ id }) { await authed(t => supa.rpc('block_user', { p_user: id }, t)); return { ok: true }; },
+    async unblock({ id }) { await authed(t => supa.rpc('unblock_user', { p_user: id }, t)); return { ok: true }; },
+    blocked: () => authed(t => supa.rpc('blocked_list', {}, t)),
+    // message: zgłaszana wiadomość od tej osoby (albo null: zgłoszenie samego gracza)
+    async report({ id, message, reason, note }) {
+      return { id: await authed(t => supa.rpc('report_user', { p_user: id, p_message: message || null, p_reason: reason, p_note: String(note || '').trim() || null }, t)) };
+    },
+    warnings: () => authed(t => supa.rpc('my_warnings', {}, t)),
+    async warningsSeen() { await authed(t => supa.rpc('warnings_seen', {}, t)); return { ok: true }; },
+    // Liczby do osiągnięć: moje (id puste) albo znajomego (z nazwą konta Minecraft i założonymi kosmetykami)
+    card: ({ id } = {}) => authed(t => supa.rpc('profile_card', { p_user: id || null }, t)),
     // ===== Wiadomości do znajomych =====
     chat: ({ id, before }) => authed(t => supa.rpc('messages_with', { p_user: id, p_before: before || null }, t)),
     async chatSend({ id, body }) {
@@ -298,7 +325,10 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       if (soft && now() - lastPing < 60000) return { ok: true };
       if (!sess || !(await token())) return { ok: false };
       lastPing = now();
-      await authed(t => supa.rpc('presence_ping', { p_playing: !!game, p_version: game ? game.version : null, p_server: game && shareServer ? server : null }, t));
+      const args = { p_playing: !!game, p_version: game ? game.version : null, p_server: game && shareServer ? server : null };
+      // tryb niewidoczny od 0.20.0; stara baza zna tylko trzy argumenty
+      await authed(t => supa.rpc('presence_ping', { ...args, p_hidden: !!hidden() }, t))
+        .catch(e => (e.code === 'schema_outdated' ? authed(t => supa.rpc('presence_ping', args, t)) : Promise.reject(e)));
       return { ok: true };
     },
     async presenceLeave() {
@@ -349,7 +379,9 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   friends: 'prof:friends', friendRequest: 'prof:friendRequest', friendAnswer: 'prof:friendAnswer', friendRemove: 'prof:friendRemove',
   inviteFriend: 'prof:inviteFriend', invites: 'prof:invites', inviteDismiss: 'prof:inviteDismiss', nowPlaying: 'prof:nowPlaying',
   chat: 'prof:chat', chatSend: 'prof:chatSend', chatRead: 'prof:chatRead', chatUnread: 'prof:chatUnread',
-  ideaUpdates: 'prof:ideaUpdates', ideasSeen: 'prof:ideasSeen', gifts: 'prof:gifts', claimGift: 'prof:claimGift' };
+  ideaUpdates: 'prof:ideaUpdates', ideasSeen: 'prof:ideasSeen', gifts: 'prof:gifts', claimGift: 'prof:claimGift',
+  block: 'prof:block', unblock: 'prof:unblock', blocked: 'prof:blocked', report: 'prof:report', warnings: 'prof:warnings', warningsSeen: 'prof:warningsSeen',
+  card: 'prof:card' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

@@ -463,3 +463,21 @@ test('gracze MiB: zgłoszenie z profilem łączy konto, bez profilu anonimowo; t
   await p.mibWho({ ids: ['u'], names: null });
   assert.deepEqual(supa.calls.at(-1), ['rpc', 'mib_who', { p_ids: ['u'], p_names: [] }]);
 });
+
+test('stara baza (bez schema.sql z 0.20.0): profil, aktualności i obecność działają bez nowych kolumn', async () => {
+  const supa = fakeSupa({
+    select: async (t, q) => {
+      if (/warnings|popup/.test(q)) throw new SupaError(400, 'schema_outdated', 'column does not exist');
+      return t === 'profiles' ? [profileRow] : t === 'announcements' ? [{ id: 1, title: 'Hej' }] : [];
+    },
+    rpc: async (n, a) => { if (n === 'presence_ping' && 'p_hidden' in a) throw new SupaError(404, 'schema_outdated'); return null; },
+  });
+  const { p } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  const st = await p.state();
+  assert.equal(st.loggedIn, true);
+  assert.deepEqual([st.warnings, st.banned], [0, false]);
+  assert.deepEqual(await p.announcements(), [{ id: 1, title: 'Hej' }]);
+  assert.deepEqual(await p.presence(), { ok: true });
+  assert.ok(supa.calls.some(c => c[0] === 'rpc' && c[1] === 'presence_ping' && !('p_hidden' in c[2])), 'obecność bez trybu niewidocznego');
+});

@@ -401,3 +401,27 @@ test('jarLoader i dropError: rozpoznanie moda z .jar i zgodność z loaderem wer
   assert.equal(m.dropError('neoforge', null), 'wrong_loader', 'launcher obsługuje Fabric i Forge');
   assert.equal(m.dropError(null, 'fabric'), 'not_mod');
 });
+
+test('prezenty w menu gry: lista w cosmetics.json i odbieranie (cosmetic-request.json z polem gift)', async () => {
+  const withGifts = { ...COS, gifts: [{ id: 7, name: 'Korona', type: 'hat', message: 'Dzięki!', texture: 'data:image/png;base64,QUJD' }, { id: 'zle' }] };
+  assert.deepStrictEqual(JSON.parse(m.cosmeticsPayload(withGifts)).gifts, [{ id: 7, name: 'Korona', type: 'hat', message: 'Dzięki!' }], 'bez tekstur i złych wpisów');
+  assert.strictEqual(m.readClaim('{"gift":7}', withGifts), 7);
+  assert.strictEqual(m.readClaim('{"gift":8}', withGifts), null, 'tylko prezenty gracza');
+  assert.strictEqual(m.readClaim('{"type":"cape","id":"c1"}', withGifts), null);
+  const dir = path.join(tmp(), 'mib'), claims = [];
+  let cur = JSON.parse(JSON.stringify(withGifts));
+  const b = m.createBridge({ dir, accounts: () => ACC, onSwitch: async () => {}, cosmetics: async () => cur, intervalMs: 60000, now: () => 5,
+    onClaim: async id => { claims.push(id); cur.gifts = []; cur.items.push({ id: 'h2', name: 'Korona', type: 'hat', equipped: false }); } });
+  await b.pollOnce();
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'cosmetics.json'), 'utf8')).gifts.length, 1);
+  fs.writeFileSync(path.join(dir, 'cosmetic-request.json'), '{"gift":7,"at":5}');
+  await b.pollOnce();
+  assert.deepStrictEqual(claims, [7]);
+  const after = JSON.parse(fs.readFileSync(path.join(dir, 'cosmetics.json'), 'utf8'));
+  assert.deepStrictEqual([after.gifts.length, after.items.some(x => x.id === 'h2')], [0, true], 'po odebraniu prezent jest na liście przedmiotów');
+  fs.writeFileSync(path.join(dir, 'cosmetic-request.json'), '{"gift":7,"at":6}');
+  await b.pollOnce();
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'cosmetic-result.json'), 'utf8')).ok, false, 'drugi raz: błąd w grze');
+  b.notice({ type: 'news', nick: 'MiB', text: 'Turniej za godzinę' });
+  assert.deepStrictEqual((({ type, text }) => ({ type, text }))(JSON.parse(fs.readFileSync(path.join(dir, 'notice.json'), 'utf8'))), { type: 'news', text: 'Turniej za godzinę' });
+});

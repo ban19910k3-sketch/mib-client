@@ -41,6 +41,17 @@
     invite_no_server: 'Najpierw wejdź w grze na serwer. Zaproszenie prowadzi na serwer, na którym grasz.',
     invite_limit: 'Za dużo zaproszeń do gry. Spróbuj za godzinę.',
     gift_missing: 'Ten prezent został już odebrany.',
+    banned: 'Twoje konto MiB jest zablokowane. Nie możesz tego zrobić.',
+    friend_blocked: 'Nie możesz zaprosić tego gracza.',
+    block_limit: 'Masz już za dużo zablokowanych graczy.',
+    player_missing: 'Tego gracza już nie ma w MiB.',
+    report_reason: 'Wybierz powód zgłoszenia.',
+    report_long: 'Opis może mieć najwyżej 300 znaków.',
+    report_limit: 'Na dziś to już 10 zgłoszeń. Następne wyślesz jutro.',
+    report_exists: 'Ta wiadomość jest już zgłoszona.',
+    report_message_missing: 'Tej wiadomości już nie ma.',
+    not_friend: 'Kartę gracza widzą tylko jego znajomi.',
+    crash_long: 'Raport jest za długi.',
     message_not_friend: 'Pisać możesz tylko do znajomych.',
     message_empty: 'Wiadomość jest pusta.',
     message_long: 'Wiadomość może mieć najwyżej 500 znaków.',
@@ -215,6 +226,10 @@
       h('div', { class: 'phead' },
         h('h2', {}, st.nick), st.founder ? h('em', { class: 'tag founder', title: T('Jeden z pierwszych 1000 profili MiB') }, T('Założyciel')) : null,
         st.bugsFound ? h('em', { class: 'tag hunter', id: 'pf-hunter', title: T('Nagrodzone zgłoszenia błędów') }, T('Łowca błędów') + (st.bugsFound > 1 ? ' ×' + st.bugsFound : '')) : null),
+      st.banned ? h('div', { class: 'card ban', id: 'pf-ban', role: 'alert' }, h('b', {}, T('Konto MiB zablokowane')),
+        h('p', {}, T('Twórca MiB Client zablokował to konto za łamanie zasad.') + (st.banReason ? ' ' + T('Powód:') + ' ' + st.banReason : '')),
+        h('p', { class: 'mut' }, T('Grać możesz dalej, ale nie napiszesz do znajomych, nie zaprosisz nikogo i nie wyślesz pomysłu, a w grze nie widać Twojego logo MiB i kosmetyków.')))
+        : st.warnings ? h('p', { class: 'warnline', id: 'pf-warn' }, T('Ostrzeżenia od twórcy MiB Client') + ': ' + st.warnings + '/4') : null,
       h('div', { class: 'idrow' }, h('span', { class: 'mono', id: 'pf-id' }, st.mibId),
         h('button', { class: 'b ghost', on: { click: async () => { try { await navigator.clipboard.writeText(st.mibId); toast(T('Skopiowano')); } catch {} } } }, T('Kopiuj ID'))),
       h('div', { class: 'sec' }, h('h3', {}, T('Statystyki')), h('div', { class: 'stats' },
@@ -222,6 +237,7 @@
         stat('Uruchomienia gry', String(st.launches || 0)),
         stat('Ulubiona wersja', fav || '—'),
         stat('Profil od', fmtDate(st.createdAt)))),
+      h('div', { class: 'sec', id: 'pf-ach' }, h('h3', {}, T('Osiągnięcia')), h('p', { class: 'mut' }, T('Wczytywanie…'))),
       h('div', { class: 'sec' }, h('h3', {}, T('Kosmetyki')),
         h('div', { class: 'row', style: 'align-items:center;justify-content:space-between' },
           h('span', { class: 'mut', id: 'pf-cos' }, '…'), h('button', { class: 'b ghost', on: { click: () => go('cos') } }, T('Przejdź do kosmetyków')))),
@@ -235,8 +251,38 @@
   }
   function render() {
     const box = $('prof-box');
-    box.replaceChildren(...(st.loading ? [h('h2', {}, T('Profil MiB')), h('p', { class: 'mut' }, T('Wczytywanie…'))] : st.loggedIn ? viewIn() : st.needsProfile ? viewComplete() : st.offline ? viewOffline() : viewOut()));
+    box.replaceChildren(...(st.loading ? [h('h2', {}, T('Profil MiB')), h('p', { class: 'mut' }, T('Wczytywanie…'))] : st.loggedIn ? viewIn() : st.needsProfile ? viewComplete() : st.offline ? viewOffline() : viewOut()).filter(Boolean));
     if (st.loggedIn) mib.call('prof:cosmetics').then(l => { const e = $('pf-cos'); if (e) e.textContent = Array.isArray(l) ? T('Posiadane przedmioty') + ': ' + l.length : msg(l.error); });
+    if (st.loggedIn) achievementsCheck(true);
+  }
+
+  // ===== Osiągnięcia: odznaki z liczb profilu (lib/profile.js), nowe zdobyte z efektem odblokowania =====
+  const TROPHY = 'M6 3h12v2H6zM6 5h2v6H6zM16 5h2v6h-2zM8 11h2v2H8zM14 11h2v2h-2zM10 13h4v2h-4zM11 15h2v3h-2zM8 18h8v3H8zM2 5h4v2H2zM2 7h2v3H2zM4 10h2v2H4zM18 5h4v2h-4zM20 7h2v3h-2zM18 10h2v2h-2z';
+  const trophy = () => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); s.innerHTML = '<path fill="currentColor" d="' + TROPHY + '"/>'; return s; };
+  const progress = a => (a.id === 'hours_10' || a.id === 'veteran' ? Math.floor(a.value / 60) + '/' + a.goal / 60 + ' h' : a.value + '/' + a.goal);
+  function achGrid(list) {
+    return h('div', { class: 'ach-grid' }, ...list.map(a => h('div', { class: 'ach' + (a.done ? ' on' : ''), 'data-id': a.id, title: T(a.desc) },
+      trophy(), h('b', {}, T(a.name)), h('small', {}, a.done ? T('Zdobyte') : progress(a)))));
+  }
+  async function achievementsCheck(show) {
+    if (!st.loggedIn) return;
+    const c = await mib.call('prof:card');
+    if (!c || c.error) { const b = $('pf-ach'); if (show && b) b.replaceChildren(h('h3', {}, T('Osiągnięcia')), h('p', { class: 'mut' }, msg(c ? c.error : 'unknown'))); return; }
+    const list = MibProfile.achievements(c), done = list.filter(a => a.done);
+    const box = $('pf-ach');
+    if (box) box.replaceChildren(h('h3', {}, T('Osiągnięcia') + ' (' + done.length + '/' + list.length + ')'), achGrid(list));
+    // zdobyte od ostatniego razu (pierwszy raz na tym komputerze: bez efektu)
+    const key = 'mib-ach-' + st.mibId;
+    let seen = null; try { seen = JSON.parse(localStorage.getItem(key)); } catch {}
+    const fresh = Array.isArray(seen) ? done.filter(a => !seen.includes(a.id)) : [];
+    try { localStorage.setItem(key, JSON.stringify(done.map(a => a.id))); } catch {}
+    // gdy otwarte jest inne okno (ostrzeżenie, prezent, aktualność), bez efektu na nim: tylko dymek
+    if (fresh.length) await new Promise(r => setTimeout(r, 1200));
+    const busy = document.querySelector('#warn, #gift, #news-pop, #wn, #fcard');
+    for (const a of fresh.slice(0, 3)) {
+      if (busy || !window.mibUnlock) toast(T('Nowe osiągnięcie!') + ' ' + T(a.name));
+      else mibUnlock({ name: T(a.name), label: T('Nowe osiągnięcie!'), glyph: trophy() });
+    }
   }
 
   // ===== Strona Kosmetyki =====
@@ -660,10 +706,11 @@
       h('div', { class: 'frow chat-head st-' + f.status },
         h('i', { class: 'dot', 'aria-hidden': 'true' }),
         h('div', { class: 'fi' }, h('b', {}, f.nick), h('span', { class: 'mut' }, statusText(f))),
+        h('button', { class: 'b ghost', id: 'chat-block', type: 'button', on: { click: () => blockUser(f, closeChat) } }, T('Zablokuj')),
         h('button', { class: 'b ghost', id: 'chat-x', type: 'button', on: { click: closeChat } }, T('Zamknij'))),
       list, err, form));
     ov.addEventListener('mousedown', e => { if (e.target === ov) closeChat(); });
-    ov.addEventListener('keydown', e => { if (e.key === 'Escape') closeChat(); });
+    ov.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('report')) closeChat(); });
     document.body.append(ov);
     input.focus();
     async function load() {
@@ -680,7 +727,8 @@
           const lastMine = l.reduce((a, m, i) => (m.mine ? i : a), -1);
           list.replaceChildren(...(l.length ? l.map((m, i) => h('div', { class: 'msg' + (m.mine ? ' me' : '') },
             h('span', { class: 'tx' }, m.body),
-            h('small', {}, timeOf(m.created_at) + (i === lastMine && m.read ? ' · ' + T('przeczytana') : ''))))
+            h('small', {}, timeOf(m.created_at) + (i === lastMine && m.read ? ' · ' + T('przeczytana') : ''),
+              m.mine ? null : h('button', { class: 'rep-b', type: 'button', title: T('Zgłoś wiadomość'), on: { click: () => openReport(f, m, b => { if (b) closeChat(); }) } }, T('Zgłoś')))))
             : [h('p', { class: 'empty' }, T('Napisz pierwszą wiadomość do') + ' ' + f.nick + '.')]));
           if (bottom) list.scrollTop = list.scrollHeight;
           first = false;
@@ -720,11 +768,12 @@
     const act = (label, cls, fn) => h('button', { class: 'b ' + cls, type: 'button', on: { click: async e => { e.currentTarget.disabled = true; const r = await fn(); if (r && r.error) toast(msg(r.error, r.detail), 1); load(); } } }, T(label));
     const row = (f, ...buttons) => h('div', { class: 'card frow' + (f.status ? ' st-' + f.status : '') },
       h('i', { class: 'dot', 'aria-hidden': 'true' }),
-      h('div', { class: 'fi' }, h('b', {}, f.nick), h('span', { class: 'mut' }, f.state === 'friend' ? statusText(f) : MibProfile.formatMibId(f.num))),
+      h('div', { class: 'fi' }, f.state === 'friend' ? h('button', { class: 'linkb fr-name', type: 'button', title: T('Pokaż kartę gracza'), on: { click: () => openCard(f) } }, f.nick) : h('b', {}, f.nick),
+        h('span', { class: 'mut' }, f.state === 'friend' ? statusText(f) : f.num ? MibProfile.formatMibId(f.num) : '')),
       ...buttons);
     async function load() {
       clearTimeout(friendsTimer);
-      const [l, inv, me, un] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites'), mib.call('prof:nowPlaying'), mib.call('prof:chatUnread')]);
+      const [l, inv, me, un, bl] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites'), mib.call('prof:nowPlaying'), mib.call('prof:chatUnread'), mib.call('prof:blocked')]);
       if (!box.isConnected || !$('p-friends').classList.contains('on')) return;
       if (!Array.isArray(l)) return list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
       const unread = {};
@@ -751,7 +800,8 @@
           act('Odrzuć', 'ghost', () => mib.call('prof:inviteDismiss', { id: i.from_id }))))),
         sec('Zaproszenia do Ciebie', inc.map(f => row(f,
           act('Przyjmij', '', () => mib.call('prof:friendAnswer', { id: f.id, accept: true })),
-          act('Odrzuć', 'ghost', () => mib.call('prof:friendAnswer', { id: f.id, accept: false }))))),
+          act('Odrzuć', 'ghost', () => mib.call('prof:friendAnswer', { id: f.id, accept: false })),
+          h('button', { class: 'b ghost', type: 'button', on: { click: () => blockUser(f, load) } }, T('Zablokuj'))))),
         fr.length ? sec('Twoi znajomi', fr.map(f => row(f,
           f.status === 'game' && f.server && f.version && f.server !== here ? act('Dołącz', '', async () => { window.mibJoin(f.version, f.server); }) : null,
           canInvite(f) ? invite(f) : null,
@@ -759,14 +809,131 @@
           act('Usuń', 'ghost', () => confirm(T('Usunąć') + ' ' + f.nick + ' ' + T('ze znajomych?')) ? mib.call('prof:friendRemove', { id: f.id }) : null))))
           : h('p', { class: 'empty' }, T('Nie masz jeszcze znajomych. Wpisz nick albo ID MiB kolegi i kliknij „Zaproś”.')),
         sec('Wysłane zaproszenia', out.map(f => row(f, act('Anuluj', 'ghost', () => mib.call('prof:friendRemove', { id: f.id }))))),
+        sec('Zablokowani', (Array.isArray(bl) ? bl : []).map(b => h('div', { class: 'card frow blocked' }, h('i', { class: 'dot', 'aria-hidden': 'true' }),
+          h('div', { class: 'fi' }, h('b', {}, b.nick), h('span', { class: 'mut' }, MibProfile.formatMibId(b.num))),
+          act('Odblokuj', 'ghost', () => mib.call('prof:unblock', { id: b.id }))))),
       ].filter(Boolean));
       friendsBadge();
       friendsTimer = setTimeout(load, 30000);
     }
-    box.replaceChildren(...head, form, err, list);
+    box.replaceChildren(...head, ...(st.banned ? [h('p', { class: 'card ban' }, T('Twoje konto MiB jest zablokowane: nie możesz pisać ani zapraszać znajomych.'))] : []), form, err, list);
     friendsReload = load;
     load();
   }
+
+  // ===== Zgłoszenie gracza (z wiadomością albo samego gracza) i blokowanie =====
+  const REASONS = [['insult', 'Wyzwiska albo obrażanie'], ['spam', 'Spam'], ['scam', 'Oszustwo (np. kradzież konta albo przedmiotów)'], ['other', 'Inne']];
+  // after(blocked): po wysłaniu; blocked = gracz od razu zablokowany
+  function openReport(f, m, after) {
+    const old = $('report'); if (old) old.remove();
+    const reason = h('select', { id: 'rp-reason' }, ...REASONS.map(([v, l]) => h('option', { value: v }, T(l))));
+    const note = h('textarea', { id: 'rp-note', maxlength: 300, rows: 3, placeholder: T('Co się stało? (nieobowiązkowe)') });
+    const blk = h('input', { type: 'checkbox', id: 'rp-block' }), err = errBox();
+    const sendB = h('button', { class: 'b', id: 'rp-send', type: 'submit' }, T('Wyślij zgłoszenie'));
+    const close = () => ov.remove();
+    const ov = h('div', { class: 'ov on', id: 'report' }, h('form', { class: 'm', role: 'dialog', 'aria-label': T('Zgłoś gracza'), on: { submit: async e => {
+      e.preventDefault();
+      sendB.disabled = true; err.textContent = '';
+      const r = await mib.call('prof:report', { id: f.id, message: m ? m.id : null, reason: reason.value, note: note.value });
+      if (r.error) { sendB.disabled = false; err.textContent = msg(r.error, r.detail); return; }
+      if (blk.checked) await mib.call('prof:block', { id: f.id });
+      toast(T('Zgłoszenie wysłane. Twórca MiB Client je sprawdzi.'));
+      close();
+      if (after) after(blk.checked);
+      if (blk.checked && friendsReload) friendsReload();
+    } } },
+      h('h3', {}, T('Zgłoś gracza') + ' ' + f.nick),
+      m ? h('blockquote', { class: 'rp-msg' }, m.body) : null,
+      h('p', { class: 'mut' }, T(m ? 'Twórca MiB Client zobaczy tę wiadomość i kilka poprzednich z tej rozmowy.' : 'Twórca MiB Client zobaczy Twoje zgłoszenie i sprawdzi tego gracza.')),
+      field('Powód', reason), field('Opis', note), h('label', { class: 'ck' }, blk, T('Zablokuj też tego gracza')), err,
+      h('div', { class: 'row', style: 'justify-content:flex-end' }, h('button', { class: 'b ghost', type: 'button', on: { click: close } }, T('Anuluj')), sendB)));
+    ov.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+    document.body.append(ov);
+    reason.focus();
+  }
+  async function blockUser(f, after) {
+    if (!confirm(T('Zablokować') + ' ' + f.nick + '? ' + T('Znajomość, zaproszenia i rozmowa znikną, a ten gracz nie zaprosi Cię ponownie. Jeśli ktoś Cię obraża, najpierw zgłoś wiadomość.'))) return;
+    const r = await mib.call('prof:block', { id: f.id });
+    if (r.error) return toast(msg(r.error, r.detail), 1);
+    toast(f.nick + ' ' + T('zablokowany.'));
+    if (after) after();
+    if (friendsReload && $('p-friends').classList.contains('on')) friendsReload();
+    friendsBadge();
+  }
+
+  // ===== Karta znajomego: postać 3D w jego kosmetykach, odznaki, czas gry, osiągnięcia =====
+  async function openCard(f) {
+    const old = $('fcard'); if (old) old.remove();
+    const canvas = h('canvas', { width: 170, height: 210, class: 'fc3d' });
+    const body = h('div', { class: 'fc-body' }, h('h3', {}, f.nick), h('p', { class: 'mut' }, T('Wczytywanie…')));
+    let viewer = null;
+    const close = () => { try { if (viewer) viewer.dispose(); } catch {} ov.remove(); };
+    const ov = h('div', { class: 'ov on', id: 'fcard' }, h('div', { class: 'm fc-m', role: 'dialog', 'aria-label': f.nick },
+      h('div', { class: 'fc-top' }, canvas, body),
+      h('div', { class: 'row', style: 'justify-content:flex-end' },
+        h('button', { class: 'b ghost', id: 'fc-report', type: 'button', on: { click: () => openReport(f, null, b => { if (b) close(); }) } }, T('Zgłoś')),
+        h('button', { class: 'b ghost', id: 'fc-block', type: 'button', on: { click: () => blockUser(f, close) } }, T('Zablokuj')),
+        h('button', { class: 'b', id: 'fc-chat', type: 'button', on: { click: () => { close(); openChat(f); } } }, T('Napisz')),
+        h('button', { class: 'b ghost', id: 'fc-x', type: 'button', on: { click: close } }, T('Zamknij')))));
+    ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });
+    ov.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('report')) close(); });
+    document.body.append(ov);
+    const c = await mib.call('prof:card', { id: f.id });
+    if (!ov.isConnected) return;
+    if (!c || c.error) return body.replaceChildren(h('h3', {}, f.nick), h('p', { class: 'err' }, msg(c ? c.error : 'unknown', c && c.detail)));
+    const list = MibProfile.achievements(c), done = list.filter(a => a.done).length, eq = Array.isArray(c.equipped) ? c.equipped : [];
+    const line = (l, v) => h('div', { class: 'sr' }, h('span', {}, T(l)), h('b', {}, v));
+    body.replaceChildren(
+      h('div', { class: 'phead' }, h('h3', {}, c.nick), c.founder ? h('em', { class: 'tag founder' }, T('Założyciel')) : null,
+        c.bugs_found ? h('em', { class: 'tag hunter' }, T('Łowca błędów') + (c.bugs_found > 1 ? ' ×' + c.bugs_found : '')) : null),
+      h('span', { class: 'mono mut' }, MibProfile.formatMibId(c.num) + ' · ' + statusText(f)),
+      line('Czas gry przez MiB', MibProfile.formatPlaytime(c.playtime_min || 0)), line('Profil od', fmtDate(c.created_at)),
+      line('Założone', eq.length ? eq.map(x => x.name).join(', ') : '—'),
+      h('h4', {}, T('Osiągnięcia') + ' (' + done + '/' + list.length + ')'), achGrid(list));
+    try {
+      viewer = new skinview3d.SkinViewer({ canvas, width: 170, height: 210 }); viewer.autoRotate = true; viewer.autoRotateSpeed = 0.8; viewer.controls.enableZoom = false;
+      await viewer.loadSkin(await mib.call('skin', c.mc_name || 'MHF_Steve'));
+      const back = eq.find(x => x.type !== 'hat' && x.texture), hat = eq.find(x => x.type === 'hat' && x.texture);
+      if (ov.isConnected) window.mibDress(viewer, { back: back ? { texture: back.texture, kind: back.type === 'wings' ? 'elytra' : 'cape' } : null, hat: hat ? hat.texture : null });
+      canvas.dataset.dressed = eq.map(x => x.type).sort().join(',');
+    } catch {}
+  }
+
+  // ===== Ostrzeżenie od twórcy (4. = ban) i ważna aktualność: okna, które gracz potwierdza =====
+  function showWarnings(list) {
+    if (!Array.isArray(list) || !list.length || $('warn')) return;
+    const fx = $('unlock'); if (fx) fx.remove(); // ostrzeżenie jest ważniejsze niż efekt nowego przedmiotu
+    const w = list[list.length - 1], ban = w.num >= 4;
+    const ok = h('button', { class: 'b', id: 'warn-ok', type: 'button', on: { click: async () => {
+      ok.disabled = true;
+      await mib.call('prof:warningsSeen');
+      ov.remove();
+      refresh();
+    } } }, T('Rozumiem'));
+    const ov = h('div', { class: 'ov on', id: 'warn' }, h('div', { class: 'm warn-m', role: 'alertdialog', 'aria-label': T('Ostrzeżenie') },
+      h('small', { class: 'gift-kicker' }, T('Od twórcy MiB Client')),
+      h('h3', {}, ban ? T('Konto MiB zablokowane') : T('Ostrzeżenie') + ' ' + w.num + '/4'),
+      h('p', { class: 'lg' }, T('Powód:') + ' ' + w.reason),
+      h('p', { class: 'mut' }, ban ? T('To było czwarte ostrzeżenie. Grać możesz dalej, ale nie napiszesz do znajomych, nie zaprosisz nikogo i nie wyślesz pomysłu, a w grze nie widać Twojego logo MiB i kosmetyków.')
+        : T('Przy 4. ostrzeżeniu konto MiB zostanie zablokowane: bez wiadomości, znajomych, pomysłów i kosmetyków w grze.')),
+      h('div', { class: 'row', style: 'justify-content:flex-end' }, ok)));
+    document.body.append(ov);
+    ok.focus();
+  }
+  mib.on('warnings:new', l => { if (st.loggedIn) showWarnings(l); });
+  function showNews(a) {
+    if (!a || !a.title) return;
+    const old = $('news-pop'); if (old) old.remove();
+    const close = () => ov.remove();
+    const ov = h('div', { class: 'ov on', id: 'news-pop' }, h('div', { class: 'm news-m', role: 'dialog', 'aria-label': T('Ważna aktualność') },
+      h('small', { class: 'gift-kicker' }, T('Ważna aktualność') + (a.created_at ? ' · ' + fmtDate(a.created_at) : '')),
+      h('h3', {}, a.title), a.body ? h('p', { class: 'lg' }, a.body) : null,
+      h('div', { class: 'row', style: 'justify-content:flex-end' }, h('button', { class: 'b', id: 'news-ok', type: 'button', on: { click: close } }, T('OK')))));
+    ov.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    document.body.append(ov);
+    $('news-ok').focus();
+  }
+  mib.on('news:popup', showNews);
 
   // ===== Kopia modów na stronie Moje mody =====
   async function modsShown(gv) {
@@ -814,6 +981,8 @@
     if ($('p-friends').classList.contains('on')) renderFriends();
     friendsBadge();
     giftsCheck(!!st.loggedIn); ideasBadge();
+    if (st.loggedIn) mib.call('prof:warnings').then(showWarnings);
+    if (st.loggedIn && !was) { achievementsCheck(false); mib.call('news:check'); }
     if (st.loggedIn && !was) { mibSync.pull(); if (window.mibWave) mibWave(); }
   }
   async function refresh() { apply(await mib.call('prof:state')); }
@@ -822,11 +991,12 @@
   document.querySelector('.nav[data-p="ideas"]').addEventListener('click', renderIdeas);
   document.querySelector('.nav[data-p="friends"]').addEventListener('click', renderFriends);
   // Efekt odblokowania nowego kosmetyku
+  // item: { name, type, imageUrl } albo { name, label, glyph } (np. osiągnięcie)
   window.mibUnlock = item => {
-    if (document.documentElement.classList.contains('noanim')) return toast(T('Nowy przedmiot') + ': ' + item.name);
+    if (document.documentElement.classList.contains('noanim')) return toast((item.label ? item.label.replace(/!$/, '') : T('Nowy przedmiot')) + ': ' + item.name);
     const old = $('unlock'); if (old) old.remove();
     const o = h('div', { id: 'unlock', role: 'dialog', 'aria-label': T('Nowy przedmiot!') }, h('div', { class: 'ring' }),
-      h('div', { class: 'card2' }, h('i', {}, itemImage(item, 6)), h('small', {}, T('Nowy przedmiot!')), h('b', {}, item.name)));
+      h('div', { class: 'card2' }, h('i', {}, item.glyph || itemImage(item, 6)), h('small', {}, item.label || T('Nowy przedmiot!')), h('b', {}, item.name)));
     const close = () => { o.classList.add('bye'); setTimeout(() => o.remove(), 250); };
     o.onclick = close;
     document.body.append(o);

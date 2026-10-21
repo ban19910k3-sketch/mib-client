@@ -670,14 +670,15 @@ public final class MenuView {
 
 	/**
 	 * Kosmetyki z profilu MiB: z lewej obracająca się postać gracza (przodem i tyłem), z prawej lista. Klik w przedmiot
-	 * to przymiarka (widać ją na postaci, do zamknięcia menu), „Załóż” zakłada go naprawdę.
+	 * to przymiarka (widać ją na postaci, do zamknięcia menu), „Załóż” zakłada go naprawdę. Prezenty od MiB są na górze
+	 * listy z przyciskiem „Odbierz”.
 	 */
 	private void cosmetics(Canvas c, int mx, int my) {
 		int[] ct = layout.content;
 		header(c, Lang.t("menu.cosmetics"), mx, my);
 		Cosmetics cs = actions.cosmetics();
 		int y = ct[1] + 40;
-		if (cs == null || !cs.loggedIn || cs.items.isEmpty()) {
+		if (cs == null || !cs.loggedIn || cs.items.isEmpty() && cs.gifts.isEmpty()) {
 			int ty = ct[1] + 22;
 			for (String l : Shapes.wrap(c, Lang.t(cs == null || !cs.loggedIn ? "cos.login" : "cos.empty"), ct[2], 3)) {
 				c.text(l, ct[0], ty, Theme.MUTED, false);
@@ -699,10 +700,27 @@ public final class MenuView {
 			int size = Math.max(20, Math.min(pw * 2 / 5, (bottom - top) * 2 / 7));
 			c.playerTurned(ct[0] + 2, top + 2, ct[0] + pw - 2, bottom - 2, size, (System.currentTimeMillis() / 20) % 360);
 		}
-		maxCosScroll = Math.max(0, items.size() * 24 - 4 - (bottom - top));
+		maxCosScroll = Math.max(0, (cs.gifts.size() + items.size()) * 24 - 4 - (bottom - top));
 		cosScroll = Math.max(0, Math.min(maxCosScroll, cosScroll));
 		c.scissor(lx, top, lx + lw, bottom);
 		y = top - cosScroll;
+		for (final Cosmetics.Gift g : cs.gifts) {
+			if (y + 20 > top && y < bottom) {
+				Shapes.panel(c, lx, y, lw, 20, Theme.SLAB, Theme.AM);
+				Shapes.icon(c, "archive", lx + 6, y + 4, Theme.AM_HI);
+				String t = Lang.t("cos.claim");
+				int[] b = {lx + lw - 4 - (c.textWidth(t) + 16), y + 2, c.textWidth(t) + 16, 16};
+				c.text(Shapes.ellipsize(c, Lang.t("cos.gift", g.name), b[0] - lx - 30, false), lx + 22, y + 6, Theme.AM_HI, false);
+				button(c, b, null, t, true, in(b, mx, my));
+				if (y >= top && y + 20 <= bottom) hits.add(new Hit("gift:" + g.id, b, new Runnable() {
+					@Override
+					public void run() {
+						actions.claimGift(g.id);
+					}
+				}));
+			}
+			y += 24;
+		}
 		for (final Cosmetics.Item it : items) {
 			if (y + 20 <= top || y >= bottom) {
 				y += 24;

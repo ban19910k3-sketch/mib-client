@@ -616,3 +616,178 @@ reset role;
 do $$ begin
   assert (select count(*) from private.gifts where claimed_at is not null) = 1, 'odebrany tylko raz';
 end $$;
+
+-- Bezpieczeństwo (0.20.0): zgłoszenie wiadomości z kopią rozmowy, blokowanie, ostrzeżenia (czwarte = ban), zdjęcie bana
+set role authenticated;
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+select public.friend_request('Zaproszony');
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+select public.friend_answer('55555555-5555-5555-5555-555555555555', true);
+select public.message_send('55555555-5555-5555-5555-555555555555', 'Cześć');
+select public.message_send('55555555-5555-5555-5555-555555555555', 'Jesteś słaby, noob');
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+do $$
+declare v_msg bigint;
+begin
+  select max(id) into v_msg from public.messages_with('66666666-6666-6666-6666-666666666666') where not mine;
+  assert public.report_user('66666666-6666-6666-6666-666666666666', v_msg, 'insult', ' Obraża mnie ') > 0, 'zgłoszenie zapisane';
+end $$;
+select pg_temp.expect_error($q$select public.report_user('66666666-6666-6666-6666-666666666666',
+  (select max(id) from public.messages_with('66666666-6666-6666-6666-666666666666') where not mine), 'spam', null)$q$, 'report_exists');
+select pg_temp.expect_error($q$select public.report_user('66666666-6666-6666-6666-666666666666', 99999999, 'insult', null)$q$, 'report_message_missing');
+select pg_temp.expect_error($q$select public.report_user('66666666-6666-6666-6666-666666666666', null, 'zly', null)$q$, 'report_reason');
+select pg_temp.expect_error($q$select public.report_user('55555555-5555-5555-5555-555555555555', null, 'spam', null)$q$, 'player_missing');
+select pg_temp.expect_error($q$select public.report_user('66666666-6666-6666-6666-666666666666', null, 'spam', repeat('x', 301))$q$, 'report_long');
+select pg_temp.expect_error($q$select * from private.reports$q$, 'permission denied');
+select pg_temp.expect_error($q$select public.admin_list_reports()$q$, 'not_admin');
+select pg_temp.expect_error($q$select public.admin_warn('66666666-6666-6666-6666-666666666666', 'x', null)$q$, 'not_admin');
+select public.block_user('66666666-6666-6666-6666-666666666666');
+do $$ begin
+  assert (select count(*) from public.friends_list()) = 0, 'blokada kończy znajomość';
+  assert (select nick from public.blocked_list()) = 'Zaproszony', 'lista zablokowanych';
+end $$;
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+select pg_temp.expect_error($q$select public.friend_request('Zapraszam')$q$, 'friend_blocked');
+select pg_temp.expect_error($q$select public.message_send('55555555-5555-5555-5555-555555555555', 'hej')$q$, 'message_not_friend');
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+select public.unblock_user('66666666-6666-6666-6666-666666666666');
+do $$ begin
+  assert (select count(*) from public.blocked_list()) = 0, 'odblokowany';
+end $$;
+reset role;
+insert into private.mib_players (uuid, name, user_id, token_hash) values ('99999999-9999-9999-9999-999999999999', 'Zaproszony_MC', '66666666-6666-6666-6666-666666666666', 'x');
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$
+declare r record; v json;
+begin
+  select * into r from public.admin_list_reports() where nick = 'Zaproszony';
+  assert r.reporter = 'Zapraszam' and r.status = 'new' and r.note = 'Obraża mnie' and r.reason = 'insult', 'zgłoszenie w panelu';
+  assert jsonb_array_length(r.messages) = 2 and (r.messages -> 1 ->> 'body') = 'Jesteś słaby, noob' and (r.messages -> 1 ->> 'reported')::boolean
+    and (r.messages -> 0 ->> 'from') = 'Zaproszony', 'kopia rozmowy do zgłoszonej wiadomości';
+  assert public.admin_count_new_reports() = 1, 'licznik nowych zgłoszeń';
+  v := public.admin_warn(r.user_id, ' Obrażanie graczy na czacie ', r.id);
+  assert (v ->> 'warnings')::integer = 1 and not (v ->> 'banned')::boolean, 'pierwsze ostrzeżenie';
+  assert (select status from public.admin_list_reports() where id = r.id) = 'warned', 'zgłoszenie załatwione';
+  assert public.admin_count_new_reports() = 0, 'brak nowych zgłoszeń';
+  perform public.admin_warn(r.user_id, 'Spam', null);
+  perform public.admin_warn(r.user_id, 'Spam', null);
+  v := public.admin_warn(r.user_id, 'Ostatnie ostrzeżenie', null);
+  assert (v ->> 'banned')::boolean, 'czwarte ostrzeżenie to ban';
+  assert (select banned and warnings = 4 and ban_reason = 'Ostatnie ostrzeżenie' from public.admin_find_players('Zaproszony')), 'ban w panelu';
+end $$;
+select pg_temp.expect_error($q$select public.admin_warn('66666666-6666-6666-6666-666666666666', 'x', null)$q$, 'already_banned');
+select pg_temp.expect_error($q$select public.admin_warn('22222222-2222-2222-2222-222222222222', 'x', null)$q$, 'cannot_ban_admin');
+select pg_temp.expect_error($q$select public.admin_ban('22222222-2222-2222-2222-222222222222', 'x', null)$q$, 'cannot_ban_admin');
+select pg_temp.expect_error($q$select public.admin_warn('55555555-5555-5555-5555-555555555555', '  ', null)$q$, 'warn_reason');
+set role anon;
+do $$ begin
+  assert (select count(*) from public.mib_who(array['99999999-9999-9999-9999-999999999999'::uuid], null)) = 0, 'zbanowany bez logo MiB w grze';
+end $$;
+set role authenticated;
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+do $$ begin
+  assert (select count(*) from public.my_warnings()) = 4 and (select max(num) from public.my_warnings()) = 4, 'gracz widzi ostrzeżenia';
+  assert (select reason from public.my_warnings() order by id limit 1) = 'Obrażanie graczy na czacie', 'powód ostrzeżenia';
+  perform public.warnings_seen();
+  assert (select count(*) from public.my_warnings()) = 0, 'obejrzane';
+  assert (select banned_at is not null from public.profiles), 'gracz widzi swój ban';
+  perform public.presence_ping(false, '1.21.11', null);
+end $$;
+select pg_temp.expect_error($q$select public.submit_idea('bug', 'Coś tu wcale nie działa')$q$, 'banned');
+select pg_temp.expect_error($q$select public.friend_request('Gracz_1')$q$, 'banned');
+select pg_temp.expect_error($q$select public.report_user('55555555-5555-5555-5555-555555555555', null, 'spam', null) + public.message_send('55555555-5555-5555-5555-555555555555', 'x')::text::bigint$q$, 'banned');
+reset role;
+do $$ begin
+  assert not exists (select 1 from private.presence where user_id = '66666666-6666-6666-6666-666666666666'), 'zbanowany bez obecności dla znajomych';
+  assert exists (select 1 from private.activity where user_id = '66666666-6666-6666-6666-666666666666' and day = private.today()), 'aktywność liczy się dalej';
+end $$;
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select public.admin_unban('66666666-6666-6666-6666-666666666666');
+do $$ begin
+  assert (select not banned and warnings = 0 from public.admin_find_players('Zaproszony')), 'ban zdjęty, ostrzeżenia od zera';
+end $$;
+set role anon;
+do $$ begin
+  assert (select count(*) from public.mib_who(array['99999999-9999-9999-9999-999999999999'::uuid], null)) = 1, 'po zdjęciu bana logo wraca';
+end $$;
+
+-- Osiągnięcia, karta znajomego i tryb niewidoczny
+set role authenticated;
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+do $$
+declare c json := public.profile_card();
+begin
+  assert c ->> 'nick' = 'Zapraszam' and (c ->> 'ideas')::integer = 2 and (c ->> 'ideas_done')::integer = 1 and (c ->> 'bugs_found')::integer = 1, 'moje liczby do osiągnięć';
+  assert (c ->> 'owned')::integer >= 1 and (c ->> 'friends')::integer = 0, 'kosmetyki i znajomi';
+end $$;
+select pg_temp.expect_error($q$select public.profile_card('66666666-6666-6666-6666-666666666666')$q$, 'not_friend');
+select public.friend_request('Zaproszony');
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+select public.friend_answer('55555555-5555-5555-5555-555555555555', true);
+select public.presence_ping(true, '1.21.11', 'play.mib.pl', true);
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+do $$
+declare c json := public.profile_card('66666666-6666-6666-6666-666666666666');
+begin
+  assert (select status from public.friends_list() where nick = 'Zaproszony') = 'offline', 'niewidoczny wygląda na offline';
+  assert c ->> 'nick' = 'Zaproszony' and c ->> 'mc_name' = 'Zaproszony_MC' and json_typeof(c -> 'equipped') = 'array', 'karta znajomego';
+end $$;
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+select public.presence_ping(true, '1.21.11', 'play.mib.pl', false);
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+do $$ begin
+  assert (select status from public.friends_list() where nick = 'Zaproszony') = 'game', 'widoczny znów w grze';
+end $$;
+
+-- Prezent dla wszystkich, kody z własną nazwą i datą końca, raport awarii, aktualność w oknie, wykres graczy
+set request.jwt.claim.sub = '77777777-7777-7777-7777-777777777777';
+select pg_temp.expect_error($q$select public.admin_gift_all('hat_one', null)$q$, 'not_admin');
+select pg_temp.expect_error($q$select public.admin_activity(30)$q$, 'not_admin');
+do $$
+declare v bigint;
+begin
+  v := public.submit_crash('Awaria gry: Minecraft 1.21.11, zabrakło pamięci', repeat('log ', 100));
+  assert v > 0, 'raport awarii wysłany';
+end $$;
+select pg_temp.expect_error($q$select public.submit_crash('krótko', null)$q$, 'idea_short');
+select pg_temp.expect_error($q$select public.submit_crash('Awaria gry: Minecraft 26.1', repeat('x', 20001))$q$, 'crash_long');
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$
+declare v_n integer; v_id bigint; v_codes json; r record;
+begin
+  v_n := public.admin_gift_all('hat_one', 'Na święta!');
+  assert v_n > 0, 'prezent dla wszystkich, którzy go nie mają';
+  assert public.admin_gift_all('hat_one', null) = 0, 'drugi raz nikt nie dostaje podwójnie';
+  v_codes := public.admin_create_codes('cape_mib', 1, 50, null, now() + interval '2 days', ' turniej2026 ');
+  assert v_codes::text = '["TURNIEJ2026"]', 'kod o własnej nazwie';
+  select * into r from public.admin_list_codes() where code = 'TURNIEJ2026';
+  assert r.max_uses = 50 and r.expires_at between now() + interval '47 hours' and now() + interval '49 hours', 'ważny do daty';
+  select id into v_id from public.admin_list_ideas() where has_details;
+  assert public.admin_idea_details(v_id) like 'log log%', 'admin czyta raport awarii';
+  assert (select category from public.admin_list_ideas() where id = v_id) = 'bug', 'raport to zgłoszenie błędu';
+  perform public.admin_save_announcement(null, 'Turniej za godzinę', '', false, null, true);
+  assert (select popup from public.admin_list_announcements() where title = 'Turniej za godzinę'), 'aktualność w oknie';
+  assert (select count(*) from public.admin_activity(30)) = 30, '30 dni na wykresie';
+  select * into r from public.admin_activity(30) order by day desc limit 1;
+  assert r.players >= 2 and r.played >= 1 and r.new_profiles >= 5, 'dzisiaj: gracze, w grze i nowe profile';
+end $$;
+reset role;
+do $$ begin
+  assert not exists (select 1 from public.profiles p where p.banned_at is null
+    and not exists (select 1 from public.owned_cosmetics o where o.user_id = p.id and o.cosmetic_id = 'hat_one')
+    and (select count(*) from private.gifts g where g.user_id = p.id and g.cosmetic_id = 'hat_one' and g.claimed_at is null) <> 1),
+    'każdy gracz bez tej czapki ma dokładnie jeden prezent do odebrania';
+  assert (select message from private.gifts where cosmetic_id = 'hat_one' order by id desc limit 1) = 'Na święta!', 'wiadomość do wszystkich';
+end $$;
+set role authenticated;
+select pg_temp.expect_error($q$select public.admin_create_codes('cape_mib', 1, 1, null, null, 'TURNIEJ2026')$q$, 'code_exists');
+select pg_temp.expect_error($q$select public.admin_create_codes('cape_mib', 2, 1, null, null, 'DWA-KODY')$q$, 'codes_invalid');
+select pg_temp.expect_error($q$select public.admin_create_codes('cape_mib', 1, 1, null, null, 'zły kod')$q$, 'code_name_invalid');
+select pg_temp.expect_error($q$select public.admin_create_codes('cape_mib', 1, 1, null, now() - interval '1 hour', null)$q$, 'codes_invalid');
+set role anon;
+do $$ begin
+  assert (select popup from public.announcements where title = 'Turniej za godzinę'), 'gracze widzą, że to okno';
+end $$;
+reset role;

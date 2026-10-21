@@ -72,6 +72,12 @@ class MenuViewTest {
 			}
 
 			@Override
+			public void claimGift(long id) {
+				calls.add("claim:" + id);
+				cosMessage = Lang.t("cos.working");
+			}
+
+			@Override
 			public void tryOn(String type, String id) {
 				calls.add("try:" + type + ":" + id);
 				if (id == null) trying.remove(type);
@@ -264,6 +270,18 @@ class MenuViewTest {
 		click("cos:c1");
 		click("cos:h1");
 		assertEquals(Arrays.asList("equip:cape:c2", "equip:cape:null", "equip:hat:h1"), calls);
+		render();
+		assertTrue(c.hasText("Zmieniam…"));
+	}
+
+	@Test
+	void cosmeticsPageClaimsGiftsFromMib() {
+		cosmetics = new Cosmetics(true, new ArrayList<Cosmetics.Item>(), Arrays.asList(new Cosmetics.Gift(7, "Korona MiB", "hat", "Dzięki!")));
+		click("cosmetics");
+		render();
+		assertTrue(c.hasText("Prezent: Korona MiB") && c.hasText("Odbierz"), "prezent na liście, choć nie ma jeszcze przedmiotów");
+		click("gift:7");
+		assertEquals(Arrays.asList("claim:7"), calls);
 		render();
 		assertTrue(c.hasText("Zmieniam…"));
 	}

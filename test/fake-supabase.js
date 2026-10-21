@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 function createFake() {
-  const st = { friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -13,7 +13,8 @@ function createFake() {
     return { access_token: at, refresh_token: rt, expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: u.id, email: u.email } };
   };
   const norm = c => String(c || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
-  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, bugs_found: u.bugs || 0 });
+  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, bugs_found: u.bugs || 0, warnings: u.warnings || 0, banned_at: u.banned || null, ban_reason: u.banReason || null });
+  const banned = u => !!(u && u.banned);
 
   const server = http.createServer((req, res) => {
     let raw = '';
@@ -71,8 +72,17 @@ function createFake() {
           return json(res, 200, { cosmetic_id: c.id, name: c.name, type: c.type, image_url: c.image_url });
         }
         if (fn === 'is_admin') return json(res, 200, user.num === 2);
+        // Raport awarii: tak jak submit_crash w schema.sql
+        if (fn === 'submit_crash') {
+          if (banned(user)) return json(res, 400, { code: 'P0001', message: 'banned' });
+          const b = String(body.p_body || '').trim();
+          if (b.length < 10) return json(res, 400, { code: 'P0001', message: 'idea_short' });
+          st.ideas.push({ id: ++st.ideaId, user: user.id, category: 'bug', body: b, details: body.p_details || null, status: 'new', created_at: new Date().toISOString() });
+          return json(res, 200, st.ideaId);
+        }
         if (fn === 'submit_idea') {
           const b = String(body.p_body || '').trim(), err = m => json(res, 400, { code: 'P0001', message: m });
+          if (banned(user)) return err('banned');
           if (!['feature', 'cosmetic', 'bug', 'other'].includes(body.p_category)) return err('idea_category');
           if (b.length < 10) return err('idea_short');
           if (b.length > 1000) return err('idea_long');
@@ -85,22 +95,64 @@ function createFake() {
           const A = {
             admin_list_announcements: () => st.ann,
             admin_save_announcement: () => {
-              const a = { id: body.p_id || ++st.annId, title: body.p_title.trim(), body: body.p_body || '', pinned: !!body.p_pinned, visible_until: body.p_until, created_at: new Date().toISOString() };
+              const a = { id: body.p_id || ++st.annId, title: body.p_title.trim(), body: body.p_body || '', pinned: !!body.p_pinned, visible_until: body.p_until, popup: !!body.p_popup, created_at: new Date().toISOString() };
               st.ann = [...st.ann.filter(x => x.id !== a.id), a]; return a.id;
             },
             admin_delete_announcement: () => { st.ann = st.ann.filter(x => x.id !== body.p_id); return null; },
             admin_stats: () => ({ profiles: st.users.length, new7: st.users.length, active7: 0, foundersLeft: 1000 - st.num, cosmetics: Object.keys(cosmetics).length, owned: st.owned.length, versions: [], nowGame: 2, nowLauncher: 1, nowMod: 3, nowServers: [{ server: 'play.mib.pl', players: 2 }], nowVersions: [{ version: '1.21.11', players: 2 }] }),
-            admin_create_codes: () => Array.from({ length: body.p_count }, (_, i) => { const c = 'MIB-TEST-' + String(Object.keys(st.codes).length + 1).padStart(4, '0'); st.codes[c] = { cosmetic: body.p_cosmetic, max: body.p_max_uses, used: 0 }; return c; }),
-            admin_list_codes: () => Object.entries(st.codes).map(([code, c]) => ({ code, cosmetic_id: c.cosmetic, cosmetic_name: cosmetics[c.cosmetic].name, used_count: c.used, max_uses: c.max, expires_at: null, created_at: new Date().toISOString() })),
+            admin_create_codes: () => {
+              if (body.p_code) {
+                const c = String(body.p_code).trim().toUpperCase();
+                if (!/^[A-Z0-9-]{4,24}$/.test(c)) throw Object.assign(new Error('code_name_invalid'), { pg: true });
+                if (st.codes[c]) throw Object.assign(new Error('code_exists'), { pg: true });
+                st.codes[c] = { cosmetic: body.p_cosmetic, max: body.p_max_uses, used: 0, until: body.p_until || null };
+                return [c];
+              }
+              return Array.from({ length: body.p_count }, (_, i) => { const c = 'MIB-TEST-' + String(Object.keys(st.codes).length + 1).padStart(4, '0'); st.codes[c] = { cosmetic: body.p_cosmetic, max: body.p_max_uses, used: 0, until: body.p_until || null }; return c; });
+            },
+            admin_list_codes: () => Object.entries(st.codes).map(([code, c]) => ({ code, cosmetic_id: c.cosmetic, cosmetic_name: cosmetics[c.cosmetic].name, used_count: c.used, max_uses: c.max, expires_at: c.until || null, created_at: new Date().toISOString() })),
             admin_delete_code: () => { delete st.codes[body.p_code]; return null; },
-            admin_find_players: () => st.users.filter(u => !u.noProfile).map(u => ({ id: u.id, num: u.num, nick: u.nick, email: u.email, created_at: u.created, founder: u.num <= 1000, playtime_min: u.playtime || 0, launches: u.launches || 0 })),
+            admin_find_players: () => st.users.filter(u => !u.noProfile && (!body.p_q || !/^MIB-\d+$/i.test(body.p_q) || u.num === +body.p_q.replace(/\D/g, '')))
+              .map(u => ({ id: u.id, num: u.num, nick: u.nick, email: u.email, created_at: u.created, founder: u.num <= 1000, playtime_min: u.playtime || 0, launches: u.launches || 0,
+                warnings: u.warnings || 0, banned: banned(u), ban_reason: u.banReason || null })),
+            // Zgłoszenia, ostrzeżenia i ban: tak jak admin_* w schema.sql
+            admin_list_reports: () => st.reports.map(r => { const u = st.users.find(x => x.id === r.user), rp = st.users.find(x => x.id === r.reporter);
+              return { id: r.id, reporter: rp ? rp.nick : null, user_id: r.user, nick: u.nick, num: u.num, warnings: u.warnings || 0, banned: banned(u), reason: r.reason, note: r.note, messages: r.messages, status: r.status, created_at: r.at }; })
+              .sort((a, b) => (b.status === 'new') - (a.status === 'new') || b.id - a.id),
+            admin_count_new_reports: () => st.reports.filter(r => r.status === 'new').length,
+            admin_warn: () => {
+              const u = st.users.find(x => x.id === body.p_user), why = String(body.p_reason || '').trim();
+              if (!why) throw Object.assign(new Error('warn_reason'), { pg: true });
+              if (u.num === 2) throw Object.assign(new Error('cannot_ban_admin'), { pg: true });
+              if (banned(u)) throw Object.assign(new Error('already_banned'), { pg: true });
+              u.warnings = (u.warnings || 0) + 1;
+              st.warnings.push({ id: ++st.warnId, user: u.id, num: u.warnings, reason: why, at: new Date().toISOString(), seen: false });
+              if (u.warnings >= 4) { u.banned = new Date().toISOString(); u.banReason = why; }
+              const r = st.reports.find(x => x.id === body.p_report); if (r) r.status = u.warnings >= 4 ? 'banned' : 'warned';
+              return { warnings: u.warnings, banned: u.warnings >= 4 };
+            },
+            admin_ban: () => { const u = st.users.find(x => x.id === body.p_user); u.banned = new Date().toISOString(); u.banReason = body.p_reason; const r = st.reports.find(x => x.id === body.p_report); if (r) r.status = 'banned'; return null; },
+            admin_unban: () => { const u = st.users.find(x => x.id === body.p_user); u.banned = null; u.banReason = null; u.warnings = 0; st.warnings.forEach(w => { if (w.user === u.id) w.seen = true; }); return null; },
+            admin_dismiss_report: () => { const r = st.reports.find(x => x.id === body.p_id); if (!r) throw new Error('report_missing'); r.status = 'dismissed'; return null; },
+            admin_gift_all: () => {
+              let n = 0;
+              for (const u of st.users) if (!u.noProfile && !banned(u) && !st.owned.some(o => o.user === u.id && o.cosmetic === body.p_cosmetic) && !st.gifts.some(g => g.user === u.id && g.cosmetic === body.p_cosmetic && !g.claimed)) {
+                st.gifts.push({ id: ++st.giftId, user: u.id, cosmetic: body.p_cosmetic, message: String(body.p_message || '').trim() || null, bug: false, claimed: false }); n++;
+              }
+              return n;
+            },
+            admin_activity: () => Array.from({ length: body.p_days || 30 }, (_, i) => {
+              const d = new Date(Date.now() - (body.p_days - 1 - i) * 86400000).toISOString().slice(0, 10), a = st.activity[d] || {};
+              return { day: d, players: Object.keys(a).length || (i % 5) + 2, played: Object.values(a).filter(Boolean).length || (i % 3) + 1, new_profiles: i % 4 === 0 ? 1 : 0 };
+            }),
+            admin_idea_details: () => (st.ideas.find(i => i.id === body.p_id) || {}).details || null,
             admin_player_cosmetics: () => st.owned.filter(o => o.user === body.p_user).map(o => ({ id: o.cosmetic, name: cosmetics[o.cosmetic].name, source: 'code', acquired_at: o.at })),
             admin_grant: () => { st.owned.push({ user: body.p_user, cosmetic: body.p_cosmetic, at: new Date().toISOString() }); return null; },
             admin_revoke: () => { st.owned = st.owned.filter(o => !(o.user === body.p_user && o.cosmetic === body.p_cosmetic)); return null; },
             admin_delete_player: () => { if (st.users.find(u => u.id === body.p_user)?.num === 2) throw Object.assign(new Error('cannot_delete_admin'), { pg: true }); st.users = st.users.filter(u => u.id !== body.p_user); return null; },
             admin_save_cosmetic: () => { cosmetics[body.p_id] = { id: body.p_id, name: body.p_name, type: body.p_type, image_url: null, texture: body.p_texture || (cosmetics[body.p_id] || {}).texture || null }; return null; },
             admin_delete_cosmetic: () => { delete cosmetics[body.p_id]; return null; },
-            admin_list_ideas: () => st.ideas.map(i => { const u = st.users.find(x => x.id === i.user); return { id: i.id, user_id: u ? u.id : null, nick: u ? u.nick : null, num: u ? u.num : null, category: i.category, body: i.body, status: i.status, reply: i.reply || null, rewarded: !!i.rewarded, created_at: i.created_at }; })
+            admin_list_ideas: () => st.ideas.map(i => { const u = st.users.find(x => x.id === i.user); return { id: i.id, user_id: u ? u.id : null, nick: u ? u.nick : null, num: u ? u.num : null, category: i.category, body: i.body, status: i.status, reply: i.reply || null, rewarded: !!i.rewarded, has_details: !!i.details, created_at: i.created_at }; })
               .sort((a, b) => (b.status === 'new') - (a.status === 'new') || b.id - a.id),
             admin_count_new_ideas: () => st.ideas.filter(i => i.status === 'new').length,
             admin_set_idea_status: () => { const i = st.ideas.find(x => x.id === body.p_id); if (!i) throw new Error('idea_missing'); if (i.status !== body.p_status && body.p_status !== 'new') i.updated = Date.now(); i.status = body.p_status; return null; },
@@ -135,10 +187,12 @@ function createFake() {
           const err = m => json(res, 400, { code: 'P0001', message: m });
           const pair = (a, b) => st.friends.find(f => (f.from === a && f.to === b) || (f.from === b && f.to === a));
           if (fn === 'friend_request') {
+            if (banned(user)) return err('banned');
             const w = String(body.p_who || '').trim(), n = /^(mib-?)?\d{1,12}$/i.test(w) ? +w.replace(/\D/g, '') : null;
             const t = st.users.find(u => !u.noProfile && u.nick.toLowerCase() === w.toLowerCase()) || st.users.find(u => !u.noProfile && u.num === n);
             if (!t) return err('friend_not_found');
             if (t.id === user.id) return err('friend_self');
+            if (st.blocks.some(b => (b.user === user.id && b.blocked === t.id) || (b.user === t.id && b.blocked === user.id))) return err('friend_blocked');
             const f = pair(user.id, t.id);
             if (f && !f.accepted && f.from === t.id) { f.accepted = true; return json(res, 200, 'accepted'); }
             if (f) return err('friend_exists');
@@ -159,6 +213,7 @@ function createFake() {
           // Wiadomości: tak jak message_send, messages_with, messages_read, messages_unread w schema.sql (bez limitów)
           const friends = (a, b) => !!(pair(a, b) || {}).accepted;
           if (fn === 'message_send') {
+            if (banned(user)) return err('banned');
             if (!friends(user.id, body.p_to)) return err('message_not_friend');
             const b = String(body.p_body || '').replace(/§./g, '').replace(/[\u0000-\u001f]+/g, ' ').trim();
             if (!b) return err('message_empty');
@@ -190,7 +245,11 @@ function createFake() {
                 version: live && pr.playing ? pr.version : null, server: live && pr.playing ? pr.server : null, seen_at: f.accepted && pr ? new Date(pr.at).toISOString() : null };
             }));
           }
-          if (fn === 'presence_ping') { st.presence[user.id] = { at: Date.now(), playing: !!body.p_playing, version: body.p_version, server: body.p_playing ? body.p_server : null }; return json(res, 204); }
+          if (fn === 'presence_ping') {
+            const d = new Date().toISOString().slice(0, 10); st.activity[d] = { ...(st.activity[d] || {}), [user.id]: !!(st.activity[d] || {})[user.id] || !!body.p_playing };
+            if (body.p_hidden || banned(user)) { delete st.presence[user.id]; return json(res, 204); }
+            st.presence[user.id] = { at: Date.now(), playing: !!body.p_playing, version: body.p_version, server: body.p_playing ? body.p_server : null }; return json(res, 204);
+          }
           if (fn === 'presence_leave') { delete st.presence[user.id]; return json(res, 204); }
           // Zaproszenia do gry: tak jak game_invite* w schema.sql (bez limitu)
           if (fn === 'game_invite') {
@@ -221,6 +280,35 @@ function createFake() {
         if (fn === 'ideas_updates') return json(res, 200, st.ideas.filter(i => i.user === user.id && i.updated && !(i.seen >= i.updated))
           .map(i => ({ id: i.id, body: i.body, status: i.status, reply: i.reply || null, updated_at: new Date(i.updated).toISOString() })));
         if (fn === 'ideas_seen') { for (const i of st.ideas) if (i.user === user.id && i.updated) i.seen = Date.now(); return json(res, 204); }
+        // Bezpieczeństwo i karta profilu: tak jak w schema.sql
+        if (fn === 'block_user') {
+          if (!st.blocks.some(b => b.user === user.id && b.blocked === body.p_user)) st.blocks.push({ user: user.id, blocked: body.p_user, at: new Date().toISOString() });
+          const pairOf = x => (x.from === user.id && x.to === body.p_user) || (x.from === body.p_user && x.to === user.id);
+          st.friends = st.friends.filter(f => !pairOf(f)); st.invites = st.invites.filter(i => !pairOf(i)); st.messages = st.messages.filter(m => !pairOf(m));
+          return json(res, 204);
+        }
+        if (fn === 'unblock_user') { st.blocks = st.blocks.filter(b => !(b.user === user.id && b.blocked === body.p_user)); return json(res, 204); }
+        if (fn === 'blocked_list') return json(res, 200, st.blocks.filter(b => b.user === user.id).map(b => { const u = st.users.find(x => x.id === b.blocked); return { id: u.id, nick: u.nick, num: u.num, created_at: b.at }; }));
+        if (fn === 'report_user') {
+          const m = body.p_message ? st.messages.find(x => x.id === body.p_message && x.from === body.p_user && x.to === user.id) : null;
+          if (body.p_message && !m) return json(res, 400, { code: 'P0001', message: 'report_message_missing' });
+          if (m && st.reports.some(r => r.reporter === user.id && r.message === m.id)) return json(res, 400, { code: 'P0001', message: 'report_exists' });
+          const log = m ? st.messages.filter(x => ((x.from === user.id && x.to === body.p_user) || (x.from === body.p_user && x.to === user.id)) && x.id <= m.id).slice(-10)
+            .map(x => ({ from: st.users.find(u => u.id === x.from).nick, body: x.body, at: x.at, reported: x.id === m.id })) : [];
+          st.reports.push({ id: ++st.reportId, reporter: user.id, user: body.p_user, message: m ? m.id : null, reason: body.p_reason, note: body.p_note || null, messages: log, status: 'new', at: new Date().toISOString() });
+          return json(res, 200, st.reportId);
+        }
+        if (fn === 'my_warnings') return json(res, 200, st.warnings.filter(w => w.user === user.id && !w.seen).map(w => ({ id: w.id, num: w.num, reason: w.reason, created_at: w.at })));
+        if (fn === 'warnings_seen') { st.warnings.forEach(w => { if (w.user === user.id) w.seen = true; }); return json(res, 204); }
+        if (fn === 'profile_card') {
+          const id = body.p_user || user.id, u = st.users.find(x => x.id === id);
+          const fr = (a, b) => st.friends.some(f => f.accepted && ((f.from === a && f.to === b) || (f.from === b && f.to === a)));
+          if (id !== user.id && !fr(user.id, id)) return json(res, 400, { code: 'P0001', message: 'not_friend' });
+          return json(res, 200, { id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, bugs_found: u.bugs || 0, playtime_min: u.playtime || 0, launches: u.launches || 0,
+            versions: Object.keys(u.vs || {}).length, friends: st.friends.filter(f => f.accepted && (f.from === id || f.to === id)).length, ideas: st.ideas.filter(i => i.user === id).length,
+            ideas_done: st.ideas.filter(i => i.user === id && i.status === 'done').length, owned: st.owned.filter(o => o.user === id).length, mc_name: id === user.id ? null : u.mc || null,
+            equipped: id === user.id ? [] : Object.entries(u.equipped || {}).map(([t, c]) => ({ type: t, id: c, name: cosmetics[c].name, texture: cosmetics[c].texture || null })) });
+        }
         if (fn === 'delete_my_profile') { st.users = st.users.filter(u => u.id !== user.id); return json(res, 204); }
         return json(res, 404, { message: 'no function ' + fn });
       }

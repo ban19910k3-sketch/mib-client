@@ -20,6 +20,10 @@ create table if not exists public.profiles (
 );
 create unique index if not exists profiles_nick_lower on public.profiles (lower(nick));
 alter table public.profiles add column if not exists last_played_at timestamptz;
+-- Moderacja (od 0.20.0): ostrzeżenia od admina; czwarte (albo decyzja admina) to ban konta MiB
+alter table public.profiles add column if not exists warnings integer not null default 0;
+alter table public.profiles add column if not exists banned_at timestamptz;
+alter table public.profiles add column if not exists ban_reason text;
 alter table public.profiles enable row level security;
 revoke all on public.profiles from public, anon, authenticated;
 revoke all on sequence public.profiles_num_seq from public, anon, authenticated;
@@ -337,6 +341,7 @@ begin
   -- blokada wiersza profilu: równoległe wysyłki tego samego gracza nie ominą limitu
   perform 1 from public.profiles where id = v_uid for update;
   if not found then raise exception 'no_profile'; end if;
+  if private.is_banned(v_uid) then raise exception 'banned'; end if;
   if p_category is null or p_category not in ('feature', 'cosmetic', 'bug', 'other') then raise exception 'idea_category'; end if;
   if length(trim(coalesce(p_body, ''))) < 10 then raise exception 'idea_short'; end if;
   if length(trim(p_body)) > 1000 then raise exception 'idea_long'; end if;
@@ -415,6 +420,7 @@ end $$;
 
 -- Którzy z podanych graczy grają teraz w MiB (sygnał w ostatnich 10 minutach) i jakie kosmetyki mają założone
 -- (tylko te, które naprawdę mają). Nicki są dla serwerów bez kont Microsoft (tam UUID gracza w grze jest inny niż prawdziwy).
+-- Zbanowanych (od 0.20.0) nie ma na liście: bez logo MiB i kosmetyków w grze.
 -- Od 0.15.0 także czapka i skrzydła: inny wynik funkcji, więc najpierw stara wersja znika.
 drop function if exists public.mib_who(uuid[], text[]);
 create or replace function public.mib_who(p_ids uuid[], p_names text[]) returns table (uuid uuid, name text, cape text, hat text, wings text)
@@ -424,7 +430,7 @@ language sql stable security definer set search_path = '' as $$
     (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'hat')),
     (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'wings'))
   from private.mib_players m left join public.profiles p on p.id = m.user_id
-  where m.seen_at > now() - interval '10 minutes'
+  where m.seen_at > now() - interval '10 minutes' and p.banned_at is null
     and (m.uuid = any ((coalesce(p_ids, '{}'::uuid[]))[1:200])
       or lower(m.name) = any (select lower(x) from unnest((coalesce(p_names, '{}'::text[]))[1:200]) x));
 $$;
@@ -470,10 +476,12 @@ declare
 begin
   if v_me is null then raise exception 'not_logged_in'; end if;
   if not exists (select 1 from public.profiles where id = v_me) then raise exception 'no_profile'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
   if length(trim(coalesce(p_who, ''))) not between 1 and 20 then raise exception 'friend_not_found'; end if;
   v_to := private.friend_target(p_who);
   if v_to is null then raise exception 'friend_not_found'; end if;
   if v_to = v_me then raise exception 'friend_self'; end if;
+  if private.is_blocked(v_me, v_to) then raise exception 'friend_blocked'; end if;
   update private.friends set accepted = true where from_id = v_to and to_id = v_me and not accepted;
   if found then return 'accepted'; end if;
   if exists (select 1 from private.friends where least(from_id, to_id) = least(v_me, v_to) and greatest(from_id, to_id) = greatest(v_me, v_to)) then
@@ -497,6 +505,7 @@ declare
 begin
   if v_me is null then raise exception 'not_logged_in'; end if;
   if p_accept then
+    if private.is_banned(v_me) then raise exception 'banned'; end if;
     update private.friends set accepted = true where from_id = p_from and to_id = v_me and not accepted;
   else
     delete from private.friends where from_id = p_from and to_id = v_me and not accepted;
@@ -535,14 +544,23 @@ language sql stable security definer set search_path = '' as $$
   order by f.accepted, p.nick;
 $$;
 
--- Obecność z launchera: gra działa (wersja, adres serwera albo null) albo sam launcher
-create or replace function public.presence_ping(p_playing boolean, p_version text, p_server text) returns void
+-- Obecność z launchera: gra działa (wersja, adres serwera albo null) albo sam launcher. Od 0.20.0 p_hidden (tryb
+-- niewidoczny) i ban: znajomi widzą offline, jak po zamknięciu launchera. Każdy sygnał liczy się też do dziennej
+-- aktywności (wykres w panelu admina; tylko liczby, bez nicków).
+drop function if exists public.presence_ping(boolean, text, text);
+create or replace function public.presence_ping(p_playing boolean, p_version text, p_server text, p_hidden boolean default false) returns void
 language plpgsql security definer set search_path = '' as $$
 declare
   v_me uuid := auth.uid();
 begin
   if v_me is null then raise exception 'not_logged_in'; end if;
   if not exists (select 1 from public.profiles where id = v_me) then raise exception 'no_profile'; end if;
+  insert into private.activity (day, user_id, played) values (private.today(), v_me, coalesce(p_playing, false))
+    on conflict (day, user_id) do update set played = private.activity.played or excluded.played;
+  if coalesce(p_hidden, false) or private.is_banned(v_me) then
+    delete from private.presence where user_id = v_me;
+    return;
+  end if;
   insert into private.presence (user_id, seen_at, playing, version, server)
     values (v_me, now(), coalesce(p_playing, false),
       case when p_version ~ '^[0-9][0-9.]{0,15}$' then p_version end,
@@ -576,6 +594,7 @@ declare
   v_version text;
 begin
   if v_me is null then raise exception 'not_logged_in'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
   if not exists (select 1 from private.friends where accepted
                  and ((from_id = v_me and to_id = p_user) or (from_id = p_user and to_id = v_me))) then
     raise exception 'invite_not_friend';
@@ -640,6 +659,7 @@ declare
   v_at timestamptz;
 begin
   if v_me is null then raise exception 'not_logged_in'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
   if p_to is null or not private.are_friends(v_me, p_to) then raise exception 'message_not_friend'; end if;
   if length(v_body) = 0 then raise exception 'message_empty'; end if;
   if length(v_body) > 500 then raise exception 'message_long'; end if;
@@ -743,6 +763,181 @@ language sql security definer set search_path = '' as $$
   where user_id = (select auth.uid()) and updated_at is not null and (seen_at is null or seen_at < updated_at);
 $$;
 
+-- ===== Bezpieczeństwo (od 0.20.0): blokowanie, zgłoszenia, ostrzeżenia i ban =====
+-- Zablokowanie kończy znajomość, zaproszenia i rozmowę, a zablokowany nie zaprosi już do znajomych. Zgłoszenie
+-- wiadomości zapisuje jej kopię z kilkoma poprzednimi (rozmowa może potem zniknąć). Admin daje ostrzeżenia; czwarte
+-- to ban: bez wiadomości, znajomych, zaproszeń, pomysłów, obecności i logo MiB z kosmetykami w grze.
+create table if not exists private.blocks (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  blocked_id uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, blocked_id),
+  check (user_id <> blocked_id)
+);
+create index if not exists blocks_blocked on private.blocks (blocked_id);
+create table if not exists private.reports (
+  id bigint generated always as identity primary key,
+  reporter_id uuid references public.profiles (id) on delete set null,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  message_id bigint,
+  reason text not null check (reason in ('insult', 'spam', 'scam', 'other')),
+  note text check (note is null or length(note) <= 300),
+  messages jsonb not null default '[]'::jsonb,
+  status text not null default 'new' check (status in ('new', 'warned', 'banned', 'dismissed')),
+  created_at timestamptz not null default now()
+);
+create index if not exists reports_status on private.reports (status, created_at);
+create unique index if not exists reports_once on private.reports (reporter_id, message_id) where message_id is not null;
+-- Ostrzeżenie widzi gracz w launcherze (num = które z kolei: 1–4)
+create table if not exists private.warnings (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  num integer not null,
+  reason text not null check (length(reason) between 1 and 300),
+  created_at timestamptz not null default now(),
+  seen_at timestamptz
+);
+create index if not exists warnings_user on private.warnings (user_id, seen_at);
+
+create or replace function private.is_banned(p uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles where id = p and banned_at is not null);
+$$;
+create or replace function private.is_blocked(a uuid, b uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from private.blocks where (user_id = a and blocked_id = b) or (user_id = b and blocked_id = a));
+$$;
+
+create or replace function public.block_user(p_user uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if p_user is null or p_user = v_me or not exists (select 1 from public.profiles where id = p_user) then raise exception 'player_missing'; end if;
+  if (select count(*) from private.blocks where user_id = v_me) >= 500 then raise exception 'block_limit'; end if;
+  insert into private.blocks (user_id, blocked_id) values (v_me, p_user) on conflict do nothing;
+  delete from private.friends where (from_id = v_me and to_id = p_user) or (from_id = p_user and to_id = v_me);
+  delete from private.game_invites where (from_id = v_me and to_id = p_user) or (from_id = p_user and to_id = v_me);
+  delete from private.friend_messages where (from_id = v_me and to_id = p_user) or (from_id = p_user and to_id = v_me);
+end $$;
+
+create or replace function public.unblock_user(p_user uuid) returns void
+language sql security definer set search_path = '' as $$
+  delete from private.blocks where user_id = (select auth.uid()) and blocked_id = p_user;
+$$;
+
+create or replace function public.blocked_list()
+returns table (id uuid, nick text, num bigint, created_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select p.id, p.nick, p.num, b.created_at from private.blocks b join public.profiles p on p.id = b.blocked_id
+  where b.user_id = (select auth.uid()) order by b.created_at desc;
+$$;
+
+-- Zgłoszenie gracza; p_message = wiadomość od niego do mnie (kopia 10 ostatnich wiadomości rozmowy do niej włącznie).
+-- Najwyżej 10 zgłoszeń na dobę, jedna wiadomość zgłoszona raz.
+create or replace function public.report_user(p_user uuid, p_message bigint, p_reason text, p_note text) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_note text := nullif(btrim(coalesce(p_note, '')), '');
+  v_msgs jsonb := '[]'::jsonb;
+  v_id bigint;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if not exists (select 1 from public.profiles where id = v_me) then raise exception 'no_profile'; end if;
+  if p_user is null or p_user = v_me or not exists (select 1 from public.profiles where id = p_user) then raise exception 'player_missing'; end if;
+  if p_reason is null or p_reason not in ('insult', 'spam', 'scam', 'other') then raise exception 'report_reason'; end if;
+  if v_note is not null and length(v_note) > 300 then raise exception 'report_long'; end if;
+  if (select count(*) from private.reports where reporter_id = v_me and created_at > now() - interval '1 day') >= 10 then raise exception 'report_limit'; end if;
+  if p_message is not null then
+    if not exists (select 1 from private.friend_messages where id = p_message and from_id = p_user and to_id = v_me) then raise exception 'report_message_missing'; end if;
+    select coalesce(jsonb_agg(jsonb_build_object('from', x.nick, 'body', x.body, 'at', x.created_at, 'reported', x.id = p_message) order by x.id), '[]'::jsonb) into v_msgs
+    from (select m.id, p.nick, m.body, m.created_at from private.friend_messages m join public.profiles p on p.id = m.from_id
+          where ((m.from_id = v_me and m.to_id = p_user) or (m.from_id = p_user and m.to_id = v_me)) and m.id <= p_message
+          order by m.id desc limit 10) x;
+  end if;
+  insert into private.reports (reporter_id, user_id, message_id, reason, note, messages) values (v_me, p_user, p_message, p_reason, v_note, v_msgs) returning id into v_id;
+  return v_id;
+exception when unique_violation then
+  raise exception 'report_exists';
+end $$;
+
+-- Ostrzeżenia, których gracz jeszcze nie widział (okno w launcherze), i ich obejrzenie
+create or replace function public.my_warnings()
+returns table (id bigint, num integer, reason text, created_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select w.id, w.num, w.reason, w.created_at from private.warnings w
+  where w.user_id = (select auth.uid()) and w.seen_at is null order by w.id;
+$$;
+create or replace function public.warnings_seen() returns void
+language sql security definer set search_path = '' as $$
+  update private.warnings set seen_at = now() where user_id = (select auth.uid()) and seen_at is null;
+$$;
+
+-- ===== Osiągnięcia i karta znajomego (od 0.20.0) =====
+-- Liczby do osiągnięć (launcher liczy z nich odznaki). Cudzą kartę widzi tylko znajomy: z nazwą konta Minecraft
+-- (do skina) i założonymi kosmetykami z teksturami.
+create or replace function public.profile_card(p_user uuid default null) returns json
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v uuid := coalesce(p_user, auth.uid());
+  p public.profiles;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if v <> v_me and not private.are_friends(v_me, v) then raise exception 'not_friend'; end if;
+  select * into p from public.profiles where id = v;
+  if not found then raise exception 'player_missing'; end if;
+  return json_build_object(
+    'id', p.id, 'nick', p.nick, 'num', p.num, 'founder', p.founder, 'created_at', p.created_at, 'bugs_found', p.bugs_found,
+    'playtime_min', p.playtime_min, 'launches', p.launches, 'versions', (select count(*) from jsonb_object_keys(p.version_stats)),
+    'friends', (select count(*) from private.friends where accepted and (from_id = v or to_id = v)),
+    'ideas', (select count(*) from public.ideas where user_id = v),
+    'ideas_done', (select count(*) from public.ideas where user_id = v and status = 'done'),
+    'owned', (select count(*) from public.owned_cosmetics where user_id = v),
+    'mc_name', case when v <> v_me then (select name from private.mib_players where user_id = v order by seen_at desc limit 1) end,
+    'equipped', case when v = v_me then '[]'::json else (
+      select coalesce(json_agg(json_build_object('type', c.type, 'id', c.id, 'name', c.name, 'texture', c.texture)), '[]'::json)
+      from jsonb_each_text(p.equipped) e join public.cosmetics c on c.id = e.value and c.type = e.key
+      where exists (select 1 from public.owned_cosmetics o where o.user_id = v and o.cosmetic_id = c.id)) end);
+end $$;
+
+-- ===== Raport awarii do twórcy (od 0.20.0) =====
+-- Po awarii gry gracz wysyła zgłoszenie błędu z raportem (launcher usuwa z niego tokeny i ścieżki z nazwą konta systemu)
+alter table public.ideas add column if not exists details text check (details is null or length(details) <= 20000);
+create or replace function public.submit_crash(p_body text, p_details text) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v bigint;
+begin
+  if v_uid is null then raise exception 'not_logged_in'; end if;
+  perform 1 from public.profiles where id = v_uid for update;
+  if not found then raise exception 'no_profile'; end if;
+  if private.is_banned(v_uid) then raise exception 'banned'; end if;
+  if length(trim(coalesce(p_body, ''))) not between 10 and 1000 then raise exception 'idea_short'; end if;
+  if length(coalesce(p_details, '')) > 20000 then raise exception 'crash_long'; end if;
+  if (select count(*) from public.ideas where user_id = v_uid and created_at > now() - interval '1 day') >= 5 then raise exception 'idea_limit'; end if;
+  insert into public.ideas (user_id, category, body, details) values (v_uid, 'bug', trim(p_body), nullif(p_details, '')) returning id into v;
+  return v;
+end $$;
+
+-- ===== Dzienna aktywność (od 0.20.0): wykres graczy w panelu admina =====
+create or replace function private.today() returns date
+language sql stable set search_path = '' as $$
+  select (now() at time zone 'Europe/Warsaw')::date;
+$$;
+create table if not exists private.activity (
+  day date not null,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  played boolean not null default false,
+  primary key (day, user_id)
+);
+
+-- Ważna aktualność (od 0.20.0): okno, które każdy gracz zobaczy raz (w launcherze i powiadomienie w grze)
+alter table public.announcements add column if not exists popup boolean not null default false;
+
 -- ===== Panel admina =====
 -- Admin jest zapisany jako konto (nie numer MIB): przy pierwszym uruchomieniu tego pliku zostaje nim profil MIB-000002.
 -- Późniejsze uruchomienia niczego tu nie zmieniają, nawet gdy numeracja zostanie wyzerowana.
@@ -808,8 +1003,11 @@ begin
       from public.profiles, jsonb_each(version_stats) group by key order by 2 desc limit 5) v));
 end $$;
 
+-- od 0.20.0 także ostrzeżenia i ban (inny wynik funkcji, więc najpierw stara wersja znika)
+drop function if exists public.admin_find_players(text);
 create or replace function public.admin_find_players(p_q text)
-returns table (id uuid, num bigint, nick text, email text, created_at timestamptz, founder boolean, playtime_min integer, launches integer)
+returns table (id uuid, num bigint, nick text, email text, created_at timestamptz, founder boolean, playtime_min integer, launches integer,
+  warnings integer, banned boolean, ban_reason text)
 language plpgsql stable security definer set search_path = '' as $$
 declare
   q text := trim(coalesce(p_q, ''));
@@ -817,7 +1015,7 @@ declare
 begin
   perform private.need_admin();
   return query
-    select p.id, p.num, p.nick, u.email::text, p.created_at, p.founder, p.playtime_min, p.launches
+    select p.id, p.num, p.nick, u.email::text, p.created_at, p.founder, p.playtime_min, p.launches, p.warnings, p.banned_at is not null, p.ban_reason
     from public.profiles p join auth.users u on u.id = p.id
     where q = ''
        or (q ~* '^(MIB-)?[0-9]{1,12}$' and p.num = regexp_replace(upper(q), '^MIB-', '')::bigint)
@@ -877,23 +1075,35 @@ begin
   delete from public.cosmetics where id = p_id;
 end $$;
 
+-- Kody prezentowe: losowe (MIB-XXXX-XXXX) albo jeden kod o własnej nazwie (p_code, np. TURNIEJ2026); ważność w dniach
+-- albo do daty (p_until, od 0.20.0)
 drop function if exists public.admin_create_codes(text, integer, integer, integer);
-create or replace function public.admin_create_codes(p_cosmetic text, p_count integer, p_max_uses integer, p_days integer) returns json
+create or replace function public.admin_create_codes(p_cosmetic text, p_count integer, p_max_uses integer, p_days integer default null,
+  p_until timestamptz default null, p_code text default null) returns json
 language plpgsql security definer set search_path = '' as $$
 declare
   v text;
   out text[] := '{}';
+  v_own text := nullif(upper(btrim(coalesce(p_code, ''))), '');
+  v_exp timestamptz := coalesce(p_until, case when p_days is null then null else now() + make_interval(days => p_days) end);
 begin
   perform private.need_admin();
   if not exists (select 1 from public.cosmetics where id = p_cosmetic) then raise exception 'cosmetic_missing'; end if;
-  if p_count not between 1 and 100 or p_max_uses not between 1 and 100000 or (p_days is not null and p_days not between 1 and 3650) then raise exception 'codes_invalid'; end if;
+  if p_count not between 1 and 100 or p_max_uses not between 1 and 100000 or (p_days is not null and p_days not between 1 and 3650)
+    or (p_until is not null and p_until <= now()) then raise exception 'codes_invalid'; end if;
+  if v_own is not null then
+    if v_own !~ '^[A-Z0-9-]{4,24}$' then raise exception 'code_name_invalid'; end if;
+    if p_count <> 1 then raise exception 'codes_invalid'; end if;
+    if exists (select 1 from private.gift_codes where code = v_own) then raise exception 'code_exists'; end if;
+    insert into private.gift_codes (code, cosmetic_id, max_uses, expires_at) values (v_own, p_cosmetic, p_max_uses, v_exp);
+    return to_json(array[v_own]);
+  end if;
   for i in 1..p_count loop
     loop
       v := private.random_code();
       exit when not exists (select 1 from private.gift_codes where code = v);
     end loop;
-    insert into private.gift_codes (code, cosmetic_id, max_uses, expires_at)
-      values (v, p_cosmetic, p_max_uses, case when p_days is null then null else now() + make_interval(days => p_days) end);
+    insert into private.gift_codes (code, cosmetic_id, max_uses, expires_at) values (v, p_cosmetic, p_max_uses, v_exp);
     out := out || v;
   end loop;
   return to_json(out);
@@ -917,24 +1127,30 @@ begin
   delete from private.gift_codes where code = p_code;
 end $$;
 
+drop function if exists public.admin_list_announcements();
 create or replace function public.admin_list_announcements()
-returns table (id bigint, title text, body text, pinned boolean, visible_until timestamptz, created_at timestamptz)
+returns table (id bigint, title text, body text, pinned boolean, visible_until timestamptz, popup boolean, created_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$
 begin
   perform private.need_admin();
-  return query select a.id, a.title, a.body, a.pinned, a.visible_until, a.created_at from public.announcements a order by a.pinned desc, a.created_at desc;
+  return query select a.id, a.title, a.body, a.pinned, a.visible_until, a.popup, a.created_at from public.announcements a order by a.pinned desc, a.created_at desc;
 end $$;
 
-create or replace function public.admin_save_announcement(p_id bigint, p_title text, p_body text, p_pinned boolean, p_until timestamptz) returns bigint
+-- p_popup (od 0.20.0): ważna aktualność, którą każdy gracz zobaczy raz w oknie
+drop function if exists public.admin_save_announcement(bigint, text, text, boolean, timestamptz);
+create or replace function public.admin_save_announcement(p_id bigint, p_title text, p_body text, p_pinned boolean, p_until timestamptz,
+  p_popup boolean default false) returns bigint
 language plpgsql security definer set search_path = '' as $$
 declare
   v bigint;
 begin
   perform private.need_admin();
   if p_id is null then
-    insert into public.announcements (title, body, pinned, visible_until) values (trim(p_title), coalesce(p_body, ''), coalesce(p_pinned, false), p_until) returning id into v;
+    insert into public.announcements (title, body, pinned, visible_until, popup)
+      values (trim(p_title), coalesce(p_body, ''), coalesce(p_pinned, false), p_until, coalesce(p_popup, false)) returning id into v;
   else
-    update public.announcements set title = trim(p_title), body = coalesce(p_body, ''), pinned = coalesce(p_pinned, false), visible_until = p_until where id = p_id returning id into v;
+    update public.announcements set title = trim(p_title), body = coalesce(p_body, ''), pinned = coalesce(p_pinned, false), visible_until = p_until,
+      popup = coalesce(p_popup, false) where id = p_id returning id into v;
     if v is null then raise exception 'announcement_missing'; end if;
   end if;
   return v;
@@ -947,15 +1163,16 @@ begin
   delete from public.announcements where id = p_id;
 end $$;
 
--- nowe pomysły na górze; nick, num i user_id są puste, gdy autor usunął konto (od 0.19.0 też odpowiedź i nagroda)
+-- nowe pomysły na górze; nick, num i user_id są puste, gdy autor usunął konto (od 0.19.0 też odpowiedź i nagroda,
+-- od 0.20.0 czy jest raport awarii — sam raport z admin_idea_details)
 drop function if exists public.admin_list_ideas();
 create or replace function public.admin_list_ideas()
-returns table (id bigint, user_id uuid, nick text, num bigint, category text, body text, status text, reply text, rewarded boolean, created_at timestamptz)
+returns table (id bigint, user_id uuid, nick text, num bigint, category text, body text, status text, reply text, rewarded boolean, has_details boolean, created_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$
 begin
   perform private.need_admin();
   return query
-    select i.id, p.id, p.nick, p.num, i.category, i.body, i.status, i.reply, i.rewarded, i.created_at
+    select i.id, p.id, p.nick, p.num, i.category, i.body, i.status, i.reply, i.rewarded, i.details is not null, i.created_at
     from public.ideas i left join public.profiles p on p.id = i.user_id
     order by i.status = 'new' desc, i.created_at desc limit 300;
 end $$;
@@ -1021,6 +1238,130 @@ begin
   delete from public.ideas where id = p_id;
 end $$;
 
+create or replace function public.admin_idea_details(p_id bigint) returns text
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return (select details from public.ideas where id = p_id);
+end $$;
+
+-- Prezent dla wszystkich (od 0.20.0): każdy profil bez bana, który nie ma tego kosmetyku ani nie czeka na niego; wynik = ilu graczy
+create or replace function public.admin_gift_all(p_cosmetic text, p_message text) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_msg text := nullif(btrim(coalesce(p_message, '')), '');
+  v_n integer;
+begin
+  perform private.need_admin();
+  if not exists (select 1 from public.cosmetics where id = p_cosmetic) then raise exception 'cosmetic_missing'; end if;
+  if v_msg is not null and length(v_msg) > 200 then raise exception 'gift_message_long'; end if;
+  insert into private.gifts (user_id, cosmetic_id, message)
+    select p.id, p_cosmetic, v_msg from public.profiles p
+    where p.banned_at is null
+      and not exists (select 1 from public.owned_cosmetics o where o.user_id = p.id and o.cosmetic_id = p_cosmetic)
+      and not exists (select 1 from private.gifts g where g.user_id = p.id and g.cosmetic_id = p_cosmetic and g.claimed_at is null);
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+
+-- ===== Zgłoszenia, ostrzeżenia i ban (od 0.20.0) =====
+create or replace function public.admin_list_reports()
+returns table (id bigint, reporter text, user_id uuid, nick text, num bigint, warnings integer, banned boolean, reason text, note text, messages jsonb, status text, created_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return query
+    select r.id, rp.nick, p.id, p.nick, p.num, p.warnings, p.banned_at is not null, r.reason, r.note, r.messages, r.status, r.created_at
+    from private.reports r join public.profiles p on p.id = r.user_id left join public.profiles rp on rp.id = r.reporter_id
+    order by r.status = 'new' desc, r.created_at desc limit 200;
+end $$;
+
+create or replace function public.admin_count_new_reports() returns integer
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return (select count(*) from private.reports where status = 'new');
+end $$;
+
+-- Ostrzeżenie z powodem (gracz zobaczy je w launcherze); czwarte banuje konto. Wynik: {warnings, banned}
+create or replace function public.admin_warn(p_user uuid, p_reason text, p_report bigint) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_n integer;
+begin
+  perform private.need_admin();
+  if v_reason is null or length(v_reason) > 300 then raise exception 'warn_reason'; end if;
+  if exists (select 1 from private.admins where user_id = p_user) then raise exception 'cannot_ban_admin'; end if;
+  update public.profiles set warnings = warnings + 1 where id = p_user and banned_at is null returning warnings into v_n;
+  if v_n is null then
+    if exists (select 1 from public.profiles where id = p_user) then raise exception 'already_banned'; end if;
+    raise exception 'player_missing';
+  end if;
+  insert into private.warnings (user_id, num, reason) values (p_user, v_n, v_reason);
+  if v_n >= 4 then
+    update public.profiles set banned_at = now(), ban_reason = v_reason where id = p_user;
+    delete from private.presence where user_id = p_user;
+  end if;
+  if p_report is not null then update private.reports set status = case when v_n >= 4 then 'banned' else 'warned' end where id = p_report; end if;
+  return json_build_object('warnings', v_n, 'banned', v_n >= 4);
+end $$;
+
+-- Ban od razu (np. oszustwo), bez czekania na cztery ostrzeżenia
+create or replace function public.admin_ban(p_user uuid, p_reason text, p_report bigint) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+begin
+  perform private.need_admin();
+  if v_reason is null or length(v_reason) > 300 then raise exception 'warn_reason'; end if;
+  if exists (select 1 from private.admins where user_id = p_user) then raise exception 'cannot_ban_admin'; end if;
+  update public.profiles set banned_at = now(), ban_reason = v_reason where id = p_user and banned_at is null;
+  if not found then
+    if exists (select 1 from public.profiles where id = p_user) then raise exception 'already_banned'; end if;
+    raise exception 'player_missing';
+  end if;
+  delete from private.presence where user_id = p_user;
+  if p_report is not null then update private.reports set status = 'banned' where id = p_report; end if;
+end $$;
+
+-- Zdjęcie bana: konto wraca z zerem ostrzeżeń
+create or replace function public.admin_unban(p_user uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  update public.profiles set banned_at = null, ban_reason = null, warnings = 0 where id = p_user;
+  if not found then raise exception 'player_missing'; end if;
+  update private.warnings set seen_at = coalesce(seen_at, now()) where user_id = p_user;
+end $$;
+
+create or replace function public.admin_dismiss_report(p_id bigint) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  update private.reports set status = 'dismissed' where id = p_id;
+  if not found then raise exception 'report_missing'; end if;
+end $$;
+
+-- Wykres graczy (od 0.20.0): dzień po dniu (czas polski) profile z otwartym launcherem, z nich w grze i nowe profile.
+-- Starsze niż 120 dni dane znikają.
+create or replace function public.admin_activity(p_days integer)
+returns table (day date, players integer, played integer, new_profiles integer)
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_days integer := least(greatest(coalesce(p_days, 30), 7), 90);
+begin
+  perform private.need_admin();
+  delete from private.activity a where a.day < private.today() - 120;
+  return query
+    select d::date,
+      (select count(*) from private.activity a where a.day = d::date)::integer,
+      (select count(*) from private.activity a where a.day = d::date and a.played)::integer,
+      (select count(*) from public.profiles p where (p.created_at at time zone 'Europe/Warsaw')::date = d::date)::integer
+    from generate_series(private.today() - (v_days - 1), private.today(), interval '1 day') d
+    order by 1;
+end $$;
+
 -- ===== Uprawnienia do funkcji =====
 revoke all on function public.nick_available(text) from public, anon, authenticated;
 revoke all on function public.redeem_code(text) from public, anon, authenticated;
@@ -1039,7 +1380,7 @@ revoke all on function public.friend_request(text) from public, anon, authentica
 revoke all on function public.friend_answer(uuid, boolean) from public, anon, authenticated;
 revoke all on function public.friend_remove(uuid) from public, anon, authenticated;
 revoke all on function public.friends_list() from public, anon, authenticated;
-revoke all on function public.presence_ping(boolean, text, text) from public, anon, authenticated;
+revoke all on function public.presence_ping(boolean, text, text, boolean) from public, anon, authenticated;
 revoke all on function public.presence_leave() from public, anon, authenticated;
 revoke all on function private.make_profile(uuid, text) from public, anon, authenticated;
 revoke all on function private.norm_code(text) from public, anon, authenticated;
@@ -1059,7 +1400,7 @@ grant execute on function public.friend_request(text) to authenticated;
 grant execute on function public.friend_answer(uuid, boolean) to authenticated;
 grant execute on function public.friend_remove(uuid) to authenticated;
 grant execute on function public.friends_list() to authenticated;
-grant execute on function public.presence_ping(boolean, text, text) to authenticated;
+grant execute on function public.presence_ping(boolean, text, text, boolean) to authenticated;
 grant execute on function public.presence_leave() to authenticated;
 revoke all on function public.game_invite(uuid) from public, anon;
 revoke all on function public.game_invites_list() from public, anon;
@@ -1084,6 +1425,25 @@ grant execute on function public.message_send(uuid, text) to authenticated;
 grant execute on function public.messages_with(uuid, bigint) to authenticated;
 grant execute on function public.messages_read(uuid) to authenticated;
 grant execute on function public.messages_unread() to authenticated;
+revoke all on function private.is_banned(uuid) from public, anon, authenticated;
+revoke all on function private.is_blocked(uuid, uuid) from public, anon, authenticated;
+revoke all on function private.today() from public, anon, authenticated;
+revoke all on function public.block_user(uuid) from public, anon;
+revoke all on function public.unblock_user(uuid) from public, anon;
+revoke all on function public.blocked_list() from public, anon;
+revoke all on function public.report_user(uuid, bigint, text, text) from public, anon;
+revoke all on function public.my_warnings() from public, anon;
+revoke all on function public.warnings_seen() from public, anon;
+revoke all on function public.profile_card(uuid) from public, anon;
+revoke all on function public.submit_crash(text, text) from public, anon;
+grant execute on function public.block_user(uuid) to authenticated;
+grant execute on function public.unblock_user(uuid) to authenticated;
+grant execute on function public.blocked_list() to authenticated;
+grant execute on function public.report_user(uuid, bigint, text, text) to authenticated;
+grant execute on function public.my_warnings() to authenticated;
+grant execute on function public.warnings_seen() to authenticated;
+grant execute on function public.profile_card(uuid) to authenticated;
+grant execute on function public.submit_crash(text, text) to authenticated;
 
 -- panel admina: wywołać może każdy zalogowany, ale każda funkcja sama sprawdza, czy to admin
 revoke all on function private.need_admin() from public, anon, authenticated;

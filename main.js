@@ -18,7 +18,7 @@ const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
 const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(jf(f), 'utf8')); } catch { return d; } };
 const wr = (f, v) => fs.writeFileSync(jf(f), JSON.stringify(v, null, 2));
-const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true, shareServer: true, perfMods: true, friendNotify: true });
+const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true, shareServer: true, perfMods: true, friendNotify: true, invisible: false });
 const logBuf = []; let logCount = 0;
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
 // Profil MiB (Supabase). Klucz publiczny — bezpieczny w launcherze; uprawnienia pilnuje baza.
@@ -27,6 +27,8 @@ const prof = profileMain.createProfile({
   supa: createSupa({ url: SUPA_URL, key: SUPA_KEY, fetch: (...a) => fetch(...a) }),
   store: { read: rd, write: wr, remove: f => { try { fs.unlinkSync(jf(f)); } catch {} } },
   safeStorage, randomBytes: crypto.randomBytes,
+  // tryb niewidoczny: znajomi widzą offline
+  hidden: () => ({ ...defaults(), ...rd('settings.json', {}) }).invisible === true,
   // Kopia modów: dostęp do plików instancji (funkcje niżej w pliku, wołane dopiero po starcie)
   mods: {
     scan: gv => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f) && !mibmod.isMibFile(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), sha1: crypto.createHash('sha1').update(fs.readFileSync(path.join(modsDir(gv), f))).digest('hex') })); } catch { return []; } },
@@ -66,15 +68,16 @@ const shown = new Set(); // powiadomienia trzymane do kliknięcia (bez tego Wind
 function friendPopup(n) {
   const s = { ...defaults(), ...rd('settings.json', {}) }, t = friendNotice(n, s.lang);
   if (bridge && n.type !== 'idea') { try { bridge.notice(n); } catch {} }
+  // ważna aktualność przy otwartym launcherze: wystarczy okno w launcherze
   // przy otwartym launcherze wiadomość, prezent i odpowiedź pokazuje samo okno (dymek, okno prezentu, licznik);
   // wiadomość w grze z modem: okienko w grze
   const focused = win && !win.isDestroyed() && win.isFocused();
-  if ((n.type === 'message' && bridge) || (focused && ['message', 'gift', 'idea'].includes(n.type))) return;
+  if ((n.type === 'message' && bridge) || (focused && ['message', 'gift', 'idea', 'news'].includes(n.type))) return;
   try {
     if (!Notification.isSupported()) return;
     const x = new Notification({ title: 'MiB Client — ' + t.title, body: t.body, icon: path.join(__dirname, 'icon.png') });
     shown.add(x);
-    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); if (n.type === 'message') send('chat:open', n.from); else if (n.type === 'gift') send('gifts:open'); else if (n.type === 'idea') send('ideas:open'); else send('friends:open'); } });
+    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); if (n.type === 'message') send('chat:open', n.from); else if (n.type === 'gift') send('gifts:open'); else if (n.type === 'idea') send('ideas:open'); else if (n.type === 'news') send('news:popup', n.ann); else send('friends:open'); } });
     x.on('close', () => shown.delete(x));
     x.show();
   } catch {}
@@ -131,7 +134,34 @@ async function watchGifts() {
     send('ideas:changed', u.length);
     for (const x of r.fresh) friendPopup({ type: 'idea', nick: 'MiB', status: x.status, text: x.reply });
   } else ideasSeenKeys = null;
+  if (g && !g.error && bridge) bridge.refreshCosmetics().catch(() => {}); // prezenty do odebrania także w menu gry
+  // ostrzeżenie od admina: okno w launcherze (gracz potwierdza, że je przeczytał)
+  const w = await prof.warnings();
+  if (Array.isArray(w) && w.length) send('warnings:new', w);
+  await watchNews();
 }
+// Ważna aktualność (okno): każda raz, z ostatnich 7 dni; obejrzane w mib-state.json (osobno od ustawień, które zapisuje okno)
+async function watchNews() {
+  const l = await prof.announcements();
+  if (!Array.isArray(l)) return;
+  const st = rd('mib-state.json', {}), seen = new Set(Array.isArray(st.newsSeen) ? st.newsSeen : []);
+  const fresh = l.filter(a => a.popup && !seen.has(a.id) && Date.now() - new Date(a.created_at).getTime() < 7 * 86400000);
+  if (!fresh.length) return;
+  for (const a of fresh) seen.add(a.id);
+  wr('mib-state.json', { ...rd('mib-state.json', {}), newsSeen: [...seen].slice(-100) });
+  for (const a of fresh) { send('news:popup', a); friendPopup({ type: 'news', nick: 'MiB', text: a.title, ann: a }); }
+}
+ipcMain.handle('news:check', () => watchNews().catch(() => {}));
+// Okno „Co nowego” raz po aktualizacji (nie po pierwszej instalacji): notatki tej wersji z build/release-notes.md
+ipcMain.handle('whatsnew', () => {
+  const v = app.getVersion(), st = rd('mib-state.json', null), fresh = !fs.existsSync(jf('settings.json'));
+  if (st && st.lastVersion === v) return null;
+  wr('mib-state.json', { ...(st || {}), lastVersion: v });
+  if (fresh && !(st && st.lastVersion)) return null;
+  let md = ''; try { md = fs.readFileSync(path.join(__dirname, 'build', 'release-notes.md'), 'utf8'); } catch { return null; }
+  if (md.split(/\r?\n/)[0].trim() !== '<!-- ' + v + ' -->') return null;
+  return { version: v, notes: md };
+});
 setInterval(() => watchGifts().catch(() => {}), 60000);
 setTimeout(() => watchGifts().catch(() => {}), 7000);
 // Gracze MiB w grze: logo MiB przed nickiem i peleryny innych graczy MiB (lib/presence.js)
@@ -163,7 +193,12 @@ app.on('window-all-closed', () => app.quit());
 
 ipcMain.on('win', (_, a) => { if (!win) return; a === 'min' ? win.minimize() : a === 'max' ? (win.isMaximized() ? win.unmaximize() : win.maximize()) : win.close(); });
 ipcMain.handle('settings:get', () => ({ ...defaults(), ...rd('settings.json', {}) }));
-ipcMain.handle('settings:set', (_, s) => { wr('settings.json', s); setPresence(gameInfo); return true; });
+ipcMain.handle('settings:set', (_, s) => {
+  const was = ({ ...defaults(), ...rd('settings.json', {}) }).invisible === true;
+  wr('settings.json', s); setPresence(gameInfo);
+  if (!!(s && s.invisible) !== was) prof.presence(); // tryb niewidoczny od razu, nie za 2 minuty
+  return true;
+});
 ipcMain.handle('pickdir', async () => { const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] }); return r.canceled ? null : r.filePaths[0]; });
 
 ipcMain.handle('versions', async () => {
@@ -520,10 +555,18 @@ ipcMain.handle('repair', (_, gv) => {
   return 'Usunięto pliki gry. Zostaną pobrane ponownie przy następnym kliknięciu GRAJ (światy, mody i ustawienia zostają).';
 });
 // ---- Raport błędu (bez tokenów i haseł) ----
-ipcMain.handle('report:build', (_, ver) => {
+function buildReport(ver) {
   const s = { ...defaults(), ...rd('settings.json', {}) }, os = require('os'); let mods = []; try { mods = fs.readdirSync(modsDir(ver)); } catch {}
   const t = ['MiB Client ' + app.getVersion(), 'System: ' + process.platform + ' ' + os.release() + ' ' + process.arch, 'Wersja gry: ' + ver, 'Loader: ' + (instGet(ver).loader || 'brak'), 'RAM: ' + s.ram + ' MB', 'Java: ' + (s.java || 'automatyczna'), 'JVM: ' + s.jvm, 'Mody (' + mods.length + '): ' + mods.join(', '), ...(lastCrash ? ['', '--- ostatnia awaria (kod ' + lastCrash.code + ') ---', lastCrash.report || '(brak raportu Minecrafta)'] : []), '', '--- logi ---', ...logBuf].join('\n');
   return san(t.split(os.homedir()).join('~'));
+}
+ipcMain.handle('report:build', (_, ver) => buildReport(ver));
+// „Wyślij do twórcy”: ten sam raport (bez haseł i tokenów) jako zgłoszenie błędu w Pomysłach; note = opis gracza
+ipcMain.handle('report:send', async (_, { ver, note } = {}) => {
+  const why = { memory: 'brak pamięci RAM', java: 'zła wersja Javy', jvm: 'złe argumenty JVM', mods: 'mody się nie zgadzają', gpu: 'sterownik grafiki' }[lastCrash && lastCrash.cause];
+  const body = [lastCrash ? 'Awaria gry (Minecraft ' + ver + ', kod ' + lastCrash.code + (why ? ', ' + why : '') + ')' : 'Problem z grą (Minecraft ' + ver + ')',
+    String(note || '').trim().slice(0, 800)].filter(Boolean).join(': ');
+  return prof.submitCrash({ body, details: buildReport(ver) });
 });
 ipcMain.handle('report:save', async (_, txt) => { const r = await dialog.showSaveDialog(win, { defaultPath: 'mib-raport.txt' }); if (r.canceled) return false; fs.writeFileSync(r.filePath, String(txt)); return true; });
 // ===== Awaria gry: przyczyna z logu i najnowszego raportu awarii =====
@@ -543,8 +586,8 @@ function reportCrash(code, game) {
   } catch {}
   // tylko linie logu z tej sesji gry (nie z poprzednich uruchomień)
   const log = logBuf.slice(-Math.min(200, Math.max(0, logCount - game.logFrom))).join('\n');
-  lastCrash = { code, report: report.slice(-6000) };
-  send('crashed', { code, cause: diagnoseCrash(report + '\n' + log), report: !!report });
+  lastCrash = { code, report: report.slice(-6000), cause: diagnoseCrash(report + '\n' + log) };
+  send('crashed', { code, cause: lastCrash.cause, report: !!report });
   notify('MiB Client', 'Gra zamknęła się z błędem.');
   if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 }
@@ -606,9 +649,11 @@ function startHud(pid, mibDir, gameAcc) {
           const st = await prof.state();
           if (!st || st.offline) return null; // bez sieci: zostaje poprzednia lista
           if (!st.loggedIn) return { loggedIn: false, items: [] };
-          const l = await prof.cosmetics();
-          return Array.isArray(l) ? { loggedIn: true, items: l } : null;
+          const [l, g] = await Promise.all([prof.cosmetics(), prof.gifts()]);
+          return Array.isArray(l) ? { loggedIn: true, items: l, gifts: Array.isArray(g) ? g : [] } : null;
         },
+        // „Odbierz” prezent w menu gry
+        onClaim: async id => { const r = await prof.claimGift({ id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się odebrać prezentu.'); watchGifts().catch(() => {}); },
         onEquip: async (type, id) => { const r = await prof.equip({ type, id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się zmienić kosmetyku.'); },
         // gracze MiB z listy Tab (logo przed nickiem) i tekstury ich peleryn w <gra>/mib/capes
         players: req => mibPresence.players(req, path.join(mibDir, 'capes')),

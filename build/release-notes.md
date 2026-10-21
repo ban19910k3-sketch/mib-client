@@ -1,7 +1,13 @@
-<!-- 0.19.0 -->
+<!-- 0.20.0 -->
 ## Dodane
 
-- Prezenty od MiB: gdy twórca MiB Client da Ci kosmetyk, po wejściu do launchera zobaczysz okno „Masz prezent!” z podglądem na Twojej postaci i wiadomością. Kliknij „Odbierz”, a potem możesz go od razu założyć.
-- Dopóki prezent czeka, przy „Kosmetyki” świeci się licznik, a w grze pokaże się powiadomienie, żeby odebrać go w launcherze.
-- Nagroda za zgłoszony błąd: za każdy prawdziwy błąd, który zgłosisz w zakładce Pomysły, dostajesz kosmetyk i odznakę „Łowca błędów” na profilu MiB.
-- Odpowiedzi na pomysły: twórca MiB Client może odpowiedzieć na Twój pomysł. Odpowiedź zobaczysz pod pomysłem, a przy „Pomysły” pojawi się licznik, gdy zmieni się status albo przyjdzie odpowiedź. Dostaniesz też powiadomienie.
+- Zgłaszanie wiadomości: najedź na wiadomość w rozmowie i kliknij „Zgłoś”. Twórca MiB Client zobaczy ją razem z kilkoma poprzednimi.
+- Blokowanie graczy: zablokowany gracz nie napisze do Ciebie i nie zaprosi Cię ponownie do znajomych. Listę zablokowanych znajdziesz na dole strony Znajomi.
+- Ostrzeżenia za łamanie zasad: po czwartym ostrzeżeniu konto MiB zostaje zablokowane (bez wiadomości, znajomych, pomysłów i kosmetyków w grze).
+- Karta znajomego: kliknij nick znajomego, żeby zobaczyć jego postać w kosmetykach, odznaki, czas gry i osiągnięcia.
+- Osiągnięcia na profilu MiB, np. 10 godzin w grze, 5 znajomych albo 5 kosmetyków. Zdobyte świecą na złoto.
+- Tryb niewidoczny w Ustawieniach: znajomi widzą Cię jako offline.
+- Prezenty od MiB odbierzesz też w grze: w menu pod prawym Shiftem, w Kosmetykach.
+- Po awarii gry przycisk „Wyślij do twórcy” wysyła raport (bez haseł i tokenów) jako zgłoszenie błędu.
+- Ważne aktualności pokazują się w oknie i jako powiadomienie w grze, każda tylko raz.
+- Okno „Co nowego” po każdej aktualizacji.

@@ -244,6 +244,76 @@ function png(w, h, px) {
     await w.waitForFunction(() => !document.getElementById('chat'));
     ok('(w) wiadomości do znajomego: licznik, okno rozmowy, wysyłanie Enterem, przeczytane');
 
+    // Zgłoszenie wiadomości z rozmowy: powód, opis, kopia rozmowy trafia do twórcy
+    fake.st.messages.push({ id: ++fake.st.msgId, from: kolega.id, to: me.id, body: 'Jesteś noobem', at: new Date().toISOString(), read: false });
+    await w.click('.nav[data-p="friends"]');
+    await w.click('#fr-list .frow:has-text("Kolega") .chat-b');
+    await w.waitForSelector('#chat .msg:has-text("Jesteś noobem")');
+    await w.click('#chat .msg:has-text("Jesteś noobem") .rep-b');
+    await w.waitForSelector('#report blockquote.rp-msg:has-text("Jesteś noobem")');
+    await w.selectOption('#rp-reason', 'insult');
+    await w.fill('#rp-note', 'Obraża mnie od rana');
+    await shot('report.png');
+    await w.click('#rp-send');
+    await w.waitForFunction(() => !document.getElementById('report'));
+    const rep = fake.st.reports[0];
+    assert.ok(rep && rep.user === kolega.id && rep.reason === 'insult' && rep.note === 'Obraża mnie od rana', 'zgłoszenie w bazie');
+    assert.deepEqual(rep.messages.filter(m => m.reported).map(m => m.body), ['Jesteś noobem'], 'kopia zgłoszonej wiadomości');
+    assert.ok(await w.$('#chat'), 'bez blokady rozmowa zostaje otwarta');
+    await w.press('#chat-in', 'Escape');
+    await w.waitForFunction(() => !document.getElementById('chat'));
+    ok('(ab) zgłoszenie wiadomości z rozmowy: powód, opis i kopia rozmowy');
+
+    // Karta znajomego: postać w jego kosmetykach, odznaki, osiągnięcia; Zablokuj i Odblokuj
+    fake.st.owned.push({ user: kolega.id, cosmetic: 'cape_start', at: now });
+    kolega.equipped = { cape: 'cape_start' }; kolega.playtime = 720; kolega.launches = 12;
+    await w.click('#fr-list .fr-name:has-text("Kolega")');
+    await w.waitForFunction(() => /Peleryna Start/.test((document.querySelector('#fcard .fc-body') || {}).textContent || ''));
+    assert.match(await w.textContent('#fcard .fc-body'), /Kolega.*MIB-000050.*Czas gry przez MiB.*12 h.*Osiągnięcia \(\d+\/13\)/s);
+    assert.equal(await w.$$eval('#fcard .ach', l => l.length), 13);
+    assert.ok(await w.$('#fcard .ach.on[data-id="hours_10"]'), '12 godzin gry: osiągnięcie 10 godzin');
+    await w.waitForTimeout(800);
+    await shot('friend-card.png');
+    w.once('dialog', d => d.accept());
+    await w.click('#fc-block');
+    await w.waitForFunction(() => !document.getElementById('fcard'));
+    assert.ok(fake.st.blocks.some(b => b.user === me.id && b.blocked === kolega.id), 'blokada w bazie');
+    assert.ok(!fake.st.friends.some(f => [f.from, f.to].includes(kolega.id) && [f.from, f.to].includes(me.id)), 'blokada kończy znajomość');
+    await w.waitForFunction(() => /Zablokowani \(1\)/.test(document.getElementById('fr-list').textContent));
+    await w.fill('#fr-who', 'Kolega');
+    await w.click('#fr-add');
+    await w.waitForFunction(() => /Nie możesz zaprosić tego gracza/.test(document.querySelector('#friends-box .err').textContent));
+    await w.click('#fr-list .frow.blocked button:has-text("Odblokuj")');
+    await w.waitForFunction(() => !/Zablokowani/.test(document.getElementById('fr-list').textContent));
+    assert.equal(fake.st.blocks.length, 0, 'odblokowany');
+    ok('(ac) karta znajomego z osiągnięciami, blokowanie (bez zaproszeń) i odblokowanie');
+
+    // Osiągnięcia na profilu, ostrzeżenie od twórcy i raport awarii wysłany jednym kliknięciem
+    me.warnings = 1;
+    fake.st.warnings.push({ id: ++fake.st.warnId, user: me.id, num: 1, reason: 'Obrażanie innych graczy', at: now, seen: false });
+    await w.click('.nav[data-p="prof"]');
+    await w.waitForSelector('#warn h3');
+    assert.equal(await w.textContent('#warn h3'), 'Ostrzeżenie 1/4');
+    assert.match(await w.textContent('#warn'), /Powód: Obrażanie innych graczy.*Przy 4\. ostrzeżeniu/s);
+    await shot('warning.png');
+    await w.click('#warn-ok');
+    await w.waitForFunction(() => !document.getElementById('warn'));
+    assert.ok(fake.st.warnings.every(x => x.seen), 'ostrzeżenie obejrzane');
+    await w.waitForFunction(() => /1\/4/.test((document.getElementById('pf-warn') || {}).textContent || ''));
+    await w.waitForSelector('#pf-ach .ach.on[data-id="founder"]');
+    assert.ok(await w.$('#pf-ach .ach.on[data-id="idea"]') && await w.$('#pf-ach .ach.on[data-id="friend"]'), 'pomysł i znajomy');
+    assert.ok(await w.$('#pf-ach .ach:not(.on)[data-id="veteran"]'), 'niezdobyte z postępem');
+    await shot('achievements.png');
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('crashed', { code: 1, cause: 'memory', report: false }));
+    await w.waitForSelector('#crash.on');
+    await w.click('#crash-send');
+    await w.waitForFunction(() => !document.getElementById('crash').classList.contains('on'));
+    const crash = fake.st.ideas.find(i => i.details);
+    assert.ok(crash && crash.user === me.id && crash.category === 'bug' && /^Problem z grą \(Minecraft /.test(crash.body), 'raport jako zgłoszenie błędu');
+    assert.match(crash.details, /^MiB Client \d/, 'raport launchera w szczegółach');
+    assert.doesNotMatch(crash.details, /accessToken\s+\w{20}/, 'bez tokenów');
+    ok('(ad) osiągnięcia na profilu, okno ostrzeżenia 1/4 i raport awarii do twórcy');
+
     await w.click('.nav[data-p="prof"]');
     await w.waitForSelector('#p-prof.on .phead');
     await w.evaluate(() => { setLang('en'); });
@@ -274,33 +344,48 @@ function png(w, h, px) {
 
     // Panel admina: Sierota_1 ma numer 2 (MIB-000002)
     await w.waitForSelector('.nav[data-p="admin"]:not([hidden])');
-    await w.waitForFunction(() => (document.querySelector('.nav[data-p="admin"] .cnt') || {}).textContent === '1');
+    // licznik: 2 nowe pomysły (pomysł Tester_1 i raport awarii) + 1 nowe zgłoszenie
+    await w.waitForFunction(() => (document.querySelector('.nav[data-p="admin"] .cnt') || {}).textContent === '3');
     await w.click('.nav[data-p="admin"]');
     await w.click('[data-tab="ideas"]');
-    assert.equal(await w.textContent('[data-tab="ideas"]'), 'Pomysły (1)');
+    assert.equal(await w.textContent('[data-tab="ideas"]'), 'Pomysły (2)');
     await w.waitForFunction(() => /Peleryna z ogniem/.test(document.getElementById('ai-list').textContent) && /Tester_1/.test(document.getElementById('ai-list').textContent));
     await w.waitForTimeout(400);
     await shot('admin-ideas.png');
-    await w.selectOption('#ai-list select', 'planned');
-    await w.waitForFunction(() => document.querySelector('.nav[data-p="admin"] .cnt').hidden);
+    const idea = '#ai-list .idea:has-text("Peleryna z ogniem")', crashCard = '#ai-list .idea:has-text("Problem z grą")';
+    await w.click(crashCard + ' button:has-text("Pokaż raport awarii")');
+    await w.waitForFunction(() => /^MiB Client \d/.test((document.querySelector('#ai-list .crash-log:not([hidden])') || {}).textContent || ''));
+    await w.selectOption(idea + ' select', 'planned');
+    await w.waitForFunction(() => document.querySelector('.nav[data-p="admin"] .cnt').textContent === '2');
     assert.equal(fake.st.ideas[0].status, 'planned', 'status zapisany na serwerze');
-    ok('(o) admin widzi pomysł z licznikiem nowych i zmienia jego status');
+    ok('(o) admin widzi pomysł z licznikiem nowych, raport awarii i zmienia status');
 
     // Odpowiedź na pomysł i nagroda za niego: kosmetyk do odebrania, pomysł → Zrobione
-    await w.fill('#ai-list .idea-reply', 'Dzięki, dodamy ją w następnej wersji!');
-    await w.click('#ai-list button:has-text("Wyślij odpowiedź")');
+    await w.fill(idea + ' .idea-reply', 'Dzięki, dodamy ją w następnej wersji!');
+    await w.click(idea + ' button:has-text("Wyślij odpowiedź")');
     await until(() => fake.st.ideas[0].reply === 'Dzięki, dodamy ją w następnej wersji!');
-    await w.click('#ai-list button:has-text("Nagródź")');
-    await w.waitForSelector('#ai-list .gift-form .gift-pick option', { state: 'attached' });
-    await w.selectOption('#ai-list .gift-pick', 'cape_start');
-    await w.fill('#ai-list .gift-note', 'Dzięki za świetny pomysł!');
-    await w.click('#ai-list button:has-text("Wyślij nagrodę")');
-    await w.waitForSelector('#ai-list .tag.hunter:has-text("Nagrodzony")');
+    await w.click(idea + ' button:has-text("Nagródź")');
+    await w.waitForSelector(idea + ' .gift-form .gift-pick option', { state: 'attached' });
+    await w.selectOption(idea + ' .gift-pick', 'cape_start');
+    await w.fill(idea + ' .gift-note', 'Dzięki za świetny pomysł!');
+    await w.click(idea + ' button:has-text("Wyślij nagrodę")');
+    await w.waitForSelector(idea + ' .tag.hunter:has-text("Nagrodzony")');
     assert.equal(fake.st.gifts.length, 1, 'prezent czeka w bazie');
     assert.equal(fake.st.ideas[0].status, 'done', 'nagrodzony pomysł jest zrobiony');
-    assert.equal(await w.$('#ai-list button:has-text("Nagródź")'), null, 'drugi raz nie da się nagrodzić');
+    assert.equal(await w.$(idea + ' button:has-text("Nagródź")'), null, 'drugi raz nie da się nagrodzić');
     await shot('admin-reward.png');
     ok('(y) admin odpowiada na pomysł i nagradza go kosmetykiem');
+
+    await w.click('[data-tab="reports"]');
+    assert.equal(await w.textContent('[data-tab="reports"]'), 'Zgłoszenia (1)');
+    await w.waitForSelector('#ar-list .report .rp-log .on:has-text("Jesteś noobem")');
+    assert.match(await w.textContent('#ar-list .report'), /Kolega.*Wyzwiska.*zgłosił Tester_1.*Obraża mnie od rana/s);
+    assert.equal(await w.inputValue('#ar-list .warn-why'), 'Obrażanie innych graczy', 'powód podpowiedziany z powodu zgłoszenia');
+    await shot('admin-reports.png');
+    await w.click('#ar-list button:has-text("Ostrzeż (1/4)")');
+    await until(() => kolega.warnings === 1 && fake.st.reports[0].status === 'warned');
+    await w.waitForFunction(() => /Brak nowych zgłoszeń/.test(document.getElementById('ar-list').textContent));
+    ok('(ae) zgłoszenia w panelu admina: kopia rozmowy i ostrzeżenie 1/4');
     await w.click('[data-tab="ann"]');
     assert.equal(await w.textContent('[data-tab="ann"]'), 'Aktualności');
     await w.waitForSelector('#ad-title');
@@ -329,15 +414,42 @@ function png(w, h, px) {
     await w.waitForSelector('#ad-title');
     ok('(k) admin dodaje i zmienia aktualność, gracze widzą ją w panelu Aktualności na stronie głównej');
 
+    await w.fill('#ad-title', 'Turniej za godzinę!');
+    await w.check('#ad-popup');
+    await w.click('#ad-save');
+    await w.waitForFunction(() => /Turniej za godzinę!.*okno/.test(document.getElementById('ad-list').textContent));
+    assert.ok(fake.st.ann.find(a => a.title === 'Turniej za godzinę!').popup, 'zapisana jako okno');
+    await w.evaluate(() => mib.call('news:check'));
+    await w.waitForSelector('#news-pop h3:has-text("Turniej za godzinę!")');
+    await shot('news-popup.png');
+    await w.click('#news-ok');
+    await w.evaluate(() => mib.call('news:check'));
+    await w.waitForTimeout(300);
+    assert.equal(await w.$('#news-pop'), null, 'każdą ważną aktualność widać raz');
+    ok('(af) ważna aktualność: okno u gracza tylko raz');
+
     await w.click('.nav[data-p="admin"]');
     await w.click('[data-tab="codes"]');
     await w.waitForSelector('#ak-item option', { state: 'attached' });
     await w.fill('#ak-count', '2');
     await w.click('#ak-go');
     await w.waitForFunction(() => (document.querySelector('#ak-out pre') || {}).textContent?.split('\n').length === 2);
+    await w.fill('#ak-code', 'turniej2026');
+    assert.equal(await w.isDisabled('#ak-count'), true, 'kod o własnej nazwie jest jeden');
+    await w.fill('#ak-until', new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10));
+    await w.click('#ak-go');
+    await w.waitForFunction(() => (document.querySelector('#ak-out pre') || {}).textContent === 'TURNIEJ2026');
+    assert.ok(fake.st.codes.TURNIEJ2026 && fake.st.codes.TURNIEJ2026.until, 'kod z datą końca');
+    await w.waitForFunction(() => /TURNIEJ2026.*ważny do/s.test(document.getElementById('ak-list').textContent));
     await w.click('[data-tab="stats"]');
     await w.waitForFunction(() => /Profile MiB/.test(document.getElementById('admin-tab').textContent));
     assert.match(await w.textContent('#as-now'), /W grze \(profile MiB\).*W launcherze.*play\.mib\.pl2 graczy.*1\.21\.11/s, '„Teraz”: liczniki, serwery i wersje');
+    await w.waitForSelector('#as-chart svg polyline');
+    assert.equal(await w.$$eval('#as-chart svg polyline', l => l.length), 2, 'linie: w launcherze i w grze');
+    assert.equal(await w.$$eval('#as-chart .ac-table tbody tr', l => l.length), 30, 'tabela 30 dni');
+    await w.hover('#as-chart .ac-hit[data-i="20"]');
+    await w.waitForFunction(() => !document.querySelector('#as-chart .ac-tip').hidden && /W launcherze: \d+.*W grze: \d+.*Nowe profile: \d+/s.test(document.querySelector('#as-chart .ac-tip').textContent));
+    await w.locator('#as-chart').scrollIntoViewIfNeeded();
     await shot('admin-stats.png');
     await w.click('[data-tab="players"]');
     await w.waitForFunction(() => /Tester_1/.test(document.getElementById('ap-res').textContent));
@@ -348,6 +460,19 @@ function png(w, h, px) {
     await w.click('#ap-del');
     await w.waitForFunction(() => !/Tester_1/.test(document.getElementById('ap-res').textContent));
     assert.ok(!fake.st.users.some(u => u.nick === 'Tester_1'), 'konto usunięte na serwerze');
+    await w.click('#ap-res .arow:has-text("Kolega")');
+    await w.waitForSelector('#ap-detail .mod-row');
+    assert.match(await w.textContent('#ap-detail .mod-row'), /Ostrzeżenia: 1\/4/);
+    await w.fill('#ap-detail .warn-why', 'Próba oszustwa');
+    w.once('dialog', d => d.accept());
+    await w.click('#ap-detail button:has-text("Zbanuj")');
+    await until(() => kolega.banned && kolega.banReason === 'Próba oszustwa');
+    await w.waitForSelector('#ap-detail .mod-row button:has-text("Odbanuj")');
+    await shot('admin-ban.png');
+    w.once('dialog', d => d.accept());
+    await w.click('#ap-detail button:has-text("Odbanuj")');
+    await until(() => !kolega.banned && kolega.warnings === 0);
+    ok('(ag) gracze: ban od razu i zdjęcie bana (ostrzeżenia od zera)');
     await w.click('[data-tab="cos"]');
     await w.waitForSelector('#ac-list .cosi');
     await shot('admin-cos.png');
@@ -416,6 +541,20 @@ function png(w, h, px) {
     await shot('ideas-reply.png');
     ok('(aa) odpowiedź twórcy pod pomysłem i kropka przy Pomysły do obejrzenia');
 
+    await w.click('.nav[data-p="admin"]');
+    await w.click('[data-tab="players"]');
+    await w.waitForSelector('#ga-pick option[value="cape_start"]', { state: 'attached' });
+    await w.selectOption('#ga-pick', 'cape_start');
+    await w.fill('#ga-note', 'Wesołych Świąt od MiB!');
+    const giftsBefore = fake.st.gifts.length;
+    w.once('dialog', d => d.accept());
+    await w.click('#ga-go');
+    await until(() => fake.st.gifts.length > giftsBefore);
+    const toAll = fake.st.gifts.slice(giftsBefore);
+    assert.ok(toAll.every(g => g.cosmetic === 'cape_start' && g.message === 'Wesołych Świąt od MiB!' && g.user !== sier.id), 'tylko gracze bez tej peleryny');
+    assert.ok(toAll.some(g => g.user === ziomek.id) && !toAll.some(g => g.user === kolega.id), 'Ziomek dostaje prezent, Kolega już ma tę pelerynę');
+    ok('(ah) prezent dla wszystkich graczy, którzy go nie mają');
+
     await w.click('.nav[data-p="set"]');
     assert.equal(await w.isChecked('#s-mib'), true, 'mod MiB domyślnie włączony');
     await w.uncheck('#s-mib');
@@ -424,6 +563,12 @@ function png(w, h, px) {
     assert.equal((await w.evaluate(() => mib.call('settings:get'))).mibMod, false);
     await w.check('#s-mib'); await w.click('#s-save');
     ok('(p) ustawienie „Mod MiB w grze” zapisuje się');
+    fake.st.presence[sier.id] = { at: Date.now(), playing: false };
+    await w.check('#s-inv'); await w.click('#s-save');
+    await until(() => !fake.st.presence[sier.id] && fake.st.calls.some(c => c.path === '/rest/v1/rpc/presence_ping' && c.body.p_hidden === true));
+    await w.uncheck('#s-inv'); await w.click('#s-save');
+    await until(() => !!fake.st.presence[sier.id]);
+    ok('(ai) tryb niewidoczny: znajomi widzą offline, po wyłączeniu znów online');
 
     // Moje mody: pliki .jar przeciągnięte do okna (ten sam kanał co upuszczenie na stronę)
     {
@@ -476,6 +621,16 @@ function png(w, h, px) {
     assert.equal(left.ms, 0, 'sesja okna logowania Microsoftu wyczyszczona');
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(userData, 'accounts.json'), 'utf8')), { active: null, list: [] });
     ok('(u) usunięcie aktywnego konta: wylogowanie z profilu MiB i zapomniane konta w oknie Microsoftu');
+
+    // Co nowego: po aktualizacji (inna wersja w mib-state.json) okno z listą zmian tej wersji, tylko raz
+    fs.writeFileSync(path.join(userData, 'mib-state.json'), JSON.stringify({ lastVersion: '0.0.1' }));
+    await w.reload();
+    await w.waitForSelector('#wn h4', { timeout: 15000 });
+    assert.match(await w.textContent('#wn'), /Co nowego.*Dodane/s);
+    await shot('whatsnew.png');
+    await w.click('#wn-ok');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(userData, 'mib-state.json'), 'utf8')).lastVersion, require(path.join(ROOT, 'package.json')).version);
+    ok('(aj) okno „Co nowego” raz po aktualizacji');
 
     assert.deepEqual(errors, []);
     ok('brak błędów JavaScript na stronie');

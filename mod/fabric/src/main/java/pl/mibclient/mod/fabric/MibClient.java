@@ -773,6 +773,15 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	}
 
 	@Override
+	public void claimGift(long id) {
+		if (bridge == null) return;
+		equipAt = System.currentTimeMillis();
+		bridge.requestClaim(id);
+		cosMessage = Lang.t("cos.working");
+		cosReadAt = 0;
+	}
+
+	@Override
 	public String cosmeticMessage() {
 		long now = System.currentTimeMillis();
 		if (bridge != null && equipAt > 0 && now - cosFailCheckedAt > 500) {

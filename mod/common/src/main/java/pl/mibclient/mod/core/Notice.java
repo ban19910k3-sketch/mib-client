@@ -4,7 +4,7 @@ import java.util.Map;
 
 /**
  * Powiadomienie od launchera (notice.json): znajomy z MiB zaczął grać, zaprasza na swój serwer albo napisał wiadomość,
- * albo czeka prezent od MiB do odebrania w launcherze.
+ * albo czeka prezent od MiB do odebrania w launcherze, albo twórca dodał ważną aktualność.
  * Board pokazuje je w prawym górnym rogu przez SHOW_MS (wsuwa się z boku); nowe zastępuje poprzednie.
  */
 public final class Notice {
@@ -18,10 +18,10 @@ public final class Notice {
 		this(id, type, nick, version, server, null, at);
 	}
 
-	/** type: "started", "invite" (z serwerem i wersją), "message" (text = treść) albo "gift" (text = nazwa kosmetyku). */
+	/** type: "started", "invite" (z serwerem i wersją), "message" (text = treść), "gift" (text = nazwa kosmetyku) albo "news" (text = tytuł). */
 	public Notice(String id, String type, String nick, String version, String server, String text, long at) {
 		this.id = id;
-		this.type = "invite".equals(type) || "message".equals(type) || "gift".equals(type) ? type : "started";
+		this.type = "invite".equals(type) || "message".equals(type) || "gift".equals(type) || "news".equals(type) ? type : "started";
 		this.nick = nick;
 		this.version = version;
 		this.server = server;
@@ -44,7 +44,7 @@ public final class Notice {
 		if (nick.isEmpty()) return null;
 		Object type = m.get("type");
 		String server = str(m.get("server")), version = str(m.get("version")), text = str(m.get("text"));
-		if ("invite".equals(type) && server == null || ("message".equals(type) || "gift".equals(type)) && text == null) return null;
+		if ("invite".equals(type) && server == null || ("message".equals(type) || "gift".equals(type) || "news".equals(type)) && text == null) return null;
 		return new Notice((String) m.get("id"), type instanceof String ? (String) type : "started", nick, version, server, text,
 				((Number) m.get("at")).longValue());
 	}
@@ -65,13 +65,19 @@ public final class Notice {
 		return "gift".equals(type);
 	}
 
+	public boolean news() {
+		return "news".equals(type);
+	}
+
 	public String title() {
+		if (news()) return Lang.t("notice.news");
 		if (gift()) return Lang.t("notice.gift");
 		if (message()) return Lang.t("notice.message", nick);
 		return Lang.t(invite() ? "notice.invite" : "notice.started");
 	}
 
 	public String body() {
+		if (news()) return text;
 		if (gift()) return Lang.t("notice.gift.body", text);
 		if (message()) return text + " " + Lang.t("notice.message.reply");
 		if (invite()) return Lang.t("notice.invite.body", nick, server, version == null ? "?" : version);
@@ -114,7 +120,7 @@ public final class Notice {
 			int x = sw - MARGIN - w + (int) Math.round((1 - p) * (w + MARGIN)), y = MARGIN;
 			Shapes.panel(c, x, y, w, h, Theme.SLAB, Theme.AM);
 			c.fill(x + 1, y + 2, x + 3, y + h - 2, Theme.AM);
-			Shapes.icon(c, n.invite() ? "server" : n.message() ? "message" : n.gift() ? "archive" : "user", x + PAD + 1, y + PAD - 1, Theme.AM_HI);
+			Shapes.icon(c, n.invite() ? "server" : n.message() ? "message" : n.gift() ? "archive" : n.news() ? "info-box" : "user", x + PAD + 1, y + PAD - 1, Theme.AM_HI);
 			c.text(Shapes.ellipsize(c, n.title(), w - tx - PAD, false), x + tx, y + PAD, Theme.AM_HI, false);
 			for (int i = 0; i < lines.length; i++) c.text(lines[i], x + tx, y + PAD + lh + 3 + i * lh, Theme.TEXT, false);
 		}

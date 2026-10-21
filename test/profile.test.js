@@ -146,4 +146,22 @@ test('freshKeys i powiadomienia o prezencie i odpowiedzi na pomysł', () => {
   assert.deepEqual(P.friendNotice({ type: 'gift', text: 'Peleryna Złota' }), { title: 'Prezent od MiB', body: 'Peleryna Złota czeka na Ciebie. Odbierz w launcherze.' });
   assert.equal(P.friendNotice({ type: 'idea', status: 'planned', text: 'Dodamy wkrótce.' }).body, 'Status: W planach — Dodamy wkrótce.');
   assert.equal(P.friendNotice({ type: 'idea', status: 'done' }, 'en').body, 'Status: Done');
+  assert.deepEqual(P.friendNotice({ type: 'news', text: 'Turniej za godzinę' }), { title: 'Ważna aktualność', body: 'Turniej za godzinę' });
+});
+
+test('achievements: odznaki z liczb profilu', () => {
+  const a = P.achievements({ launches: 3, playtime_min: 700, friends: 5, founder: true, owned: 2 });
+  const done = a.filter(x => x.done).map(x => x.id);
+  assert.deepEqual(done, ['first_game', 'hours_10', 'friend', 'squad', 'founder']);
+  const reg = a.find(x => x.id === 'regular');
+  assert.deepEqual([reg.value, reg.goal, reg.done], [3, 100, false]);
+  assert.equal(a.find(x => x.id === 'veteran').value, 700);
+  assert.equal(a.find(x => x.id === 'hours_10').value, 600, 'postęp nie przekracza celu');
+  assert.equal(P.achievements(null).filter(x => x.done).length, 0, 'bez danych nic nie jest zdobyte');
+});
+
+test('releaseNotes: sekcje i punkty z notatek wydania', () => {
+  const md = '<!-- 0.20.0 -->\n## Dodane\n\n- Blokowanie graczy.\n- Osiągnięcia.\n## Zmienione\n- Kody z datą końca.\n## Usunięte\n';
+  assert.deepEqual(P.releaseNotes(md), [{ title: 'Dodane', items: ['Blokowanie graczy.', 'Osiągnięcia.'] }, { title: 'Zmienione', items: ['Kody z datą końca.'] }]);
+  assert.deepEqual(P.releaseNotes(''), []);
 });
