@@ -82,7 +82,7 @@ public final class ShulkerPreview implements TooltipComponent {
 			c.fill(x, y + 2, x + 9 * 18 + 2, y + 2 + 3 * 18 + 2, 0xFF24133A);
 			for (int i = 0; i < 27; i++) {
 				int sx = x + 1 + (i % 9) * 18, sy = y + 3 + (i / 9) * 18;
-				c.fill(sx, sy, sx + 18, sy + 18, (i + i / 9) % 2 == 0 ? 0xFF100618 : 0xFF190C25);
+				c.fill(sx, sy, sx + 18, sy + 18, (i + i / 9) % 2 == 0 ? Theme.SLAB : Theme.SLAB2);
 				c.item(p.items.get(i), sx + 1, sy + 1);
 			}
 			c.fill(x, y + 2, x + 9 * 18 + 2, y + 3, Theme.AM_LO);

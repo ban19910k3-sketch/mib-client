@@ -18,7 +18,7 @@ public final class HudEditorView {
 		done = new int[] {x + rw + 6, y, dw, 16};
 		Shapes.panel(c, reset[0], reset[1], reset[2], reset[3], in(reset, mx, my) ? Theme.SLAB2 : Theme.SLAB, Theme.EDGE2);
 		c.text(r, reset[0] + 8, y + 4, Theme.TEXT, false);
-		Shapes.pixelRect(c, done[0], done[1], done[2], done[3], in(done, mx, my) ? 0xFF7C3AED : Theme.AM_LO);
+		Shapes.pixelRect(c, done[0], done[1], done[2], done[3], in(done, mx, my) ? Theme.BTN_HOVER : Theme.AM_LO);
 		c.fill(done[0] + 1, y, done[0] + dw - 1, y + 1, Theme.BTN_HI);
 		c.fill(done[0] + 1, y + 15, done[0] + dw - 1, y + 16, Theme.BTN_LO);
 		c.text(d, done[0] + 12, y + 4, 0xFFFFFFFF, true);

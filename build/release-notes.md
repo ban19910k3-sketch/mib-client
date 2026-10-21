@@ -7,5 +7,6 @@
 
 ## Zmienione
 
-- Launcher ma motyw na Halloween: kolory dyni, księżyc, iskry i nietoperze w tle.
+- Launcher ma motyw na Halloween: kolory dyni, księżyc, pajęczyna, trumna, a w tle iskry, nietoperze i latające dynie.
+- Menu pod prawym Shiftem w grze też jest w kolorach Halloween, z pajęczynami i pająkiem.
 - Na stronie Kosmetyki nie pokazuje się już napis „null”.

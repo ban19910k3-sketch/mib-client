@@ -21,11 +21,11 @@ public final class MenuView {
 	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS, FRIENDS, CHAT }
 
 	public static final int KEY_ESCAPE = 256, KEY_BACKSPACE = 259, KEY_ENTER = 257;
-	private static final int FAINT = 0xFF6F5F82, WHITE = 0xFFFFFFFF;
-	/** Tło karty włączonego modułu (lekko fioletowe). */
-	private static final int CARD_ON = 0xFF160A24;
+	private static final int FAINT = Theme.FAINT, WHITE = 0xFFFFFFFF;
+	/** Tło karty włączonego modułu (lekko w kolorze akcentu). */
+	private static final int CARD_ON = Theme.CARD_ON;
 	/** Linia między wierszami ustawień. */
-	private static final int ROW_LINE = 0xFF150B20;
+	private static final int ROW_LINE = Theme.ROW_LINE;
 
 	private static final class Hit {
 		final String name;
@@ -149,6 +149,7 @@ public final class MenuView {
 		layout = MenuLayout.compute(w, h, vis.size(), scroll);
 		scroll = layout.scroll;
 		c.fill(0, 0, w, h, Theme.DIM);
+		if (Theme.HALLOWEEN) Halloween.menu(c, w, h, System.currentTimeMillis());
 		int[] p = layout.panel;
 		Shapes.panel(c, p[0], p[1], p[2], p[3], Theme.VOID, Theme.EDGE2);
 		sidebar(c, mx, my);
@@ -172,6 +173,7 @@ public final class MenuView {
 		c.fill(s[0] + 1, s[1] + 1, s[0] + s[2], s[1] + s[3] - 1, Theme.SLAB);
 		c.fill(s[0] + s[2], s[1] + 1, s[0] + s[2] + 1, s[1] + s[3] - 1, Theme.EDGE);
 		c.text("MiB Client", s[0] + 10, s[1] + 10, Theme.AM_HI, true);
+		if (Theme.HALLOWEEN) Halloween.pumpkin(c, s[0] + 14 + c.textWidth("MiB Client"), s[1] + 10, 1);
 		c.text(Lang.pl() ? "Moduły" : "Modules", s[0] + 10, s[1] + 21, Theme.MUTED, false);
 		language(c, s, mx, my);
 
@@ -264,7 +266,7 @@ public final class MenuView {
 	/** Przycisk jak w launcherze: główny (fiolet z jaśniejszą górą i ciemniejszym dołem) albo „ghost”. */
 	private void button(Canvas c, int[] r, String icon, String label, boolean primary, boolean hover) {
 		if (primary) {
-			Shapes.pixelRect(c, r[0], r[1], r[2], r[3], hover ? 0xFF7C3AED : Theme.AM_LO);
+			Shapes.pixelRect(c, r[0], r[1], r[2], r[3], hover ? Theme.BTN_HOVER : Theme.AM_LO);
 			c.fill(r[0] + 1, r[1], r[0] + r[2] - 1, r[1] + 1, Theme.BTN_HI);
 			c.fill(r[0] + 1, r[1] + r[3] - 1, r[0] + r[2] - 1, r[1] + r[3], Theme.BTN_LO);
 		} else Shapes.panel(c, r[0], r[1], r[2], r[3], Theme.SLAB2, hover ? Theme.AM_LO : Theme.EDGE2);
@@ -333,7 +335,7 @@ public final class MenuView {
 		for (int i = 0; i < lines.length; i++) c.text(lines[i], x + 6, y + 39 + i * 10, Theme.MUTED, false);
 		// dolny pasek: stan i przełącznik (kliknięcie w całym pasku)
 		int[] pill = {x + 1, y + h - 19, w - 2, 18};
-		c.fill(x + 6, pill[1], x + w - 6, pill[1] + 1, on ? 0xFF3B1F5E : Theme.EDGE);
+		c.fill(x + 6, pill[1], x + w - 6, pill[1] + 1, on ? Theme.CARD_ON_LINE : Theme.EDGE);
 		int ly = pill[1] + 6;
 		if (blocked) {
 			Shapes.icon(c, "lock", x + 5, ly - 2, FAINT);
