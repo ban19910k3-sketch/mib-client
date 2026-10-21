@@ -52,6 +52,8 @@
     report_message_missing: 'Tej wiadomości już nie ma.',
     not_friend: 'Kartę gracza widzą tylko jego znajomi.',
     crash_long: 'Raport jest za długi.',
+    idea_own: 'Na własny pomysł nie można głosować.',
+    idea_missing: 'Tego pomysłu nie ma już na liście.',
     message_not_friend: 'Pisać możesz tylko do znajomych.',
     message_empty: 'Wiadomość jest pusta.',
     message_long: 'Wiadomość może mieć najwyżej 500 znaków.',
@@ -79,6 +81,8 @@
   const T = s => tr(s);
   const go = page => document.querySelector(`.nav[data-p="${page}"]`).click();
   const fmtDate = d => new Date(d).toLocaleDateString(LANG === 'en' ? 'en-GB' : 'pl-PL');
+  // filtr wulgaryzmów w tekstach innych graczy (Ustawienia, domyślnie włączony)
+  const clean = t => (typeof S !== 'undefined' && S && S.chatFilter === false ? String(t == null ? '' : t) : MibProfile.cleanText(t));
 
   let st = { loading: true }, tab = 'signup', busy = false;
 
@@ -598,12 +602,53 @@
     body.addEventListener('input', () => { count.textContent = body.value.trim().length + ' / 1000'; });
     const err = errBox(), send = h('button', { class: 'b', id: 'id-send', type: 'submit' }, T('Wyślij pomysł'));
     const list = h('div', { id: 'id-list' }, h('p', { class: 'mut' }, T('Wczytywanie…')));
+    // Pomysły innych graczy: głos jednym kliknięciem (nie na własny), najpopularniejsze albo najnowsze
+    const pub = h('div', { id: 'ip-list' }, h('p', { class: 'mut' }, T('Wczytywanie…')));
+    const sortSeg = h('div', { class: 'seg', role: 'tablist', id: 'ip-sort' }, ...[['top', 'Najpopularniejsze'], ['new', 'Najnowsze']].map(([k, l]) =>
+      h('button', { type: 'button', role: 'tab', class: ideaSort === k ? 'on' : '', 'data-sort': k, on: { click: () => {
+        ideaSort = k; pubShown = 20;
+        for (const b of sortSeg.children) b.classList.toggle('on', b.dataset.sort === k);
+        loadPublic();
+      } } }, T(l))));
+    let pubAll = [], pubShown = 20;
+    async function loadPublic() {
+      const l = await mib.call('prof:ideasPublic', { sort: ideaSort });
+      if (!Array.isArray(l)) { pub.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail))); return; }
+      pubAll = l; showPublic();
+    }
+    function voteBtn(i) {
+      const cnt = h('b', {}, String(i.votes));
+      const b = h('button', { class: 'vote' + (i.voted ? ' on' : ''), type: 'button', 'aria-pressed': String(!!i.voted), disabled: !!i.mine,
+        title: T(i.mine ? 'To Twój pomysł' : i.voted ? 'Cofnij głos' : 'Daj głos'), on: { click: async () => {
+          b.disabled = true;
+          const r = await mib.call('prof:ideaVote', { id: i.id, on: !i.voted });
+          b.disabled = false;
+          if (r.error) return toast(msg(r.error, r.detail), 1);
+          i.voted = !i.voted; i.votes = r.votes;
+          b.classList.toggle('on', i.voted); b.setAttribute('aria-pressed', String(i.voted)); b.title = T(i.voted ? 'Cofnij głos' : 'Daj głos'); cnt.textContent = String(i.votes);
+        } } }, voteIcon(), cnt);
+      return b;
+    }
+    function showPublic() {
+      const l = pubAll.slice(0, pubShown);
+      pub.replaceChildren(...(l.length ? l.map(i => h('div', { class: 'card idea pub' + (i.mine ? ' mine' : ''), 'data-id': i.id }, voteBtn(i),
+        h('div', { class: 'ibody' },
+          h('div', { class: 'ihead' }, h('b', {}, i.mine ? T('Twój pomysł') : i.nick), h('em', { class: 'tag' }, T(IDEA_CAT[i.category] || i.category)),
+            i.status !== 'new' ? h('em', { class: 'tag st-' + i.status }, T(IDEA_ST[i.status] || i.status)) : null, h('span', { class: 'mut' }, fmtDate(i.created_at))),
+          h('p', {}, i.mine ? i.body : clean(i.body)),
+          i.reply ? h('div', { class: 'ireply' }, h('small', {}, T('Odpowiedź twórcy MiB Client')), h('p', {}, i.reply)) : null)))
+        : [h('p', { class: 'empty' }, T('Nikt jeszcze nie wysłał pomysłu do głosowania. Bądź pierwszy!'))]),
+        ...(pubAll.length > pubShown ? [h('button', { class: 'b ghost', type: 'button', on: { click: () => { pubShown += 20; showPublic(); } } }, T('Pokaż więcej'))] : []));
+    }
     async function loadMine() {
       const l = await mib.call('prof:myIdeas');
       if (!Array.isArray(l)) return list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
+      const votes = {};
+      for (const x of pubAll) votes[x.id] = x.votes;
       list.replaceChildren(...(l.length ? l.map(i => h('div', { class: 'card idea' },
         h('div', { class: 'ihead' }, h('em', { class: 'tag' }, T(IDEA_CAT[i.category] || i.category)), h('span', { class: 'mut' }, fmtDate(i.created_at)),
           i.rewarded ? h('em', { class: 'tag hunter' }, T('Nagrodzony')) : null,
+          votes[i.id] ? h('em', { class: 'tag votes' }, T('Głosy') + ': ' + votes[i.id]) : null,
           h('em', { class: 'tag st-' + i.status }, T(IDEA_ST[i.status] || i.status))),
         h('p', {}, i.body),
         i.reply ? h('div', { class: 'ireply' }, h('small', {}, T('Odpowiedź twórcy MiB Client')), h('p', {}, i.reply)) : null))
@@ -621,13 +666,19 @@
       if (r.error) { err.textContent = msg(r.error, r.detail); return; }
       body.value = ''; count.textContent = '0 / 1000';
       toast(T('Dzięki, pomysł wysłany.'));
-      loadMine();
+      await loadPublic(); loadMine();
     } } },
     field('Czego dotyczy', cat), field('Pomysł', body, 'Od 10 do 1000 znaków. Najwyżej 5 pomysłów dziennie.'), err,
     h('div', { class: 'row', style: 'align-items:center;justify-content:space-between' }, send, count));
-    box.replaceChildren(...head, form, h('div', { class: 'sec' }, h('h3', {}, T('Twoje pomysły')), list));
+    box.replaceChildren(...head, form, h('div', { class: 'sec' }, h('h3', {}, T('Twoje pomysły')), list),
+      h('div', { class: 'sec', id: 'ip' }, h('div', { class: 'row', style: 'align-items:center;justify-content:space-between' }, h('h3', {}, T('Pomysły graczy')), sortSeg),
+        h('p', { class: 'mut' }, T('Daj głos pomysłom, które chcesz zobaczyć w MiB Client. Twórca widzi, które są najpopularniejsze.')), pub));
+    await loadPublic();
     loadMine();
   }
+  let ideaSort = 'top';
+  const voteIcon = () => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
+    s.innerHTML = '<path fill="currentColor" d="M11 4h2v2h-2zM9 6h6v2H9zM7 8h10v2H7zM5 10h14v2H5zM10 12h4v8h-4z"/>'; return s; };
 
   // ===== Strona Znajomi =====
   // Status znajomego: w grze (serwer, wersja), w launcherze albo offline z czasem ostatniej obecności
@@ -658,7 +709,7 @@
   mib.on('chat:new', rows => {
     for (const u of rows || []) {
       if (chatWith && chatWith.id === u.from_id) { if (chatReload) chatReload(); continue; }
-      if (document.hasFocus()) toast(T('Nowa wiadomość od') + ' ' + u.nick + ': ' + String(u.last_body || '').slice(0, 80));
+      if (document.hasFocus()) toast(T('Nowa wiadomość od') + ' ' + u.nick + ': ' + clean(u.last_body).slice(0, 80));
     }
   });
   mib.on('chat:open', async id => {
@@ -726,7 +777,7 @@
           const bottom = first || list.scrollHeight - list.scrollTop - list.clientHeight < 40;
           const lastMine = l.reduce((a, m, i) => (m.mine ? i : a), -1);
           list.replaceChildren(...(l.length ? l.map((m, i) => h('div', { class: 'msg' + (m.mine ? ' me' : '') },
-            h('span', { class: 'tx' }, m.body),
+            h('span', { class: 'tx' }, m.mine ? m.body : clean(m.body)),
             h('small', {}, timeOf(m.created_at) + (i === lastMine && m.read ? ' · ' + T('przeczytana') : ''),
               m.mine ? null : h('button', { class: 'rep-b', type: 'button', title: T('Zgłoś wiadomość'), on: { click: () => openReport(f, m, b => { if (b) closeChat(); }) } }, T('Zgłoś')))))
             : [h('p', { class: 'empty' }, T('Napisz pierwszą wiadomość do') + ' ' + f.nick + '.')]));
@@ -843,7 +894,7 @@
       if (blk.checked && friendsReload) friendsReload();
     } } },
       h('h3', {}, T('Zgłoś gracza') + ' ' + f.nick),
-      m ? h('blockquote', { class: 'rp-msg' }, m.body) : null,
+      m ? h('blockquote', { class: 'rp-msg' }, clean(m.body)) : null,
       h('p', { class: 'mut' }, T(m ? 'Twórca MiB Client zobaczy tę wiadomość i kilka poprzednich z tej rozmowy.' : 'Twórca MiB Client zobaczy Twoje zgłoszenie i sprawdzi tego gracza.')),
       field('Powód', reason), field('Opis', note), h('label', { class: 'ck' }, blk, T('Zablokuj też tego gracza')), err,
       h('div', { class: 'row', style: 'justify-content:flex-end' }, h('button', { class: 'b ghost', type: 'button', on: { click: close } }, T('Anuluj')), sendB)));

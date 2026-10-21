@@ -8,7 +8,7 @@ const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
 const { diagnoseCrash } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
-const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice } = require('./lib/profile');
+const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
 const { createMibPresence, helloMessage } = require('./lib/presence');
@@ -18,7 +18,7 @@ const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
 const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(jf(f), 'utf8')); } catch { return d; } };
 const wr = (f, v) => fs.writeFileSync(jf(f), JSON.stringify(v, null, 2));
-const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true, shareServer: true, perfMods: true, friendNotify: true, invisible: false });
+const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true, shareServer: true, perfMods: true, friendNotify: true, invisible: false, chatFilter: true });
 const logBuf = []; let logCount = 0;
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
 // Profil MiB (Supabase). Klucz publiczny — bezpieczny w launcherze; uprawnienia pilnuje baza.
@@ -99,6 +99,8 @@ async function watchFriends() {
 }
 setInterval(() => watchFriends().catch(() => {}), 30000);
 setTimeout(() => watchFriends().catch(() => {}), 8000);
+// Filtr wulgaryzmów (ustawienie chatFilter, domyślnie włączone): wiadomości od innych w powiadomieniach i w menu gry
+const clean = t => (({ ...defaults(), ...rd('settings.json', {}) }).chatFilter === false ? t : cleanText(t));
 // Wiadomości od znajomych: co 10 s licznik nieprzeczytanych (launcher i menu w grze), powiadomienie o nowych
 let msgSeen = null, unreadKey = '', unreadRows = [];
 async function watchMessages() {
@@ -112,7 +114,7 @@ async function watchMessages() {
   if (!r.fresh.length) return;
   send('chat:new', r.fresh);
   if (({ ...defaults(), ...rd('settings.json', {}) }).friendNotify === false) return;
-  for (const u of r.fresh) friendPopup({ type: 'message', nick: u.nick, text: u.last_body, from: u.from_id });
+  for (const u of r.fresh) friendPopup({ type: 'message', nick: u.nick, text: clean(u.last_body), from: u.from_id });
 }
 setInterval(() => watchMessages().catch(() => {}), 10000);
 setTimeout(() => watchMessages().catch(() => {}), 6000);
@@ -673,7 +675,7 @@ function startHud(pid, mibDir, gameAcc) {
           const l = await prof.chat({ id });
           if (!Array.isArray(l)) return null;
           if (l.some(m => !m.mine && !m.read)) { await prof.chatRead({ id }); watchMessages().catch(() => {}); }
-          return l;
+          return l.map(m => (m.mine ? m : { ...m, body: clean(m.body) }));
         },
         onSend: async (id, body) => { const r = await prof.chatSend({ id, body }); if (r && r.error) throw new Error(r.error); } }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }

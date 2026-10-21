@@ -923,6 +923,56 @@ begin
   return v;
 end $$;
 
+-- ===== Głosowanie na pomysły (od 0.21.0) =====
+-- Gracze widzą pomysły innych (bez zgłoszeń błędów, odrzuconych i od zbanowanych) i dają im głos: jeden na pomysł,
+-- nie na własny. Twórca widzi liczbę głosów w panelu admina.
+create table if not exists private.idea_votes (
+  idea_id bigint not null references public.ideas (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (idea_id, user_id)
+);
+create index if not exists idea_votes_user on private.idea_votes (user_id);
+
+create or replace function private.idea_public(p_id bigint) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.ideas i join public.profiles p on p.id = i.user_id
+                 where i.id = p_id and i.category <> 'bug' and i.status <> 'rejected' and p.banned_at is null);
+$$;
+
+-- p_sort: 'top' (najwięcej głosów) albo 'new' (najnowsze); 100 pomysłów
+create or replace function public.ideas_public(p_sort text)
+returns table (id bigint, nick text, category text, body text, status text, reply text, votes integer, voted boolean, mine boolean, created_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select i.id, p.nick, i.category, i.body, i.status, i.reply,
+    (select count(*) from private.idea_votes v where v.idea_id = i.id)::integer,
+    exists (select 1 from private.idea_votes v where v.idea_id = i.id and v.user_id = (select auth.uid())),
+    i.user_id = (select auth.uid()), i.created_at
+  from public.ideas i join public.profiles p on p.id = i.user_id
+  where (select auth.uid()) is not null and i.category <> 'bug' and i.status <> 'rejected' and p.banned_at is null
+  order by case when p_sort = 'new' then 0 else (select count(*) from private.idea_votes v where v.idea_id = i.id) end desc, i.created_at desc
+  limit 100;
+$$;
+
+-- Głos (p_on = true) albo jego cofnięcie; wynik to liczba głosów na pomysł
+create or replace function public.idea_vote(p_id bigint, p_on boolean) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if not exists (select 1 from public.profiles where id = v_me) then raise exception 'no_profile'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
+  if not private.idea_public(p_id) then raise exception 'idea_missing'; end if;
+  if exists (select 1 from public.ideas where id = p_id and user_id = v_me) then raise exception 'idea_own'; end if;
+  if coalesce(p_on, true) then
+    insert into private.idea_votes (idea_id, user_id) values (p_id, v_me) on conflict do nothing;
+  else
+    delete from private.idea_votes where idea_id = p_id and user_id = v_me;
+  end if;
+  return (select count(*) from private.idea_votes where idea_id = p_id);
+end $$;
+
 -- ===== Dzienna aktywność (od 0.20.0): wykres graczy w panelu admina =====
 create or replace function private.today() returns date
 language sql stable set search_path = '' as $$
@@ -1164,15 +1214,17 @@ begin
 end $$;
 
 -- nowe pomysły na górze; nick, num i user_id są puste, gdy autor usunął konto (od 0.19.0 też odpowiedź i nagroda,
--- od 0.20.0 czy jest raport awarii — sam raport z admin_idea_details)
+-- od 0.20.0 czy jest raport awarii — sam raport z admin_idea_details, od 0.21.0 liczba głosów graczy)
 drop function if exists public.admin_list_ideas();
 create or replace function public.admin_list_ideas()
-returns table (id bigint, user_id uuid, nick text, num bigint, category text, body text, status text, reply text, rewarded boolean, has_details boolean, created_at timestamptz)
+returns table (id bigint, user_id uuid, nick text, num bigint, category text, body text, status text, reply text, rewarded boolean, has_details boolean,
+  votes integer, created_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$
 begin
   perform private.need_admin();
   return query
-    select i.id, p.id, p.nick, p.num, i.category, i.body, i.status, i.reply, i.rewarded, i.details is not null, i.created_at
+    select i.id, p.id, p.nick, p.num, i.category, i.body, i.status, i.reply, i.rewarded, i.details is not null,
+      (select count(*) from private.idea_votes v where v.idea_id = i.id)::integer, i.created_at
     from public.ideas i left join public.profiles p on p.id = i.user_id
     order by i.status = 'new' desc, i.created_at desc limit 300;
 end $$;
@@ -1444,6 +1496,11 @@ grant execute on function public.my_warnings() to authenticated;
 grant execute on function public.warnings_seen() to authenticated;
 grant execute on function public.profile_card(uuid) to authenticated;
 grant execute on function public.submit_crash(text, text) to authenticated;
+revoke all on function private.idea_public(bigint) from public, anon, authenticated;
+revoke all on function public.ideas_public(text) from public, anon;
+revoke all on function public.idea_vote(bigint, boolean) from public, anon;
+grant execute on function public.ideas_public(text) to authenticated;
+grant execute on function public.idea_vote(bigint, boolean) to authenticated;
 
 -- panel admina: wywołać może każdy zalogowany, ale każda funkcja sama sprawdza, czy to admin
 revoke all on function private.need_admin() from public, anon, authenticated;

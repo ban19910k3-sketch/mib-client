@@ -165,3 +165,15 @@ test('releaseNotes: sekcje i punkty z notatek wydania', () => {
   assert.deepEqual(P.releaseNotes(md), [{ title: 'Dodane', items: ['Blokowanie graczy.', 'Osiągnięcia.'] }, { title: 'Zmienione', items: ['Kody z datą końca.'] }]);
   assert.deepEqual(P.releaseNotes(''), []);
 });
+
+test('cleanText: przekleństwa na gwiazdki, zwykłe słowa bez zmian', () => {
+  assert.equal(P.cleanText('Ty kurwo jebana!'), 'Ty k**** j*****!');
+  assert.equal(P.cleanText('KURW4 i kuuurwa, co za $hit.'), 'K**** i k******, co za $***.');
+  assert.equal(P.cleanText('what the fuck? a$$hole'), 'what the f***? a******');
+  assert.equal(P.cleanText('Spierdalaj, chujowy serwer, pojeb'), 'S*********, c****** serwer, p****');
+  assert.equal(P.cleanText('k.u.r.w.a cipa huj'), 'k******** c*** h**');
+  assert.equal(P.cleanText('Principle cipher Nigeria fagot as klasa Scunthorpe hujnia'), 'Principle cipher Nigeria fagot as klasa Scunthorpe h*****');
+  assert.equal(P.cleanText('Gramy w bedwars? Jest 5 graczy :)'), 'Gramy w bedwars? Jest 5 graczy :)');
+  assert.equal(P.cleanText('„kurwa”'), '„k****”');
+  assert.equal(P.cleanText(null), '');
+});

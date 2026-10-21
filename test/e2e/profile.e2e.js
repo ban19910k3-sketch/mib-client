@@ -245,12 +245,13 @@ function png(w, h, px) {
     ok('(w) wiadomości do znajomego: licznik, okno rozmowy, wysyłanie Enterem, przeczytane');
 
     // Zgłoszenie wiadomości z rozmowy: powód, opis, kopia rozmowy trafia do twórcy
-    fake.st.messages.push({ id: ++fake.st.msgId, from: kolega.id, to: me.id, body: 'Jesteś noobem', at: new Date().toISOString(), read: false });
+    fake.st.messages.push({ id: ++fake.st.msgId, from: kolega.id, to: me.id, body: 'Jesteś noobem, kurwa', at: new Date().toISOString(), read: false });
     await w.click('.nav[data-p="friends"]');
     await w.click('#fr-list .frow:has-text("Kolega") .chat-b');
-    await w.waitForSelector('#chat .msg:has-text("Jesteś noobem")');
+    await w.waitForSelector('#chat .msg:has-text("Jesteś noobem, k****")');
+    assert.equal(await w.$('#chat .msg:has-text("kurwa")'), null, 'filtr wulgaryzmów w rozmowie');
     await w.click('#chat .msg:has-text("Jesteś noobem") .rep-b');
-    await w.waitForSelector('#report blockquote.rp-msg:has-text("Jesteś noobem")');
+    await w.waitForSelector('#report blockquote.rp-msg:has-text("Jesteś noobem, k****")');
     await w.selectOption('#rp-reason', 'insult');
     await w.fill('#rp-note', 'Obraża mnie od rana');
     await shot('report.png');
@@ -258,7 +259,7 @@ function png(w, h, px) {
     await w.waitForFunction(() => !document.getElementById('report'));
     const rep = fake.st.reports[0];
     assert.ok(rep && rep.user === kolega.id && rep.reason === 'insult' && rep.note === 'Obraża mnie od rana', 'zgłoszenie w bazie');
-    assert.deepEqual(rep.messages.filter(m => m.reported).map(m => m.body), ['Jesteś noobem'], 'kopia zgłoszonej wiadomości');
+    assert.deepEqual(rep.messages.filter(m => m.reported).map(m => m.body), ['Jesteś noobem, kurwa'], 'kopia zgłoszonej wiadomości (bez filtra, dla twórcy)');
     assert.ok(await w.$('#chat'), 'bez blokady rozmowa zostaje otwarta');
     await w.press('#chat-in', 'Escape');
     await w.waitForFunction(() => !document.getElementById('chat'));
@@ -314,6 +315,31 @@ function png(w, h, px) {
     assert.doesNotMatch(crash.details, /accessToken\s+\w{20}/, 'bez tokenów');
     ok('(ad) osiągnięcia na profilu, okno ostrzeżenia 1/4 i raport awarii do twórcy');
 
+    // Głosowanie na pomysły innych graczy (bez własnych i bez zgłoszeń błędów), filtr wulgaryzmów w treści
+    fake.st.ideas.push({ id: ++fake.st.ideaId, user: kolega.id, category: 'feature', body: 'Dodajcie kurwa tryb 1v1 na arenie', status: 'new', created_at: now },
+      { id: ++fake.st.ideaId, user: ziomek.id, category: 'cosmetic', body: 'Skrzydła z ognia dla zwycięzców', status: 'planned', created_at: now },
+      { id: ++fake.st.ideaId, user: ziomek.id, category: 'bug', body: 'Czat się zacina w menu gry', status: 'new', created_at: now });
+    const kIdea = fake.st.ideas.find(i => i.user === kolega.id && i.category === 'feature');
+    fake.st.votes.push({ idea: fake.st.ideaId - 1, user: kolega.id }, { idea: fake.st.ideaId - 1, user: 'x' });
+    await w.click('.nav[data-p="ideas"]');
+    await w.waitForSelector('#ip-list .idea.pub');
+    assert.match(await w.textContent('#ip-list .idea.pub:first-child'), /Ziomek.*Skrzydła z ognia/s, 'najpopularniejsze na górze');
+    assert.equal(await w.$('#ip-list .idea.pub:has-text("Czat się zacina")'), null, 'zgłoszeń błędów nie ma w głosowaniu');
+    const kCard = `#ip-list .idea.pub[data-id="${kIdea.id}"]`;
+    assert.match(await w.textContent(kCard), /Dodajcie k\*\*\*\* tryb 1v1/, 'filtr wulgaryzmów w pomysłach');
+    assert.equal(await w.isDisabled('#ip-list .idea.pub.mine .vote'), true, 'na własny pomysł nie można głosować');
+    await w.click(kCard + ' .vote');
+    await w.waitForFunction(s => document.querySelector(s + ' .vote').classList.contains('on') && document.querySelector(s + ' .vote b').textContent === '1', kCard);
+    assert.ok(fake.st.votes.some(v => v.idea === kIdea.id && v.user === me.id), 'głos w bazie');
+    await shot('ideas-vote.png');
+    await w.click(kCard + ' .vote');
+    await w.waitForFunction(s => !document.querySelector(s + ' .vote').classList.contains('on') && document.querySelector(s + ' .vote b').textContent === '0', kCard);
+    await w.click(kCard + ' .vote');
+    await until(() => fake.st.votes.some(v => v.idea === kIdea.id && v.user === me.id));
+    await w.click('#ip-sort button[data-sort="new"]');
+    await w.waitForFunction(id => document.querySelector('#ip-list .idea.pub').dataset.id === String(id), fake.st.ideaId - 1);
+    ok('(ak) głosowanie na pomysły graczy: najpopularniejsze, głos i cofnięcie, filtr wulgaryzmów');
+
     await w.click('.nav[data-p="prof"]');
     await w.waitForSelector('#p-prof.on .phead');
     await w.evaluate(() => { setLang('en'); });
@@ -344,11 +370,11 @@ function png(w, h, px) {
 
     // Panel admina: Sierota_1 ma numer 2 (MIB-000002)
     await w.waitForSelector('.nav[data-p="admin"]:not([hidden])');
-    // licznik: 2 nowe pomysły (pomysł Tester_1 i raport awarii) + 1 nowe zgłoszenie
-    await w.waitForFunction(() => (document.querySelector('.nav[data-p="admin"] .cnt') || {}).textContent === '3');
+    // licznik: 4 nowe pomysły (Tester_1, raport awarii, Kolega, błąd od Ziomka) + 1 nowe zgłoszenie
+    await w.waitForFunction(() => (document.querySelector('.nav[data-p="admin"] .cnt') || {}).textContent === '5');
     await w.click('.nav[data-p="admin"]');
     await w.click('[data-tab="ideas"]');
-    assert.equal(await w.textContent('[data-tab="ideas"]'), 'Pomysły (2)');
+    assert.equal(await w.textContent('[data-tab="ideas"]'), 'Pomysły (4)');
     await w.waitForFunction(() => /Peleryna z ogniem/.test(document.getElementById('ai-list').textContent) && /Tester_1/.test(document.getElementById('ai-list').textContent));
     await w.waitForTimeout(400);
     await shot('admin-ideas.png');
@@ -356,7 +382,10 @@ function png(w, h, px) {
     await w.click(crashCard + ' button:has-text("Pokaż raport awarii")');
     await w.waitForFunction(() => /^MiB Client \d/.test((document.querySelector('#ai-list .crash-log:not([hidden])') || {}).textContent || ''));
     await w.selectOption(idea + ' select', 'planned');
-    await w.waitForFunction(() => document.querySelector('.nav[data-p="admin"] .cnt').textContent === '2');
+    await w.waitForFunction(() => document.querySelector('.nav[data-p="admin"] .cnt').textContent === '4');
+    await w.selectOption('#ai-sort', 'votes');
+    assert.match(await w.textContent('#ai-list .idea:first-child'), /Ziomek.*Głosy: 2.*Skrzydła z ognia/s, 'najwięcej głosów na górze');
+    await w.selectOption('#ai-sort', '');
     assert.equal(fake.st.ideas[0].status, 'planned', 'status zapisany na serwerze');
     ok('(o) admin widzi pomysł z licznikiem nowych, raport awarii i zmienia status');
 
@@ -569,6 +598,14 @@ function png(w, h, px) {
     await w.uncheck('#s-inv'); await w.click('#s-save');
     await until(() => !!fake.st.presence[sier.id]);
     ok('(ai) tryb niewidoczny: znajomi widzą offline, po wyłączeniu znów online');
+    assert.equal(await w.isChecked('#s-cf'), true, 'filtr wulgaryzmów domyślnie włączony');
+    await w.uncheck('#s-cf'); await w.click('#s-save');
+    await w.waitForFunction(() => mib.call('settings:get').then(s => s.chatFilter === false));
+    await w.click('.nav[data-p="ideas"]');
+    await w.waitForSelector('#ip-list .idea.pub:has-text("Dodajcie kurwa tryb")');
+    await w.click('.nav[data-p="set"]');
+    await w.check('#s-cf'); await w.click('#s-save');
+    ok('(al) filtr wulgaryzmów można wyłączyć w Ustawieniach');
 
     // Moje mody: pliki .jar przeciągnięte do okna (ten sam kanał co upuszczenie na stronę)
     {

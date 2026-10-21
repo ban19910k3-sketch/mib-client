@@ -246,6 +246,9 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       return { ok: true, id };
     },
     myIdeas: () => authed(t => supa.select('ideas', 'select=id,category,body,status,reply,rewarded,created_at&order=created_at.desc&limit=20', t)),
+    // Pomysły innych graczy do głosowania (sort: 'top' albo 'new') i głos na pomysł (on = false cofa głos)
+    ideasPublic: ({ sort } = {}) => authed(t => supa.rpc('ideas_public', { p_sort: sort === 'new' ? 'new' : 'top' }, t)),
+    async ideaVote({ id, on }) { return { votes: await authed(t => supa.rpc('idea_vote', { p_id: id, p_on: on !== false }, t)) }; },
     // Zmiany w moich pomysłach (status, odpowiedź twórcy) i ich obejrzenie
     ideaUpdates: () => authed(t => supa.rpc('ideas_updates', {}, t)),
     async ideasSeen() { await authed(t => supa.rpc('ideas_seen', {}, t)); return { ok: true }; },
@@ -381,7 +384,7 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   chat: 'prof:chat', chatSend: 'prof:chatSend', chatRead: 'prof:chatRead', chatUnread: 'prof:chatUnread',
   ideaUpdates: 'prof:ideaUpdates', ideasSeen: 'prof:ideasSeen', gifts: 'prof:gifts', claimGift: 'prof:claimGift',
   block: 'prof:block', unblock: 'prof:unblock', blocked: 'prof:blocked', report: 'prof:report', warnings: 'prof:warnings', warningsSeen: 'prof:warningsSeen',
-  card: 'prof:card' };
+  card: 'prof:card', ideasPublic: 'prof:ideasPublic', ideaVote: 'prof:ideaVote' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

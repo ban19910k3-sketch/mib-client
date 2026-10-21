@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 function createFake() {
-  const st = { blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { votes: [], blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -152,7 +152,7 @@ function createFake() {
             admin_delete_player: () => { if (st.users.find(u => u.id === body.p_user)?.num === 2) throw Object.assign(new Error('cannot_delete_admin'), { pg: true }); st.users = st.users.filter(u => u.id !== body.p_user); return null; },
             admin_save_cosmetic: () => { cosmetics[body.p_id] = { id: body.p_id, name: body.p_name, type: body.p_type, image_url: null, texture: body.p_texture || (cosmetics[body.p_id] || {}).texture || null }; return null; },
             admin_delete_cosmetic: () => { delete cosmetics[body.p_id]; return null; },
-            admin_list_ideas: () => st.ideas.map(i => { const u = st.users.find(x => x.id === i.user); return { id: i.id, user_id: u ? u.id : null, nick: u ? u.nick : null, num: u ? u.num : null, category: i.category, body: i.body, status: i.status, reply: i.reply || null, rewarded: !!i.rewarded, has_details: !!i.details, created_at: i.created_at }; })
+            admin_list_ideas: () => st.ideas.map(i => { const u = st.users.find(x => x.id === i.user); return { id: i.id, user_id: u ? u.id : null, nick: u ? u.nick : null, num: u ? u.num : null, category: i.category, body: i.body, status: i.status, reply: i.reply || null, rewarded: !!i.rewarded, has_details: !!i.details, votes: st.votes.filter(v => v.idea === i.id).length, created_at: i.created_at }; })
               .sort((a, b) => (b.status === 'new') - (a.status === 'new') || b.id - a.id),
             admin_count_new_ideas: () => st.ideas.filter(i => i.status === 'new').length,
             admin_set_idea_status: () => { const i = st.ideas.find(x => x.id === body.p_id); if (!i) throw new Error('idea_missing'); if (i.status !== body.p_status && body.p_status !== 'new') i.updated = Date.now(); i.status = body.p_status; return null; },
@@ -297,6 +297,23 @@ function createFake() {
             .map(x => ({ from: st.users.find(u => u.id === x.from).nick, body: x.body, at: x.at, reported: x.id === m.id })) : [];
           st.reports.push({ id: ++st.reportId, reporter: user.id, user: body.p_user, message: m ? m.id : null, reason: body.p_reason, note: body.p_note || null, messages: log, status: 'new', at: new Date().toISOString() });
           return json(res, 200, st.reportId);
+        }
+        // Głosowanie na pomysły: tak jak ideas_public i idea_vote w schema.sql
+        const isPublic = i => i && i.category !== 'bug' && i.status !== 'rejected' && !banned(st.users.find(u => u.id === i.user));
+        if (fn === 'ideas_public') {
+          const n = i => st.votes.filter(v => v.idea === i.id).length;
+          return json(res, 200, st.ideas.filter(i => isPublic(i) && st.users.some(u => u.id === i.user))
+            .sort((a, b) => (body.p_sort === 'new' ? 0 : n(b) - n(a)) || b.id - a.id)
+            .map(i => ({ id: i.id, nick: st.users.find(u => u.id === i.user).nick, category: i.category, body: i.body, status: i.status, reply: i.reply || null,
+              votes: n(i), voted: st.votes.some(v => v.idea === i.id && v.user === user.id), mine: i.user === user.id, created_at: i.created_at })));
+        }
+        if (fn === 'idea_vote') {
+          const i = st.ideas.find(x => x.id === body.p_id);
+          if (!isPublic(i)) return json(res, 400, { code: 'P0001', message: 'idea_missing' });
+          if (i.user === user.id) return json(res, 400, { code: 'P0001', message: 'idea_own' });
+          st.votes = st.votes.filter(v => !(v.idea === i.id && v.user === user.id));
+          if (body.p_on !== false) st.votes.push({ idea: i.id, user: user.id });
+          return json(res, 200, st.votes.filter(v => v.idea === i.id).length);
         }
         if (fn === 'my_warnings') return json(res, 200, st.warnings.filter(w => w.user === user.id && !w.seen).map(w => ({ id: w.id, num: w.num, reason: w.reason, created_at: w.at })));
         if (fn === 'warnings_seen') { st.warnings.forEach(w => { if (w.user === user.id) w.seen = true; }); return json(res, 204); }

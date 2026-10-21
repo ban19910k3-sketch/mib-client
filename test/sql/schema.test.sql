@@ -791,3 +791,52 @@ do $$ begin
   assert (select popup from public.announcements where title = 'Turniej za godzinę'), 'gracze widzą, że to okno';
 end $$;
 reset role;
+
+-- Głosowanie na pomysły (0.21.0): bez zgłoszeń błędów, odrzuconych i od zbanowanych; jeden głos, nie na własny
+set role authenticated;
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+do $$
+declare v_id bigint;
+begin
+  select id into v_id from public.ideas_public('top') where body = 'Więcej emotek tanecznych w kole';
+  assert v_id is not null, 'pomysł innego gracza na liście';
+  assert not exists (select 1 from public.ideas_public('new') where category = 'bug'), 'bez zgłoszeń błędów';
+  assert (select nick || ' ' || votes || ' ' || voted || ' ' || mine from public.ideas_public('top') where id = v_id) = 'Zapraszam 0 false false', 'autor, głosy, mój głos';
+  assert public.idea_vote(v_id, true) = 1, 'głos oddany';
+  assert public.idea_vote(v_id, true) = 1, 'drugi raz ten sam głos';
+  assert (select voted from public.ideas_public('top') where id = v_id), 'widać mój głos';
+  assert public.idea_vote(v_id, false) = 0, 'głos cofnięty';
+  perform public.idea_vote(v_id, true);
+end $$;
+select pg_temp.expect_error($q$select public.idea_vote((select min(id) from public.admin_list_ideas()), true)$q$, 'not_admin');
+select pg_temp.expect_error($q$select public.idea_vote(99999999, true)$q$, 'idea_missing');
+select pg_temp.expect_error($q$select * from private.idea_votes$q$, 'permission denied');
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+select pg_temp.expect_error($q$select public.idea_vote((select id from public.ideas_public('top') where body = 'Więcej emotek tanecznych w kole'), true)$q$, 'idea_own');
+do $$ begin
+  assert (select mine from public.ideas_public('top') where body = 'Więcej emotek tanecznych w kole'), 'mój pomysł oznaczony';
+end $$;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$
+declare v_id bigint; v_bug bigint;
+begin
+  select id into v_id from public.admin_list_ideas() where body = 'Więcej emotek tanecznych w kole';
+  assert (select votes from public.admin_list_ideas() where id = v_id) = 1, 'admin widzi głosy';
+  select id into v_bug from public.admin_list_ideas() where category = 'bug' limit 1;
+  begin
+    perform public.idea_vote(v_bug, true);
+    raise exception 'głos na zgłoszenie błędu przeszedł';
+  exception when others then
+    if sqlerrm <> 'idea_missing' then raise; end if;
+  end;
+  perform public.admin_set_idea_status(v_id, 'rejected');
+  assert not exists (select 1 from public.ideas_public('top') where id = v_id), 'odrzucony znika z głosowania';
+  perform public.admin_set_idea_status(v_id, 'planned');
+  perform public.admin_ban('55555555-5555-5555-5555-555555555555', 'Test', null);
+  assert not exists (select 1 from public.ideas_public('top') where id = v_id), 'pomysły zbanowanego znikają';
+  perform public.admin_unban('55555555-5555-5555-5555-555555555555');
+  assert exists (select 1 from public.ideas_public('top') where id = v_id), 'po zdjęciu bana wracają';
+end $$;
+set role anon;
+select pg_temp.expect_error($q$select * from public.ideas_public('top')$q$, 'permission denied');
+reset role;

@@ -141,10 +141,12 @@
 
   async function viewIdeas(box) {
     const filter = h('select', { id: 'ai-filter' }, h('option', { value: '' }, 'Wszystkie'), ...Object.entries(IDEA_ST).map(([k, v]) => h('option', { value: k }, v)));
+    const sort = h('select', { id: 'ai-sort', 'aria-label': 'Kolejność' }, h('option', { value: '' }, 'Nowe na górze'), h('option', { value: 'votes' }, 'Najwięcej głosów graczy'));
     const list = h('div', { id: 'ai-list' });
     let all = [];
     function show() {
-      const l = filter.value ? all.filter(i => i.status === filter.value) : all;
+      let l = filter.value ? all.filter(i => i.status === filter.value) : all;
+      if (sort.value === 'votes') l = l.slice().sort((a, b) => (b.votes || 0) - (a.votes || 0));
       list.replaceChildren(...(l.length ? l.map(i => {
         const status = h('select', { 'aria-label': 'Status pomysłu', on: { change: async () => {
           const r = await call('admin_set_idea_status', { p_id: i.id, p_status: status.value });
@@ -153,7 +155,7 @@
         } } }, ...Object.entries(IDEA_ST).map(([k, v]) => h('option', { value: k, selected: k === i.status }, v)));
         return h('div', { class: 'card idea' + (i.status === 'new' ? ' fresh' : '') },
           h('div', { class: 'ihead' }, h('b', {}, i.nick || 'konto usunięte'), i.num ? h('span', { class: 'mono mut' }, window.MibProfile.formatMibId(i.num)) : null,
-            h('em', { class: 'tag' }, IDEA_CAT[i.category] || i.category), h('span', { class: 'mut' }, fmtDate(i.created_at))),
+            h('em', { class: 'tag' }, IDEA_CAT[i.category] || i.category), i.votes ? h('em', { class: 'tag votes' }, 'Głosy: ' + i.votes) : null, h('span', { class: 'mut' }, fmtDate(i.created_at))),
           h('p', {}, i.body),
           i.has_details ? crashBox(i) : null,
           replyBox(i),
@@ -201,9 +203,9 @@
       } } }, 'Wyślij odpowiedź');
       return h('div', { class: 'row idea-answer' }, t, save);
     }
-    filter.onchange = show;
-    box.append(h('p', { class: 'lead' }, 'Pomysły z zakładki Pomysły. Nowe są na górze. Gracz widzi status i Twoją odpowiedź i dostaje o nich powiadomienie. „Nagródź” wysyła kosmetyk do odebrania w launcherze.'),
-      h('div', { class: 'row', style: 'align-items:center' }, h('span', { class: 'mut' }, 'Pokaż:'), filter), list);
+    filter.onchange = sort.onchange = show;
+    box.append(h('p', { class: 'lead' }, 'Pomysły z zakładki Pomysły. Nowe są na górze. Gracz widzi status i Twoją odpowiedź i dostaje o nich powiadomienie. „Nagródź” wysyła kosmetyk do odebrania w launcherze. Gracze głosują na pomysły innych (bez zgłoszeń błędów); „Odrzucony” zdejmuje pomysł z głosowania.'),
+      h('div', { class: 'row', style: 'align-items:center' }, h('span', { class: 'mut' }, 'Pokaż:'), filter, sort), list);
     const l = await call('admin_list_ideas');
     if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
     all = l; show(); badge();
