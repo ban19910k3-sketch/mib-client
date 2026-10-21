@@ -12,7 +12,7 @@ Zrób kroki 1–3 **przed** opublikowaniem wersji z profilem (0.8.x) na GitHubie
 3. Otwórz plik [`schema.sql`](schema.sql), skopiuj **całą** zawartość i wklej w okno zapytania.
 4. Kliknij **Run**. Na dole powinno pojawić się „Success. No rows returned”.
 
-Ten krok **powtarzaj przy każdej aktualizacji launchera, która zmienia ten plik** (np. 0.8.2 dodała dokańczanie profilu, 0.10.0 pomysły graczy, 0.13.0 zakładanie peleryn, 0.14.0 logo MiB przed nickiem graczy MiB, 0.15.0 znajomi i czapki/skrzydła w grze, 0.16.0 zaproszenia do gry i „Teraz gra” w statystykach, 0.17.0 wiadomości do znajomych). Nie usuwa danych graczy.
+Ten krok **powtarzaj przy każdej aktualizacji launchera, która zmienia ten plik** (np. 0.8.2 dodała dokańczanie profilu, 0.10.0 pomysły graczy, 0.13.0 zakładanie peleryn, 0.14.0 logo MiB przed nickiem graczy MiB, 0.15.0 znajomi i czapki/skrzydła w grze, 0.16.0 zaproszenia do gry i „Teraz gra” w statystykach, 0.17.0 wiadomości do znajomych, 0.19.0 prezenty od MiB i odpowiedzi na pomysły). Nie usuwa danych graczy.
 
 Od 0.14.0 plik włącza rozszerzenie `http` (baza pyta Mojanga, czy konto Minecrafta należy do gracza). Supabase może przy **Run** pokazać ostrzeżenie — kliknij **Run this query**.
 

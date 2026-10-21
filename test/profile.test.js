@@ -134,3 +134,16 @@ test('newMessages: powiadomienie tylko o nowych wiadomościach, pierwsze sprawdz
   assert.equal(n.body.length, 140);
   assert.equal(P.friendNotice({ type: 'message', nick: 'Ala', text: 'hi' }, 'en').title, 'Message from Ala');
 });
+
+test('freshKeys i powiadomienia o prezencie i odpowiedzi na pomysł', () => {
+  const k = g => String(g.id);
+  let r = P.freshKeys(null, [{ id: 1 }], k);
+  assert.deepEqual(r.fresh, [], 'pierwsze sprawdzenie bez powiadomień');
+  r = P.freshKeys(r.seen, [{ id: 1 }, { id: 2 }], k);
+  assert.deepEqual(r.fresh.map(x => x.id), [2]);
+  r = P.freshKeys(r.seen, [{ id: 2 }], k);
+  assert.deepEqual(r.fresh, []);
+  assert.deepEqual(P.friendNotice({ type: 'gift', text: 'Peleryna Złota' }), { title: 'Prezent od MiB', body: 'Peleryna Złota czeka na Ciebie. Odbierz w launcherze.' });
+  assert.equal(P.friendNotice({ type: 'idea', status: 'planned', text: 'Dodamy wkrótce.' }).body, 'Status: W planach — Dodamy wkrótce.');
+  assert.equal(P.friendNotice({ type: 'idea', status: 'done' }, 'en').body, 'Status: Done');
+});

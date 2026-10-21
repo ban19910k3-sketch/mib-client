@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 function createFake() {
-  const st = { friends: [], presence: {}, invites: [], messages: [], msgId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -13,7 +13,7 @@ function createFake() {
     return { access_token: at, refresh_token: rt, expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: u.id, email: u.email } };
   };
   const norm = c => String(c || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
-  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {} });
+  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, bugs_found: u.bugs || 0 });
 
   const server = http.createServer((req, res) => {
     let raw = '';
@@ -100,10 +100,18 @@ function createFake() {
             admin_delete_player: () => { if (st.users.find(u => u.id === body.p_user)?.num === 2) throw Object.assign(new Error('cannot_delete_admin'), { pg: true }); st.users = st.users.filter(u => u.id !== body.p_user); return null; },
             admin_save_cosmetic: () => { cosmetics[body.p_id] = { id: body.p_id, name: body.p_name, type: body.p_type, image_url: null, texture: body.p_texture || (cosmetics[body.p_id] || {}).texture || null }; return null; },
             admin_delete_cosmetic: () => { delete cosmetics[body.p_id]; return null; },
-            admin_list_ideas: () => st.ideas.map(i => { const u = st.users.find(x => x.id === i.user); return { id: i.id, nick: u ? u.nick : null, num: u ? u.num : null, category: i.category, body: i.body, status: i.status, created_at: i.created_at }; })
+            admin_list_ideas: () => st.ideas.map(i => { const u = st.users.find(x => x.id === i.user); return { id: i.id, user_id: u ? u.id : null, nick: u ? u.nick : null, num: u ? u.num : null, category: i.category, body: i.body, status: i.status, reply: i.reply || null, rewarded: !!i.rewarded, created_at: i.created_at }; })
               .sort((a, b) => (b.status === 'new') - (a.status === 'new') || b.id - a.id),
             admin_count_new_ideas: () => st.ideas.filter(i => i.status === 'new').length,
-            admin_set_idea_status: () => { const i = st.ideas.find(x => x.id === body.p_id); if (!i) throw new Error('idea_missing'); i.status = body.p_status; return null; },
+            admin_set_idea_status: () => { const i = st.ideas.find(x => x.id === body.p_id); if (!i) throw new Error('idea_missing'); if (i.status !== body.p_status && body.p_status !== 'new') i.updated = Date.now(); i.status = body.p_status; return null; },
+            admin_answer_idea: () => { const i = st.ideas.find(x => x.id === body.p_id); if (!i) throw new Error('idea_missing'); i.status = body.p_status; i.reply = String(body.p_reply || '').trim() || null; i.updated = Date.now(); return null; },
+            admin_gift: () => {
+              const i = body.p_idea ? st.ideas.find(x => x.id === body.p_idea && x.user === body.p_user && !x.rewarded) : null;
+              if (body.p_idea && !i) throw Object.assign(new Error('idea_rewarded'), { pg: true });
+              if (i) { i.rewarded = true; i.status = 'done'; i.updated = Date.now(); if (i.category === 'bug') { const u = st.users.find(x => x.id === body.p_user); u.bugs = (u.bugs || 0) + 1; } }
+              st.gifts.push({ id: ++st.giftId, user: body.p_user, cosmetic: body.p_cosmetic, message: String(body.p_message || '').trim() || null, bug: !!(i && i.category === 'bug'), claimed: false });
+              return st.giftId;
+            },
             admin_delete_idea: () => { st.ideas = st.ideas.filter(x => x.id !== body.p_id); return null; },
           };
           if (!A[fn]) return json(res, 404, { code: 'PGRST202', message: 'no function ' + fn });
@@ -200,6 +208,19 @@ function createFake() {
           }
           if (fn === 'game_invite_dismiss') { st.invites = st.invites.filter(i => !(i.to === user.id && i.from === body.p_from)); return json(res, 204); }
         }
+        // Prezenty i zmiany w pomysłach: tak jak my_gifts, claim_gift, ideas_updates, ideas_seen w schema.sql
+        if (fn === 'my_gifts') return json(res, 200, st.gifts.filter(g => g.user === user.id && !g.claimed).map(g => ({ id: g.id, cosmetic_id: g.cosmetic,
+          name: cosmetics[g.cosmetic].name, type: cosmetics[g.cosmetic].type, texture: cosmetics[g.cosmetic].texture || null, message: g.message, bug: g.bug, created_at: new Date().toISOString() })));
+        if (fn === 'claim_gift') {
+          const g = st.gifts.find(x => x.id === body.p_id && x.user === user.id && !x.claimed);
+          if (!g) return json(res, 400, { code: 'P0001', message: 'gift_missing' });
+          g.claimed = true;
+          if (!st.owned.some(o => o.user === user.id && o.cosmetic === g.cosmetic)) st.owned.push({ user: user.id, cosmetic: g.cosmetic, at: new Date().toISOString() });
+          return json(res, 200, g.cosmetic);
+        }
+        if (fn === 'ideas_updates') return json(res, 200, st.ideas.filter(i => i.user === user.id && i.updated && !(i.seen >= i.updated))
+          .map(i => ({ id: i.id, body: i.body, status: i.status, reply: i.reply || null, updated_at: new Date(i.updated).toISOString() })));
+        if (fn === 'ideas_seen') { for (const i of st.ideas) if (i.user === user.id && i.updated) i.seen = Date.now(); return json(res, 204); }
         if (fn === 'delete_my_profile') { st.users = st.users.filter(u => u.id !== user.id); return json(res, 204); }
         return json(res, 404, { message: 'no function ' + fn });
       }

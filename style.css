@@ -315,3 +315,19 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 /* Moje mody: przeciąganie plików .jar */
 .mdrop{border:2px dashed var(--edge2);color:var(--m);font-size:13px;text-align:center;padding:12px;margin:10px 0;transition:border-color .15s,background-color .15s,color .15s}
 #p-mods.drop .mdrop{border-color:var(--am);background:rgba(168,85,247,.12);color:var(--am-hi);padding:28px 12px}
+/* Prezent od MiB i odpowiedzi na pomysły */
+#gift .gift-m{width:420px;align-items:center;text-align:center;gap:8px}
+#gift .gift-kicker{color:var(--am-hi);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+#gift h3{font-size:24px;margin:0}
+#gift .gift3d{width:200px;height:230px;background:radial-gradient(circle at 50% 60%,rgba(168,85,247,.28),transparent 70%)}
+#gift .gift-name{font-size:17px}
+#gift .gift-msg{margin:4px 0;padding:10px 14px;background:var(--slab2);box-shadow:inset 3px 0 0 var(--am);clip-path:var(--px);font-size:14px;line-height:1.45;text-align:left;width:100%;display:flex;flex-direction:column;gap:4px}
+#gift .gift-msg small{color:var(--m);font-size:12px}
+#gift .gift-act{justify-content:center;margin-top:6px}
+#gift .gift-act .b{padding:10px 26px;font-size:14px}
+.gift-banner{display:flex;align-items:center;justify-content:space-between;gap:12px}.gift-banner b{margin:0}
+.tag.hunter{background:rgba(250,204,21,.14);color:#facc15;box-shadow:inset 0 0 0 1px rgba(250,204,21,.45)}
+.ireply{margin-top:8px;padding:8px 12px;background:var(--slab2);box-shadow:inset 3px 0 0 var(--am);clip-path:var(--px)}
+.ireply small{color:var(--am-hi);font-size:11px}.ireply p{margin:2px 0 0;font-size:13px;line-height:1.45}
+.gift-form{margin-top:8px;flex-wrap:wrap}.gift-form .gift-note{flex:1;min-width:200px}
+.idea-answer{margin:6px 0;align-items:flex-start}.idea-answer textarea{flex:1;min-height:38px}

@@ -564,3 +564,55 @@ end $$;
 set role anon;
 select pg_temp.expect_error($q$select public.messages_unread()$q$, 'permission denied');
 reset role;
+
+-- Prezenty od MiB i odpowiedzi na pomysły: tylko admin wysyła, gracz odbiera raz, nagrodzony błąd liczy się do odznaki,
+-- zmiana statusu i odpowiedź trafiają do powiadomień autora, do obejrzenia
+set role authenticated;
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+select public.submit_idea('bug', 'Czat w grze gubi polskie litery');
+select public.submit_idea('feature', 'Więcej emotek tanecznych w kole');
+select pg_temp.expect_error($q$select public.admin_gift('55555555-5555-5555-5555-555555555555', 'cape_two', 'x', null)$q$, 'not_admin');
+select pg_temp.expect_error($q$select public.admin_answer_idea(1, 'done', 'x')$q$, 'not_admin');
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$
+declare v_bug bigint; v_feat bigint;
+begin
+  select id into v_bug from public.admin_list_ideas() where nick = 'Zapraszam' and category = 'bug';
+  select id into v_feat from public.admin_list_ideas() where nick = 'Zapraszam' and category = 'feature';
+  assert (select user_id from public.admin_list_ideas() where id = v_bug) = '55555555-5555-5555-5555-555555555555', 'admin widzi autora';
+  perform public.admin_gift('55555555-5555-5555-5555-555555555555', 'cape_two', '  Dzięki za znalezienie błędu z czatem!  ', v_bug);
+  assert (select status || ' ' || rewarded from public.admin_list_ideas() where id = v_bug) = 'done true', 'nagrodzony pomysł: Zrobione';
+  perform public.admin_answer_idea(v_feat, 'planned', 'Dodamy w następnej wersji.');
+  perform public.admin_gift('55555555-5555-5555-5555-555555555555', 'hat_one', null, null);
+end $$;
+select pg_temp.expect_error($q$select public.admin_gift('55555555-5555-5555-5555-555555555555', 'cape_two', null,
+  (select id from public.admin_list_ideas() where nick = 'Zapraszam' and category = 'bug'))$q$, 'idea_rewarded');
+select pg_temp.expect_error($q$select public.admin_gift('55555555-5555-5555-5555-555555555555', 'nie_ma', null, null)$q$, 'cosmetic_missing');
+select pg_temp.expect_error($q$select public.admin_gift('55555555-5555-5555-5555-555555555555', 'cape_two', repeat('x', 201), null)$q$, 'gift_message_long');
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+do $$
+declare v_gift bigint;
+begin
+  assert (select count(*) from public.my_gifts()) = 2, 'dwa prezenty do odebrania';
+  assert (select message || ' ' || bug || ' ' || name from public.my_gifts() order by id limit 1) = 'Dzięki za znalezienie błędu z czatem! true Peleryna Dwa', 'wiadomość i nagroda za błąd';
+  assert (select bugs_found from public.profiles) = 1, 'odznaka Łowca błędów: 1';
+  assert (select count(*) from public.ideas_updates()) = 2, 'dwie zmiany w moich pomysłach';
+  assert (select reply from public.ideas_updates() where status = 'planned') = 'Dodamy w następnej wersji.', 'odpowiedź twórcy';
+  perform public.ideas_seen();
+  assert (select count(*) from public.ideas_updates()) = 0, 'po obejrzeniu brak nowych zmian';
+  select id into v_gift from public.my_gifts() order by id limit 1;
+  assert public.claim_gift(v_gift) = 'cape_two', 'odebrany kosmetyk';
+  assert exists (select 1 from public.owned_cosmetics where cosmetic_id = 'cape_two' and source = 'gift'), 'kosmetyk na profilu';
+  assert (select count(*) from public.my_gifts()) = 1, 'odebrany znika z listy';
+end $$;
+select pg_temp.expect_error($q$select public.claim_gift((select min(id) from private.gifts))$q$, 'permission denied');
+select pg_temp.expect_error($q$select * from private.gifts$q$, 'permission denied');
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+do $$ begin
+  assert (select count(*) from public.my_gifts()) = 0, 'cudzych prezentów nie widać';
+end $$;
+select pg_temp.expect_error($q$select public.claim_gift((select id from public.my_gifts() limit 1) + 0)$q$, 'gift_missing');
+reset role;
+do $$ begin
+  assert (select count(*) from private.gifts where claimed_at is not null) = 1, 'odebrany tylko raz';
+end $$;

@@ -47,6 +47,8 @@ public final class Lang {
 		put("notice.invite", "Zaproszenie do gry", "Game invite");
 		put("notice.invite.body", "%s zaprasza Cię na %s (Minecraft %s). Dołącz w launcherze: Znajomi.",
 				"%s invites you to %s (Minecraft %s). Join from the launcher: Friends.");
+		put("notice.gift", "Prezent od MiB!", "A gift from MiB!");
+		put("notice.gift.body", "%s czeka na Ciebie. Odbierz w launcherze.", "%s is waiting for you. Claim it in the launcher.");
 		put("notice.message", "Wiadomość od %s", "Message from %s");
 		put("notice.message.reply", "(odpowiesz pod prawym Shiftem: Znajomi)", "(reply in the Right Shift menu: Friends)");
 		put("menu.friends", "Znajomi", "Friends");

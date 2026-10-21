@@ -297,6 +297,12 @@ revoke all on public.ideas from public, anon, authenticated;
 grant select on public.ideas to authenticated;
 drop policy if exists ideas_read_own on public.ideas;
 create policy ideas_read_own on public.ideas for select to authenticated using (user_id = (select auth.uid()));
+-- Od 0.19.0: odpowiedź twórcy dla autora, kiedy zmienił się status albo odpowiedź (updated_at), kiedy autor to zobaczył
+-- (seen_at) i czy pomysł został nagrodzony prezentem
+alter table public.ideas add column if not exists reply text check (reply is null or length(reply) <= 500);
+alter table public.ideas add column if not exists updated_at timestamptz;
+alter table public.ideas add column if not exists seen_at timestamptz;
+alter table public.ideas add column if not exists rewarded boolean not null default false;
 
 -- Założone kosmetyki (od 0.13.0): {"cape": "<id>"}; zmienia je tylko equip_cosmetic, który sprawdza, czy gracz ma ten przedmiot
 alter table public.profiles add column if not exists equipped jsonb not null default '{}'::jsonb;
@@ -681,6 +687,62 @@ language sql stable security definer set search_path = '' as $$
   order by max(m.id) desc;
 $$;
 
+-- ===== Prezenty od MiB (od 0.19.0) =====
+-- Admin wysyła graczowi kosmetyk z wiadomością (np. nagroda za znaleziony błąd). Kosmetyk trafia na profil dopiero
+-- po „Odbierz” w launcherze. Nagrodzone zgłoszenia błędów liczą się do odznaki Łowca błędów (profiles.bugs_found).
+create table if not exists private.gifts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  cosmetic_id text not null references public.cosmetics (id) on delete cascade,
+  message text check (message is null or length(message) <= 200),
+  idea_id bigint,
+  created_at timestamptz not null default now(),
+  claimed_at timestamptz
+);
+create index if not exists gifts_user on private.gifts (user_id, claimed_at);
+alter table public.profiles add column if not exists bugs_found integer not null default 0;
+
+-- Nieodebrane prezenty gracza (najstarszy pierwszy) z teksturą do podglądu; bug = nagroda za zgłoszony błąd
+create or replace function public.my_gifts()
+returns table (id bigint, cosmetic_id text, name text, type text, texture text, message text, bug boolean, created_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select g.id, c.id, c.name, c.type, c.texture, g.message,
+    exists (select 1 from public.ideas i where i.id = g.idea_id and i.category = 'bug'), g.created_at
+  from private.gifts g join public.cosmetics c on c.id = g.cosmetic_id
+  where g.user_id = (select auth.uid()) and g.claimed_at is null
+  order by g.id;
+$$;
+
+-- Odebranie prezentu: kosmetyk na profil (gdy gracz już go ma, zostaje jak był); wynik to id kosmetyku
+create or replace function public.claim_gift(p_id bigint) returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_cos text;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  update private.gifts set claimed_at = now() where id = p_id and user_id = v_me and claimed_at is null returning cosmetic_id into v_cos;
+  if v_cos is null then raise exception 'gift_missing'; end if;
+  insert into public.owned_cosmetics (user_id, cosmetic_id, source) values (v_me, v_cos, 'gift') on conflict do nothing;
+  return v_cos;
+end $$;
+
+-- Zmiany w moich pomysłach od ostatniego obejrzenia (status albo odpowiedź twórcy): powiadomienia i kropka przy Pomysły
+create or replace function public.ideas_updates()
+returns table (id bigint, body text, status text, reply text, updated_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select i.id, i.body, i.status, i.reply, i.updated_at from public.ideas i
+  where i.user_id = (select auth.uid()) and i.updated_at is not null and (i.seen_at is null or i.seen_at < i.updated_at)
+  order by i.updated_at desc;
+$$;
+
+-- Gracz otworzył Pomysły: zmiany są obejrzane
+create or replace function public.ideas_seen() returns void
+language sql security definer set search_path = '' as $$
+  update public.ideas set seen_at = now()
+  where user_id = (select auth.uid()) and updated_at is not null and (seen_at is null or seen_at < updated_at);
+$$;
+
 -- ===== Panel admina =====
 -- Admin jest zapisany jako konto (nie numer MIB): przy pierwszym uruchomieniu tego pliku zostaje nim profil MIB-000002.
 -- Późniejsze uruchomienia niczego tu nie zmieniają, nawet gdy numeracja zostanie wyzerowana.
@@ -885,14 +947,15 @@ begin
   delete from public.announcements where id = p_id;
 end $$;
 
--- nowe pomysły na górze; nick i num są puste, gdy autor usunął konto
+-- nowe pomysły na górze; nick, num i user_id są puste, gdy autor usunął konto (od 0.19.0 też odpowiedź i nagroda)
+drop function if exists public.admin_list_ideas();
 create or replace function public.admin_list_ideas()
-returns table (id bigint, nick text, num bigint, category text, body text, status text, created_at timestamptz)
+returns table (id bigint, user_id uuid, nick text, num bigint, category text, body text, status text, reply text, rewarded boolean, created_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$
 begin
   perform private.need_admin();
   return query
-    select i.id, p.nick, p.num, i.category, i.body, i.status, i.created_at
+    select i.id, p.id, p.nick, p.num, i.category, i.body, i.status, i.reply, i.rewarded, i.created_at
     from public.ideas i left join public.profiles p on p.id = i.user_id
     order by i.status = 'new' desc, i.created_at desc limit 300;
 end $$;
@@ -909,8 +972,46 @@ language plpgsql security definer set search_path = '' as $$
 begin
   perform private.need_admin();
   if p_status is null or p_status not in ('new', 'seen', 'planned', 'done', 'rejected') then raise exception 'idea_status_invalid'; end if;
-  update public.ideas set status = p_status where id = p_id;
+  -- autor dostaje powiadomienie o zmianie statusu (poza powrotem do „Nowy”)
+  update public.ideas set updated_at = case when status is distinct from p_status and p_status <> 'new' then now() else updated_at end,
+    status = p_status where id = p_id;
   if not found then raise exception 'idea_missing'; end if;
+end $$;
+
+-- Status i odpowiedź dla autora pomysłu (pusta odpowiedź ją usuwa); autor dostaje powiadomienie
+create or replace function public.admin_answer_idea(p_id bigint, p_status text, p_reply text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_reply text := nullif(btrim(coalesce(p_reply, '')), '');
+begin
+  perform private.need_admin();
+  if p_status is null or p_status not in ('new', 'seen', 'planned', 'done', 'rejected') then raise exception 'idea_status_invalid'; end if;
+  if v_reply is not null and length(v_reply) > 500 then raise exception 'idea_reply_long'; end if;
+  update public.ideas set status = p_status, reply = v_reply, updated_at = now() where id = p_id;
+  if not found then raise exception 'idea_missing'; end if;
+end $$;
+
+-- Prezent dla gracza (kosmetyk z wiadomością do odebrania w launcherze). Z p_idea to nagroda za ten pomysł: pomysł
+-- dostaje status „Zrobione” i znacznik nagrody, a nagrodzony błąd liczy się do odznaki Łowca błędów.
+create or replace function public.admin_gift(p_user uuid, p_cosmetic text, p_message text, p_idea bigint) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_id bigint;
+  v_msg text := nullif(btrim(coalesce(p_message, '')), '');
+  v_cat text;
+begin
+  perform private.need_admin();
+  if not exists (select 1 from public.profiles where id = p_user) then raise exception 'player_missing'; end if;
+  if not exists (select 1 from public.cosmetics where id = p_cosmetic) then raise exception 'cosmetic_missing'; end if;
+  if v_msg is not null and length(v_msg) > 200 then raise exception 'gift_message_long'; end if;
+  if p_idea is not null then
+    update public.ideas set rewarded = true, status = 'done', updated_at = now()
+      where id = p_idea and user_id = p_user and not rewarded returning category into v_cat;
+    if v_cat is null then raise exception 'idea_rewarded'; end if;
+    if v_cat = 'bug' then update public.profiles set bugs_found = bugs_found + 1 where id = p_user; end if;
+  end if;
+  insert into private.gifts (user_id, cosmetic_id, message, idea_id) values (p_user, p_cosmetic, v_msg, p_idea) returning id into v_id;
+  return v_id;
 end $$;
 
 create or replace function public.admin_delete_idea(p_id bigint) returns void
@@ -967,6 +1068,14 @@ grant execute on function public.game_invite(uuid) to authenticated;
 grant execute on function public.game_invites_list() to authenticated;
 grant execute on function public.game_invite_dismiss(uuid) to authenticated;
 revoke all on function private.are_friends(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.my_gifts() from public, anon;
+revoke all on function public.claim_gift(bigint) from public, anon;
+revoke all on function public.ideas_updates() from public, anon;
+revoke all on function public.ideas_seen() from public, anon;
+grant execute on function public.my_gifts() to authenticated;
+grant execute on function public.claim_gift(bigint) to authenticated;
+grant execute on function public.ideas_updates() to authenticated;
+grant execute on function public.ideas_seen() to authenticated;
 revoke all on function public.message_send(uuid, text) from public, anon;
 revoke all on function public.messages_with(uuid, bigint) from public, anon;
 revoke all on function public.messages_read(uuid) from public, anon;

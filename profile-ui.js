@@ -40,6 +40,7 @@
     invite_not_friend: 'Zaprosić do gry możesz tylko znajomego.',
     invite_no_server: 'Najpierw wejdź w grze na serwer. Zaproszenie prowadzi na serwer, na którym grasz.',
     invite_limit: 'Za dużo zaproszeń do gry. Spróbuj za godzinę.',
+    gift_missing: 'Ten prezent został już odebrany.',
     message_not_friend: 'Pisać możesz tylko do znajomych.',
     message_empty: 'Wiadomość jest pusta.',
     message_long: 'Wiadomość może mieć najwyżej 500 znaków.',
@@ -212,7 +213,8 @@
     const fav = MibProfile.favouriteVersion(st.versionStats);
     return [
       h('div', { class: 'phead' },
-        h('h2', {}, st.nick), st.founder ? h('em', { class: 'tag founder', title: T('Jeden z pierwszych 1000 profili MiB') }, T('Założyciel')) : null),
+        h('h2', {}, st.nick), st.founder ? h('em', { class: 'tag founder', title: T('Jeden z pierwszych 1000 profili MiB') }, T('Założyciel')) : null,
+        st.bugsFound ? h('em', { class: 'tag hunter', id: 'pf-hunter', title: T('Nagrodzone zgłoszenia błędów') }, T('Łowca błędów') + (st.bugsFound > 1 ? ' ×' + st.bugsFound : '')) : null),
       h('div', { class: 'idrow' }, h('span', { class: 'mono', id: 'pf-id' }, st.mibId),
         h('button', { class: 'b ghost', on: { click: async () => { try { await navigator.clipboard.writeText(st.mibId); toast(T('Skopiowano')); } catch {} } } }, T('Kopiuj ID'))),
       h('div', { class: 'sec' }, h('h3', {}, T('Statystyki')), h('div', { class: 'stats' },
@@ -458,9 +460,76 @@
           renderCos();
         } } }, T(c.equipped ? 'Zdejmij' : 'Załóż')))))
       : h('p', { class: 'empty' }, Array.isArray(list) ? T('Nie masz jeszcze żadnych przedmiotów. Masz kod z konkursu? Wpisz go wyżej.') : msg(list.error));
-    box.replaceChildren(h('h2', {}, T('Kosmetyki')), skin, h('div', { class: 'sec' }, h('h3', {}, T('Przedmioty MiB')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err,
+    const gift = giftCount ? h('div', { class: 'card reward gift-banner', id: 'cos-gift' }, h('b', {}, T('Masz prezent do odebrania!')),
+      h('button', { class: 'b', type: 'button', on: { click: () => giftsCheck(true) } }, T('Odbierz'))) : null;
+    box.replaceChildren(h('h2', {}, T('Kosmetyki')), gift, skin, h('div', { class: 'sec' }, h('h3', {}, T('Przedmioty MiB')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err,
       items.length ? h('p', { class: 'mut' }, T('Kliknij przedmiot, żeby przymierzyć go na postaci. „Załóż” zakłada go w grze.')) : null, grid));
   }
+
+  // ===== Prezenty od MiB: okno „Masz prezent!” z podglądem na postaci, Odbierz i Załóż od razu =====
+  let giftOpen = false, giftCount = 0;
+  const KIND = { cape: 'Peleryna', hat: 'Czapka', wings: 'Skrzydła' };
+  // licznik przy pozycji paska bocznego (Kosmetyki: prezenty, Pomysły: odpowiedzi)
+  function navCount(page, n) {
+    const nav = document.querySelector(`.nav[data-p="${page}"]`);
+    let b = nav.querySelector('.cnt');
+    if (!b) { b = h('em', { class: 'cnt' }); nav.append(b); }
+    b.textContent = String(n); b.hidden = !n;
+  }
+  async function giftsCheck(open) {
+    if (!st.loggedIn) { giftCount = 0; navCount('cos', 0); return; }
+    const l = await mib.call('prof:gifts');
+    if (!Array.isArray(l)) return;
+    const was = giftCount;
+    giftCount = l.length; navCount('cos', l.length);
+    if (was !== giftCount && $('p-cos').classList.contains('on') && !giftOpen) renderCos();
+    if (open && l.length && !giftOpen) showGift(l[0], l.length);
+  }
+  async function ideasBadge() {
+    if (!st.loggedIn) return navCount('ideas', 0);
+    const u = await mib.call('prof:ideaUpdates');
+    if (Array.isArray(u)) navCount('ideas', u.length);
+  }
+  async function showGift(g, total) {
+    giftOpen = true;
+    const canvas = h('canvas', { width: 200, height: 230, class: 'gift3d' });
+    let viewer = null;
+    const actions = h('div', { class: 'row gift-act' });
+    const ov = h('div', { class: 'ov on', id: 'gift' }, h('div', { class: 'm gift-m', role: 'dialog', 'aria-label': T('Masz prezent!') },
+      h('small', { class: 'gift-kicker' }, T(g.bug ? 'Nagroda za znalezienie błędu' : 'Prezent od MiB') + (total > 1 ? ' · 1/' + total : '')),
+      h('h3', {}, T('Masz prezent!')), canvas,
+      h('b', { class: 'gift-name' }, g.name), h('span', { class: 'mut' }, T(KIND[g.type] || 'Kosmetyk')),
+      g.message ? h('blockquote', { class: 'gift-msg' }, '„' + g.message + '”', h('small', {}, '— ' + T('twórca MiB Client'))) : null,
+      actions));
+    const close = () => { try { if (viewer) viewer.dispose(); } catch {} ov.remove(); giftOpen = false; if ($('p-cos').classList.contains('on')) renderCos(); giftsCheck(true); };
+    const claim = h('button', { class: 'b', id: 'gift-claim', type: 'button', on: { click: async () => {
+      claim.disabled = true;
+      const r = await mib.call('prof:claimGift', { id: g.id });
+      if (r.error) { claim.disabled = false; toast(msg(r.error, r.detail), 1); return; }
+      if (window.mibUnlock) mibUnlock({ name: g.name, type: g.type, imageUrl: g.texture });
+      actions.replaceChildren(
+        h('button', { class: 'b', id: 'gift-equip', type: 'button', on: { click: async e => {
+          e.currentTarget.disabled = true;
+          const x = await mib.call('prof:equip', { type: g.type, id: g.cosmetic_id });
+          toast(x.error ? msg(x.error) : T('Założone. Widać to w grze.'), !!x.error);
+          close();
+        } } }, T('Załóż od razu')),
+        h('button', { class: 'b ghost', id: 'gift-later', type: 'button', on: { click: close } }, T('Później')));
+    } } }, T('Odbierz'));
+    actions.append(claim);
+    document.body.append(ov);
+    try {
+      viewer = new skinview3d.SkinViewer({ canvas, width: 200, height: 230 }); viewer.autoRotate = true; viewer.autoRotateSpeed = 0.9; viewer.controls.enableZoom = false;
+      const cur = await mib.call('skin:current');
+      await viewer.loadSkin(cur && cur.dataUrl ? cur.dataUrl : await mib.call('skin', 'MHF_Steve'), { model: cur && cur.variant === 'slim' ? 'slim' : 'default' });
+      if (g.texture) window.mibDress(viewer, g.type === 'hat' ? { hat: g.texture } : { back: { texture: g.texture, kind: g.type === 'wings' ? 'elytra' : 'cape' } });
+    } catch {}
+  }
+  // launcher sprawdza prezenty i odpowiedzi co minutę (main.js); kliknięte powiadomienie otwiera okno albo Pomysły
+  mib.on('gifts:changed', n => { if (st.loggedIn && (n !== giftCount || (n && !giftOpen))) giftsCheck(true); });
+  mib.on('gifts:open', () => giftsCheck(true));
+  mib.on('ideas:changed', n => { if (!st.loggedIn) return; if ($('p-ideas').classList.contains('on')) renderIdeas(); else navCount('ideas', n); });
+  mib.on('ideas:open', () => go('ideas'));
 
   // ===== Strona Pomysły =====
   const IDEA_CAT = { feature: 'Nowa funkcja', cosmetic: 'Kosmetyk', bug: 'Błąd do naprawy', other: 'Inne' };
@@ -488,8 +557,13 @@
       if (!Array.isArray(l)) return list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
       list.replaceChildren(...(l.length ? l.map(i => h('div', { class: 'card idea' },
         h('div', { class: 'ihead' }, h('em', { class: 'tag' }, T(IDEA_CAT[i.category] || i.category)), h('span', { class: 'mut' }, fmtDate(i.created_at)),
+          i.rewarded ? h('em', { class: 'tag hunter' }, T('Nagrodzony')) : null,
           h('em', { class: 'tag st-' + i.status }, T(IDEA_ST[i.status] || i.status))),
-        h('p', {}, i.body))) : [h('p', { class: 'empty' }, T('Nie masz jeszcze wysłanych pomysłów.'))]));
+        h('p', {}, i.body),
+        i.reply ? h('div', { class: 'ireply' }, h('small', {}, T('Odpowiedź twórcy MiB Client')), h('p', {}, i.reply)) : null))
+        : [h('p', { class: 'empty' }, T('Nie masz jeszcze wysłanych pomysłów.'))]));
+      // zmiany statusu i odpowiedzi są teraz obejrzane: znika kropka przy „Pomysły”
+      if (l.length) { await mib.call('prof:ideasSeen'); navCount('ideas', 0); }
     }
     const form = h('form', { class: 'pform', on: { submit: async e => {
       e.preventDefault();
@@ -739,6 +813,7 @@
     if ($('p-ideas').classList.contains('on')) renderIdeas();
     if ($('p-friends').classList.contains('on')) renderFriends();
     friendsBadge();
+    giftsCheck(!!st.loggedIn); ideasBadge();
     if (st.loggedIn && !was) { mibSync.pull(); if (window.mibWave) mibWave(); }
   }
   async function refresh() { apply(await mib.call('prof:state')); }

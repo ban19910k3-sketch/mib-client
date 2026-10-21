@@ -8,7 +8,7 @@ const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
 const { diagnoseCrash } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
-const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, friendNotice } = require('./lib/profile');
+const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
 const { createMibPresence, helloMessage } = require('./lib/presence');
@@ -65,14 +65,16 @@ let friendsPrev = null, invitesSeen = null;
 const shown = new Set(); // powiadomienia trzymane do kliknięcia (bez tego Windows gubi kliknięcie)
 function friendPopup(n) {
   const s = { ...defaults(), ...rd('settings.json', {}) }, t = friendNotice(n, s.lang);
-  if (bridge) { try { bridge.notice(n); } catch {} }
-  // wiadomość przy otwartym launcherze wystarczy dymek w oknie (renderer dostaje chat:new), a w grze z modem okienko w grze
-  if (n.type === 'message' && (bridge || (win && !win.isDestroyed() && win.isFocused()))) return;
+  if (bridge && n.type !== 'idea') { try { bridge.notice(n); } catch {} }
+  // przy otwartym launcherze wiadomość, prezent i odpowiedź pokazuje samo okno (dymek, okno prezentu, licznik);
+  // wiadomość w grze z modem: okienko w grze
+  const focused = win && !win.isDestroyed() && win.isFocused();
+  if ((n.type === 'message' && bridge) || (focused && ['message', 'gift', 'idea'].includes(n.type))) return;
   try {
     if (!Notification.isSupported()) return;
     const x = new Notification({ title: 'MiB Client — ' + t.title, body: t.body, icon: path.join(__dirname, 'icon.png') });
     shown.add(x);
-    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); if (n.type === 'message') send('chat:open', n.from); else send('friends:open'); } });
+    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); if (n.type === 'message') send('chat:open', n.from); else if (n.type === 'gift') send('gifts:open'); else if (n.type === 'idea') send('ideas:open'); else send('friends:open'); } });
     x.on('close', () => shown.delete(x));
     x.show();
   } catch {}
@@ -112,6 +114,26 @@ async function watchMessages() {
 setInterval(() => watchMessages().catch(() => {}), 10000);
 setTimeout(() => watchMessages().catch(() => {}), 6000);
 ipcMain.handle('chat:check', () => watchMessages().catch(() => {}));
+// Prezenty od MiB i odpowiedzi na pomysły: co minutę; nowe = powiadomienie (Windows, w grze), launcher pokazuje okno prezentu
+let giftsSeen = null, ideasSeenKeys = null;
+async function watchGifts() {
+  const g = await prof.gifts();
+  if (Array.isArray(g)) {
+    const r = freshKeys(giftsSeen, g, x => String(x.id));
+    giftsSeen = r.seen;
+    send('gifts:changed', g.length);
+    for (const x of r.fresh) friendPopup({ type: 'gift', nick: 'MiB', text: x.name });
+  } else giftsSeen = null;
+  const u = await prof.ideaUpdates();
+  if (Array.isArray(u)) {
+    const r = freshKeys(ideasSeenKeys, u, x => x.id + '@' + x.updated_at);
+    ideasSeenKeys = r.seen;
+    send('ideas:changed', u.length);
+    for (const x of r.fresh) friendPopup({ type: 'idea', nick: 'MiB', status: x.status, text: x.reply });
+  } else ideasSeenKeys = null;
+}
+setInterval(() => watchGifts().catch(() => {}), 60000);
+setTimeout(() => watchGifts().catch(() => {}), 7000);
 // Gracze MiB w grze: logo MiB przed nickiem i peleryny innych graczy MiB (lib/presence.js)
 const mibPresence = createMibPresence({ fetch: (...a) => fetch(...a), api: prof, randomBytes: crypto.randomBytes });
 const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); logCount++; if (logBuf.length > 500) logBuf.shift(); } if (win && !win.isDestroyed()) win.webContents.send(c, d); };

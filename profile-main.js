@@ -8,7 +8,7 @@ const QUEUE_MAX = 200;
 const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_cosmetics', 'admin_grant', 'admin_revoke', 'admin_delete_player',
   'admin_save_cosmetic', 'admin_delete_cosmetic', 'admin_create_codes', 'admin_list_codes', 'admin_delete_code',
   'admin_list_announcements', 'admin_save_announcement', 'admin_delete_announcement',
-  'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea']);
+  'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea', 'admin_answer_idea', 'admin_gift']);
 
 function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods }) {
   let sess = null, restored = false, game = null, flushing = null, seq = 0, server = null, shareServer = true, lastPing = 0;
@@ -80,13 +80,13 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     if (!t) return { loggedIn: false };
     await flushStats().catch(() => {});
     try {
-      const [p] = await authed(t2 => supa.select('profiles', 'select=nick,num,founder,created_at,playtime_min,launches,version_stats&id=eq.' + sess.userId, t2));
+      const [p] = await authed(t2 => supa.select('profiles', 'select=nick,num,founder,created_at,playtime_min,launches,version_stats,bugs_found&id=eq.' + sess.userId, t2));
       if (!p) return { needsProfile: true }; // konto bez profilu: gracz wybiera nick i dokańcza profil
       const admin = await authed(t2 => supa.rpc('is_admin', {}, t2)).then(Boolean, () => false);
       safe.presence({ soft: true }); // znajomi od razu widzą, że launcher działa (nie częściej niż co minutę)
       return {
         admin,
-        loggedIn: true, nick: p.nick, mibId: P.formatMibId(p.num), founder: p.founder, createdAt: p.created_at,
+        loggedIn: true, nick: p.nick, mibId: P.formatMibId(p.num), founder: p.founder, createdAt: p.created_at, bugsFound: p.bugs_found || 0,
         playtimeMin: p.playtime_min, launches: p.launches, versionStats: p.version_stats || {},
       };
     } catch (e) {
@@ -238,7 +238,13 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       const id = await authed(t => supa.rpc('submit_idea', { p_category: category, p_body: String(body).trim() }, t));
       return { ok: true, id };
     },
-    myIdeas: () => authed(t => supa.select('ideas', 'select=id,category,body,status,created_at&order=created_at.desc&limit=20', t)),
+    myIdeas: () => authed(t => supa.select('ideas', 'select=id,category,body,status,reply,rewarded,created_at&order=created_at.desc&limit=20', t)),
+    // Zmiany w moich pomysłach (status, odpowiedź twórcy) i ich obejrzenie
+    ideaUpdates: () => authed(t => supa.rpc('ideas_updates', {}, t)),
+    async ideasSeen() { await authed(t => supa.rpc('ideas_seen', {}, t)); return { ok: true }; },
+    // Prezenty od MiB: do odebrania (kosmetyk trafia na profil dopiero po „Odbierz”)
+    gifts: () => authed(t => supa.rpc('my_gifts', {}, t)),
+    async claimGift({ id }) { return { cosmetic: await authed(t => supa.rpc('claim_gift', { p_id: id }, t)) }; },
     async pullSettings() {
       const [p] = await authed(t => supa.select('profiles', 'select=settings,settings_updated_at&id=eq.' + sess.userId, t));
       return p && p.settings ? { settings: p.settings, updatedAt: Number(p.settings_updated_at) || 0 } : null;
@@ -342,7 +348,8 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   equip: 'prof:equip', modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace', submitIdea: 'prof:submitIdea', myIdeas: 'prof:myIdeas',
   friends: 'prof:friends', friendRequest: 'prof:friendRequest', friendAnswer: 'prof:friendAnswer', friendRemove: 'prof:friendRemove',
   inviteFriend: 'prof:inviteFriend', invites: 'prof:invites', inviteDismiss: 'prof:inviteDismiss', nowPlaying: 'prof:nowPlaying',
-  chat: 'prof:chat', chatSend: 'prof:chatSend', chatRead: 'prof:chatRead', chatUnread: 'prof:chatUnread' };
+  chat: 'prof:chat', chatSend: 'prof:chatSend', chatRead: 'prof:chatRead', chatUnread: 'prof:chatUnread',
+  ideaUpdates: 'prof:ideaUpdates', ideasSeen: 'prof:ideasSeen', gifts: 'prof:gifts', claimGift: 'prof:claimGift' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

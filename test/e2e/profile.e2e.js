@@ -7,6 +7,10 @@ const assert = require('node:assert/strict');
 
 const ROOT = path.join(__dirname, '..', '..'), OUT = process.argv[2] || fs.mkdtempSync(path.join(os.tmpdir(), 'mib-shots-'));
 const ok = m => console.log('PASS', m);
+// czeka, aż warunek po stronie atrapy (proces testu) będzie spełniony
+async function until(f, ms = 8000) {
+  for (const end = Date.now() + ms; !f(); await new Promise(r => setTimeout(r, 50))) if (Date.now() > end) throw new Error('until: ' + f);
+}
 // Skin 64×64 (fioletowy) jako PNG do atrapy Mojanga
 const pngSkin = () => png(64, 64, x => [124 + (x % 8) * 8, 58, 237, 255]);
 // PNG w×h, kolor piksela z px(x, y) jako [r, g, b, a]
@@ -281,6 +285,22 @@ function png(w, h, px) {
     await w.waitForFunction(() => document.querySelector('.nav[data-p="admin"] .cnt').hidden);
     assert.equal(fake.st.ideas[0].status, 'planned', 'status zapisany na serwerze');
     ok('(o) admin widzi pomysł z licznikiem nowych i zmienia jego status');
+
+    // Odpowiedź na pomysł i nagroda za niego: kosmetyk do odebrania, pomysł → Zrobione
+    await w.fill('#ai-list .idea-reply', 'Dzięki, dodamy ją w następnej wersji!');
+    await w.click('#ai-list button:has-text("Wyślij odpowiedź")');
+    await until(() => fake.st.ideas[0].reply === 'Dzięki, dodamy ją w następnej wersji!');
+    await w.click('#ai-list button:has-text("Nagródź")');
+    await w.waitForSelector('#ai-list .gift-form .gift-pick option', { state: 'attached' });
+    await w.selectOption('#ai-list .gift-pick', 'cape_start');
+    await w.fill('#ai-list .gift-note', 'Dzięki za świetny pomysł!');
+    await w.click('#ai-list button:has-text("Wyślij nagrodę")');
+    await w.waitForSelector('#ai-list .tag.hunter:has-text("Nagrodzony")');
+    assert.equal(fake.st.gifts.length, 1, 'prezent czeka w bazie');
+    assert.equal(fake.st.ideas[0].status, 'done', 'nagrodzony pomysł jest zrobiony');
+    assert.equal(await w.$('#ai-list button:has-text("Nagródź")'), null, 'drugi raz nie da się nagrodzić');
+    await shot('admin-reward.png');
+    ok('(y) admin odpowiada na pomysł i nagradza go kosmetykiem');
     await w.click('[data-tab="ann"]');
     assert.equal(await w.textContent('[data-tab="ann"]'), 'Aktualności');
     await w.waitForSelector('#ad-title');
@@ -332,6 +352,69 @@ function png(w, h, px) {
     await w.waitForSelector('#ac-list .cosi');
     await shot('admin-cos.png');
     ok('(l) panel admina: kody, statystyki, gracze (z usunięciem konta), kosmetyki');
+
+    // Prezent z zakładki Gracze i nagroda za zgłoszony błąd z odpowiedzią: admin (Sierota_1) wysyła je sobie.
+    // Sprawdzanie prezentów co minutę (main.js) wstrzymane, żeby okno nie wyskoczyło w połowie klikania w panelu
+    await app.evaluate(({ BrowserWindow }) => { for (const b of BrowserWindow.getAllWindows()) { const wc = b.webContents, real = wc.send; wc.realSend = real; wc.send = (ch, ...a) => ch === 'gifts:changed' ? undefined : real.call(wc, ch, ...a); } });
+    const sier = fake.st.users.find(u => u.nick === 'Sierota_1');
+    await w.click('[data-tab="players"]');
+    await w.click('#ap-res .arow:has-text("Sierota_1")');
+    await w.waitForSelector('#ap-detail .gift-pick option[value="cape_start"]', { state: 'attached' });
+    await w.selectOption('#ap-detail .gift-pick', 'cape_start');
+    await w.click('#ap-detail button:has-text("Wyślij prezent")');
+    await until(() => fake.st.gifts.some(g => g.user === sier.id && g.cosmetic === 'cape_start'));
+    fake.st.ideas.push({ id: ++fake.st.ideaId, user: sier.id, category: 'bug', body: 'Czat w grze nie przewija się do końca', status: 'new', created_at: new Date().toISOString() });
+    await w.click('[data-tab="ideas"]');
+    const bugCard = '#ai-list .idea:has-text("Czat w grze")';
+    await w.waitForSelector(bugCard + ' button:has-text("Nagródź")');
+    await w.fill(bugCard + ' .idea-reply', 'Naprawione, poprawka będzie w 0.19.0.');
+    await w.click(bugCard + ' button:has-text("Wyślij odpowiedź")');
+    await until(() => fake.st.ideas.some(i => i.user === sier.id && i.reply));
+    await w.click(bugCard + ' button:has-text("Nagródź")');
+    await w.waitForSelector(bugCard + ' .gift-pick option[value="hat_mib"]', { state: 'attached' });
+    await w.selectOption(bugCard + ' .gift-pick', 'hat_mib');
+    await w.fill(bugCard + ' .gift-note', 'Dzięki za znalezienie błędu z czatem!');
+    await w.click(bugCard + ' button:has-text("Wyślij nagrodę")');
+    await w.waitForSelector(bugCard + ' .tag.hunter');
+    assert.equal(sier.bugs, 1, 'nagrodzony błąd liczy się do odznaki Łowca błędów');
+    await app.evaluate(({ BrowserWindow }) => { for (const b of BrowserWindow.getAllWindows()) if (b.webContents.realSend) b.webContents.send = b.webContents.realSend; });
+
+    // Gracz: okno „Masz prezent!” (po kolei oba prezenty), Odbierz, Później / Załóż od razu, kropka przy Kosmetyki
+    await w.click('.nav[data-p="prof"]');
+    await w.waitForSelector('#gift .gift-name');
+    assert.equal(await w.textContent('#gift .gift-name'), 'Peleryna Start');
+    assert.match(await w.textContent('#gift .gift-kicker'), /Prezent od MiB · 1\/2/);
+    assert.equal(await w.textContent('.nav[data-p="cos"] .cnt'), '2', 'licznik prezentów przy Kosmetyki');
+    await w.click('#gift-claim');
+    await w.waitForSelector('#gift-later');
+    await w.waitForFunction(() => !document.getElementById('unlock'), null, { timeout: 5000 });
+    await w.click('#gift-later');
+    await w.waitForFunction(() => /Korona MiB/.test((document.querySelector('#gift .gift-name') || {}).textContent || ''));
+    assert.match(await w.textContent('#gift .gift-kicker'), /Nagroda za znalezienie błędu/);
+    assert.match(await w.textContent('#gift .gift-msg'), /Dzięki za znalezienie błędu z czatem!.*twórca MiB Client/);
+    await w.waitForTimeout(1200);
+    await shot('gift.png');
+    await w.click('#gift-claim');
+    await w.waitForSelector('#gift-equip');
+    await w.waitForFunction(() => !document.getElementById('unlock'), null, { timeout: 5000 });
+    await w.click('#gift-equip');
+    await w.waitForFunction(() => !document.getElementById('gift'));
+    assert.deepEqual(sier.equipped, { hat: 'hat_mib' }, 'Załóż od razu zakłada prezent');
+    assert.deepEqual(fake.st.owned.filter(o => o.user === sier.id).map(o => o.cosmetic).sort(), ['cape_start', 'hat_mib']);
+    assert.ok(fake.st.gifts.every(g => g.user !== sier.id || g.claimed), 'oba prezenty odebrane');
+    await w.waitForFunction(() => document.querySelector('.nav[data-p="cos"] .cnt').hidden);
+    assert.match(await w.textContent('#pf-hunter'), /Łowca błędów/);
+    ok('(z) prezenty od MiB: okno z podglądem, Odbierz, Załóż od razu, licznik przy Kosmetyki, odznaka Łowca błędów');
+
+    // Odpowiedź na pomysł: kropka przy Pomysły, odpowiedź pod pomysłem, po obejrzeniu kropka znika
+    await w.waitForFunction(() => document.querySelector('.nav[data-p="ideas"] .cnt')?.textContent === '1');
+    await w.click('.nav[data-p="ideas"]');
+    await w.waitForSelector('#id-list .ireply');
+    assert.match(await w.textContent('#id-list .idea'), /Nagrodzony.*Zrobione.*Czat w grze.*Odpowiedź twórcy MiB Client.*Naprawione, poprawka będzie w 0\.19\.0\./s);
+    await w.waitForFunction(() => document.querySelector('.nav[data-p="ideas"] .cnt').hidden);
+    await w.waitForTimeout(300);
+    await shot('ideas-reply.png');
+    ok('(aa) odpowiedź twórcy pod pomysłem i kropka przy Pomysły do obejrzenia');
 
     await w.click('.nav[data-p="set"]');
     assert.equal(await w.isChecked('#s-mib'), true, 'mod MiB domyślnie włączony');

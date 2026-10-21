@@ -16,7 +16,27 @@
     texture_size: 'Tekstura musi mieć 64×32 piksele (albo 128×64, 256×128, 512×256). Animowana: klatki 64×32 jedna pod drugą, najwyżej 32 (np. 64×128 to 4 klatki).',
     texture_too_big: 'Plik jest za duży (najwyżej 100 KB).',
     idea_missing: 'Ten pomysł został już usunięty.',
+    idea_rewarded: 'Ten pomysł jest już nagrodzony.',
+    idea_reply_long: 'Odpowiedź może mieć najwyżej 500 znaków.',
+    gift_message_long: 'Wiadomość może mieć najwyżej 200 znaków.',
+    player_missing: 'Tego gracza już nie ma.',
   };
+  // Prezent dla gracza: kosmetyk i wiadomość (gracz odbiera w launcherze przyciskiem „Odbierz”); idea = nagroda za ten pomysł
+  async function giftForm(user, idea, done, owned = []) {
+    const cos = await mib.call('prof:allCosmetics', { lite: true });
+    const pick = h('select', { class: 'gift-pick', 'aria-label': 'Kosmetyk' }, ...(Array.isArray(cos) ? cos.filter(c => !owned.some(o => o.id === c.id)).map(c => h('option', { value: c.id }, c.name + ' (' + (TYPES[c.type] || c.type) + ')')) : []));
+    const note = h('input', { class: 'gift-note', maxlength: 200, placeholder: idea ? 'Wiadomość, np. Dzięki za znalezienie błędu z czatem!' : 'Wiadomość dla gracza (nieobowiązkowa)' });
+    const send = h('button', { class: 'b', type: 'button', on: { click: async () => {
+      if (!pick.value) return toast('Najpierw dodaj przedmiot w zakładce Kosmetyki.', 1);
+      send.disabled = true;
+      const r = await call('admin_gift', { p_user: user, p_cosmetic: pick.value, p_message: note.value, p_idea: idea || null });
+      send.disabled = false;
+      if (failed(r)) return toast(err(r), 1);
+      toast('Prezent wysłany. Gracz odbierze go w launcherze.');
+      done();
+    } } }, idea ? 'Wyślij nagrodę' : 'Wyślij prezent');
+    return h('div', { class: 'row gift-form' }, pick, note, send);
+  }
   const err = r => (r && ERR[r.error]) || msg(r && r.error || 'unknown', r && r.detail);
   const call = (fn, args) => mib.call('prof:admin', { fn, args });
   const failed = r => r && !Array.isArray(r) && r.error;
@@ -124,7 +144,13 @@
           h('div', { class: 'ihead' }, h('b', {}, i.nick || 'konto usunięte'), i.num ? h('span', { class: 'mono mut' }, window.MibProfile.formatMibId(i.num)) : null,
             h('em', { class: 'tag' }, IDEA_CAT[i.category] || i.category), h('span', { class: 'mut' }, fmtDate(i.created_at))),
           h('p', {}, i.body),
+          replyBox(i),
           h('div', { class: 'row', style: 'align-items:center' }, status,
+            i.rewarded ? h('em', { class: 'tag hunter' }, 'Nagrodzony') : i.user_id ? h('button', { class: 'b', on: { click: async e => {
+              const card = e.currentTarget.closest('.idea');
+              if (card.querySelector('.gift-form')) return;
+              card.append(await giftForm(i.user_id, i.id, () => { i.rewarded = true; i.status = 'done'; show(); badge(); }));
+            } } }, 'Nagródź') : null,
             h('button', { class: 'b ghost', on: { click: () => copy(i.body) } }, 'Kopiuj'),
             h('button', { class: 'b danger', on: { click: async () => {
               if (!confirm('Usunąć ten pomysł?')) return;
@@ -134,8 +160,22 @@
             } } }, 'Usuń')));
       }) : [h('p', { class: 'empty' }, all.length ? 'Brak pomysłów z tym statusem.' : 'Gracze nie wysłali jeszcze żadnych pomysłów.')]));
     }
+    // Odpowiedź dla autora: widzi ją pod swoim pomysłem i dostaje powiadomienie
+    function replyBox(i) {
+      const t = h('textarea', { class: 'idea-reply', maxlength: 500, rows: 2, placeholder: 'Odpowiedź dla gracza (zobaczy ją pod swoim pomysłem)' });
+      t.value = i.reply || '';
+      const save = h('button', { class: 'b ghost', type: 'button', on: { click: async () => {
+        save.disabled = true;
+        const st = i.status === 'new' ? 'seen' : i.status;
+        const r = await call('admin_answer_idea', { p_id: i.id, p_status: st, p_reply: t.value });
+        save.disabled = false;
+        if (failed(r)) return toast(err(r), 1);
+        i.reply = t.value.trim() || null; i.status = st; toast('Odpowiedź wysłana.'); show(); badge();
+      } } }, 'Wyślij odpowiedź');
+      return h('div', { class: 'row idea-answer' }, t, save);
+    }
     filter.onchange = show;
-    box.append(h('p', { class: 'lead' }, 'Pomysły z zakładki Pomysły. Nowe są na górze. Gracz widzi status, który tu ustawisz.'),
+    box.append(h('p', { class: 'lead' }, 'Pomysły z zakładki Pomysły. Nowe są na górze. Gracz widzi status i Twoją odpowiedź i dostaje o nich powiadomienie. „Nagródź” wysyła kosmetyk do odebrania w launcherze.'),
       h('div', { class: 'row', style: 'align-items:center' }, h('span', { class: 'mut' }, 'Pokaż:'), filter), list);
     const l = await call('admin_list_ideas');
     if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
@@ -253,6 +293,7 @@
           : [h('span', { class: 'mut' }, 'brak')]))),
         h('div', { class: 'sr' }, h('span', {}, 'Daj przedmiot'), h('span', { class: 'row' }, pick,
           h('button', { class: 'b', on: { click: async () => { if (!pick.value) return; const r = await call('admin_grant', { p_user: p.id, p_cosmetic: pick.value }); if (failed(r)) return toast(err(r), 1); toast('Przedmiot dodany.'); show(p); } } }, 'Daj'))),
+        h('div', { class: 'sr' }, h('span', {}, 'Wyślij prezent (z oknem „Odbierz”)'), await giftForm(p.id, null, () => show(p), owned)),
         delBox(p)));
     }
     // Usunięcie konta: potwierdzenie wpisaniem nicku (Electron nie obsługuje prompt())

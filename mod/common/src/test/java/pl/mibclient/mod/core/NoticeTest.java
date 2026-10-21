@@ -43,6 +43,15 @@ class NoticeTest {
 	}
 
 	@Test
+	void parsesGiftNotice() {
+		Notice n = Notice.parse("{\"id\":\"8-1\",\"type\":\"gift\",\"nick\":\"MiB\",\"text\":\"Peleryna Złota\",\"at\":8}");
+		assertTrue(n.gift());
+		assertEquals("Prezent od MiB!", n.title());
+		assertEquals("Peleryna Złota czeka na Ciebie. Odbierz w launcherze.", n.body());
+		assertNull(Notice.parse("{\"id\":\"8-2\",\"type\":\"gift\",\"nick\":\"MiB\",\"at\":8}"), "prezent bez nazwy");
+	}
+
+	@Test
 	void rejectsBrokenNotices() {
 		assertNull(Notice.parse("nie json"));
 		assertNull(Notice.parse("{\"id\":\"1\",\"nick\":\"  \",\"at\":1}"));
