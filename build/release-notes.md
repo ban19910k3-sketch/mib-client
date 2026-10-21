@@ -1,5 +1,6 @@
-<!-- 0.21.0 -->
+<!-- 0.22.0 -->
 ## Dodane
 
-- Głosowanie na pomysły: na stronie Pomysły widzisz pomysły innych graczy i dajesz głos tym, które chcesz zobaczyć w MiB Client. Najpopularniejsze są na górze.
-- Filtr przekleństw: w wiadomościach od znajomych (w launcherze i w grze) i w pomysłach innych graczy brzydkie słowa zamieniają się na gwiazdki. Możesz go wyłączyć w Ustawieniach.
+- Kosmetyki na Halloween: 3 peleryny, 5 czapek, 2 pary skrzydeł i 4 aury.
+- Aury: nowy rodzaj kosmetyku. To efekt wokół postaci w grze (dusze, dynie, duszki albo czarna magia), który widzą też inni gracze MiB.
+- Skrzydła jak u wróżki: dwa rozłożone skrzydła na plecach, które machają. Widać je w grze i na podglądzie postaci w Kosmetykach.

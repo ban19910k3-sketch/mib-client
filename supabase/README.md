@@ -86,7 +86,7 @@ Launcher pokazuje wtedy, co jest nie tak. Najczęstsze sytuacje:
 |---|---|---|
 | `id` | `cape_start` | stały identyfikator, bez spacji |
 | `name` | `Peleryna Start` | nazwa widoczna w launcherze |
-| `type` | `cape` | rodzaj: `cape`, `hat`, `wings` |
+| `type` | `cape` | rodzaj: `cape`, `hat`, `wings`, `aura` |
 | `image_url` | puste albo link do obrazka | obrazek przedmiotu |
 
 Albo w **SQL Editor**:
@@ -94,6 +94,14 @@ Albo w **SQL Editor**:
 ```sql
 insert into public.cosmetics (id, name, type) values ('cape_start', 'Peleryna Start', 'cape');
 ```
+
+Najprościej dodać je w panelu admina (zakładka Kosmetyki), razem z teksturą i podglądem na postaci.
+
+- **Skrzydła**: tekstura szeroka na 128 pikseli (klatka 128×64) to skrzydła jak u wróżki, węższa (64×32) rysuje się jak elytra.
+- **Aura** (od 0.22.0): id kończy się ruchem cząsteczek — `_souls`, `_pumpkins`, `_ghosts` albo `_magic` (w panelu admina wybierasz go z listy).
+
+`schema.sql` od 0.22.0 sam dodaje 14 kosmetyków na Halloween (3 peleryny, 5 czapek, 2 skrzydła, 4 aury; id zaczynają się od `halloween_`).
+Graczom dajesz je jak inne przedmioty: kodami, prezentem albo prezentem dla wszystkich.
 
 ## Kody prezentowe
 
