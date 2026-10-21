@@ -290,7 +290,7 @@
   }
 
   // ===== Strona Kosmetyki =====
-  const GLYPH = { cape: '▚', hat: '▀', wings: '▞' };
+  const GLYPH = { cape: '▚', hat: '▀', wings: '▞', aura: '✺' };
   // Miniatura peleryny: zewnętrzna strona z tekstury Minecrafta (pole 10×16 od piksela 1,1), powiększona k razy
   // (animowana tekstura: klatki jedna pod drugą przewijane animacją capeanim ze style.css)
   function capeThumb(url, k) {
@@ -310,7 +310,31 @@
     if (!imgCache.has(url)) imgCache.set(url, new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url; }));
     return imgCache.get(url);
   }
-  const itemImage = (c, k) => (c.imageUrl && c.type === 'cape' && c.imageUrl.startsWith('data:image/png') ? capeThumb(c.imageUrl, k) : c.imageUrl ? h('img', { src: c.imageUrl, alt: '' }) : GLYPH[c.type] || '◆');
+  // Miniatura aury: pierwszy obrazek cząsteczki (komórka 8×8 z pierwszego rzędu tekstury)
+  function auraThumb(url, k) {
+    const c = h('canvas', { width: 8 * k, height: 8 * k, class: 'aurath' }), x = c.getContext('2d');
+    loadImg(url).then(img => { x.imageSmoothingEnabled = false; x.drawImage(img, 0, 0, img.width / 8, img.width / 8, 0, 0, 8 * k, 8 * k); }, () => {});
+    return c;
+  }
+  // Miniatura skrzydeł: wróżki — oba skrzydła z pierwszej klatki (tył skrzydła po lewej, przód po prawej), elytra — sama tekstura
+  function wingsThumb(url) {
+    const c = h('canvas', { width: 64, height: 40, class: 'wingth' }), x = c.getContext('2d');
+    loadImg(url).then(img => {
+      x.imageSmoothingEnabled = false;
+      if (MibProfile.wingsModel(img.width) !== 'fairy') return c.replaceWith(h('img', { src: url, alt: '' }));
+      const u = img.width / 128;
+      x.drawImage(img, 32 * u, 0, 32 * u, 40 * u, 0, 0, 32, 40);
+      x.drawImage(img, 0, 0, 32 * u, 40 * u, 32, 0, 32, 40);
+    }, () => {});
+    return c;
+  }
+  const itemImage = (c, k) => {
+    const png = c.imageUrl && c.imageUrl.startsWith('data:image/png');
+    if (png && c.type === 'cape') return capeThumb(c.imageUrl, k);
+    if (png && c.type === 'aura') return auraThumb(c.imageUrl, k);
+    if (png && c.type === 'wings') return wingsThumb(c.imageUrl);
+    return c.imageUrl ? h('img', { src: c.imageUrl, alt: '' }) : GLYPH[c.type] || '◆';
+  };
   // ===== Skin konta Minecraft (na górze strony Kosmetyki; wystarczy konto Microsoft) =====
   let skinViewer = null;
   const skinCanvas = h('canvas', { width: 200, height: 260, class: 'skin3d', id: 'skin3d' });
@@ -378,7 +402,7 @@
     return sec;
   }
 
-  // ===== Kosmetyki na postaci 3D (skinview3d): peleryna albo skrzydła (jak elytra) i czapka (jak hełm) =====
+  // ===== Kosmetyki na postaci 3D (skinview3d): peleryna, skrzydła (jak u wróżki albo jak elytra), czapka (jak hełm) i aura =====
   // Animowana tekstura ma klatki jedna pod drugą; klatki zmieniają się co CAPE_FRAME_MS, tak jak w grze.
   async function frames(url) {
     const img = await loadImg(url), n = MibProfile.capeFrames(img.width, img.height);
@@ -391,17 +415,39 @@
     });
   }
   const dressed = new WeakMap();
-  // back: { texture, kind: 'cape' | 'elytra' } albo null; hat: tekstura czapki albo null. Zwraca, co widać.
-  async function dress(viewer, { back = null, hat = null } = {}) {
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  // Klasa tekstury z samego skinview3d; skin ładuje się osobno, więc chwilę na nią czekamy (null = nie ma)
+  async function texClass(viewer, st, my) {
+    for (let i = 0; i < 20 && !(viewer.skinTexture || viewer.capeTexture); i++) { await new Promise(r => setTimeout(r, 100)); if (st.gen !== my) return null; }
+    return (viewer.skinTexture || viewer.capeTexture || {}).constructor || null;
+  }
+  function newTex(viewer, Tex, canvas) {
+    const t = new Tex(canvas);
+    t.magFilter = t.minFilter = 1003;
+    if (viewer.skinTexture) t.colorSpace = viewer.skinTexture.colorSpace;
+    return t;
+  }
+  // cape, wings, hat: tekstury albo null; aura: { texture, id } albo null. Skrzydła jak elytra zastępują pelerynę,
+  // skrzydła wróżki są razem z nią. Zwraca, co widać.
+  async function dress(viewer, { cape = null, wings = null, hat = null, aura = null } = {}) {
     const st = dressed.get(viewer) || {};
     dressed.set(viewer, st);
     const my = st.gen = (st.gen || 0) + 1;
-    const [bf, hf] = await Promise.all([back ? frames(back.texture).catch(() => null) : null, hat ? frames(hat).catch(() => null) : null]);
+    const load = u => (u ? frames(u).catch(() => null) : null);
+    const [cf, wf, hf, af] = await Promise.all([load(cape), load(wings), load(hat), load(aura && aura.texture)]);
     if (st.gen !== my) return null;
     clearInterval(st.timer); st.timer = null;
-    try { if (bf) viewer.loadCape(bf[0], { backEquipment: back.kind }); else viewer.resetCape(); } catch {}
+    const fairy = wf && MibProfile.wingsModel(wf[0].width) === 'fairy' ? wf : null;
+    const bf = cf || (wf && !fairy ? wf : null), kind = cf ? 'cape' : bf ? 'elytra' : '';
+    try { if (bf) viewer.loadCape(bf[0], { backEquipment: kind }); else viewer.resetCape(); } catch {}
     await putHat(viewer, st, hf, my);
-    const n = Math.max(bf ? bf.length : 1, hf ? hf.length : 1);
+    if (st.gen !== my) return null;
+    await putWings(viewer, st, fairy, my);
+    if (st.gen !== my) return null;
+    const style = af && MibProfile.auraStyle(aura.id);
+    await putAura(viewer, st, style ? af : null, style, my);
+    if (st.gen !== my) return null;
+    const n = Math.max(bf ? bf.length : 1, hf ? hf.length : 1, fairy ? fairy.length : 1);
     if (n > 1) {
       let i = 0;
       st.timer = setInterval(() => {
@@ -409,9 +455,11 @@
         i++;
         if (bf && bf.length > 1 && viewer.capeTexture) draw(viewer.capeCanvas, bf[i % bf.length], 0, viewer.capeTexture);
         if (hf && hf.length > 1 && st.hatTex) draw(st.hatCanvas, hf[i % hf.length], 0, st.hatTex);
+        if (fairy && fairy.length > 1 && st.wingTex) draw(st.wingCanvas, fairy[i % fairy.length], 0, st.wingTex);
       }, MibProfile.CAPE_FRAME_MS);
     }
-    return { back: bf ? back.kind : '', hat: !!(hf && st.hat), frames: n };
+    if (st.wings || st.aura) animate(viewer, st);
+    return { back: kind, fairy: !!st.wings, hat: !!(hf && st.hat), aura: st.aura ? style : '', frames: n };
   }
   function draw(canvas, frame, y, tex) {
     const x = canvas.getContext('2d');
@@ -426,15 +474,11 @@
     if (st.hat) { for (const m of st.hat) { if (m.parent) m.parent.remove(m); m.material.dispose(); } st.hat = null; }
     if (st.hatTex) { st.hatTex.dispose(); st.hatTex = null; }
     if (!hf || !head || !head.innerLayer || !head.outerLayer) return;
-    // klasa tekstury z samego skinview3d; skin ładuje się osobno, więc chwilę na nią czekamy
-    for (let i = 0; i < 20 && !(viewer.skinTexture || viewer.capeTexture); i++) { await new Promise(r => setTimeout(r, 100)); if (st.gen !== my) return; }
-    const Tex = (viewer.skinTexture || viewer.capeTexture || {}).constructor;
+    const Tex = await texClass(viewer, st, my);
     if (!Tex) return;
     st.hatCanvas = document.createElement('canvas');
     st.hatCanvas.width = st.hatCanvas.height = hf[0].width;
-    st.hatTex = new Tex(st.hatCanvas);
-    st.hatTex.magFilter = st.hatTex.minFilter = 1003;
-    if (viewer.skinTexture) st.hatTex.colorSpace = viewer.skinTexture.colorSpace;
+    st.hatTex = newTex(viewer, Tex, st.hatCanvas);
     draw(st.hatCanvas, hf[0], 0, st.hatTex);
     st.hat = [[head.innerLayer, 10], [head.outerLayer, 11]].map(([src, size]) => {
       const m = src.clone();
@@ -446,7 +490,91 @@
       return m;
     });
   }
+  // Skrzydła wróżki: dwie płaszczyzny 16×20 przy łopatkach, odchylone do tyłu i machające (tak samo w grze: FairyWingsLayer).
+  // Na przodzie płaszczyzny tył skrzydła z tekstury, z tyłu jego przód; drugie skrzydło to lustro pierwszego.
+  async function putWings(viewer, st, wf, my) {
+    const skin = viewer.playerObject && viewer.playerObject.skin, src = skin && skin.head && skin.head.innerLayer;
+    if (st.wings) { for (const [m] of st.wings) { if (m.parent) m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } st.wings = null; }
+    if (st.wingTex) { st.wingTex.dispose(); st.wingTex = null; }
+    if (!wf || !src || !skin.body) return;
+    const Tex = await texClass(viewer, st, my);
+    if (!Tex) return;
+    st.wingCanvas = document.createElement('canvas');
+    st.wingCanvas.width = wf[0].width; st.wingCanvas.height = wf[0].height;
+    st.wingTex = newTex(viewer, Tex, st.wingCanvas);
+    draw(st.wingCanvas, wf[0], 0, st.wingTex);
+    const Geo = src.geometry.constructor, Mesh = src.constructor, Mat = src.material.constructor;
+    st.wings = [1, -1].map(sign => {
+      const g = new Geo(16, 20, 0);
+      g.translate(8, -7, 0);
+      const uv = g.attributes.uv;
+      const face = (f, x0, y0, x1, y1) => { for (let k = 0; k < 4; k++) uv.setXY(f * 4 + k, (k % 2 ? x1 : x0) / 64, 1 - (k < 2 ? y0 : y1) / 32); };
+      for (let f = 0; f < 4; f++) face(f, 63, 31, 64, 32);
+      face(4, 16, 0, 32, 20); face(5, 16, 0, 0, 20);
+      uv.needsUpdate = true;
+      const m = new Mesh(g, new Mat({ map: st.wingTex, alphaTest: 0.5 }));
+      m.scale.set(sign * 0.8, 0.8, 1); m.position.set(sign * 0.8, 5.2, -2.2);
+      skin.body.add(m);
+      return [m, sign];
+    });
+  }
+  // Aura: cząsteczki z MibProfile.auraParticles jako małe obrazki zwrócone do kamery, z własnym światłem (jak w grze: AuraLayer)
+  async function putAura(viewer, st, af, style, my) {
+    const skin = viewer.playerObject && viewer.playerObject.skin, src = skin && skin.head && skin.head.innerLayer;
+    if (st.aura) { for (const m of st.aura.pool) { if (m.parent) m.parent.remove(m); m.material.dispose(); } st.aura.group.parent && st.aura.group.parent.remove(st.aura.group); st.aura.geo.dispose(); for (const t of st.aura.cells) t.dispose(); st.aura = null; }
+    if (!af || !src || !skin.leftLeg) return;
+    const Tex = await texClass(viewer, st, my);
+    if (!Tex) return;
+    const img = af[0], cs = img.width / 8;
+    const cells = [0, 1, 2].map(k => { const c = document.createElement('canvas'); c.width = c.height = cs; c.getContext('2d').drawImage(img, k * cs, 0, cs, cs, 0, 0, cs, cs); const t = newTex(viewer, Tex, c); t.needsUpdate = true; return t; });
+    const group = new viewer.playerWrapper.constructor();
+    skin.add(group);
+    st.aura = { style, cells, group, pool: [], geo: new src.geometry.constructor(1, 1, 0), Mesh: src.constructor, Mat: src.material.constructor, seed: 7 };
+  }
+  // Machanie skrzydłami i ruch aury w każdej klatce, dopóki podgląd jest na stronie
+  function animate(viewer, st) {
+    if (st.raf) return;
+    let q = null;
+    const tick = now => {
+      st.raf = 0;
+      if (!viewer.canvas || !viewer.canvas.isConnected || !(st.wings || st.aura)) return;
+      if (st.wings) { const a = 0.8 + (reduceMotion.matches ? 0 : Math.sin(now / 1000 * 4.2) * 0.22); for (const [m, sign] of st.wings) m.rotation.y = sign * a; }
+      const au = st.aura;
+      if (au) {
+        const feet = viewer.playerObject.skin.leftLeg.position.y - 12, list = MibProfile.auraParticles(au.style, (Date.now() % 3600000) / 1000, au.seed);
+        if (!q) q = viewer.camera.quaternion.clone();
+        au.group.getWorldQuaternion(q);
+        q.invert().multiply(viewer.camera.quaternion);
+        while (au.pool.length < list.length) {
+          const mat = new au.Mat({ transparent: true, depthWrite: false, alphaTest: 0.02 });
+          mat.color.setRGB(0, 0, 0); mat.emissive.setRGB(1, 1, 1);
+          const m = new au.Mesh(au.geo, mat);
+          au.group.add(m); au.pool.push(m);
+        }
+        au.pool.forEach((m, i) => {
+          const p = list[i];
+          m.visible = !!p;
+          if (!p) return;
+          m.position.set(p.x, feet + p.y, p.z);
+          m.scale.setScalar(8 * p.size);
+          m.quaternion.copy(q);
+          const map = au.cells[p.cell] || au.cells[0];
+          if (m.material.emissiveMap !== map) { m.material.map = m.material.emissiveMap = map; m.material.needsUpdate = true; }
+          m.material.opacity = p.alpha;
+        });
+      }
+      st.raf = requestAnimationFrame(tick);
+    };
+    st.raf = requestAnimationFrame(tick);
+  }
   window.mibDress = dress;
+  // Strój do dress() z listy przedmiotów { type, id, texture } (np. założone u znajomego albo prezent)
+  function outfit(list) {
+    const o = {};
+    for (const c of list) if (c && c.texture && ['cape', 'wings', 'hat', 'aura'].includes(c.type) && !o[c.type]) o[c.type] = c.type === 'aura' ? { texture: c.texture, id: c.id } : c.texture;
+    return o;
+  }
+  window.mibOutfit = outfit;
 
   // Strona Kosmetyki: na postaci założone przedmioty, a klik w przedmiot to przymiarka (bez zakładania).
   // data-back i data-hat na płótnie mówią, co widać.
@@ -455,10 +583,8 @@
     if (!skinViewer) return;
     const on = t => trying[t] || list.find(c => c.equipped && c.type === t && c.texture);
     const tried = trying.wings && !trying.cape ? 'wings' : null;
-    const cape = tried ? null : on('cape'), wings = on('wings'), hat = on('hat');
-    const back = cape ? { texture: cape.texture, kind: 'cape' } : wings ? { texture: wings.texture, kind: 'elytra' } : null;
-    const r = await dress(skinViewer, { back, hat: hat ? hat.texture : null });
-    if (r) { skinCanvas.dataset.back = r.back; skinCanvas.dataset.hat = r.hat ? '1' : ''; skinCanvas.dataset.frames = r.frames; }
+    const r = await dress(skinViewer, outfit([tried ? null : on('cape'), on('wings'), on('hat'), on('aura')]));
+    if (r) Object.assign(skinCanvas.dataset, { back: r.back, hat: r.hat ? '1' : '', fairy: r.fairy ? '1' : '', aura: r.aura, frames: r.frames });
   }
 
   async function renderCos() {
@@ -518,7 +644,7 @@
 
   // ===== Prezenty od MiB: okno „Masz prezent!” z podglądem na postaci, Odbierz i Załóż od razu =====
   let giftOpen = false, giftCount = 0;
-  const KIND = { cape: 'Peleryna', hat: 'Czapka', wings: 'Skrzydła' };
+  const KIND = { cape: 'Peleryna', hat: 'Czapka', wings: 'Skrzydła', aura: 'Aura' };
   // licznik przy pozycji paska bocznego (Kosmetyki: prezenty, Pomysły: odpowiedzi)
   function navCount(page, n) {
     const nav = document.querySelector(`.nav[data-p="${page}"]`);
@@ -572,7 +698,7 @@
       viewer = new skinview3d.SkinViewer({ canvas, width: 200, height: 230 }); viewer.autoRotate = true; viewer.autoRotateSpeed = 0.9; viewer.controls.enableZoom = false;
       const cur = await mib.call('skin:current');
       await viewer.loadSkin(cur && cur.dataUrl ? cur.dataUrl : await mib.call('skin', 'MHF_Steve'), { model: cur && cur.variant === 'slim' ? 'slim' : 'default' });
-      if (g.texture) window.mibDress(viewer, g.type === 'hat' ? { hat: g.texture } : { back: { texture: g.texture, kind: g.type === 'wings' ? 'elytra' : 'cape' } });
+      if (g.texture) window.mibDress(viewer, outfit([{ type: g.type, id: g.cosmetic_id, texture: g.texture }]));
     } catch {}
   }
   // launcher sprawdza prezenty i odpowiedzi co minutę (main.js); kliknięte powiadomienie otwiera okno albo Pomysły
@@ -944,8 +1070,7 @@
     try {
       viewer = new skinview3d.SkinViewer({ canvas, width: 170, height: 210 }); viewer.autoRotate = true; viewer.autoRotateSpeed = 0.8; viewer.controls.enableZoom = false;
       await viewer.loadSkin(await mib.call('skin', c.mc_name || 'MHF_Steve'));
-      const back = eq.find(x => x.type !== 'hat' && x.texture), hat = eq.find(x => x.type === 'hat' && x.texture);
-      if (ov.isConnected) window.mibDress(viewer, { back: back ? { texture: back.texture, kind: back.type === 'wings' ? 'elytra' : 'cape' } : null, hat: hat ? hat.texture : null });
+      if (ov.isConnected) window.mibDress(viewer, outfit(eq));
       canvas.dataset.dressed = eq.map(x => x.type).sort().join(',');
     } catch {}
   }
@@ -1054,7 +1179,7 @@
     setTimeout(() => { if (o.isConnected) close(); }, 2200);
   };
   window.mibProfileUI = { modsShown, refresh, get loggedIn() { return !!(st.loggedIn || st.offline); } };
-  window.mibUI = { h, msg, fmtDate, capeThumb };
+  window.mibUI = { h, msg, fmtDate, capeThumb, itemImage };
   sidebar();
   render();
   refresh();

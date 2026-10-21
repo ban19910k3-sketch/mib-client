@@ -177,3 +177,39 @@ test('cleanText: przekleństwa na gwiazdki, zwykłe słowa bez zmian', () => {
   assert.equal(P.cleanText('„kurwa”'), '„k****”');
   assert.equal(P.cleanText(null), '');
 });
+
+test('wingsModel: tekstura szeroka na 128+ to skrzydła wróżki, węższa to elytra', () => {
+  assert.equal(P.wingsModel(64), 'elytra');
+  assert.equal(P.wingsModel(128), 'fairy');
+  assert.equal(P.wingsModel(256), 'fairy');
+});
+
+test('auraStyle: ruch z końcówki id', () => {
+  assert.equal(P.auraStyle('halloween_aura_souls'), 'souls');
+  assert.equal(P.auraStyle('zimowa_aura_magic'), 'magic');
+  assert.equal(P.auraStyle('aura_magic_x'), null);
+  assert.equal(P.auraStyle(null), null);
+});
+
+test('auraParticles: te same liczby co w modzie (Auras.java), w zasięgu postaci, bez skoków', () => {
+  // wspólne wartości z AurasTest.java
+  assert.deepEqual([P.h32(0), P.h32(1), P.h32(123456789), P.h32(-5)], [0, 824515495, 1952335732, 3253613923]);
+  const s = P.auraParticles('souls', 12.345, 777)[0];
+  assert.ok(Math.abs(s.x - 7.760290074110731) < 1e-9 && Math.abs(s.y - 3.370260721633739) < 1e-9 && Math.abs(s.z + 4.649836497573228) < 1e-9);
+  assert.equal(P.auraParticles('nie_ma', 1, 1).length, 0);
+  for (const style of P.AURA_STYLES) {
+    const n = { souls: 22, pumpkins: 24, ghosts: 3, magic: 60 }[style];
+    for (let t = 0; t < 30; t += 0.37) {
+      const a = P.auraParticles(style, t, 42), b = P.auraParticles(style, t + 0.01, 42);
+      assert.equal(a.length, n);
+      for (let i = 0; i < n; i++) {
+        const p = a[i];
+        assert.ok(Math.hypot(p.x, p.z) <= 17 && p.y >= 0 && p.y <= 40, `${style} poza postacią: ${JSON.stringify(p)}`);
+        assert.ok(p.alpha >= 0 && p.alpha <= 1 && [0, 1, 2].includes(p.cell));
+        // przez 10 ms cząsteczka przesuwa się o mniej niż piksel, chyba że właśnie zaczęła nowe życie
+        const q = b[i], moved = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+        assert.ok(moved < 1 || p.alpha < 0.1 || q.y < p.y, `${style} skok o ${moved}`);
+      }
+    }
+  }
+});

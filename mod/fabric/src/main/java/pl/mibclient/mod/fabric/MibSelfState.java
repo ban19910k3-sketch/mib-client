@@ -2,7 +2,7 @@ package pl.mibclient.mod.fabric;
 
 import net.minecraft.resources.MibId;
 
-/** Dane MiB w stanie rysowania postaci: „to własna postać” (emotki, ukrywanie elytry), skrzydła i czapka gracza MiB. */
+/** Dane MiB w stanie rysowania postaci: „to własna postać” (emotki, ukrywanie elytry), skrzydła, czapka i aura gracza MiB. */
 public interface MibSelfState {
 	boolean mib$self();
 
@@ -17,4 +17,18 @@ public interface MibSelfState {
 	MibId mib$hat();
 
 	void mib$hat(MibId hat);
+
+	/** Tekstura skrzydeł MiB jak u wróżki (FairyWingsLayer) albo null. */
+	MibId mib$fairy();
+
+	void mib$fairy(MibId fairy);
+
+	/** Aura MiB (AuraLayer): tekstura z obrazkami cząsteczek albo null, ruch (Auras) i numer gracza do losowania cząsteczek. */
+	MibId mib$aura();
+
+	int mib$auraStyle();
+
+	int mib$auraSeed();
+
+	void mib$aura(MibId aura, int style, int seed);
 }

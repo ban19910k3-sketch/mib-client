@@ -19,25 +19,26 @@ import java.util.UUID;
 public final class MibPlayers {
 	public static final MibPlayers NONE = new MibPlayers(Collections.<Entry>emptyList());
 
-	/** Gracz MiB: UUID konta, nick i założone kosmetyki (id albo null): peleryna, czapka, skrzydła. */
+	/** Gracz MiB: UUID konta, nick i założone kosmetyki (id albo null): peleryna, czapka, skrzydła, aura. */
 	public static final class Entry {
-		public final String uuid, name, cape, hat, wings;
+		public final String uuid, name, cape, hat, wings, aura;
 
 		public Entry(String uuid, String name, String cape) {
-			this(uuid, name, cape, null, null);
+			this(uuid, name, cape, null, null, null);
 		}
 
-		public Entry(String uuid, String name, String cape, String hat, String wings) {
+		public Entry(String uuid, String name, String cape, String hat, String wings, String aura) {
 			this.uuid = uuid;
 			this.name = name;
 			this.cape = cape;
 			this.hat = hat;
 			this.wings = wings;
+			this.aura = aura;
 		}
 
-		/** Id założonego kosmetyku danego typu (cape, hat, wings) albo null. */
+		/** Id założonego kosmetyku danego typu (cape, hat, wings, aura) albo null. */
 		public String cosmetic(String type) {
-			return "cape".equals(type) ? cape : "hat".equals(type) ? hat : "wings".equals(type) ? wings : null;
+			return "cape".equals(type) ? cape : "hat".equals(type) ? hat : "wings".equals(type) ? wings : "aura".equals(type) ? aura : null;
 		}
 	}
 
@@ -60,7 +61,7 @@ public final class MibPlayers {
 		return name == null ? null : byName.get(name.toLowerCase(Locale.ROOT));
 	}
 
-	/** players.json: {"players":[{"uuid","name","cape","hat","wings"}]}; zły plik = brak graczy. */
+	/** players.json: {"players":[{"uuid","name","cape","hat","wings","aura"}]}; zły plik = brak graczy. */
 	public static MibPlayers parse(String json) {
 		Object v;
 		try {
@@ -74,7 +75,7 @@ public final class MibPlayers {
 			if (!(o instanceof Map)) continue;
 			Map<?, ?> m = (Map<?, ?>) o;
 			if (!(m.get("uuid") instanceof String) || !(m.get("name") instanceof String)) continue;
-			out.add(new Entry((String) m.get("uuid"), (String) m.get("name"), id(m.get("cape")), id(m.get("hat")), id(m.get("wings"))));
+			out.add(new Entry((String) m.get("uuid"), (String) m.get("name"), id(m.get("cape")), id(m.get("hat")), id(m.get("wings")), id(m.get("aura"))));
 		}
 		return new MibPlayers(out);
 	}

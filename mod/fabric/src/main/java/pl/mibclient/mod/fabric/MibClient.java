@@ -160,17 +160,21 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		Extras.register();
 		Looks.register();
 		extras.registerWorld();
-		// czapka MiB na postaciach graczy
+		// czapka, skrzydła jak u wróżki i aura MiB na postaciach graczy
 		//#if MC >= 26.1
 		net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback.EVENT.register((type, renderer, helper, context) -> {
 		//#else
 		net.fabricmc.fabric.api.client.rendering.v1.LivingEntityFeatureRendererRegistrationCallback.EVENT.register((type, renderer, helper, context) -> {
 		//#endif
 			//#if MC >= 1.21.9
-			if (renderer instanceof net.minecraft.client.renderer.entity.player.AvatarRenderer) helper.register(new HatLayer((net.minecraft.client.renderer.entity.RenderLayerParent) renderer));
+			if (!(renderer instanceof net.minecraft.client.renderer.entity.player.AvatarRenderer)) return;
 			//#else
-			if (renderer instanceof net.minecraft.client.renderer.entity.player.PlayerRenderer) helper.register(new HatLayer((net.minecraft.client.renderer.entity.RenderLayerParent) renderer));
+			if (!(renderer instanceof net.minecraft.client.renderer.entity.player.PlayerRenderer)) return;
 			//#endif
+			net.minecraft.client.renderer.entity.RenderLayerParent parent = (net.minecraft.client.renderer.entity.RenderLayerParent) renderer;
+			helper.register(new HatLayer(parent));
+			helper.register(new FairyWingsLayer(parent));
+			helper.register(new AuraLayer(parent));
 		});
 
 		//#if MC >= 1.21.9
@@ -609,10 +613,10 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	// ===== Kosmetyki =====
 
-	/** Założone kosmetyki z launchera (peleryna, czapka, skrzydła) trafiają do tekstur gry (tylko gdy się zmienią). */
+	/** Założone kosmetyki z launchera (peleryna, czapka, skrzydła, aura) trafiają do tekstur gry (tylko gdy się zmienią). */
 	private void tickCosmetics(Minecraft c) {
 		Cosmetics cs = cosmetics();
-		for (String type : new String[] {"cape", "hat", "wings"}) {
+		for (String type : new String[] {"cape", "hat", "wings", "aura"}) {
 			Cosmetics.Item it = cs == null ? null : cs.equipped(type);
 			String old = ownKeys.get(type);
 			if (it == null || it.png == null) {
@@ -634,7 +638,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		applyCosmetic("cape", key, png);
 	}
 
-	/** Tekstura własnego kosmetyku danego typu albo jego zdjęcie (png = null). Publiczne dla testu gry. */
+	/** Tekstura własnego kosmetyku danego typu albo jego zdjęcie (png = null); key to „id:cokolwiek” (z id aura bierze ruch). Publiczne dla testu gry. */
 	public void applyCosmetic(String type, String key, byte[] png) {
 		if (Objects.equals(key, ownKeys.get(type))) return;
 		if (key == null) ownKeys.remove(type);
@@ -662,21 +666,28 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		try {
 			NativeImage img = NativeImage.read(new java.io.ByteArrayInputStream(png));
 			int w = img.getWidth(), n = Cosmetics.frames(w, img.getHeight());
-			if (n <= 1) return new MibId[] {register(path, img)};
-			MibId[] out = new MibId[n];
-			int fh = w / 2;
-			for (int i = 0; i < n; i++) {
-				NativeImage f = new NativeImage(w, fh, true);
-				img.copyRect(f, 0, i * fh, 0, 0, w, fh, false, false);
-				out[i] = register(path + "/" + i, f);
+			MibId[] out;
+			if (n <= 1) out = new MibId[] {register(path, img)};
+			else {
+				out = new MibId[n];
+				int fh = w / 2;
+				for (int i = 0; i < n; i++) {
+					NativeImage f = new NativeImage(w, fh, true);
+					img.copyRect(f, 0, i * fh, 0, 0, w, fh, false, false);
+					out[i] = register(path + "/" + i, f);
+				}
+				img.close();
+				hooks.add("cos_anim");
 			}
-			img.close();
-			hooks.add("cos_anim");
+			if (Cosmetics.fairyWings(w)) for (MibId id : out) WIDE.add(id);
 			return out;
 		} catch (Exception e) {
 			return null;
 		}
 	}
+
+	/** Tekstury szerokie na co najmniej 128 pikseli: jako skrzydła rysują się jak u wróżki (FairyWingsLayer), nie jak elytra. */
+	private static final java.util.Set<MibId> WIDE = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
 	private static MibId register(String path, NativeImage img) {
 		MibId id = MibId.fromNamespaceAndPath("mibclient", path);
@@ -694,7 +705,9 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	}
 
 	static void releaseTexture(MibId id) {
-		if (id != null) Minecraft.getInstance().getTextureManager().release(id);
+		if (id == null) return;
+		WIDE.remove(id);
+		Minecraft.getInstance().getTextureManager().release(id);
 	}
 
 	static void releaseTextures(MibId[] t) {
@@ -714,6 +727,28 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		MibId t = frameOf(all);
 		if (t != null) hooks.add(type);
 		return t;
+	}
+
+	/** Skrzydła MiB rysowane jak elytra (tekstura w skórce gracza) albo null. */
+	public MibId elytraWingsFor(AbstractClientPlayer player) {
+		MibId t = cosmeticFor(player, "wings");
+		return t == null || WIDE.contains(t) ? null : t;
+	}
+
+	/** Skrzydła MiB jak u wróżki (FairyWingsLayer) albo null. */
+	public MibId fairyWingsFor(AbstractClientPlayer player) {
+		MibId t = cosmeticFor(player, "wings");
+		return t != null && WIDE.contains(t) ? t : null;
+	}
+
+	/** Ruch aury tego gracza (Auras.SOULS…) z id założonej albo przymierzanej aury; Auras.NONE = bez aury. */
+	public int auraStyleFor(AbstractClientPlayer player) {
+		String id;
+		if (player == Minecraft.getInstance().player) {
+			String key = ownKeys.get("aura");
+			id = tryIds.containsKey("aura") ? tryIds.get("aura") : key == null ? null : key.substring(0, Math.max(0, key.lastIndexOf(':')));
+		} else id = players.cosmeticIdOf(player.getUUID(), player.getScoreboardName(), "aura");
+		return pl.mibclient.mod.core.Auras.style(id);
 	}
 
 	@Override

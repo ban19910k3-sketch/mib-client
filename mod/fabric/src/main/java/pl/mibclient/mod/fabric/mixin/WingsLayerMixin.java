@@ -113,7 +113,7 @@ public abstract class WingsLayerMixin {
 	@ModifyExpressionValue(method = "render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;ILnet/minecraft/world/entity/LivingEntity;FFFFFF)V",
 			at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;is(Lnet/minecraft/world/item/Item;)Z"), require = 0)
 	private boolean mib$wings(boolean elytra, com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.client.renderer.MultiBufferSource out, int light, LivingEntity entity) {
-		if (elytra || !(entity instanceof AbstractClientPlayer p) || MibClient.get() == null || MibClient.get().cosmeticFor(p, "wings") == null) return elytra;
+		if (elytra || !(entity instanceof AbstractClientPlayer p) || MibClient.get() == null || MibClient.get().elytraWingsFor(p) == null) return elytra;
 		MibClient.hooks.add("wings_drawn");
 		return true;
 	}

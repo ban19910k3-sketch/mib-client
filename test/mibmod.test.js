@@ -120,6 +120,7 @@ test('readEquip: tylko przedmioty gracza i pasujący typ', () => {
   assert.strictEqual(m.readEquip('{"type":"cape","id":"h1"}', COS), null);
   assert.strictEqual(m.readEquip('{"type":"cape","id":"obcy"}', COS), null);
   assert.strictEqual(m.readEquip('{"type":"buty","id":null}', COS), null);
+  assert.deepStrictEqual(m.readEquip('{"type":"aura","id":null}', COS), { type: 'aura', id: null });
   assert.strictEqual(m.readEquip('zly', COS), null);
 });
 

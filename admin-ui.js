@@ -1,12 +1,13 @@
 // Panel admina (widoczny tylko dla konta admina; uprawnienia sprawdza baza).
 // Tylko po polsku — panel widzi wyłącznie właściciel.
 (() => {
-  const { h, msg, fmtDate, capeThumb } = window.mibUI;
+  const { h, msg, fmtDate, itemImage } = window.mibUI;
   const ERR = {
     not_admin: 'To konto nie jest adminem.',
     cosmetic_id_invalid: 'ID przedmiotu: 2–32 znaki, tylko małe litery, cyfry i _ (np. cape_turniej).',
     cosmetic_name_invalid: 'Nazwa przedmiotu musi mieć od 1 do 40 znaków.',
     cosmetic_type_invalid: 'Nieznany rodzaj przedmiotu.',
+    aura_id_invalid: 'Wybierz ruch aury: ID aury kończy się na _souls, _pumpkins, _ghosts albo _magic.',
     cosmetic_in_use: 'Tego przedmiotu nie można usunąć: mają go gracze albo są do niego kody.',
     cosmetic_missing: 'Najpierw dodaj ten przedmiot w zakładce Kosmetyki.',
     codes_invalid: 'Kody: od 1 do 100 naraz, użyć od 1 do 100 000, data końca w przyszłości; kod o własnej nazwie tylko jeden.',
@@ -46,20 +47,22 @@
   const err = r => (r && ERR[r.error]) || msg(r && r.error || 'unknown', r && r.detail);
   const call = (fn, args) => mib.call('prof:admin', { fn, args });
   const failed = r => r && !Array.isArray(r) && r.error;
-  const TYPES = { cape: 'Peleryna', hat: 'Czapka', wings: 'Skrzydła' };
+  const TYPES = { cape: 'Peleryna', hat: 'Czapka', wings: 'Skrzydła', aura: 'Aura' };
+  // Ruch cząsteczek aury: końcówka ID (launcher i mod znają tylko te)
+  const MOTIONS = { souls: 'Dusze unoszą się z ziemi', pumpkins: 'Dynie krążą i lecą w górę, iskry', ghosts: 'Trzy duszki krążą wokół', magic: 'Spirala iskier w górę' };
   const copy = async t => { try { await navigator.clipboard.writeText(t); toast('Skopiowano'); } catch {} };
   let tab = 'ann';
   // Jeden podgląd 3D na cały panel (każdy nowy SkinViewer zajmuje kontekst WebGL)
   let capeCanvas = null, capeViewer = null;
-  // Podgląd 3D przedmiotu na postaci (peleryna, skrzydła jak elytra, czapka jak hełm; animowane też się ruszają)
-  function capePreview(dataUrl, type = 'cape') {
+  // Podgląd 3D przedmiotu na postaci (peleryna, skrzydła, czapka jak hełm, aura; animowane też się ruszają)
+  function capePreview(dataUrl, type = 'cape', id = '') {
     if (!capeCanvas) capeCanvas = h('canvas', { width: 180, height: 220, class: 'cape3d', hidden: true });
     try {
       if (dataUrl && !capeViewer) {
         capeViewer = new skinview3d.SkinViewer({ canvas: capeCanvas, width: 180, height: 220 }); capeViewer.autoRotate = true; capeViewer.autoRotateSpeed = 0.8; capeViewer.controls.enableZoom = false;
         mib.call('skin', 'MHF_Steve').then(s => capeViewer.loadSkin(s)).catch(() => {});
       }
-      if (capeViewer) window.mibDress(capeViewer, dataUrl ? { back: type === 'hat' ? null : { texture: dataUrl, kind: type === 'wings' ? 'elytra' : 'cape' }, hat: type === 'hat' ? dataUrl : null } : {});
+      if (capeViewer) window.mibDress(capeViewer, dataUrl ? window.mibOutfit([{ type, id, texture: dataUrl }]) : {});
       capeCanvas.hidden = !dataUrl;
     } catch { capeCanvas.hidden = true; }
     return capeCanvas;
@@ -273,12 +276,18 @@
   async function viewCos(box) {
     const id = h('input', { id: 'ac-id', maxlength: 32, placeholder: 'np. cape_turniej' }), name = h('input', { id: 'ac-name', maxlength: 40, placeholder: 'np. Peleryna Turniejowa' });
     const type = h('select', { id: 'ac-type' }, ...Object.entries(TYPES).map(([k, v]) => h('option', { value: k }, v)));
+    const motion = h('select', { id: 'ac-motion' }, ...Object.entries(MOTIONS).map(([k, v]) => h('option', { value: k }, v)));
+    const motionRow = h('label', { class: 'sr', hidden: true }, h('span', {}, 'Ruch aury'), motion);
+    // aura: ruch to końcówka ID (np. aura_zimowa_magic)
+    const withMotion = () => { if (type.value === 'aura' && !id.disabled) id.value = id.value.trim().replace(/_(souls|pumpkins|ghosts|magic)$/, '') + '_' + motion.value; };
     const prevImg = h('img', { class: 'texprev', alt: '', hidden: true }), cv = capePreview(null);
     const e = h('p', { class: 'err' }), save = h('button', { class: 'b', type: 'submit', id: 'ac-save' }, 'Zapisz przedmiot');
     let texture = null, editing = false, known = new Set();
     let shown = null;
-    function preview(dataUrl) { shown = dataUrl; prevImg.src = dataUrl || ''; prevImg.hidden = !dataUrl; capePreview(dataUrl, type.value); }
-    type.onchange = () => preview(shown);
+    function preview(dataUrl) { shown = dataUrl; prevImg.src = dataUrl || ''; prevImg.hidden = !dataUrl; capePreview(dataUrl, type.value, id.value.trim()); }
+    type.onchange = () => { motionRow.hidden = type.value !== 'aura'; if (type.value === 'aura') withMotion(); preview(shown); };
+    motion.onchange = () => { withMotion(); preview(shown); };
+    id.onchange = () => { if (type.value === 'aura') withMotion(); preview(shown); };
     const pick = h('button', { class: 'b ghost', type: 'button', on: { click: async () => {
       const r = await mib.call('admin:pickTexture');
       if (!r) return;
@@ -291,10 +300,10 @@
       if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
       known = new Set(l.map(c => c.id));
       list.replaceChildren(...(l.length ? l.map(c => h('div', { class: 'cosi' },
-        h('i', {}, c.texture && c.type === 'cape' ? capeThumb(c.texture, 5) : '◆'),
+        h('i', {}, c.texture ? itemImage({ type: c.type, imageUrl: c.texture }, 5) : '◆'),
         h('b', {}, c.name), h('small', { class: 'mut' }, c.id + ', ' + (TYPES[c.type] || c.type)),
         h('div', { class: 'row' },
-          h('button', { class: 'b ghost', on: { click: () => { editing = true; id.value = c.id; id.disabled = true; name.value = c.name; type.value = c.type; texture = null; preview(c.texture); save.textContent = 'Zapisz zmiany'; name.focus(); } } }, 'Edytuj'),
+          h('button', { class: 'b ghost', on: { click: () => { editing = true; id.value = c.id; id.disabled = true; name.value = c.name; type.value = c.type; motionRow.hidden = true; texture = null; preview(c.texture); save.textContent = 'Zapisz zmiany'; name.focus(); } } }, 'Edytuj'),
           h('button', { class: 'b danger', on: { click: async () => {
             if (!confirm('Usunąć przedmiot „' + c.name + '”?')) return;
             const r = await call('admin_delete_cosmetic', { p_id: c.id });
@@ -309,11 +318,14 @@
       const r = await call('admin_save_cosmetic', { p_id: id.value.trim(), p_name: name.value, p_type: type.value, p_texture: texture });
       save.disabled = false;
       if (failed(r)) { e.textContent = err(r); return; }
-      toast('Przedmiot zapisany.'); e.textContent = ''; id.value = name.value = ''; id.disabled = false; editing = false; texture = null; preview(null); save.textContent = 'Zapisz przedmiot'; load();
+      toast('Przedmiot zapisany.'); e.textContent = ''; id.value = name.value = ''; id.disabled = false; editing = false; texture = null; motionRow.hidden = type.value !== 'aura'; preview(null); save.textContent = 'Zapisz przedmiot'; load();
     } } },
     h('label', { class: 'sr' }, h('span', {}, 'ID (stałe)'), id), h('label', { class: 'sr' }, h('span', {}, 'Nazwa'), name),
-    h('label', { class: 'sr' }, h('span', {}, 'Rodzaj'), type),
-    h('div', { class: 'sr' }, h('span', {}, 'Tekstura'), h('span', { class: 'fld' }, h('span', { class: 'row', style: 'align-items:center' }, pick, prevImg), h('small', { class: 'mut' }, 'PNG 64×32 jak peleryna w Minecrafcie. Animowana: klatki jedna pod drugą (64×128 = 4 klatki), 10 klatek na sekundę.'))),
+    h('label', { class: 'sr' }, h('span', {}, 'Rodzaj'), type), motionRow,
+    h('div', { class: 'sr' }, h('span', {}, 'Tekstura'), h('span', { class: 'fld' }, h('span', { class: 'row', style: 'align-items:center' }, pick, prevImg),
+      h('small', { class: 'mut' }, 'PNG 64×32 jak peleryna w Minecrafcie. Animowana: klatki jedna pod drugą (64×128 = 4 klatki), 10 klatek na sekundę. ' +
+        'Skrzydła jak u wróżki: klatka 128×64, przód skrzydła w polu 32×40 od lewego górnego rogu, obok jego lustro (węższe skrzydła wyglądają jak elytra). ' +
+        'Aura: obrazki cząsteczek 8×8 w pierwszym rzędzie tekstury 64×32.'))),
     cv, e, h('div', { class: 'row' }, save));
     box.append(form, h('div', { class: 'sec' }, h('h3', {}, 'Katalog'), list));
     load();

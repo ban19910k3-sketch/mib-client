@@ -74,8 +74,8 @@ test('most: żądanie graczy z gry -> players.json, tylko poprawne dane', async 
     { ids: ['33333333-3333-4333-8333-33333333333a'], names: ['Gracz'] });
   assert.strictEqual(m.readPlayersRequest('[1]'), null);
   assert.strictEqual(m.readPlayersRequest('zepsuty'), null);
-  assert.deepStrictEqual(JSON.parse(m.playersPayload([{ uuid: '33333333-3333-4333-8333-333333333333', name: 'Gracz', cape: '../x' }, { uuid: 'zly', name: 'A' }])),
-    { players: [{ uuid: '33333333-3333-4333-8333-333333333333', name: 'Gracz', cape: null, hat: null, wings: null }] });
+  assert.deepStrictEqual(JSON.parse(m.playersPayload([{ uuid: '33333333-3333-4333-8333-333333333333', name: 'Gracz', cape: '../x', aura: 'halloween_aura_magic' }, { uuid: 'zly', name: 'A' }])),
+    { players: [{ uuid: '33333333-3333-4333-8333-333333333333', name: 'Gracz', cape: null, hat: null, wings: null, aura: 'halloween_aura_magic' }] });
 
   const dir = tmp();
   const asked = [];

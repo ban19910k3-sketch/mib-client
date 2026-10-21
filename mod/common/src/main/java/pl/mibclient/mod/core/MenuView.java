@@ -729,7 +729,7 @@ public final class MenuView {
 			boolean clickable = y >= top && y + 20 <= bottom;
 			final boolean trying = it.id.equals(actions.tryingOn(it.type));
 			Shapes.panel(c, lx, y, lw, 20, Theme.SLAB, it.equipped ? Theme.AM_LO : trying ? Theme.AM_HI : Theme.EDGE);
-			String kind = Lang.t("cos." + ("hat".equals(it.type) || "wings".equals(it.type) ? it.type : "cape"));
+			String kind = Lang.t("cos." + ("hat".equals(it.type) || "wings".equals(it.type) || "aura".equals(it.type) ? it.type : "cape"));
 			c.text(Shapes.ellipsize(c, it.name, lw - 150, false), lx + 8, y + 6, Theme.TEXT, false);
 			c.text(kind, lx + lw - 140, y + 6, FAINT, false);
 			// przymiarka: cały wiersz (przycisk niżej ma pierwszeństwo, bo sprawdzany jest od końca)

@@ -180,6 +180,31 @@ function png(w, h, px) {
     await w.waitForFunction(() => document.getElementById('skin3d').dataset.back === '');
     ok('(t) przymiarka peleryny (animowanej) i czapki na podglądzie skina, Załóż i Zdejmij');
 
+    // Halloween (0.22.0): skrzydła wróżki (tekstura 128×64, 8 klatek) i aura z ruchem z końcówki id — tekstury z supabase/schema.sql
+    const seeded = id => new RegExp("\\('" + id + "', '[^']*', '\\w+', '(data:image/png;base64,[^']+)'\\)").exec(fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8'))[1];
+    fake.cosmetics.wings_test = { id: 'wings_test', name: 'Skrzydła testowe', type: 'wings', image_url: null, texture: seeded('halloween_wings_fire') };
+    fake.cosmetics.aura_test_magic = { id: 'aura_test_magic', name: 'Aura testowa', type: 'aura', image_url: null, texture: seeded('halloween_aura_magic') };
+    fake.st.owned.push({ user: tester.id, cosmetic: 'wings_test', at: new Date().toISOString() }, { user: tester.id, cosmetic: 'aura_test_magic', at: new Date().toISOString() });
+    await w.click('.nav[data-p="home"]');
+    await w.click('.nav[data-p="cos"]');
+    await w.waitForSelector('.cosi[data-id="aura_test_magic"] canvas.aurath');
+    assert.ok(await w.$('.cosi[data-id="wings_test"] canvas.wingth'), 'miniatura skrzydeł wróżki');
+    await w.click('.cosi[data-id="wings_test"] b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.fairy === '1' && document.getElementById('skin3d').dataset.back === '');
+    await w.click('.cosi[data-id="aura_test_magic"] b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.aura === 'magic' && document.getElementById('skin3d').dataset.fairy === '1');
+    await w.$eval('#skin3d', el => el.scrollIntoView({ block: 'start' }));
+    await w.waitForTimeout(1500);
+    await shot('halloween.png');
+    await w.click('.cosi[data-id="aura_test_magic"] .b');
+    await w.waitForFunction(() => /Założona/.test(document.querySelector('.cosi[data-id="aura_test_magic"]').textContent));
+    assert.equal(tester.equipped.aura, 'aura_test_magic');
+    await w.click('.cosi[data-id="aura_test_magic"] .b');
+    await w.waitForFunction(() => document.querySelector('.cosi[data-id="aura_test_magic"] .b').textContent === 'Załóż');
+    await w.click('.cosi[data-id="wings_test"] b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.fairy === '' && document.getElementById('skin3d').dataset.aura === '');
+    ok('(t2) skrzydła wróżki i aura na podglądzie, zakładanie aury');
+
     // Znajomi: zaproszenie po nicku, zaproszenie od kogoś innego, znajomy w grze z serwerem
     const now = new Date().toISOString();
     const kolega = { id: 'u-kolega', email: 'k@mib.pl', password: 'x', nick: 'Kolega', num: 50, created: now };

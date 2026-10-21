@@ -88,6 +88,20 @@ end $$;
 select pg_temp.expect_error($q$select public.equip_cosmetic('hat', 'cape_two')$q$, 'not_owned');
 select pg_temp.expect_error($q$select public.equip_cosmetic('cape', 'nie_ma')$q$, 'not_owned');
 select pg_temp.expect_error($q$select public.equip_cosmetic('xyz', null)$q$, 'cosmetic_type_invalid');
+reset role;
+-- aura (od 0.22.0): kosmetyki na Halloween są w bazie po wczytaniu schematu
+insert into public.owned_cosmetics (user_id, cosmetic_id) values ('11111111-1111-1111-1111-111111111111', 'halloween_aura_ghosts');
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+do $$ begin
+  assert (public.equip_cosmetic('aura', 'halloween_aura_ghosts') ->> 'aura') = 'halloween_aura_ghosts', 'zakładanie aury';
+  assert (public.equip_cosmetic('aura', null) ->> 'aura') is null, 'zdejmowanie aury';
+end $$;
+select pg_temp.expect_error($q$select public.equip_cosmetic('aura', 'cape_two')$q$, 'not_owned');
+reset role;
+delete from public.owned_cosmetics where cosmetic_id = 'halloween_aura_ghosts';
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
 select pg_temp.expect_error($q$update public.profiles set equipped = '{"cape":"cape_two"}'$q$, 'permission denied');
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 select pg_temp.expect_error($q$select public.equip_cosmetic('cape', 'cape_start')$q$, 'not_owned');
@@ -231,6 +245,8 @@ begin
   assert (select texture from public.cosmetics where id = 'cape_mib') like 'data:image/png;base64,%', 'tekstura zapisana';
   perform public.admin_save_cosmetic('cape_mib', 'Peleryna MiB 2', 'cape', null);
   assert (select texture from public.cosmetics where id = 'cape_mib') is not null, 'edycja bez tekstury jej nie kasuje';
+  perform public.admin_save_cosmetic('zimowa_aura_magic', 'Zimowa magia', 'aura', null);
+  assert (select type from public.cosmetics where id = 'zimowa_aura_magic') = 'aura', 'aura z ruchem w id';
   -- kody
   codes := array(select json_array_elements_text(public.admin_create_codes('cape_mib', 3, 1, 7)));
   assert array_length(codes, 1) = 3, '3 kody';
@@ -265,6 +281,7 @@ end $$;
 select pg_temp.expect_error($q$select public.admin_set_idea_status(1, 'zrobione')$q$, 'idea_status_invalid');
 select pg_temp.expect_error($q$select public.admin_set_idea_status(999999, 'done')$q$, 'idea_missing');
 select pg_temp.expect_error($q$select public.admin_save_cosmetic('Zła Nazwa', 'x', 'cape', null)$q$, 'cosmetic_id_invalid');
+select pg_temp.expect_error($q$select public.admin_save_cosmetic('aura_bez_ruchu', 'x', 'aura', null)$q$, 'aura_id_invalid');
 select pg_temp.expect_error($q$select public.admin_save_cosmetic('ok_id', 'x', 'cape', 'http://zly.link/x.png')$q$, 'check constraint');
 select pg_temp.expect_error($q$select public.admin_delete_cosmetic('cape_mib')$q$, 'cosmetic_in_use');
 select pg_temp.expect_error($q$select public.admin_create_codes('cape_mib', 500, 1, null)$q$, 'codes_invalid');
@@ -422,7 +439,8 @@ reset role;
 insert into public.owned_cosmetics (user_id, cosmetic_id) values ('22222222-2222-2222-2222-222222222222', 'cape_two') on conflict do nothing;
 insert into public.cosmetics (id, name, type) values ('hat_one', 'Czapka', 'hat') on conflict do nothing;
 insert into public.owned_cosmetics (user_id, cosmetic_id) values ('22222222-2222-2222-2222-222222222222', 'hat_one') on conflict do nothing;
-update public.profiles set equipped = '{"cape":"cape_two","hat":"hat_one","wings":"nie_ma"}' where id = '22222222-2222-2222-2222-222222222222';
+insert into public.owned_cosmetics (user_id, cosmetic_id) values ('22222222-2222-2222-2222-222222222222', 'halloween_aura_magic') on conflict do nothing;
+update public.profiles set equipped = '{"cape":"cape_two","hat":"hat_one","wings":"nie_ma","aura":"halloween_aura_magic"}' where id = '22222222-2222-2222-2222-222222222222';
 set role authenticated;
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 select public.mib_hello('Gracz', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') ->> 'token' as tok2 \gset
@@ -430,6 +448,7 @@ do $$ begin
   assert (select cape from public.mib_who(null, array['Gracz'])) = 'cape_two', 'peleryna gracza MiB';
   assert (select hat from public.mib_who(null, array['Gracz'])) = 'hat_one', 'czapka gracza MiB';
   assert (select wings from public.mib_who(null, array['Gracz'])) is null, 'skrzydeł nie ma';
+  assert (select aura from public.mib_who(null, array['Gracz'])) = 'halloween_aura_magic', 'aura gracza MiB';
   assert not public.mib_ping('33333333-3333-3333-3333-333333333333', 'zly', true), 'stary token po ponownym zgłoszeniu nie działa';
 end $$;
 reset role;
@@ -840,3 +859,12 @@ end $$;
 set role anon;
 select pg_temp.expect_error($q$select * from public.ideas_public('top')$q$, 'permission denied');
 reset role;
+
+-- Kosmetyki na Halloween (od 0.22.0): 3 peleryny, 5 czapek, 2 skrzydła, 4 aury z ruchem w id; tekstury PNG
+do $$ begin
+  assert (select count(*) from public.cosmetics where id like 'halloween\_%') = 14, 'kosmetyki na Halloween';
+  assert (select string_agg(type || ':' || n, ',' order by type) from (select type, count(*) n from public.cosmetics where id like 'halloween\_%' group by type) x)
+    = 'aura:4,cape:3,hat:5,wings:2', 'rodzaje kosmetyków na Halloween';
+  assert not exists (select 1 from public.cosmetics where id like 'halloween\_%' and (texture not like 'data:image/png;base64,iVBORw0KGgo%'
+    or (type = 'aura' and id !~ '_(souls|pumpkins|ghosts|magic)$'))), 'tekstury PNG i ruch aur';
+end $$;

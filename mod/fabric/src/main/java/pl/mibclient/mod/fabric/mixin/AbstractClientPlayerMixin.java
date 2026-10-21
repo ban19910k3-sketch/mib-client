@@ -16,7 +16,8 @@ import pl.mibclient.mod.fabric.MibClient;
 
 /**
  * FOV changer: bez zmiany pola widzenia przy biegu i miksturach; luneta i napinanie łuku działają jak w grze.
- * Kosmetyki: założona peleryna MiB zamiast peleryny ze skórki, z Elytras także na elytrze; skrzydła MiB jako tekstura elytry.
+ * Kosmetyki: założona peleryna MiB zamiast peleryny ze skórki, z Elytras także na elytrze; skrzydła MiB jak elytra jako tekstura
+ * elytry (skrzydła jak u wróżki rysuje FairyWingsLayer).
  */
 @Mixin(AbstractClientPlayer.class)
 public abstract class AbstractClientPlayerMixin {
@@ -39,7 +40,7 @@ public abstract class AbstractClientPlayerMixin {
 	@Inject(method = "getSkin", at = @At("RETURN"), cancellable = true)
 	private void mib$cape(CallbackInfoReturnable<PlayerSkin> cir) {
 		AbstractClientPlayer p = (AbstractClientPlayer) (Object) this;
-		MibId cape = MibClient.get().capeFor(p), wings = MibClient.get().cosmeticFor(p, "wings");
+		MibId cape = MibClient.get().capeFor(p), wings = MibClient.get().elytraWingsFor(p);
 		if (cape == null && wings == null) return;
 		PlayerSkin s = cir.getReturnValue();
 		// skrzydła MiB mają pierwszeństwo przed peleryną na elytrze (Elytras)

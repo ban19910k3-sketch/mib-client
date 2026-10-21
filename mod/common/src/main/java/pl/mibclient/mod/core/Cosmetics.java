@@ -44,12 +44,17 @@ public final class Cosmetics {
 		return n <= MAX_FRAMES ? n : 0;
 	}
 
+	/** Skrzydła z tekstury szerokiej na co najmniej 128 pikseli są jak u wróżki (od 0.22.0), węższe jak elytra (tak samo w launcherze). */
+	public static boolean fairyWings(int width) {
+		return width >= 128;
+	}
+
 	/** Klatka do pokazania w chwili timeMs dla tekstury o n klatkach. */
 	public static int frame(int n, long timeMs) {
 		return n <= 1 ? 0 : (int) ((timeMs / FRAME_MS) % n);
 	}
 
-	/** Przedmiot: id, nazwa, typ (cape, hat, wings), czy założony i tekstura PNG (base64; do przymiarki także niezałożone). */
+	/** Przedmiot: id, nazwa, typ (cape, hat, wings, aura), czy założony i tekstura PNG (base64; do przymiarki także niezałożone). */
 	public static final class Item {
 		public final String id, name, type, png;
 		public final boolean equipped;
@@ -68,7 +73,7 @@ public final class Cosmetics {
 		return equipped("cape");
 	}
 
-	/** Założony przedmiot danego typu (cape, hat, wings) albo null. */
+	/** Założony przedmiot danego typu (cape, hat, wings, aura) albo null. */
 	public Item equipped(String type) {
 		for (Item i : items) if (type.equals(i.type) && i.equipped) return i;
 		return null;

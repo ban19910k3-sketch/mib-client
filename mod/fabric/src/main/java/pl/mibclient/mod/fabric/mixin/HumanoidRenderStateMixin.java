@@ -10,14 +10,16 @@ import net.minecraft.resources.MibId;
 import net.minecraft.client.model.HumanoidModel;
 //#endif
 
-/** Dane MiB w stanie rysowania postaci: własna postać, skrzydła i czapka (od 1.21.2; wcześniej warstwy widzą samą postać i ta wstawka jest pusta). */
+/** Dane MiB w stanie rysowania postaci: własna postać, skrzydła, czapka i aura (od 1.21.2; wcześniej warstwy widzą samą postać i ta wstawka jest pusta). */
 //#if MC >= 1.21.2
 @Mixin(HumanoidRenderState.class)
 public abstract class HumanoidRenderStateMixin implements MibSelfState {
 	@Unique
 	private boolean mib$isSelf, mib$hasWings;
 	@Unique
-	private MibId mib$hatTexture;
+	private MibId mib$hatTexture, mib$fairyTexture, mib$auraTexture;
+	@Unique
+	private int mib$auraKind, mib$auraNumber;
 
 	@Override
 	public boolean mib$self() {
@@ -47,6 +49,38 @@ public abstract class HumanoidRenderStateMixin implements MibSelfState {
 	@Override
 	public void mib$hat(MibId hat) {
 		mib$hatTexture = hat;
+	}
+
+	@Override
+	public MibId mib$fairy() {
+		return mib$fairyTexture;
+	}
+
+	@Override
+	public void mib$fairy(MibId fairy) {
+		mib$fairyTexture = fairy;
+	}
+
+	@Override
+	public MibId mib$aura() {
+		return mib$auraTexture;
+	}
+
+	@Override
+	public int mib$auraStyle() {
+		return mib$auraKind;
+	}
+
+	@Override
+	public int mib$auraSeed() {
+		return mib$auraNumber;
+	}
+
+	@Override
+	public void mib$aura(MibId aura, int style, int seed) {
+		mib$auraTexture = aura;
+		mib$auraKind = style;
+		mib$auraNumber = seed;
 	}
 }
 //#else

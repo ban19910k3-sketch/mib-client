@@ -161,7 +161,13 @@ public final class Players {
 		return out;
 	}
 
-	/** Kosmetyk innego gracza MiB danego typu (cape, hat, wings; klatki tekstury z pliku od launchera) albo null. */
+	/** Id kosmetyku innego gracza MiB danego typu albo null. */
+	String cosmeticIdOf(UUID id, String name, String type) {
+		MibPlayers.Entry e = list.find(id, name);
+		return e == null ? null : e.cosmetic(type);
+	}
+
+	/** Kosmetyk innego gracza MiB danego typu (cape, hat, wings, aura; klatki tekstury z pliku od launchera) albo null. */
 	MibId[] cosmeticOf(UUID id, String name, String type) {
 		if (mib.bridge == null) return null;
 		MibPlayers.Entry e = list.find(id, name);

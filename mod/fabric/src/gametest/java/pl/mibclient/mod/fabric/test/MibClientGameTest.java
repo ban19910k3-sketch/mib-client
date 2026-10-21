@@ -28,6 +28,9 @@ public class MibClientGameTest implements FabricClientGameTest {
 	/** Peleryna 64×32 do testu (fioletowa z białym kwadratem). */
 	/** Animowana peleryna: 2 klatki 64×32 jedna pod drugą (fiolet, złoto). */
 	private static final String CAPE_ANIM_PNG = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAbElEQVR42u3aMRGAMBAAwX+s0COEAhPRFRMUCEmPlqAiM2GyK+Hqy3q9PQYo957xA1ssTgABBBBAAAEEEEAAAQQQQAABAAAAgBVkb+eQPyCPxx8ggAACCCCAAAIIIIAAAggggAACAAAAAHP4AFL9CEMyiPRnAAAAAElFTkSuQmCC";
+	/** Kościane skrzydła i aura „Czarna magia” z kosmetyków na Halloween (supabase/schema.sql). */
+	private static final String FAIRY_PNG = "iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAC8klEQVR4nO2aSY4TQRBF4wbsetVrFlyBDUfhZCxYcR2ExHUaWSJbQSimLKedLvyeZJVk15AVP/JHDhYBuAe/f/18m/nsbi806Qr64/u3qQ+JspnVwn5++fr+iZ6pzyFR7sRKYT+9fHl7/fDxn+PlGZdjJf5A32tca++5MlHuEeOHphLWnuMJYsX2fp9NgCPPuBx1W/X9ove8fYQfHGvNXmCtI3SE0MfxnJk2RW3JksL2+Kwt3YT87+kEeARUHzOxPcuebZdXUrx7H2mjTZ6nprJYG1TtCN71kf3PtisrAzYpdI+3iVCVj/URPRlVgKNeNZKhU6dn7dYbVGZt1W2xCYADFFQ27vV8HXgpkuhorc1mFlo8T3ztBFX5WB/RE9JxAJsMlROM+14z0BplIGqj15YhescBVsbwtFQ2njlApxzcygG8Z0YOIIlL3SKmp2KmvmZie9+LEnK2Xfq6bsJ126rfeX1ET0ZnhO3NCuz50ffXlgBPZDu6j77vzFRWxvKUVIMkK+pYPvUC6iWBTC4CDbzFoEj80ZNtza/GJzhAYwAoExYsf0XQv68aAwzxozZHJYiBYEE2145svbJWfd2KWUDW86NSFV3nvfNTUzmAJ3a21CrO7OHoQlB3NO9N+cSsEOIAAXbJVZTYkcg6MaLA6uuv2Qvo7EBmDqGvF5PIbAYV26/a/sWIXW0I6W3Yow5gr60SzWtrNF5hN1Bhk0DU9mok8gisKGF0UO3/CWYTwO7nizMwHM/O5vve9jXiB1gn8KZ00QAxC6oWtEOWMNHsILJ5+w4In6CdQJQQ0ZKs7l2dwHaSoHOOXiGMXEqXEVH7EiRAwQjS6OGepdvetSOoepagS5ctGcMhEH8S2xN1ULUD7AzqENjau20T//07QBQ0OyLflQRWfEnKEAlwgCxodqFmZwJ0ajsJcCNmR/er2V2Cnh4SALYlAeI/ELsS4N7PBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADYwR/D3V6h8BlThQAAAABJRU5ErkJggg==";
+	private static final String AURA_PNG = "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAQUlEQVR4nO3SsREAEBAEQE3qUUOKUIHwjUQoZIbd9JL7n0sJlpJ73O5wzTy+1YjdE2Z+ttVhXy8AAAAAAAAA3jYAkQETRZ57KnUAAAAASUVORK5CYII=";
 	private static final String CAPE_PNG = "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAcklEQVR42u3UMQ2AMBBG4b9NBZBQAyADE3hAB2N11AMmkAEGIMEBrAwMLAxc37ddctPL5dzY7ac+kOba6QeCJDXxeLW8bpWs8Spc8QHCfRim9nEp9wsXQAACEMD+E7T87LgAAhCAAAQgAAEAAAAAAIB0ATapC/N+AwboAAAAAElFTkSuQmCC";
 
 	private final List<String> errors = new ArrayList<>();
@@ -394,6 +397,22 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.waitTicks(3);
 			check(context.computeOnClient(c -> c.options.getCameraType().isFirstPerson()), "po puszczeniu klawisza Perspective widok nie wrócił");
 
+			// skrzydła jak u wróżki (tekstura szeroka na 128) i aura z ruchem z id — zrzut z kamery 360° zza pleców
+			context.runOnClient(c -> {
+				MibClient.get().applyCosmetic("wings", "test:fairy", Base64.getDecoder().decode(FAIRY_PNG));
+				MibClient.get().applyCosmetic("aura", "test:halloween_aura_magic:1", Base64.getDecoder().decode(AURA_PNG));
+			});
+			check(context.computeOnClient(c -> MibClient.get().fairyWingsFor(c.player) != null && MibClient.get().elytraWingsFor(c.player) == null),
+					"skrzydła szerokie na 128 pikseli nie są skrzydłami wróżki");
+			check(context.computeOnClient(c -> MibClient.get().auraStyleFor(c.player) == pl.mibclient.mod.core.Auras.MAGIC), "aura bez ruchu z id");
+			input.holdKey(MibClient.get().perspectiveKey);
+			context.waitTicks(3);
+			input.moveCursor(-260, 0);
+			context.waitTicks(10);
+			context.takeScreenshot("11-halloween");
+			input.releaseKey(MibClient.get().perspectiveKey);
+			context.waitTicks(3);
+
 			// menu pauzy z logo MiB
 			context.setScreen(() -> new PauseScreen(true));
 			context.waitTicks(3);
@@ -405,7 +424,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
 					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop",
 					"post_effect", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "light_level", "waypoints", "dark_mode", "anim_block", "anim_dip",
-					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "time", "hitbox", "hitbox_players", "world_marks", "cos_anim", "notice", "emote_wheel"
+					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "fairy_drawn", "aura_drawn", "time", "hitbox", "hitbox_players", "world_marks", "cos_anim", "notice", "emote_wheel"
 					//#if MC >= 1.21.2 && MC < 1.21.6
 					, "blur_previous"
 					//#endif

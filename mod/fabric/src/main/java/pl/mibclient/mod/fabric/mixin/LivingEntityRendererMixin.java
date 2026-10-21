@@ -15,6 +15,7 @@ import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import pl.mibclient.mod.fabric.MibSelfState;
+import net.minecraft.resources.MibId;
 //#endif
 
 /**
@@ -42,9 +43,13 @@ public abstract class LivingEntityRendererMixin {
 		if (!(state instanceof MibSelfState s)) return;
 		s.mib$self(entity == Minecraft.getInstance().player);
 		MibClient m = MibClient.get();
-		boolean player = m != null && entity instanceof net.minecraft.client.player.AbstractClientPlayer;
-		s.mib$wings(player && m.cosmeticFor((net.minecraft.client.player.AbstractClientPlayer) entity, "wings") != null);
-		s.mib$hat(player ? m.cosmeticFor((net.minecraft.client.player.AbstractClientPlayer) entity, "hat") : null);
+		net.minecraft.client.player.AbstractClientPlayer p = m != null && entity instanceof net.minecraft.client.player.AbstractClientPlayer a ? a : null;
+		s.mib$wings(p != null && m.elytraWingsFor(p) != null);
+		s.mib$fairy(p == null ? null : m.fairyWingsFor(p));
+		s.mib$hat(p == null ? null : m.cosmeticFor(p, "hat"));
+		MibId aura = p == null ? null : m.cosmeticFor(p, "aura");
+		int style = aura == null ? 0 : m.auraStyleFor(p);
+		s.mib$aura(style == 0 ? null : aura, style, p == null ? 0 : p.getUUID().hashCode());
 	}
 	//#endif
 }
