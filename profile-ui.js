@@ -638,8 +638,9 @@
       : h('p', { class: 'empty' }, Array.isArray(list) ? T('Nie masz jeszcze żadnych przedmiotów. Masz kod z konkursu? Wpisz go wyżej.') : msg(list.error));
     const gift = giftCount ? h('div', { class: 'card reward gift-banner', id: 'cos-gift' }, h('b', {}, T('Masz prezent do odebrania!')),
       h('button', { class: 'b', type: 'button', on: { click: () => giftsCheck(true) } }, T('Odbierz'))) : null;
-    box.replaceChildren(h('h2', {}, T('Kosmetyki')), gift, skin, h('div', { class: 'sec' }, h('h3', {}, T('Przedmioty MiB')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err,
-      items.length ? h('p', { class: 'mut' }, T('Kliknij przedmiot, żeby przymierzyć go na postaci. „Załóż” zakłada go w grze.')) : null, grid));
+    // bez prezentu gift to null: replaceChildren wstawiłby napis „null”
+    box.replaceChildren(...[h('h2', {}, T('Kosmetyki')), gift, skin, h('div', { class: 'sec' }, h('h3', {}, T('Przedmioty MiB')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err,
+      items.length ? h('p', { class: 'mut' }, T('Kliknij przedmiot, żeby przymierzyć go na postaci. „Załóż” zakłada go w grze.')) : null, grid)].filter(Boolean));
   }
 
   // ===== Prezenty od MiB: okno „Masz prezent!” z podglądem na postaci, Odbierz i Załóż od razu =====

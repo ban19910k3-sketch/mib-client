@@ -184,15 +184,19 @@ mib.on('account:changed',setAcc);
 mib.on('relaunch',()=>{const g=$('go');g.disabled=true;g.firstChild.textContent='URUCHAMIANIE…';$('cancel').style.display='inline-block';con.style.display='block';log('Zmiana konta — uruchamianie gry ponownie…')});
 mib.on('started',()=>{setProg(0);$('go').firstChild.textContent='GRA DZIAŁA'});
 
-// ===== Latające cząsteczki w tle: pikselowe odłamki ametystu =====
-(()=>{const c=$('fx'),x=c.getContext('2d'),COL=['#a855f7','#c084fc','#d6b0ff','#7c3aed'];let W=0,H=0,P=[],last=0,raf=0;
+// ===== Latające cząsteczki w tle: pikselowe odłamki ametystu (w motywie Halloween iskry z dyni i nietoperze) =====
+(()=>{const c=$('fx'),x=c.getContext('2d'),HW=document.documentElement.classList.contains('t-halloween'),COL=HW?['#f97316','#fb923c','#fdba74','#c2410c']:['#a855f7','#c084fc','#d6b0ff','#7c3aed'];let W=0,H=0,P=[],B=[],last=0,raf=0;
+ const BAT=[['X.....X','.XX.XX.','..XXX..','...X...'],['..XXX..','.XXXXX.','X..X..X']];
+ const bat=(fresh)=>{const d=Math.random()<.5?1:-1;return{d,x:d>0?-30-(fresh?0:Math.random()*W):W+30+(fresh?0:Math.random()*W),y:30+Math.random()*H*.45,v:28+Math.random()*26,w:Math.random()*6.3,s:2+(Math.random()*2|0)}};
  const on=()=>localStorage.getItem('mibfx')!=='0'&&!document.documentElement.classList.contains('noanim')&&!document.hidden;
  const spawn=(y)=>({x:Math.random()*W,y:y??H+10,s:[2,3,3,4,5][Math.random()*5|0],v:8+Math.random()*18,w:Math.random()*6.3,a:.3+Math.random()*.5,c:COL[Math.random()*4|0]});
- function size(){const r=devicePixelRatio||1;W=c.clientWidth;H=c.clientHeight;c.width=W*r;c.height=H*r;x.setTransform(r,0,0,r,0,0);x.imageSmoothingEnabled=false;P=Array.from({length:Math.round(W*H/13000)},()=>spawn(Math.random()*H))}
+ function size(){const r=devicePixelRatio||1;W=c.clientWidth;H=c.clientHeight;c.width=W*r;c.height=H*r;x.setTransform(r,0,0,r,0,0);x.imageSmoothingEnabled=false;P=Array.from({length:Math.round(W*H/13000)},()=>spawn(Math.random()*H));B=HW?Array.from({length:3},()=>bat(false)):[]}
  function frame(t){raf=0;if(!on()){x.clearRect(0,0,W,H);return}
   const dt=Math.min(.1,(t-(last||t))/1000);last=t;
   if(dt>0||!P.length){x.clearRect(0,0,W,H);for(const p of P){p.y-=p.v*dt;p.w+=dt;const sx=Math.round(p.x+Math.sin(p.w)*6),sy=Math.round(p.y);
-   x.globalAlpha=p.a*(.6+.4*Math.sin(p.w*2));x.fillStyle=p.c;x.fillRect(sx,sy,p.s,p.s);if(p.y<-10)Object.assign(p,spawn())}x.globalAlpha=1}
+   x.globalAlpha=p.a*(.6+.4*Math.sin(p.w*2));x.fillStyle=p.c;x.fillRect(sx,sy,p.s,p.s);if(p.y<-10)Object.assign(p,spawn())}x.globalAlpha=1
+   x.fillStyle='#4a2530';for(const b of B){b.x+=b.d*b.v*dt;b.w+=dt;const f=BAT[Math.floor(b.w*7)%2],bx=Math.round(b.x),by=Math.round(b.y+Math.sin(b.w*2.2)*10);
+    f.forEach((row,j)=>[...row].forEach((ch,i)=>{if(ch==='X')x.fillRect(bx+i*b.s,by+j*b.s,b.s,b.s)}));if(b.d>0?b.x>W+40:b.x<-40)Object.assign(b,bat(true))}}
   raf=setTimeout(()=>requestAnimationFrame(frame),33)} // ~30 klatek na sekundę wystarczy
  const start=()=>{if(!raf&&on()){last=0;raf=1;requestAnimationFrame(frame)}};
  addEventListener('resize',()=>{size();start()});document.addEventListener('visibilitychange',start);

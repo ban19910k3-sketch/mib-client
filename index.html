@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><title>MiB Client</title>
+<!DOCTYPE html><html lang="pl" class="t-halloween"><head><meta charset="utf-8"><title>MiB Client</title>
 <link rel="stylesheet" href="style.css">
 <!-- Ikony menu: pixelarticons (MIT), font Geist (OFL) — licencje w fonts/LICENSES.txt --></head><body>
 <div id="splash"><img id="sbg" src="splash.jpg" alt=""><div class="streak"></div><div class="streak s2"></div><canvas id="pc"></canvas>
@@ -70,7 +70,7 @@ const A=localStorage.getItem('mibanim')||'full',sp=document.getElementById('spla
 const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;if(A==='off'||RM)document.documentElement.classList.add('noanim');
 if(A==='off')sp.style.display='none';else if(localStorage.getItem('mibfx')!=='0'){const c=document.getElementById('pc'),x=c.getContext('2d');let W,H;const rs=()=>{W=c.width=innerWidth;H=c.height=innerHeight};rs();
 const P=Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.8+.4,v:Math.random()*.6+.2,a:Math.random()*6}));
-(function loop(){x.clearRect(0,0,W,H);for(const p of P){p.y-=p.v;p.a+=.02;if(p.y<0){p.y=H;p.x=Math.random()*W}x.fillStyle='rgba(192,132,252,'+(.25+.35*Math.abs(Math.sin(p.a)))+')';x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()}if(!sp.classList.contains('out'))requestAnimationFrame(loop)})()}
+(function loop(){x.clearRect(0,0,W,H);for(const p of P){p.y-=p.v;p.a+=.02;if(p.y<0){p.y=H;p.x=Math.random()*W}x.fillStyle=(document.documentElement.classList.contains('t-halloween')?'rgba(251,146,60,':'rgba(192,132,252,')+(.25+.35*Math.abs(Math.sin(p.a)))+')';x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()}if(!sp.classList.contains('out'))requestAnimationFrame(loop)})()}
 const steps=[['Przygotowywanie interfejsu…',()=>new Promise(r=>requestAnimationFrame(()=>r()))],
 ['Sprawdzanie plików…',()=>Promise.resolve(document.fonts&&document.fonts.ready)],
 ['Wczytywanie ustawień…',()=>Promise.resolve()],['Gotowe',()=>new Promise(r=>setTimeout(r,dly))]];

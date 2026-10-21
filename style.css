@@ -400,3 +400,48 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .vote:focus-visible{outline:2px solid var(--am-hi);outline-offset:2px}
 .tag.votes{background:#2a1545;color:var(--am-hi)}
 #ip .seg{margin:0}
+
+/* ===== Motyw Halloween (od 0.22.0) =====
+   Zwykły motyw (czerń i ametyst) to wszystko powyżej, bez zmian. Halloweenowy włącza klasa t-halloween na <html>
+   w index.html: usunięcie tej klasy przywraca zwykły motyw. Dynia na czarnym tle, nocne fioletowe niebo, księżyc
+   i żar przy ziemi; cząsteczki w tle to iskry i nietoperze (ui.js). */
+.t-halloween{
+  --void:#0a0507;--slab:#140a0c;--slab2:#1f1013;--edge:#33191b;--edge2:#4c2822;
+  --am:#f97316;--am-hi:#fdba74;--am-lo:#c2410c;
+  --t:#f7ede6;--m:#ad968a;
+}
+.t-halloween #app{background:
+  radial-gradient(circle at 34% 15%,rgba(254,226,190,.2) 0 38px,rgba(251,146,60,.08) 39px 72px,transparent 140px),
+  radial-gradient(ellipse at 50% 118%,rgba(234,88,12,.22),transparent 55%),
+  radial-gradient(ellipse at 70% -10%,#1f0a2e,transparent 60%),var(--void)}
+.t-halloween #app::before{background:repeating-conic-gradient(rgba(255,190,140,.02) 0 25%,transparent 0 50%) 0 0/4px 4px}
+.t-halloween .brand svg{stroke:#fb923c}
+.t-halloween .brand b::after{content:"";display:inline-block;width:14px;height:14px;margin-left:7px;vertical-align:-1px;image-rendering:pixelated;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath fill='%2365a30d' d='M3 0h1v1H3z'/%3E%3Cpath fill='%23ea580c' d='M1 1h5v1H1zM0 2h7v4H0zM1 6h5v1H1z'/%3E%3Cpath fill='%23fde047' d='M1 3h1v1H1zM5 3h1v1H5zM2 5h3v1H2z'/%3E%3C/svg%3E") center/contain no-repeat}
+.t-halloween #nick{text-shadow:0 2px 0 #3b1408}
+.t-halloween #skinw::after{background:radial-gradient(ellipse,rgba(249,115,22,.35),transparent 70%)}
+.t-halloween .nav:hover{background:rgba(76,40,34,.35)}
+.t-halloween .play{filter:drop-shadow(0 0 18px rgba(249,115,22,.35))}
+.t-halloween .play:hover{filter:drop-shadow(0 0 26px rgba(249,115,22,.6))}
+.t-halloween .go{background:#ea580c;box-shadow:inset 0 3px 0 #fb923c,inset 0 -5px 0 #9a3412,inset 3px 0 0 #f97316,inset -3px 0 0 #c2410c;text-shadow:0 2px 0 #7c2d12}
+.t-halloween .go:hover{background:#f26a1b}
+.t-halloween .go:active{box-shadow:inset 0 5px 0 #9a3412,inset 0 -2px 0 #fb923c}
+.t-halloween .go:disabled{background:#4c2822;box-shadow:inset 0 3px 0 #6b3a2c,inset 0 -5px 0 #2a1412;color:var(--am-hi)}
+.t-halloween .go.loading,.t-halloween .go.loading:disabled{background:linear-gradient(90deg,#ea580c var(--fill,0%),#4c2822 var(--fill,0%))}
+.t-halloween .b:not(.ghost):not(.danger),.t-halloween .msg.me,.t-halloween .vote.on{box-shadow:inset 0 2px 0 #fb923c,inset 0 -3px 0 #7c2d12}
+.t-halloween .b:not(.ghost):not(.danger):hover{background:#ea580c}
+.t-halloween .tag,.t-halloween .tag.votes{background:#3a1a12}
+.t-halloween .tag.founder{background:#4a1d0c;color:#ffedd5;box-shadow:inset 0 0 0 2px #ea580c}
+.t-halloween .n p,.t-halloween .lg,.t-halloween #upd pre,.t-halloween .lead,.t-halloween .empty-state,.t-halloween .ann p{color:#d8c4b8}
+.t-halloween .idea>p,.t-halloween .idea.pub .ibody>p,.t-halloween #wn ul{color:#e3d2c6}
+.t-halloween .frow.ginv{background:linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.04) 70%)}
+.t-halloween .card.reward{background:linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.04) 75%)}
+.t-halloween #p-mods.drop .mdrop{background:rgba(249,115,22,.12)}
+.t-halloween #gift .gift3d{background:radial-gradient(circle at 50% 60%,rgba(249,115,22,.28),transparent 70%)}
+.t-halloween .fc3d{background:radial-gradient(circle at 50% 60%,rgba(249,115,22,.24),transparent 70%)}
+/* splash: ten sam obraz w kolorach dyni */
+.t-halloween #sbg{filter:hue-rotate(95deg) saturate(1.15)}
+.t-halloween .streak{background:linear-gradient(90deg,transparent,rgba(249,115,22,.2),transparent)}
+.t-halloween #sname{text-shadow:0 0 14px rgba(249,115,22,.8)}
+.t-halloween #bar{border-color:#ea580c;background:rgba(10,5,7,.6)}
+.t-halloween #fill{background:repeating-linear-gradient(90deg,#fb923c 0 10px,#ea580c 10px 12px);box-shadow:0 0 14px #f97316}

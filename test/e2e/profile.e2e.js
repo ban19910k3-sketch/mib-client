@@ -188,6 +188,9 @@ function png(w, h, px) {
     await w.click('.nav[data-p="home"]');
     await w.click('.nav[data-p="cos"]');
     await w.waitForSelector('.cosi[data-id="aura_test_magic"] canvas.aurath');
+    // element null w replaceChildren pokazuje się jako napis „null”
+    const nullText = () => w.evaluate(() => { const t = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), bad = []; while (t.nextNode()) if (/^(null|undefined)$/.test(t.currentNode.textContent.trim())) bad.push(t.currentNode.parentElement.id || t.currentNode.parentElement.className); return bad; });
+    assert.deepEqual(await nullText(), [], 'napis null na stronie');
     assert.ok(await w.$('.cosi[data-id="wings_test"] canvas.wingth'), 'miniatura skrzydeł wróżki');
     await w.click('.cosi[data-id="wings_test"] b');
     await w.waitForFunction(() => document.getElementById('skin3d').dataset.fairy === '1' && document.getElementById('skin3d').dataset.back === '');
