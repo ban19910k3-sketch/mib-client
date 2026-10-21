@@ -166,4 +166,18 @@ class PreviewTest {
 		s.render(d, 640, 2000);
 		d.save(new File(out, "notice-started.png"));
 	}
+
+	@Test
+	void renderHalloween() throws Exception {
+		File out = out();
+		PreviewCanvas c = new PreviewCanvas(1280, 720, 2);
+		c.gameBackground(640, 360);
+		Halloween.dusk(c, 640, 360);
+		Halloween.screen(c, 640, 360, 1234, true);
+		c.save(new File(out, "halloween-title.png"));
+		PreviewCanvas d = new PreviewCanvas(1280, 720, 2);
+		d.gameBackground(640, 360);
+		Halloween.loading(d, 640, 360, 0.6f);
+		d.save(new File(out, "halloween-loading.png"));
+	}
 }

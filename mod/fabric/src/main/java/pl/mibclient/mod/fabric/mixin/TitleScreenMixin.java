@@ -9,6 +9,10 @@ import net.minecraft.client.gui.components.SplashRenderer;
 import net.minecraft.client.gui.screens.TitleScreen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+//#if MC >= 26.1
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+//#endif
 import pl.mibclient.mod.fabric.Logo;
 import pl.mibclient.mod.fabric.MibClient;
 
@@ -18,6 +22,15 @@ import pl.mibclient.mod.fabric.MibClient;
  */
 @Mixin(TitleScreen.class)
 public abstract class TitleScreenMixin {
+	//#if MC >= 26.1
+	// motyw Halloween: zmrok zaraz po panoramie (do 1.21.11 robi to PanoramaRendererMixin)
+	@Inject(method = "extractRenderState", at = @At(value = "INVOKE",
+			target = "Lnet/minecraft/client/gui/screens/TitleScreen;extractPanorama(Lnet/minecraft/client/gui/MibGraphics;F)V", shift = At.Shift.AFTER))
+	private void mib$dusk(MibGraphics g, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+		Logo.dusk(g);
+	}
+	//#endif
+
 	//#if MC >= 26.1
 	@WrapOperation(method = "extractRenderState", at = @At(value = "INVOKE",
 			target = "Lnet/minecraft/client/gui/components/LogoRenderer;extractRenderState(Lnet/minecraft/client/gui/MibGraphics;IF)V"))

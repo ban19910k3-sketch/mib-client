@@ -431,6 +431,10 @@ public class MibClientGameTest implements FabricClientGameTest {
 					}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
+			// motyw Halloween: dekoracje na ekranie ładowania, tytułowym i w menu pauzy
+			if (pl.mibclient.mod.core.Theme.HALLOWEEN) for (String h : new String[] {"halloween_loading", "halloween_title", "halloween_pause", "halloween_dusk"}) {
+				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
+			}
 		}
 		if (!errors.isEmpty()) throw new AssertionError(String.join("; ", errors));
 	}
