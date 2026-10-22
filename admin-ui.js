@@ -27,6 +27,9 @@
     idea_reply_long: 'Odpowiedź może mieć najwyżej 500 znaków.',
     gift_message_long: 'Wiadomość może mieć najwyżej 200 znaków.',
     player_missing: 'Tego gracza już nie ma.',
+    coins_amount: 'Podaj liczbę coinsów inną niż 0 (najwyżej milion). Minus zabiera coinsy.',
+    coins_not_enough: 'Gracz nie ma tylu coinsów, żeby je zabrać.',
+    shop_url_invalid: 'Link do sklepu musi zaczynać się od https:// i mieć najwyżej 300 znaków.',
   };
   // Prezent dla gracza: kosmetyk i wiadomość (gracz odbiera w launcherze przyciskiem „Odbierz”); idea = nagroda za ten pomysł
   async function giftForm(user, idea, done, owned = []) {
@@ -295,6 +298,17 @@
       e.textContent = ''; texture = r.dataUrl; preview(texture);
     } } }, 'Wybierz teksturę PNG…');
     const list = h('div', { class: 'cos-grid', id: 'ac-list' });
+    // Link do sklepu MiB Coins: przycisk „Kup MiB Coins” w Kosmetykach u graczy (pusty = bez przycisku)
+    const shop = h('input', { id: 'ac-shop', maxlength: 300, placeholder: 'https://… (strona, na której gracze kupują MiB Coins)' });
+    mib.call('prof:wallet').then(w => { if (w && w.shopUrl && !shop.value) shop.value = w.shopUrl; });
+    const shopSave = h('button', { class: 'b', id: 'ac-shop-save', type: 'button', on: { click: async () => {
+      const r = await call('admin_set_config', { p_key: 'shop_url', p_value: shop.value.trim() });
+      if (failed(r)) return toast(err(r), 1);
+      toast(shop.value.trim() ? 'Link do sklepu zapisany. Gracze widzą przycisk „Kup MiB Coins”.' : 'Link usunięty. Przycisk sklepu zniknął.');
+    } } }, 'Zapisz link');
+    const shopBox = h('div', { class: 'sec' }, h('h3', {}, 'Sklep MiB Coins'),
+      h('p', { class: 'lead' }, 'Przycisk „Kup MiB Coins” w Kosmetykach otwiera ten link w przeglądarce, z numerem MiB gracza na końcu (?mib=MIB-000123). Coinsy dodajesz w zakładce Gracze.'),
+      h('div', { class: 'row' }, shop, shopSave));
     async function load() {
       const l = await mib.call('prof:allCosmetics');
       if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
@@ -327,7 +341,7 @@
         'Skrzydła jak u wróżki: klatka 128×64, przód skrzydła w polu 32×40 od lewego górnego rogu, obok jego lustro (węższe skrzydła wyglądają jak elytra). ' +
         'Aura: obrazki cząsteczek 8×8 w pierwszym rzędzie tekstury 64×32.'))),
     cv, e, h('div', { class: 'row' }, save));
-    box.append(form, h('div', { class: 'sec' }, h('h3', {}, 'Katalog'), list));
+    box.append(shopBox, form, h('div', { class: 'sec' }, h('h3', {}, 'Katalog'), list));
     load();
   }
 
@@ -397,10 +411,28 @@
           : [h('span', { class: 'mut' }, 'brak')]))),
         h('div', { class: 'sr' }, h('span', {}, 'Daj przedmiot'), h('span', { class: 'row' }, pick,
           h('button', { class: 'b', on: { click: async () => { if (!pick.value) return; const r = await call('admin_grant', { p_user: p.id, p_cosmetic: pick.value }); if (failed(r)) return toast(err(r), 1); toast('Przedmiot dodany.'); show(p); } } }, 'Daj'))),
+        coinsRow(p),
         h('div', { class: 'sr' }, h('span', {}, 'Wyślij prezent (z oknem „Odbierz”)'), await giftForm(p.id, null, () => show(p), owned)),
         h('div', { class: 'sr' }, h('span', {}, p.banned ? 'Ban' + (p.ban_reason ? ': ' + p.ban_reason : '') : 'Ostrzeżenia i ban'),
           moderation(p, null, async () => { await search(); const x = (await call('admin_find_players', { p_q: window.MibProfile.formatMibId(p.num) }))[0]; if (x) show(x); })),
         delBox(p)));
+    }
+    // MiB Coins gracza: dodanie albo zabranie (minus) z powodem, np. „zakup na stronie”
+    function coinsRow(p) {
+      const amount = h('input', { id: 'ap-coins', type: 'number', step: 100, placeholder: 'np. 1000 albo -500', style: 'width:150px' });
+      const why = h('input', { id: 'ap-coins-why', maxlength: 200, placeholder: 'Powód (opcjonalnie)' });
+      const bal = h('b', { id: 'ap-coins-bal' }, (p.coins || 0).toLocaleString('pl-PL'));
+      const go = h('button', { class: 'b', id: 'ap-coins-go', type: 'button', on: { click: async () => {
+        const n = Number(amount.value);
+        if (!Number.isInteger(n) || !n) return toast(ERR.coins_amount, 1);
+        go.disabled = true;
+        const r = await call('admin_give_coins', { p_user: p.id, p_amount: n, p_reason: why.value });
+        go.disabled = false;
+        if (failed(r)) return toast(err(r), 1);
+        p.coins = r; bal.textContent = Number(r).toLocaleString('pl-PL'); amount.value = why.value = '';
+        toast(n > 0 ? 'Dodano ' + n + ' MiB Coins.' : 'Zabrano ' + -n + ' MiB Coins.');
+      } } }, 'Zmień saldo');
+      return h('div', { class: 'sr' }, h('span', {}, 'MiB Coins'), h('span', { class: 'fld' }, h('span', {}, 'Saldo: ', bal), h('span', { class: 'row' }, amount, why, go)));
     }
     // Usunięcie konta: potwierdzenie wpisaniem nicku (Electron nie obsługuje prompt())
     function delBox(p) {

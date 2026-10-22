@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage, dialog, screen, clipboard, nativeImage, Notification, utilityProcess, session } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, dialog, screen, clipboard, nativeImage, Notification, utilityProcess, session, shell } = require('electron');
 const { spawn } = require('child_process'), crypto = require('crypto');
 const path = require('path'), fs = require('fs');
 const { Client } = require('minecraft-launcher-core');
@@ -29,6 +29,8 @@ const prof = profileMain.createProfile({
   safeStorage, randomBytes: crypto.randomBytes,
   // tryb niewidoczny: znajomi widzą offline
   hidden: () => ({ ...defaults(), ...rd('settings.json', {}) }).invisible === true,
+  // sklep MiB Coins: tylko link https z bazy (sprawdza profile-main)
+  openExternal: url => shell.openExternal(url),
   // Kopia modów: dostęp do plików instancji (funkcje niżej w pliku, wołane dopiero po starcie)
   mods: {
     scan: gv => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f) && !mibmod.isMibFile(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), sha1: crypto.createHash('sha1').update(fs.readFileSync(path.join(modsDir(gv), f))).digest('hex') })); } catch { return []; } },

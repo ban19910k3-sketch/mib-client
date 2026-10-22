@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 function createFake() {
-  const st = { votes: [], blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { config: {}, votes: [], blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -13,7 +13,7 @@ function createFake() {
     return { access_token: at, refresh_token: rt, expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: u.id, email: u.email } };
   };
   const norm = c => String(c || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
-  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, bugs_found: u.bugs || 0, warnings: u.warnings || 0, banned_at: u.banned || null, ban_reason: u.banReason || null });
+  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, coins: u.coins || 0, bugs_found: u.bugs || 0, warnings: u.warnings || 0, banned_at: u.banned || null, ban_reason: u.banReason || null });
   const banned = u => !!(u && u.banned);
 
   const server = http.createServer((req, res) => {
@@ -114,7 +114,24 @@ function createFake() {
             admin_delete_code: () => { delete st.codes[body.p_code]; return null; },
             admin_find_players: () => st.users.filter(u => !u.noProfile && (!body.p_q || !/^MIB-\d+$/i.test(body.p_q) || u.num === +body.p_q.replace(/\D/g, '')))
               .map(u => ({ id: u.id, num: u.num, nick: u.nick, email: u.email, created_at: u.created, founder: u.num <= 1000, playtime_min: u.playtime || 0, launches: u.launches || 0,
-                warnings: u.warnings || 0, banned: banned(u), ban_reason: u.banReason || null })),
+                warnings: u.warnings || 0, banned: banned(u), ban_reason: u.banReason || null, coins: u.coins || 0 })),
+            // MiB Coins i link do sklepu: tak jak admin_give_coins i admin_set_config w schema.sql
+            admin_give_coins: () => {
+              const u = st.users.find(x => x.id === body.p_user), n = body.p_amount;
+              if (!Number.isInteger(n) || !n || Math.abs(n) > 1000000) throw Object.assign(new Error('coins_amount'), { pg: true });
+              if (!u) throw Object.assign(new Error('player_missing'), { pg: true });
+              if ((u.coins || 0) + n < 0) throw Object.assign(new Error('coins_not_enough'), { pg: true });
+              u.coins = (u.coins || 0) + n;
+              return u.coins;
+            },
+            admin_set_config: () => {
+              const v = String(body.p_value || '').trim();
+              if (body.p_key !== 'shop_url') throw Object.assign(new Error('config_key'), { pg: true });
+              if (!v) { delete st.config.shop_url; return null; }
+              if (v.length > 300 || !/^https:\/\/[^\s<>"'\/]+\.[^\s<>"']+$/.test(v)) throw Object.assign(new Error('shop_url_invalid'), { pg: true });
+              st.config.shop_url = v;
+              return null;
+            },
             // Zgłoszenia, ostrzeżenia i ban: tak jak admin_* w schema.sql
             admin_list_reports: () => st.reports.map(r => { const u = st.users.find(x => x.id === r.user), rp = st.users.find(x => x.id === r.reporter);
               return { id: r.id, reporter: rp ? rp.nick : null, user_id: r.user, nick: u.nick, num: u.num, warnings: u.warnings || 0, banned: banned(u), reason: r.reason, note: r.note, messages: r.messages, status: r.status, created_at: r.at }; })
@@ -331,6 +348,7 @@ function createFake() {
       }
       if (p === '/rest/v1/announcements') return json(res, 200, st.ann.filter(a => !a.visible_until || new Date(a.visible_until) > new Date()).sort((a, b) => b.pinned - a.pinned || b.id - a.id));
       if (p === '/rest/v1/cosmetics') return json(res, 200, Object.values(cosmetics));
+      if (p === '/rest/v1/app_config') return json(res, 200, st.config.shop_url ? [{ key: 'shop_url', value: st.config.shop_url }] : []);
       if (!user) return json(res, 401, { code: '42501', message: 'permission denied' });
       if (p === '/rest/v1/profiles') {
         if (req.method === 'PATCH') { user.settings = body.settings; user.settingsAt = body.settings_updated_at; return json(res, 204); }

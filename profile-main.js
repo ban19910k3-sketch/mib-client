@@ -9,11 +9,12 @@ const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_co
   'admin_save_cosmetic', 'admin_delete_cosmetic', 'admin_create_codes', 'admin_list_codes', 'admin_delete_code',
   'admin_list_announcements', 'admin_save_announcement', 'admin_delete_announcement',
   'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea', 'admin_answer_idea', 'admin_gift', 'admin_gift_all',
-  'admin_idea_details', 'admin_list_reports', 'admin_count_new_reports', 'admin_warn', 'admin_ban', 'admin_unban', 'admin_dismiss_report', 'admin_activity']);
+  'admin_idea_details', 'admin_list_reports', 'admin_count_new_reports', 'admin_warn', 'admin_ban', 'admin_unban', 'admin_dismiss_report', 'admin_activity',
+  'admin_give_coins', 'admin_set_config']);
 const CRASH_MAX = 20000;
 
-// hidden(): tryb niewidoczny (znajomi widzą offline)
-function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods, hidden = () => false }) {
+// hidden(): tryb niewidoczny (znajomi widzą offline); openExternal(url): strona w przeglądarce (sklep)
+function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods, hidden = () => false, openExternal = async () => {} }) {
   let sess = null, restored = false, game = null, flushing = null, seq = 0, server = null, shareServer = true, lastPing = 0;
   const modLocks = {};
 
@@ -31,6 +32,12 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     if (f && f.t && safeStorage.isEncryptionAvailable()) {
       try { sess = { refreshToken: safeStorage.decryptString(Buffer.from(f.t, 'base64')), expiresAt: 0, userId: f.u }; } catch { store.remove(SESSION); }
     }
+  }
+  // Link do sklepu z bazy (tylko https) albo null; stara baza bez tabeli app_config = brak sklepu
+  async function shopUrl() {
+    const rows = await supa.select('app_config', 'select=value&key=eq.shop_url').catch(e => (e.code === 'schema_outdated' ? [] : Promise.reject(e)));
+    const u = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+    return typeof u === 'string' && P.validShopUrl(u) ? u : null;
   }
   // Ważny access token albo null (brak profilu). Brak sieci rzuca dalej ('offline').
   async function token() {
@@ -215,6 +222,25 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       return rows.filter(r => r.cosmetics).map(r => ({ id: r.cosmetics.id, name: r.cosmetics.name, type: r.cosmetics.type, imageUrl: r.cosmetics.texture || r.cosmetics.image_url,
         texture: r.cosmetics.texture || null, acquiredAt: r.acquired_at, source: r.source, equipped: eq[r.cosmetics.type] === r.cosmetics.id }));
     },
+    // MiB Coins gracza (null: stara baza) i link do sklepu
+    async wallet() {
+      const shop = await shopUrl();
+      if (!(await token())) return { loggedIn: false, coins: null, shopUrl: shop };
+      const [p] = await authed(t => supa.select('profiles', 'select=coins&id=eq.' + sess.userId, t)).catch(e => (e.code === 'schema_outdated' ? [null] : Promise.reject(e)));
+      return { loggedIn: true, coins: p && Number.isInteger(p.coins) ? p.coins : null, shopUrl: shop };
+    },
+    // Strona sklepu w przeglądarce z numerem MiB gracza w adresie (?mib=MIB-000123), żeby sklep wiedział, komu dopisać coinsy
+    async shopOpen() {
+      const shop = await shopUrl();
+      if (!shop) return { error: 'shop_missing' };
+      const url = new URL(shop);
+      if (await token()) {
+        const [p] = await authed(t => supa.select('profiles', 'select=num&id=eq.' + sess.userId, t)).catch(() => []);
+        if (p && p.num) url.searchParams.set('mib', P.formatMibId(p.num));
+      }
+      await openExternal(url.toString());
+      return { ok: true };
+    },
     // Założenie (id) albo zdjęcie (id = null) kosmetyku danego typu; baza sprawdza, czy gracz go ma
     async equip({ type, id }) {
       const equipped = await authed(t => supa.rpc('equip_cosmetic', { p_type: type, p_id: id || null }, t));
@@ -384,7 +410,7 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   chat: 'prof:chat', chatSend: 'prof:chatSend', chatRead: 'prof:chatRead', chatUnread: 'prof:chatUnread',
   ideaUpdates: 'prof:ideaUpdates', ideasSeen: 'prof:ideasSeen', gifts: 'prof:gifts', claimGift: 'prof:claimGift',
   block: 'prof:block', unblock: 'prof:unblock', blocked: 'prof:blocked', report: 'prof:report', warnings: 'prof:warnings', warningsSeen: 'prof:warningsSeen',
-  card: 'prof:card', ideasPublic: 'prof:ideasPublic', ideaVote: 'prof:ideaVote' };
+  card: 'prof:card', ideasPublic: 'prof:ideasPublic', ideaVote: 'prof:ideaVote', wallet: 'prof:wallet', shopOpen: 'prof:shopOpen' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

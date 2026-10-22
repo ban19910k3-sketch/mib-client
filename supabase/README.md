@@ -103,6 +103,11 @@ Najprościej dodać je w panelu admina (zakładka Kosmetyki), razem z teksturą 
 `schema.sql` od 0.22.0 sam dodaje 14 kosmetyków na Halloween (3 peleryny, 5 czapek, 2 skrzydła, 4 aury; id zaczynają się od `halloween_`).
 Graczom dajesz je jak inne przedmioty: kodami, prezentem albo prezentem dla wszystkich.
 
+## MiB Coins i sklep (od 0.23.0)
+
+- Saldo gracza jest w `profiles.coins`. Gracz może je tylko zobaczyć, zmienia je admin: panel admina → Gracze → wybierz gracza → **MiB Coins** (liczba z minusem zabiera coinsy). Każda zmiana zapisuje się w `private.coin_log`.
+- Link do sklepu ustawiasz w panelu admina → Kosmetyki → **Sklep MiB Coins** (tylko `https://`). Przycisk „Kup MiB Coins” w launcherze otwiera go z numerem gracza na końcu, np. `https://sklep.mib.pl/coins?mib=MIB-000123`. Pusty link ukrywa przycisk.
+
 ## Kody prezentowe
 
 Kody są w ukrytej tabeli `private.gift_codes` (gracze jej nie widzą). Tworzysz je w **SQL Editor**:

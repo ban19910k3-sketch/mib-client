@@ -1,7 +1,5 @@
-<!-- 0.22.1 -->
-## Zmienione
+<!-- 0.23.0 -->
+## Dodane
 
-- Minecraft w motywie Halloween: ekran tytułowy o zmroku z księżycem, nietoperzami, pajęczynami, dyniami i nagrobkiem.
-- Logo MiB Client w kolorach dyni na ekranie tytułowym, w menu pauzy i na ekranie ładowania.
-- Przyciski i suwaki w menu gry w kolorach Halloween.
-- Menu pauzy i ekran ładowania z pajęczynami i dyniami.
+- MiB Coins: na stronie Kosmetyki widzisz, ile masz MiB Coins.
+- Przycisk „Kup MiB Coins” w Kosmetykach otwiera sklep w przeglądarce. Po zakupie coinsy pojawią się w launcherze.

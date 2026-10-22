@@ -481,3 +481,30 @@ test('stara baza (bez schema.sql z 0.20.0): profil, aktualności i obecność dz
   assert.deepEqual(await p.presence(), { ok: true });
   assert.ok(supa.calls.some(c => c[0] === 'rpc' && c[1] === 'presence_ping' && !('p_hidden' in c[2])), 'obecność bez trybu niewidocznego');
 });
+
+test('wallet: MiB Coins gracza i link do sklepu; sklep otwiera się z numerem MiB, tylko link https z bazy', async () => {
+  const opened = [];
+  let cfg = [{ value: 'https://sklep.mib.pl/coins?x=1' }];
+  const supa = fakeSupa({ select: async (t, q) => (t === 'app_config' ? cfg : t === 'profiles' ? [q.includes('coins') ? { coins: 1250 } : profileRow] : []) });
+  const store = memStore();
+  const p = createProfile({ supa, store, safeStorage: safe(), randomBytes: n => Buffer.alloc(n, 7), now: () => 1_000_000, openExternal: async u => { opened.push(u); } });
+  assert.deepEqual(await p.wallet(), { loggedIn: false, coins: null, shopUrl: 'https://sklep.mib.pl/coins?x=1' });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.wallet(), { loggedIn: true, coins: 1250, shopUrl: 'https://sklep.mib.pl/coins?x=1' });
+  assert.deepEqual(await p.shopOpen(), { ok: true });
+  assert.deepEqual(opened, ['https://sklep.mib.pl/coins?x=1&mib=MIB-000007']);
+  // link spoza https (np. zmieniony ręcznie w bazie) nie otwiera się
+  cfg = [{ value: 'file:///C:/Windows/system32/calc.exe' }];
+  assert.deepEqual(await p.shopOpen(), { error: 'shop_missing' });
+  assert.equal((await p.wallet()).shopUrl, null);
+  assert.equal(opened.length, 1);
+});
+
+test('wallet: stara baza bez coinsów i sklepu nie psuje Kosmetyk', async () => {
+  const old = new SupaError(404, 'schema_outdated', 'x');
+  const supa = fakeSupa({ select: async (t, q) => { if (t === 'app_config' || q.includes('coins')) throw old; return t === 'profiles' ? [profileRow] : []; } });
+  const p = createProfile({ supa, store: memStore(), safeStorage: safe(), randomBytes: n => Buffer.alloc(n, 7), now: () => 1_000_000 });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.wallet(), { loggedIn: true, coins: null, shopUrl: null });
+  assert.deepEqual(await p.shopOpen(), { error: 'shop_missing' });
+});

@@ -24,6 +24,12 @@ alter table public.profiles add column if not exists last_played_at timestamptz;
 alter table public.profiles add column if not exists warnings integer not null default 0;
 alter table public.profiles add column if not exists banned_at timestamptz;
 alter table public.profiles add column if not exists ban_reason text;
+-- MiB Coins (od 0.23.0): zmienia je tylko baza (admin_give_coins), gracz może je tylko odczytać
+alter table public.profiles add column if not exists coins integer not null default 0;
+do $$ begin
+  alter table public.profiles add constraint profiles_coins_not_negative check (coins >= 0);
+exception when duplicate_object then null;
+end $$;
 alter table public.profiles enable row level security;
 revoke all on public.profiles from public, anon, authenticated;
 revoke all on sequence public.profiles_num_seq from public, anon, authenticated;
@@ -1055,11 +1061,11 @@ begin
       from public.profiles, jsonb_each(version_stats) group by key order by 2 desc limit 5) v));
 end $$;
 
--- od 0.20.0 także ostrzeżenia i ban (inny wynik funkcji, więc najpierw stara wersja znika)
+-- od 0.20.0 także ostrzeżenia i ban, od 0.23.0 MiB Coins (inny wynik funkcji, więc najpierw stara wersja znika)
 drop function if exists public.admin_find_players(text);
 create or replace function public.admin_find_players(p_q text)
 returns table (id uuid, num bigint, nick text, email text, created_at timestamptz, founder boolean, playtime_min integer, launches integer,
-  warnings integer, banned boolean, ban_reason text)
+  warnings integer, banned boolean, ban_reason text, coins integer)
 language plpgsql stable security definer set search_path = '' as $$
 declare
   q text := trim(coalesce(p_q, ''));
@@ -1067,7 +1073,7 @@ declare
 begin
   perform private.need_admin();
   return query
-    select p.id, p.num, p.nick, u.email::text, p.created_at, p.founder, p.playtime_min, p.launches, p.warnings, p.banned_at is not null, p.ban_reason
+    select p.id, p.num, p.nick, u.email::text, p.created_at, p.founder, p.playtime_min, p.launches, p.warnings, p.banned_at is not null, p.ban_reason, p.coins
     from public.profiles p join auth.users u on u.id = p.id
     where q = ''
        or (q ~* '^(MIB-)?[0-9]{1,12}$' and p.num = regexp_replace(upper(q), '^MIB-', '')::bigint)
@@ -1438,6 +1444,63 @@ insert into public.cosmetics (id, name, type, texture) values
   ('halloween_aura_ghosts', 'Duszki', 'aura', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAASklEQVR4nO3SQQrAIAwEQE+99eL/H1qkYJEgSB9goJ2BkOtuSCmEq919TnaW7dbyvzzCKHweta87O9NWPsABovB7AwAAAAAA8CEPeLBggf+J6XEAAAAASUVORK5CYII='),
   ('halloween_aura_magic', 'Czarna magia', 'aura', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAQUlEQVR4nO3SsREAEBAEQE3qUUOKUIHwjUQoZIbd9JL7n0sJlpJ73O5wzTy+1YjdE2Z+ttVhXy8AAAAAAAAA3jYAkQETRZ57KnUAAAAASUVORK5CYII=')
 on conflict (id) do nothing;
+
+-- ===== MiB Coins i sklep (od 0.23.0) =====
+-- Saldo w profiles.coins, każda zmiana w historii. Coinsy kupuje się na stronie sklepu (link w app_config, przycisk
+-- „Kup MiB Coins” w Kosmetykach); na razie dodaje je admin w panelu.
+create table if not exists private.coin_log (
+  id bigserial primary key,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  delta integer not null,
+  balance integer not null,
+  reason text check (reason is null or length(reason) <= 200),
+  by_admin uuid,
+  created_at timestamptz not null default now()
+);
+create index if not exists coin_log_user on private.coin_log (user_id, created_at desc);
+
+-- Ustawienia launchera widoczne dla wszystkich (także bez profilu): na razie tylko link do sklepu
+create table if not exists public.app_config (
+  key text primary key check (key in ('shop_url')),
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.app_config enable row level security;
+revoke all on public.app_config from public, anon, authenticated;
+grant select on public.app_config to anon, authenticated;
+drop policy if exists app_config_read on public.app_config;
+create policy app_config_read on public.app_config for select to anon, authenticated using (true);
+
+-- Dodanie (albo zabranie, gdy p_amount < 0) coinsów graczowi; wynik: nowe saldo
+create or replace function public.admin_give_coins(p_user uuid, p_amount integer, p_reason text) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v integer;
+begin
+  perform private.need_admin();
+  if p_amount is null or p_amount = 0 or abs(p_amount) > 1000000 then raise exception 'coins_amount'; end if;
+  if not exists (select 1 from public.profiles where id = p_user) then raise exception 'player_missing'; end if;
+  update public.profiles set coins = coins + p_amount where id = p_user and coins + p_amount >= 0 returning coins into v;
+  if v is null then raise exception 'coins_not_enough'; end if;
+  insert into private.coin_log (user_id, delta, balance, reason, by_admin)
+    values (p_user, p_amount, v, nullif(left(trim(coalesce(p_reason, '')), 200), ''), auth.uid());
+  return v;
+end $$;
+
+-- Link do sklepu (tylko https); pusty usuwa przycisk „Kup MiB Coins”
+create or replace function public.admin_set_config(p_key text, p_value text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  if p_key is null or p_key not in ('shop_url') then raise exception 'config_key'; end if;
+  if nullif(trim(coalesce(p_value, '')), '') is null then
+    delete from public.app_config where key = p_key;
+    return;
+  end if;
+  if length(trim(p_value)) > 300 or trim(p_value) !~ '^https://[^\s<>"''/]+\.[^\s<>"'']+$' then raise exception 'shop_url_invalid'; end if;
+  insert into public.app_config (key, value) values (p_key, trim(p_value))
+    on conflict (key) do update set value = excluded.value, updated_at = now();
+end $$;
 
 -- ===== Uprawnienia do funkcji =====
 revoke all on function public.nick_available(text) from public, anon, authenticated;

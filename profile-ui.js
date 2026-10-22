@@ -1,6 +1,7 @@
 // Ekrany profilu MiB i kosmetyków. Rozmawia z procesem głównym przez kanały prof:*.
 (() => {
   const ERR = {
+    shop_missing: 'Sklep MiB Coins nie jest jeszcze dostępny.',
     nick_length: 'Nick musi mieć od 3 do 16 znaków.',
     nick_chars: 'Nick może zawierać tylko litery bez polskich znaków, cyfry i _.',
     nick_taken: 'Ten nick jest już zajęty. Wybierz inny.',
@@ -636,12 +637,47 @@
           renderCos();
         } } }, T(c.equipped ? 'Zdejmij' : 'Załóż')))))
       : h('p', { class: 'empty' }, Array.isArray(list) ? T('Nie masz jeszcze żadnych przedmiotów. Masz kod z konkursu? Wpisz go wyżej.') : msg(list.error));
+    const wallet = walletCard();
     const gift = giftCount ? h('div', { class: 'card reward gift-banner', id: 'cos-gift' }, h('b', {}, T('Masz prezent do odebrania!')),
       h('button', { class: 'b', type: 'button', on: { click: () => giftsCheck(true) } }, T('Odbierz'))) : null;
     // bez prezentu gift to null: replaceChildren wstawiłby napis „null”
-    box.replaceChildren(...[h('h2', {}, T('Kosmetyki')), gift, skin, h('div', { class: 'sec' }, h('h3', {}, T('Przedmioty MiB')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err,
+    box.replaceChildren(...[h('h2', {}, T('Kosmetyki')), wallet, gift, skin, h('div', { class: 'sec' }, h('h3', {}, T('Przedmioty MiB')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err,
       items.length ? h('p', { class: 'mut' }, T('Kliknij przedmiot, żeby przymierzyć go na postaci. „Załóż” zakłada go w grze.')) : null, grid)].filter(Boolean));
   }
+
+  // ===== MiB Coins (od 0.23.0): stan konta i przycisk do strony sklepu (kupuje się w przeglądarce) =====
+  const coinIcon = () => {
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox', '0 0 12 12'); s.setAttribute('shape-rendering', 'crispEdges'); s.setAttribute('class', 'coin'); s.setAttribute('aria-hidden', 'true');
+    s.innerHTML = '<path fill="#a16207" d="M3 0h6v1h2v2h1v6h-1v2H9v1H3v-1H1V9H0V3h1V1h2z"/><path fill="#facc15" d="M3 1h6v1h1v1h1v6h-1v1H9v1H3v-1H2V9H1V3h1V2h1z"/>'
+      + '<path fill="#fef08a" d="M3 2h3v1H4v1H3v2H2V3h1z"/><path fill="#a16207" d="M5 3h2v1h1v1H7V4H5v4h2V7h1v1H7v1H5V8H4V4h1z"/>';
+    return s;
+  };
+  function walletCard() {
+    const amount = h('b', { class: 'coins', id: 'cos-coins' }, '…');
+    const buy = h('button', { class: 'b', id: 'cos-shop', type: 'button', hidden: true, on: { click: async () => {
+      buy.disabled = true;
+      const r = await mib.call('prof:shopOpen');
+      buy.disabled = false;
+      if (r.error) toast(msg(r.error), 1); else toast(T('Sklep otworzył się w przeglądarce. Po zakupie coinsy pojawią się tutaj.'));
+    } } }, T('Kup MiB Coins'));
+    const soon = h('small', { class: 'mut soon', hidden: true }, T('Sklep już wkrótce.'));
+    const card = h('div', { class: 'card wallet', id: 'cos-wallet' }, coinIcon(), h('div', { class: 'wallet-t' }, h('small', { class: 'mut' }, T('Twoje MiB Coins')), amount), soon, buy);
+    refreshWallet(card);
+    return card;
+  }
+  async function refreshWallet(card = document.getElementById('cos-wallet')) {
+    if (!card) return;
+    const w = await mib.call('prof:wallet');
+    const ok = !!(w && !w.error && w.loggedIn && Number.isInteger(w.coins)), shop = !!(w && w.shopUrl);
+    // bez profilu albo przed uruchomieniem nowego schema.sql (brak coinsów w bazie) karty nie ma; bez sieci: „—”
+    card.hidden = !ok && !(w && w.error);
+    card.querySelector('#cos-coins').textContent = ok ? w.coins.toLocaleString(LANG === 'en' ? 'en-US' : 'pl-PL') : '—';
+    card.querySelector('#cos-shop').hidden = !shop;
+    card.querySelector('.soon').hidden = shop;
+  }
+  // po powrocie ze sklepu (okno znów aktywne) saldo odświeża się samo
+  window.addEventListener('focus', () => { if ($('p-cos').classList.contains('on')) refreshWallet(); });
 
   // ===== Prezenty od MiB: okno „Masz prezent!” z podglądem na postaci, Odbierz i Załóż od razu =====
   let giftOpen = false, giftCount = 0;

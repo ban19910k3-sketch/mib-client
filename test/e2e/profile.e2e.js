@@ -208,6 +208,27 @@ function png(w, h, px) {
     await w.waitForFunction(() => document.getElementById('skin3d').dataset.fairy === '' && document.getElementById('skin3d').dataset.aura === '');
     ok('(t2) skrzydła wróżki i aura na podglądzie, zakładanie aury');
 
+    // MiB Coins: stan konta w Kosmetykach, „Kup MiB Coins” otwiera link sklepu z numerem MiB (w przeglądarce)
+    await app.evaluate(({ shell }) => { global.opened = []; shell.openExternal = async u => { global.opened.push(u); }; });
+    tester.coins = 1250;
+    await w.click('.nav[data-p="home"]');
+    await w.click('.nav[data-p="cos"]');
+    await w.waitForFunction(() => document.getElementById('cos-coins') && /^1250$/.test(document.getElementById('cos-coins').textContent));
+    assert.equal(await w.isVisible('#cos-shop'), false, 'bez linku do sklepu nie ma przycisku');
+    assert.equal(await w.isVisible('#cos-wallet .soon'), true, '„Sklep już wkrótce”');
+    fake.st.config.shop_url = 'https://sklep.mib.pl/coins';
+    tester.coins = 13250;
+    await w.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await w.waitForFunction(() => /^13\s250$/.test(document.getElementById('cos-coins').textContent) && !document.getElementById('cos-shop').hidden);
+    await w.locator('#cos-wallet').scrollIntoViewIfNeeded();
+    await shot('coins.png');
+    await w.click('#cos-shop');
+    for (let i = 0; i < 100 && !(await app.evaluate(() => global.opened.length)); i++) await w.waitForTimeout(50);
+    assert.deepEqual(await app.evaluate(() => global.opened), ['https://sklep.mib.pl/coins?mib=MIB-000001']);
+    delete fake.st.config.shop_url;
+    tester.coins = 0;
+    ok('(am) MiB Coins w Kosmetykach i przycisk do sklepu');
+
     // Znajomi: zaproszenie po nicku, zaproszenie od kogoś innego, znajomy w grze z serwerem
     const now = new Date().toISOString();
     const kolega = { id: 'u-kolega', email: 'k@mib.pl', password: 'x', nick: 'Kolega', num: 50, created: now };
@@ -512,6 +533,15 @@ function png(w, h, px) {
     await w.waitForFunction(() => /Tester_1/.test(document.getElementById('ap-res').textContent));
     await w.click('#ap-res .arow:has-text("Tester_1")');
     await w.waitForSelector('#ap-del');
+    // MiB Coins: dodanie i zabranie (minus) z powodem
+    await w.fill('#ap-coins', '1500');
+    await w.fill('#ap-coins-why', 'zakup na stronie');
+    await w.click('#ap-coins-go');
+    await w.waitForFunction(() => /^1500$/.test(document.getElementById('ap-coins-bal').textContent));
+    await w.fill('#ap-coins', '-9999999');
+    await w.click('#ap-coins-go');
+    await w.waitForSelector('.toast:has-text("najwyżej milion")');
+    assert.equal(fake.st.users.find(u => u.nick === 'Tester_1').coins, 1500, 'saldo po zmianach w panelu');
     assert.equal(await w.isDisabled('#ap-del'), true, 'najpierw trzeba wpisać nick');
     await w.fill('#ap-del-nick', 'Tester_1');
     await w.click('#ap-del');
@@ -532,6 +562,12 @@ function png(w, h, px) {
     ok('(ag) gracze: ban od razu i zdjęcie bana (ostrzeżenia od zera)');
     await w.click('[data-tab="cos"]');
     await w.waitForSelector('#ac-list .cosi');
+    await w.fill('#ac-shop', 'http://zly-link.pl');
+    await w.click('#ac-shop-save');
+    await w.waitForSelector('.toast:has-text("https://")');
+    await w.fill('#ac-shop', 'https://sklep.mib.pl/coins');
+    await w.click('#ac-shop-save');
+    await until(() => fake.st.config.shop_url === 'https://sklep.mib.pl/coins');
     await shot('admin-cos.png');
     ok('(l) panel admina: kody, statystyki, gracze (z usunięciem konta), kosmetyki');
 
@@ -702,7 +738,7 @@ function png(w, h, px) {
     console.log('ALL E2E PASSED, zrzuty w', OUT);
   } catch (e) {
     await shot('FAIL.png').catch(() => {});
-    console.error('FAIL', e.message, '\nbłędy strony:', errors, '\nzrzut:', path.join(OUT, 'FAIL.png'));
+    console.error('FAIL', e.message, '\nbłędy strony:', errors, '\nzrzut:', path.join(OUT, 'FAIL.png'), '\n' + String(e.stack).split('\n').filter(l => l.includes('profile.e2e')).join('\n'));
     process.exitCode = 1;
   } finally {
     await app.close();

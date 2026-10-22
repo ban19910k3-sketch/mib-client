@@ -868,3 +868,45 @@ do $$ begin
   assert not exists (select 1 from public.cosmetics where id like 'halloween\_%' and (texture not like 'data:image/png;base64,iVBORw0KGgo%'
     or (type = 'aura' and id !~ '_(souls|pumpkins|ghosts|magic)$'))), 'tekstury PNG i ruch aur';
 end $$;
+
+-- MiB Coins i sklep (od 0.23.0): saldo zmienia tylko admin, gracz widzi swoje, link do sklepu widzą wszyscy
+set role authenticated;
+set request.jwt.claim.sub = '77777777-7777-7777-7777-777777777777';
+do $$ begin
+  assert (select coins from public.profiles where id = '77777777-7777-7777-7777-777777777777') = 0, 'na start 0 coinsów';
+end $$;
+select pg_temp.expect_error($q$update public.profiles set coins = 999999$q$, 'permission denied');
+select pg_temp.expect_error($q$select public.admin_give_coins('77777777-7777-7777-7777-777777777777', 100, 'x')$q$, 'not_admin');
+select pg_temp.expect_error($q$select public.admin_set_config('shop_url', 'https://sklep.mib.pl')$q$, 'not_admin');
+reset role;
+insert into private.admins (user_id) values ('22222222-2222-2222-2222-222222222222') on conflict do nothing;
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin
+  assert public.admin_give_coins('77777777-7777-7777-7777-777777777777', 1000, 'zakup na stronie') = 1000, 'dodane coinsy';
+  assert public.admin_give_coins('77777777-7777-7777-7777-777777777777', -250, null) = 750, 'zabrane coinsy';
+  assert (select coins from public.admin_find_players('Obcy')) = 750, 'saldo w panelu admina';
+  perform public.admin_set_config('shop_url', ' https://sklep.mib.pl/coins ');
+  assert (select value from public.app_config where key = 'shop_url') = 'https://sklep.mib.pl/coins', 'link do sklepu';
+end $$;
+select pg_temp.expect_error($q$select public.admin_give_coins('77777777-7777-7777-7777-777777777777', -5000, null)$q$, 'coins_not_enough');
+select pg_temp.expect_error($q$select public.admin_give_coins('77777777-7777-7777-7777-777777777777', 0, null)$q$, 'coins_amount');
+select pg_temp.expect_error($q$select public.admin_give_coins('99999999-0000-0000-0000-000000000000', 5, null)$q$, 'player_missing');
+select pg_temp.expect_error($q$select public.admin_set_config('shop_url', 'http://zly.pl')$q$, 'shop_url_invalid');
+select pg_temp.expect_error($q$select public.admin_set_config('shop_url', 'https://a.pl/"><script>')$q$, 'shop_url_invalid');
+select pg_temp.expect_error($q$select public.admin_set_config('inne', 'x')$q$, 'config_key');
+reset role;
+do $$ begin
+  assert (select count(*) from private.coin_log where user_id = '77777777-7777-7777-7777-777777777777') = 2, 'historia coinsów';
+  assert (select balance from private.coin_log where user_id = '77777777-7777-7777-7777-777777777777' order by id desc limit 1) = 750, 'saldo w historii';
+end $$;
+set role anon;
+do $$ begin assert (select value from public.app_config where key = 'shop_url') = 'https://sklep.mib.pl/coins', 'link widać bez profilu'; end $$;
+select pg_temp.expect_error($q$insert into public.app_config (key, value) values ('shop_url', 'https://zly.pl')$q$, 'permission denied');
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
+do $$ begin assert (select count(*) from public.profiles where id = '77777777-7777-7777-7777-777777777777') = 0, 'cudzego salda nie widać'; end $$;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin perform public.admin_set_config('shop_url', ''); assert not exists (select 1 from public.app_config), 'pusty link usuwa przycisk'; end $$;
+reset role;
