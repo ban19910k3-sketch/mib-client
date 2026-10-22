@@ -1,5 +1,11 @@
 # <wersja> class|calls|members|code|asset|find|files|ffind ...   (wynik: adnotacje przebiegu "Podgląd klas gry")
-26.1 find Panorama
-26.3 find Panorama
-26.3 code net.minecraft.client.gui.screens.TitleScreen (extractRenderState|extractBackground)
-26.1 code net.minecraft.client.gui.screens.TitleScreen (extractRenderState|extractBackground)
+1.21 ffind (ResourceManagerHelper|ResourceLoader|ActivationType)
+1.21 members net.fabricmc.fabric.api.resource.ResourceManagerHelper registerBuiltin
+1.21.11 ffind (ResourceManagerHelper|ResourceLoader|ActivationType)
+1.21.11 members net.fabricmc.fabric.api.resource.ResourceManagerHelper registerBuiltin
+26.1 ffind (ResourceManagerHelper|ResourceLoader|ActivationType)
+26.1 members net.fabricmc.fabric.api.resource.ResourceManagerHelper registerBuiltin
+26.1 members net.fabricmc.fabric.api.resource.v1.ResourceLoader registerBuiltin
+26.3 ffind (ResourceManagerHelper|ResourceLoader|ActivationType)
+26.3 members net.fabricmc.fabric.api.resource.ResourceManagerHelper registerBuiltin
+26.3 members net.fabricmc.fabric.api.resource.v1.ResourceLoader registerBuiltin
