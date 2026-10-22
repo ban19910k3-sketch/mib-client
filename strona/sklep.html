@@ -2608,6 +2608,8 @@ const ERR={
  cosmetic_type_invalid:["Nieznany rodzaj przedmiotu.","Unknown item type."],
  cosmetic_in_use:["Tego przedmiotu nie można usunąć: mają go gracze albo są do niego kody. Ukryj go zamiast tego.","You can't delete this item: players own it or codes exist for it. Hide it instead."],
  amount_invalid:["Wpisz liczbę monet różną od zera.","Enter a coin amount other than zero."],
+ coins_amount:["Wpisz liczbę monet inną niż 0 (najwyżej milion). Minus zabiera monety.","Enter a coin amount other than 0 (a million at most). A minus takes coins away."],
+ coins_not_enough:["Gracz nie ma tylu monet, żeby je zabrać.","The player doesn't have that many coins to take away."],
  coins_negative:["Gracz nie ma tylu monet, żeby je odjąć.","The player doesn't have that many coins to take away."],
  player_missing:["Nie ma takiego gracza.","No such player."],
  texture_not_png:["Tekstura musi być plikiem PNG.","The texture has to be a PNG file."],
@@ -3096,9 +3098,9 @@ function coinsView(){
  const right=!coinPlayer?'<p class="note">'+esc(T("Znajdź gracza po nicku, numerze MIB albo e-mailu.","Find a player by nick, MIB number or email."))+'</p>':
   '<div class="aform"><h3 class="full">'+esc(coinPlayer.nick)+'</h3><div class="full"><span class="coins" style="font-size:40px">'+COIN+fmt(wallet?wallet.coins:0)+'</span></div>'+
   '<label class="fld2"><span>'+esc(T("Ile monet","How many coins"))+'</span><input class="inp" id="c-amt" type="number" inputmode="numeric" placeholder="100"><small>'+esc(T("Liczba ujemna odejmuje, np. -50.","A negative number takes coins away, e.g. -50."))+'</small></label>'+
-  '<label class="fld2"><span>'+esc(T("Za co (widzisz tylko Ty)","What for (only you see this)"))+'</span><input class="inp" id="c-note" maxlength="200" placeholder="'+esc(T("np. wygrana w turnieju","e.g. tournament win"))+'"></label>'+
+  '<label class="fld2"><span>'+esc(T("Powód (opcjonalnie)","Reason (optional)"))+'</span><input class="inp" id="c-note" maxlength="200" placeholder="'+esc(T("np. wygrana w turnieju","e.g. tournament win"))+'"></label>'+
   '<div class="full"><div class="'+(coinMsg&&coinMsg.ok?"ok":"err")+'" id="c-err" aria-live="polite">'+esc(coinMsg)+'</div></div><div class="aact full"><button type="button" class="b2 pri" data-give>'+esc(T("Zmień saldo","Change balance"))+'</button></div>'+
-  '<div class="full"><span class="note">'+esc(T("Ostatnie zmiany","Recent changes"))+'</span><ul class="hist">'+((wallet&&wallet.history||[]).map(h=>'<li><span>'+esc(h.reason==="purchase"?T("Zakup: ","Bought: ")+(h.cosmetic_id||""):h.reason==="admin"?T("Od admina","From admin")+(h.note?": "+h.note:""):h.reason==="topup"?T("Doładowanie","Top-up"):T("Zwrot","Refund"))+'</span><span class="'+(h.delta>0?"plus":"minus")+'">'+(h.delta>0?"+":"")+fmt(h.delta)+'</span></li>').join("")||'<li><span class="note">'+esc(T("Brak zmian.","No changes yet."))+'</span></li>')+'</ul></div></div>';
+  '<div class="full"><span class="note">'+esc(T("Ostatnie zmiany","Recent changes"))+'</span><ul class="hist">'+((wallet&&wallet.history||[]).map(h=>'<li><span>'+esc(h.reason||(h.admin?T("Od admina","From admin"):"—"))+'</span><span class="'+(h.delta>0?"plus":"minus")+'">'+(h.delta>0?"+":"")+fmt(h.delta)+'</span></li>').join("")||'<li><span class="note">'+esc(T("Brak zmian.","No changes yet."))+'</span></li>')+'</ul></div></div>';
  return '<div class="coinbox"><div><form id="cf" class="row2" style="flex-wrap:nowrap"><input class="inp" id="c-q" placeholder="'+esc(T("Nick, MIB-000127 albo e-mail","Nick, MIB-000127 or email"))+'"><button class="b2" type="submit">'+esc(T("Szukaj","Search"))+'</button></form><div class="plist2">'+pl+'</div></div><div>'+right+'</div></div>';
 }
 const DEMO_PL=[{id:"d1",num:127,nick:"Gracz_MiB",email:"gracz@przyklad.pl"},{id:"d2",num:128,nick:"Kumpel_PvP",email:"kumpel@przyklad.pl"}];
@@ -3117,9 +3119,9 @@ function wireCoins(){
  const g=adm.querySelector("[data-give]");if(g)g.onclick=async()=>{
   const amt=Math.round(Number($("c-amt").value)),note=$("c-note").value;
   try{
-   if(!amt)throw mkErr("amount_invalid");
-   if(mode==="demo"){const w=demoWallets[coinPlayer.id];if(w.coins+amt<0)throw mkErr("coins_negative");w.coins+=amt;w.history.unshift({delta:amt,reason:"admin",note:note})}
-   else{await rpc("admin_give_coins",{p_user:coinPlayer.id,p_amount:amt,p_note:note});wallet=await rpc("admin_player_wallet",{p_user:coinPlayer.id})}
+   if(!amt)throw mkErr("coins_amount");
+   if(mode==="demo"){const w=demoWallets[coinPlayer.id];if(w.coins+amt<0)throw mkErr("coins_not_enough");w.coins+=amt;w.history.unshift({delta:amt,reason:note,admin:true})}
+   else{await rpc("admin_give_coins",{p_user:coinPlayer.id,p_amount:amt,p_reason:note});wallet=await rpc("admin_player_wallet",{p_user:coinPlayer.id})}
    coinMsg=Object.assign(new String(T("Saldo zmienione.","Balance changed.")),{ok:true});
   }catch(x){coinMsg=errText(x)}
   renderAdmin();

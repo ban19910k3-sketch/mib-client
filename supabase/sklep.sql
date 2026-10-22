@@ -1,6 +1,6 @@
 -- MiB Client — sklep z kosmetykami i MiB Coins (dla strony internetowej).
 -- Wklej całość w Supabase → SQL Editor → Run, PO pliku schema.sql z launchera.
--- Można uruchamiać wielokrotnie (nie kasuje danych). Launcher czyta z cosmetics tylko id, name, type i texture,
+-- Można uruchamiać wielokrotnie (nie kasuje danych). MiB Coins są wspólne z launcherem (profiles.coins). Launcher czyta z cosmetics tylko id, name, type i texture,
 -- więc nowe kolumny niczego w nim nie zmieniają.
 
 -- ===== Przedmioty: pola sklepu =====
@@ -17,30 +17,37 @@ alter table public.cosmetics add column if not exists visible boolean not null d
 alter table public.cosmetics add column if not exists featured boolean not null default false;
 alter table public.cosmetics add column if not exists sort integer not null default 0;
 
--- ===== Portfele MiB Coins =====
-create table if not exists public.wallets (
-  user_id uuid primary key references auth.users (id) on delete cascade,
-  coins integer not null default 0 check (coins >= 0),
-  updated_at timestamptz not null default now()
-);
-alter table public.wallets enable row level security;
-revoke all on public.wallets from public, anon, authenticated;
-grant select on public.wallets to authenticated;
-drop policy if exists wallets_read_own on public.wallets;
-create policy wallets_read_own on public.wallets for select to authenticated using (user_id = (select auth.uid()));
-
--- Historia monet: zakupy, doładowania, zmiany od admina. Widzi ją tylko admin (przez funkcję).
-create table if not exists private.coin_ledger (
-  id bigint generated always as identity primary key,
-  user_id uuid not null references auth.users (id) on delete cascade,
+-- ===== MiB Coins: te same co w launcherze (od 0.23.0) =====
+-- Saldo jest w public.profiles.coins, historia w private.coin_log. Poniżej kopia tych definicji ze schema.sql
+-- launchera, więc nie ma znaczenia, który plik wkleisz pierwszy.
+alter table public.profiles add column if not exists coins integer not null default 0;
+do $$ begin
+  alter table public.profiles add constraint profiles_coins_not_negative check (coins >= 0);
+exception when duplicate_object then null;
+end $$;
+create table if not exists private.coin_log (
+  id bigserial primary key,
+  user_id uuid not null references public.profiles (id) on delete cascade,
   delta integer not null,
-  reason text not null check (reason in ('purchase', 'admin', 'topup', 'refund')),
-  cosmetic_id text references public.cosmetics (id) on delete set null,
-  note text check (note is null or length(note) <= 200),
+  balance integer not null,
+  reason text check (reason is null or length(reason) <= 200),
   by_admin uuid,
   created_at timestamptz not null default now()
 );
-create index if not exists coin_ledger_user_idx on private.coin_ledger (user_id, created_at desc);
+create index if not exists coin_log_user on private.coin_log (user_id, created_at desc);
+
+-- Starsza wersja sklepu trzymała monety osobno (public.wallets). Przenosimy je raz na saldo w profilu,
+-- a w starym portfelu zostaje 0 (ponowne uruchomienie niczego nie podwaja).
+do $$
+begin
+  if to_regclass('public.wallets') is not null then
+    insert into private.coin_log (user_id, delta, balance, reason)
+      select w.user_id, w.coins, p.coins + w.coins, 'Przeniesione z poprzedniego portfela sklepu'
+      from public.wallets w join public.profiles p on p.id = w.user_id where w.coins > 0;
+    update public.profiles p set coins = p.coins + w.coins from public.wallets w where w.user_id = p.id and w.coins > 0;
+    update public.wallets w set coins = 0 where w.coins > 0 and exists (select 1 from public.profiles p where p.id = w.user_id);
+  end if;
+end $$;
 
 -- ===== Sklep dla graczy =====
 -- Przedmioty widoczne w sklepie: pokazane, z ceną i nie po terminie
@@ -58,7 +65,7 @@ $$;
 create or replace function public.my_shop() returns json
 language sql stable security definer set search_path = '' as $$
   select json_build_object(
-    'coins', coalesce((select w.coins from public.wallets w where w.user_id = auth.uid()), 0),
+    'coins', coalesce((select p.coins from public.profiles p where p.id = auth.uid()), 0),
     'owned', coalesce((select json_agg(o.cosmetic_id) from public.owned_cosmetics o where o.user_id = auth.uid()), '[]'::json),
     'nick', (select p.nick from public.profiles p where p.id = auth.uid()),
     'admin', public.is_admin());
@@ -77,13 +84,10 @@ begin
   if not found or not c.visible or c.price is null then raise exception 'item_unavailable'; end if;
   if c.available_until is not null and c.available_until <= now() then raise exception 'item_expired'; end if;
   if exists (select 1 from public.owned_cosmetics where user_id = v_uid and cosmetic_id = p_id) then raise exception 'already_owned'; end if;
-  insert into public.wallets (user_id) values (v_uid) on conflict do nothing;
-  update public.wallets set coins = coins - c.price, updated_at = now()
-    where user_id = v_uid and coins >= c.price
-    returning coins into v_left;
-  if not found then raise exception 'not_enough_coins'; end if;
+  update public.profiles set coins = coins - c.price where id = v_uid and coins >= c.price returning coins into v_left;
+  if v_left is null then raise exception 'not_enough_coins'; end if;
   insert into public.owned_cosmetics (user_id, cosmetic_id, source) values (v_uid, p_id, 'shop');
-  insert into private.coin_ledger (user_id, delta, reason, cosmetic_id) values (v_uid, -c.price, 'purchase', p_id);
+  insert into private.coin_log (user_id, delta, balance, reason) values (v_uid, -c.price, v_left, left('Sklep: ' || c.name, 200));
   return json_build_object('coins', v_left, 'cosmetic_id', p_id);
 end $$;
 
@@ -107,14 +111,12 @@ begin
   if v_n <> cardinality(v_ids) then raise exception 'item_unavailable'; end if;
   if p_total is null or p_total <> v_total then raise exception 'price_changed'; end if;
   if exists (select 1 from public.owned_cosmetics where user_id = v_uid and cosmetic_id = any(v_ids)) then raise exception 'already_owned'; end if;
-  insert into public.wallets (user_id) values (v_uid) on conflict do nothing;
-  update public.wallets set coins = coins - v_total, updated_at = now()
-    where user_id = v_uid and coins >= v_total
-    returning coins into v_left;
-  if not found then raise exception 'not_enough_coins'; end if;
+  update public.profiles set coins = coins - v_total where id = v_uid and coins >= v_total returning coins into v_left;
+  if v_left is null then raise exception 'not_enough_coins'; end if;
   insert into public.owned_cosmetics (user_id, cosmetic_id, source) select v_uid, x, 'shop' from unnest(v_ids) x;
-  insert into private.coin_ledger (user_id, delta, reason, cosmetic_id)
-    select v_uid, -c.price, 'purchase', c.id from public.cosmetics c where c.id = any(v_ids);
+  insert into private.coin_log (user_id, delta, balance, reason)
+    select v_uid, -v_total, v_left, left('Sklep: ' || string_agg(c.name, ', ' order by c.name), 200)
+    from public.cosmetics c where c.id = any(v_ids);
   return json_build_object('coins', v_left, 'bought', to_json(v_ids));
 end $$;
 
@@ -162,34 +164,34 @@ begin
   where id = p_id;
 end $$;
 
--- Dodanie albo odjęcie monet graczowi (np. nagroda w konkursie, zwrot)
-create or replace function public.admin_give_coins(p_user uuid, p_amount integer, p_note text) returns integer
+-- Dodanie (albo zabranie, gdy p_amount < 0) coinsów graczowi; wynik: nowe saldo. Ta sama funkcja co w schema.sql
+-- launchera (panel admina w launcherze i na stronie). Starsza wersja sklepu miała tu parametr p_note, więc najpierw ją usuwamy.
+drop function if exists public.admin_give_coins(uuid, integer, text);
+create or replace function public.admin_give_coins(p_user uuid, p_amount integer, p_reason text) returns integer
 language plpgsql security definer set search_path = '' as $$
-declare v_coins integer;
+declare
+  v integer;
 begin
   perform private.need_admin();
-  if p_amount is null or p_amount = 0 or p_amount not between -1000000 and 1000000 then raise exception 'amount_invalid'; end if;
-  if not exists (select 1 from auth.users where id = p_user) then raise exception 'player_missing'; end if;
-  insert into public.wallets (user_id) values (p_user) on conflict do nothing;
-  update public.wallets set coins = coins + p_amount, updated_at = now()
-    where user_id = p_user and coins + p_amount >= 0
-    returning coins into v_coins;
-  if not found then raise exception 'coins_negative'; end if;
-  insert into private.coin_ledger (user_id, delta, reason, note, by_admin)
-    values (p_user, p_amount, 'admin', nullif(left(trim(coalesce(p_note, '')), 200), ''), auth.uid());
-  return v_coins;
+  if p_amount is null or p_amount = 0 or abs(p_amount) > 1000000 then raise exception 'coins_amount'; end if;
+  if not exists (select 1 from public.profiles where id = p_user) then raise exception 'player_missing'; end if;
+  update public.profiles set coins = coins + p_amount where id = p_user and coins + p_amount >= 0 returning coins into v;
+  if v is null then raise exception 'coins_not_enough'; end if;
+  insert into private.coin_log (user_id, delta, balance, reason, by_admin)
+    values (p_user, p_amount, v, nullif(left(trim(coalesce(p_reason, '')), 200), ''), auth.uid());
+  return v;
 end $$;
 
--- Monety gracza i ostatnie 20 zmian
+-- Coinsy gracza i ostatnie 20 zmian (zakupy w sklepie, zmiany od admina)
 create or replace function public.admin_player_wallet(p_user uuid) returns json
 language plpgsql stable security definer set search_path = '' as $$
 begin
   perform private.need_admin();
   return json_build_object(
-    'coins', coalesce((select w.coins from public.wallets w where w.user_id = p_user), 0),
-    'history', coalesce((select json_agg(json_build_object('delta', l.delta, 'reason', l.reason, 'cosmetic_id', l.cosmetic_id,
-        'note', l.note, 'at', l.created_at) order by l.created_at desc)
-      from (select * from private.coin_ledger where user_id = p_user order by created_at desc limit 20) l), '[]'::json));
+    'coins', coalesce((select p.coins from public.profiles p where p.id = p_user), 0),
+    'history', coalesce((select json_agg(json_build_object('delta', l.delta, 'reason', l.reason, 'admin', l.by_admin is not null,
+        'at', l.created_at) order by l.created_at desc)
+      from (select * from private.coin_log where user_id = p_user order by created_at desc limit 20) l), '[]'::json));
 end $$;
 
 -- ===== Obrazy przedmiotów: publiczny bucket "shop" w Supabase Storage, wrzucać może tylko admin =====
