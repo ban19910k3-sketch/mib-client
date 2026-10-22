@@ -30,6 +30,11 @@
     coins_amount: 'Podaj liczbę coinsów inną niż 0 (najwyżej milion). Minus zabiera coinsy.',
     coins_not_enough: 'Gracz nie ma tylu coinsów, żeby je zabrać.',
     shop_url_invalid: 'Link do sklepu musi zaczynać się od https:// i mieć najwyżej 300 znaków.',
+    price_invalid: 'Cena: liczba coinsów od 1 do 1 000 000 (puste = nie na sprzedaż).',
+    offer_name_invalid: 'Nazwa oferty musi mieć od 1 do 40 znaków.',
+    offer_items_invalid: 'Zaznacz od 1 do 20 przedmiotów.',
+    offer_end_past: 'Koniec oferty musi być w przyszłości.',
+    offer_missing: 'Tej oferty już nie ma.',
   };
   // Prezent dla gracza: kosmetyk i wiadomość (gracz odbiera w launcherze przyciskiem „Odbierz”); idea = nagroda za ten pomysł
   async function giftForm(user, idea, done, owned = []) {
@@ -51,6 +56,8 @@
   const call = (fn, args) => mib.call('prof:admin', { fn, args });
   const failed = r => r && !Array.isArray(r) && r.error;
   const TYPES = { cape: 'Peleryna', hat: 'Czapka', wings: 'Skrzydła', aura: 'Aura' };
+  const SOURCES = { code: 'kod', admin: 'od admina', gift: 'prezent', shop: 'sklep' };
+  const coins = n => Number(n || 0).toLocaleString('pl-PL');
   // Ruch cząsteczek aury: końcówka ID (launcher i mod znają tylko te)
   const MOTIONS = { souls: 'Dusze unoszą się z ziemi', pumpkins: 'Dynie krążą i lecą w górę, iskry', ghosts: 'Trzy duszki krążą wokół', magic: 'Spirala iskier w górę' };
   const copy = async t => { try { await navigator.clipboard.writeText(t); toast('Skopiowano'); } catch {} };
@@ -284,6 +291,7 @@
     // aura: ruch to końcówka ID (np. aura_zimowa_magic)
     const withMotion = () => { if (type.value === 'aura' && !id.disabled) id.value = id.value.trim().replace(/_(souls|pumpkins|ghosts|magic)$/, '') + '_' + motion.value; };
     const prevImg = h('img', { class: 'texprev', alt: '', hidden: true }), cv = capePreview(null);
+    const price = h('input', { id: 'ac-price', type: 'number', min: 1, max: 1000000, placeholder: 'np. 800', style: 'width:150px' });
     const e = h('p', { class: 'err' }), save = h('button', { class: 'b', type: 'submit', id: 'ac-save' }, 'Zapisz przedmiot');
     let texture = null, editing = false, known = new Set();
     let shown = null;
@@ -309,15 +317,20 @@
     const shopBox = h('div', { class: 'sec' }, h('h3', {}, 'Sklep MiB Coins'),
       h('p', { class: 'lead' }, 'Przycisk „Kup MiB Coins” w Kosmetykach otwiera ten link w przeglądarce, z numerem MiB gracza na końcu (?mib=MIB-000123). Coinsy dodajesz w zakładce Gracze.'),
       h('div', { class: 'row' }, shop, shopSave));
+    let first = true;
     async function load() {
+      // oferty pokazują ceny z katalogu: po zmianie przedmiotu też się odświeżają
+      if (!first) offers.reload();
+      first = false;
       const l = await mib.call('prof:allCosmetics');
       if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
       known = new Set(l.map(c => c.id));
       list.replaceChildren(...(l.length ? l.map(c => h('div', { class: 'cosi' },
         h('i', {}, c.texture ? itemImage({ type: c.type, imageUrl: c.texture }, 5) : '◆'),
         h('b', {}, c.name), h('small', { class: 'mut' }, c.id + ', ' + (TYPES[c.type] || c.type)),
+        c.price != null ? h('small', { class: 'price' }, coins(c.price) + ' coinsów') : h('small', { class: 'mut' }, 'nie na sprzedaż'),
         h('div', { class: 'row' },
-          h('button', { class: 'b ghost', on: { click: () => { editing = true; id.value = c.id; id.disabled = true; name.value = c.name; type.value = c.type; motionRow.hidden = true; texture = null; preview(c.texture); save.textContent = 'Zapisz zmiany'; name.focus(); } } }, 'Edytuj'),
+          h('button', { class: 'b ghost', on: { click: () => { editing = true; id.value = c.id; id.disabled = true; name.value = c.name; type.value = c.type; price.value = c.price != null ? c.price : ''; motionRow.hidden = true; texture = null; preview(c.texture); save.textContent = 'Zapisz zmiany'; name.focus(); } } }, 'Edytuj'),
           h('button', { class: 'b danger', on: { click: async () => {
             if (!confirm('Usunąć przedmiot „' + c.name + '”?')) return;
             const r = await call('admin_delete_cosmetic', { p_id: c.id });
@@ -329,20 +342,98 @@
       ev.preventDefault();
       if (!editing && known.has(id.value.trim())) { e.textContent = 'Przedmiot o takim ID już istnieje. Kliknij „Edytuj” przy nim, żeby go zmienić.'; return; }
       save.disabled = true;
+      const pv = price.value.trim() === '' ? null : Number(price.value);
+      if (pv != null && !(Number.isInteger(pv) && pv >= 1 && pv <= 1000000)) { save.disabled = false; e.textContent = ERR.price_invalid; return; }
       const r = await call('admin_save_cosmetic', { p_id: id.value.trim(), p_name: name.value, p_type: type.value, p_texture: texture });
+      // cena osobno (od 0.24.0); stara baza jej nie zna
+      const rp = failed(r) ? null : await call('admin_set_price', { p_id: id.value.trim(), p_price: pv });
       save.disabled = false;
       if (failed(r)) { e.textContent = err(r); return; }
-      toast('Przedmiot zapisany.'); e.textContent = ''; id.value = name.value = ''; id.disabled = false; editing = false; texture = null; motionRow.hidden = type.value !== 'aura'; preview(null); save.textContent = 'Zapisz przedmiot'; load();
+      if (failed(rp)) { e.textContent = err(rp); load(); return; }
+      toast('Przedmiot zapisany.'); e.textContent = ''; id.value = name.value = price.value = ''; id.disabled = false; editing = false; texture = null; motionRow.hidden = type.value !== 'aura'; preview(null); save.textContent = 'Zapisz przedmiot'; load();
     } } },
     h('label', { class: 'sr' }, h('span', {}, 'ID (stałe)'), id), h('label', { class: 'sr' }, h('span', {}, 'Nazwa'), name),
     h('label', { class: 'sr' }, h('span', {}, 'Rodzaj'), type), motionRow,
+    h('label', { class: 'sr' }, h('span', {}, 'Cena w sklepie'), h('span', { class: 'fld' }, price, h('small', { class: 'mut' }, 'W MiB Coins. Puste = nie na sprzedaż (np. nagrody i kody).'))),
     h('div', { class: 'sr' }, h('span', {}, 'Tekstura'), h('span', { class: 'fld' }, h('span', { class: 'row', style: 'align-items:center' }, pick, prevImg),
       h('small', { class: 'mut' }, 'PNG 64×32 jak peleryna w Minecrafcie. Animowana: klatki jedna pod drugą (64×128 = 4 klatki), 10 klatek na sekundę. ' +
         'Skrzydła jak u wróżki: klatka 128×64, przód skrzydła w polu 32×40 od lewego górnego rogu, obok jego lustro (węższe skrzydła wyglądają jak elytra). ' +
         'Aura: obrazki cząsteczek 8×8 w pierwszym rzędzie tekstury 64×32.'))),
     cv, e, h('div', { class: 'row' }, save));
-    box.append(shopBox, form, h('div', { class: 'sec' }, h('h3', {}, 'Katalog'), list));
+    const offers = await offersBox();
+    box.append(shopBox, offers, form, h('div', { class: 'sec' }, h('h3', {}, 'Katalog'), list));
     load();
+  }
+
+  // Oferty w sklepie (od 0.24.0): pakiet kilku przedmiotów albo jeden przedmiot taniej, z datą końca. Gracz, który ma
+  // część pakietu, płaci tylko za brakujące (baza liczy to ze zwykłych cen).
+  async function offersBox() {
+    let all = [];
+    const name = h('input', { id: 'ao-name', maxlength: 40, placeholder: 'np. Pakiet Halloween' });
+    const price = h('input', { id: 'ao-price', type: 'number', min: 1, max: 1000000, placeholder: 'np. 4900', style: 'width:150px' });
+    const until = h('input', { id: 'ao-until', type: 'date' }), e = h('p', { class: 'err' }), sum = h('small', { class: 'mut', id: 'ao-sum' });
+    const picks = h('div', { class: 'ao-items', id: 'ao-items' });
+    const chosen = () => [...picks.querySelectorAll('input:checked')].map(x => x.value);
+    // lista przedmiotów z cenami; odświeżana po zmianie katalogu (zaznaczenia zostają)
+    async function items() {
+      const cos = await mib.call('prof:allCosmetics', { lite: true }), on = new Set(chosen());
+      all = Array.isArray(cos) ? cos : [];
+      picks.replaceChildren(...all.map(c => h('label', { class: 'ck' }, h('input', { type: 'checkbox', value: c.id, checked: on.has(c.id) }), c.name + (c.price != null ? ' · ' + coins(c.price) : ''))));
+      recalc();
+    }
+    const full = ids => ids.reduce((a, id) => a + ((all.find(c => c.id === id) || {}).price || 0), 0);
+    const recalc = () => {
+      const f = full(chosen()), p = Number(price.value);
+      sum.textContent = f ? 'Zwykłe ceny razem: ' + coins(f) + (p > 0 && p < f ? ' → taniej o ' + Math.round((1 - p / f) * 100) + '%' : '') : 'Zaznacz przedmioty z ceną, żeby gracze widzieli zniżkę.';
+    };
+    picks.onchange = recalc; price.oninput = recalc;
+    await items();
+    let editing = null;
+    const save = h('button', { class: 'b', id: 'ao-save', type: 'submit' }, 'Dodaj ofertę');
+    const list = h('div', { id: 'ao-list' });
+    const reset = () => { editing = null; name.value = price.value = until.value = ''; for (const x of picks.querySelectorAll('input')) x.checked = false; save.textContent = 'Dodaj ofertę'; e.textContent = ''; recalc(); };
+    async function load() {
+      const l = await call('admin_list_offers');
+      if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
+      list.replaceChildren(...(l.length ? l.map(o => {
+        const ended = o.ends_at && new Date(o.ends_at) < new Date(), names = o.items.map(id => (all.find(c => c.id === id) || { name: id }).name);
+        return h('div', { class: 'card arow' },
+          h('div', {}, h('b', {}, o.name, ended ? h('em', { class: 'tag' }, 'zakończona') : null, o.full_price > o.price ? h('em', { class: 'tag sale' }, '−' + Math.round((1 - o.price / o.full_price) * 100) + '%') : null),
+            h('span', { class: 'mut' }, names.join(', ') + ' · ' + coins(o.price) + ' coinsów' + (o.full_price > o.price ? ' zamiast ' + coins(o.full_price) : '') +
+              (o.ends_at ? ' · do ' + new Date(o.ends_at).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' }) : ' · bez końca') + ' · sprzedane: ' + o.sold)),
+          h('button', { class: 'b ghost', on: { click: () => {
+            editing = o.id; name.value = o.name; price.value = o.price; until.value = o.ends_at && !ended ? new Date(new Date(o.ends_at) - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : '';
+            for (const x of picks.querySelectorAll('input')) x.checked = o.items.includes(x.value);
+            save.textContent = 'Zapisz zmiany'; recalc(); name.focus();
+          } } }, 'Edytuj'),
+          h('button', { class: 'b danger', on: { click: async () => {
+            if (!confirm('Usunąć ofertę „' + o.name + '”? Kupione przedmioty zostają u graczy.')) return;
+            const r = await call('admin_delete_offer', { p_id: o.id });
+            if (failed(r)) return toast(err(r), 1);
+            if (editing === o.id) reset();
+            load();
+          } } }, 'Usuń'));
+      }) : [h('p', { class: 'empty' }, 'Nie ma jeszcze ofert.')]));
+    }
+    const form = h('form', { class: 'pform', on: { submit: async ev => {
+      ev.preventDefault();
+      save.disabled = true;
+      const r = await call('admin_save_offer', { p_id: editing, p_name: name.value, p_items: chosen(), p_price: price.value ? Number(price.value) : null,
+        p_ends: until.value ? new Date(until.value + 'T23:59:59').toISOString() : null });
+      save.disabled = false;
+      if (failed(r)) { e.textContent = err(r); return; }
+      toast(editing ? 'Oferta zapisana.' : 'Oferta dodana. Gracze widzą ją w Sklepie.');
+      reset(); load();
+    } } },
+      h('label', { class: 'sr' }, h('span', {}, 'Nazwa'), name),
+      h('div', { class: 'sr' }, h('span', {}, 'Przedmioty'), h('span', { class: 'fld' }, picks, sum)),
+      h('label', { class: 'sr' }, h('span', {}, 'Cena oferty'), h('span', { class: 'fld' }, price, h('small', { class: 'mut' }, 'Kto ma już część przedmiotów, płaci mniej (część ceny za brakujące).'))),
+      h('label', { class: 'sr' }, h('span', {}, 'Do kiedy'), h('span', { class: 'fld' }, until, h('small', { class: 'mut' }, 'Do końca tego dnia; puste = bez końca. Gracze widzą, ile zostało.'))),
+      e, h('div', { class: 'row' }, save, h('button', { class: 'b ghost', type: 'button', on: { click: reset } }, 'Wyczyść')));
+    load();
+    const box = h('div', { class: 'sec', id: 'ao' }, h('h3', {}, 'Oferty i pakiety'), h('p', { class: 'lead' }, 'Pakiet kilku przedmiotów albo jeden przedmiot taniej, z datą końca — w Sklepie u graczy na samej górze, z przekreśloną zwykłą ceną.'), form, list);
+    box.reload = () => { items(); load(); };
+    return box;
   }
 
   // ===== Kody prezentowe =====
@@ -406,7 +497,7 @@
         h('h3', {}, p.nick + ' (' + window.MibProfile.formatMibId(p.num) + ')'),
         h('div', { class: 'sr' }, h('span', {}, 'E-mail'), h('b', {}, p.email)),
         h('div', { class: 'sr' }, h('span', {}, 'Czas gry'), h('b', {}, window.MibProfile.formatPlaytime(p.playtime_min || 0) + ', uruchomień: ' + (p.launches || 0))),
-        h('div', { class: 'sr' }, h('span', {}, 'Przedmioty'), h('span', { class: 'fld' }, ...(owned.length ? owned.map(o => h('span', { class: 'row', style: 'align-items:center' }, h('span', {}, o.name + ' (' + o.source + ')'),
+        h('div', { class: 'sr' }, h('span', {}, 'Przedmioty'), h('span', { class: 'fld' }, ...(owned.length ? owned.map(o => h('span', { class: 'row', style: 'align-items:center' }, h('span', {}, o.name + ' (' + (SOURCES[o.source] || o.source) + ')'),
           h('button', { class: 'b ghost', on: { click: async () => { const r = await call('admin_revoke', { p_user: p.id, p_cosmetic: o.id }); if (failed(r)) return toast(err(r), 1); show(p); } } }, 'Zabierz')))
           : [h('span', { class: 'mut' }, 'brak')]))),
         h('div', { class: 'sr' }, h('span', {}, 'Daj przedmiot'), h('span', { class: 'row' }, pick,
@@ -432,7 +523,20 @@
         p.coins = r; bal.textContent = Number(r).toLocaleString('pl-PL'); amount.value = why.value = '';
         toast(n > 0 ? 'Dodano ' + n + ' MiB Coins.' : 'Zabrano ' + -n + ' MiB Coins.');
       } } }, 'Zmień saldo');
-      return h('div', { class: 'sr' }, h('span', {}, 'MiB Coins'), h('span', { class: 'fld' }, h('span', {}, 'Saldo: ', bal), h('span', { class: 'row' }, amount, why, go)));
+      // historia coinsów gracza (zakupy, prezenty, nagrody dzienne, zmiany od admina)
+      const hist = h('div', { class: 'coin-log', id: 'ap-coins-log', hidden: true });
+      const histBtn = h('button', { class: 'b ghost', id: 'ap-coins-hist', type: 'button', on: { click: async () => {
+        if (!hist.hidden) { hist.hidden = true; return; }
+        const l = await call('admin_coin_log', { p_user: p.id });
+        if (failed(l)) return toast(err(l), 1);
+        const what = x => ({ buy: 'Zakup: ' + x.label, gift: 'Prezent dla ' + (x.friend || '?') + ': ' + x.label, offer: 'Pakiet: ' + x.label,
+          daily: 'Nagroda dzienna (' + x.item + '. dzień)' })[x.kind] || (x.delta > 0 ? 'Od admina' : 'Zabrane przez admina') + (x.label ? ': ' + x.label : '');
+        hist.replaceChildren(...(l.length ? l.map(x => h('div', { class: 'cl-row' }, h('span', { class: 'cl-t' }, h('span', {}, what(x)), h('small', { class: 'mut' }, new Date(x.created_at).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' }))),
+          h('b', { class: 'cl-d ' + (x.delta > 0 ? 'plus' : 'minus') }, (x.delta > 0 ? '+' : '−') + coins(Math.abs(x.delta))), h('small', { class: 'mut cl-b' }, coins(x.balance))))
+          : [h('p', { class: 'mut' }, 'Brak zmian.')]));
+        hist.hidden = false;
+      } } }, 'Historia');
+      return h('div', { class: 'sr' }, h('span', {}, 'MiB Coins'), h('span', { class: 'fld' }, h('span', {}, 'Saldo: ', bal), h('span', { class: 'row' }, amount, why, go, histBtn), hist));
     }
     // Usunięcie konta: potwierdzenie wpisaniem nicku (Electron nie obsługuje prompt())
     function delBox(p) {

@@ -2,6 +2,12 @@
 (() => {
   const ERR = {
     shop_missing: 'Sklep MiB Coins nie jest jeszcze dostępny.',
+    coins_not_enough: 'Masz za mało MiB Coins.',
+    not_for_sale: 'Tego przedmiotu nie ma już w sklepie.',
+    gift_not_friend: 'Prezent możesz kupić tylko znajomemu.',
+    gift_message_long: 'Wiadomość może mieć najwyżej 200 znaków.',
+    friend_has_it: 'Twój znajomy ma już ten przedmiot.',
+    offer_missing: 'Ta oferta już się skończyła.',
     nick_length: 'Nick musi mieć od 3 do 16 znaków.',
     nick_chars: 'Nick może zawierać tylko litery bez polskich znaków, cyfry i _.',
     nick_taken: 'Ten nick jest już zajęty. Wybierz inny.',
@@ -588,6 +594,8 @@
     if (r) Object.assign(skinCanvas.dataset, { back: r.back, hat: r.hat ? '1' : '', fairy: r.fairy ? '1' : '', aura: r.aura, frames: r.frames });
   }
 
+  // Kosmetyki mają trzy zakładki: Moje przedmioty, Sklep (od 0.24.0, za MiB Coins) i Historia coinsów
+  let cosTab = 'mine';
   async function renderCos() {
     const box = $('cos-box');
     if (st.loading) return box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'mut' }, T('Wczytywanie…')));
@@ -600,6 +608,30 @@
         st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))));
       return;
     }
+    const list = await mib.call('prof:cosmetics');
+    const items = Array.isArray(list) ? list : [];
+    const tabs = h('div', { class: 'seg', role: 'tablist', id: 'cos-tabs' }, ...[['mine', 'Moje przedmioty'], ['shop', 'Sklep'], ['log', 'Historia']].map(([k, l]) =>
+      h('button', { class: cosTab === k ? 'on' : '', role: 'tab', type: 'button', 'data-t': k, 'aria-selected': String(cosTab === k), on: { click: () => {
+        if (cosTab === k) return;
+        cosTab = k; trying = {};
+        renderCos();
+      } } }, T(l))));
+    const body = cosTab === 'shop' ? await shopView(items) : cosTab === 'log' ? await logView() : mineView(list, items);
+    const wallet = walletCard();
+    const gift = giftCount ? h('div', { class: 'card reward gift-banner', id: 'cos-gift' }, h('b', {}, T('Masz prezent do odebrania!')),
+      h('button', { class: 'b', type: 'button', on: { click: () => giftsCheck(true) } }, T('Odbierz'))) : null;
+    // bez prezentu gift to null: replaceChildren wstawiłby napis „null”
+    box.replaceChildren(...[h('h2', {}, T('Kosmetyki')), wallet, gift, skin, h('div', { class: 'sec' }, tabs, ...body.filter(Boolean))].filter(Boolean));
+  }
+  // Przymiarka: klik w przedmiot zakłada go na postać na górze strony (bez zakładania w grze); drugi klik zdejmuje
+  function tryToggle(c, owned) {
+    if (!c.texture || c.equipped) return;
+    trying[c.type] = trying[c.type] && trying[c.type].id === c.id ? null : c;
+    if (!trying[c.type]) delete trying[c.type];
+    for (const el of document.querySelectorAll('#cos-box [data-id]')) el.classList.toggle('try', Object.values(trying).some(t => t.id === el.dataset.id));
+    dressPage(owned);
+  }
+  function mineView(list, items) {
     const inp = h('input', { id: 'cos-code', placeholder: T('Kod prezentowy'), autocomplete: 'off', class: 'mono' }), err = errBox();
     const btn = h('button', { class: 'b', type: 'submit' }, T('Odbierz'));
     const form = h('form', { class: 'row', on: { submit: async e => {
@@ -613,36 +645,167 @@
       if (window.mibUnlock) mibUnlock(r); else toast(T('Nowy przedmiot') + ': ' + r.name);
       renderCos();
     } } }, inp, btn);
-    const list = await mib.call('prof:cosmetics');
-    const items = Array.isArray(list) ? list : [];
     // przymiarka tylko przedmiotów, które gracz dalej ma i które nie są już założone
     for (const t of Object.keys(trying)) { const x = trying[t] && items.find(c => c.id === trying[t].id); if (!x || x.equipped) delete trying[t]; }
     dressPage(items);
-    const tryToggle = c => {
-      if (!c.texture || c.equipped) return;
-      trying[c.type] = trying[c.type] && trying[c.type].id === c.id ? null : c;
-      if (!trying[c.type]) delete trying[c.type];
-      for (const el of document.querySelectorAll('#cos-box .cosi')) el.classList.toggle('try', Object.values(trying).some(t => t.id === el.dataset.id));
-      dressPage(items);
-    };
     const grid = Array.isArray(list) && list.length
       ? h('div', { class: 'cos-grid' }, ...list.map(c => h('div', { class: 'cosi' + (c.equipped ? ' on' : '') + (trying[c.type] && trying[c.type].id === c.id ? ' try' : ''),
-          'data-id': c.id, title: c.texture && !c.equipped ? T('Kliknij, żeby przymierzyć') : null, on: { click: e => { if (!e.target.closest('button')) tryToggle(c); } } },
+          'data-id': c.id, title: c.texture && !c.equipped ? T('Kliknij, żeby przymierzyć') : null, on: { click: e => { if (!e.target.closest('button')) tryToggle(c, items); } } },
         h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)),
-        h('b', {}, c.name), h('small', { class: 'mut' }, c.equipped ? '✓ ' + T('Założona — widać ją w grze') : T('Odebrano') + ' ' + fmtDate(c.acquiredAt)),
+        h('b', {}, c.name), h('small', { class: 'mut' }, c.equipped ? '✓ ' + T('Założona — widać ją w grze') : T(c.source === 'shop' ? 'Kupiono' : 'Odebrano') + ' ' + fmtDate(c.acquiredAt)),
         h('button', { class: c.equipped ? 'b ghost' : 'b', type: 'button', on: { click: async e => {
           e.currentTarget.disabled = true;
           const r = await mib.call('prof:equip', { type: c.type, id: c.equipped ? null : c.id });
           if (r.error) toast(msg(r.error), 1);
           renderCos();
         } } }, T(c.equipped ? 'Zdejmij' : 'Załóż')))))
-      : h('p', { class: 'empty' }, Array.isArray(list) ? T('Nie masz jeszcze żadnych przedmiotów. Masz kod z konkursu? Wpisz go wyżej.') : msg(list.error));
-    const wallet = walletCard();
-    const gift = giftCount ? h('div', { class: 'card reward gift-banner', id: 'cos-gift' }, h('b', {}, T('Masz prezent do odebrania!')),
-      h('button', { class: 'b', type: 'button', on: { click: () => giftsCheck(true) } }, T('Odbierz'))) : null;
-    // bez prezentu gift to null: replaceChildren wstawiłby napis „null”
-    box.replaceChildren(...[h('h2', {}, T('Kosmetyki')), wallet, gift, skin, h('div', { class: 'sec' }, h('h3', {}, T('Przedmioty MiB')), h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err,
-      items.length ? h('p', { class: 'mut' }, T('Kliknij przedmiot, żeby przymierzyć go na postaci. „Załóż” zakłada go w grze.')) : null, grid)].filter(Boolean));
+      : h('p', { class: 'empty' }, Array.isArray(list) ? T('Nie masz jeszcze żadnych przedmiotów. Kup coś w Sklepie albo wpisz kod z konkursu.') : msg(list.error));
+    return [h('p', { class: 'lead' }, T('Przedmioty przypisane do profilu') + ' ' + st.nick + '.'), form, err,
+      items.length ? h('p', { class: 'mut' }, T('Kliknij przedmiot, żeby przymierzyć go na postaci. „Załóż” zakłada go w grze.')) : null, grid];
+  }
+
+  // ===== Sklep za MiB Coins (od 0.24.0): kosmetyki z ceną, oferty i pakiety z datą końca, prezent dla znajomego =====
+  const fmtCoins = n => Number(n || 0).toLocaleString(LANG === 'en' ? 'en-US' : 'pl-PL');
+  const price = (n, cls) => h('span', { class: 'price' + (cls ? ' ' + cls : '') }, coinIcon(), fmtCoins(n));
+  // Ile zostało do końca oferty
+  function leftText(end) {
+    const ms = new Date(end) - Date.now(), d = Math.floor(ms / 864e5);
+    if (d >= 2) return T('jeszcze {n} dni').replace('{n}', d);
+    if (d === 1) return T('jeszcze 1 dzień');
+    return T('jeszcze {n} godz.').replace('{n}', Math.max(1, Math.ceil(ms / 36e5)));
+  }
+  let shopCoins = null;
+  async function shopView(owned) {
+    const s = await mib.call('prof:shop');
+    if (!s || s.error || !Array.isArray(s.items)) return [h('p', { class: 'empty' }, msg(s && s.error ? s.error : 'unknown', s && s.detail))];
+    shopCoins = s.coins;
+    const all = s.items.map(c => ({ ...c, imageUrl: c.texture }));
+    const byId = Object.fromEntries(all.map(c => [c.id, c]));
+    for (const t of Object.keys(trying)) if (!trying[t] || !byId[trying[t].id]) delete trying[t];
+    dressPage(owned);
+    const isTry = c => trying[c.type] && trying[c.type].id === c.id ? ' try' : '';
+    const offers = (s.offers || []).map(o => {
+      const its = (o.items || []).map(id => byId[id]).filter(Boolean), pay = o.mine == null ? o.price : o.mine;
+      const pct = o.full > o.price ? Math.round((1 - o.price / o.full) * 100) : 0;
+      return h('div', { class: 'card offer', 'data-offer': o.id },
+        h('div', { class: 'offer-top' }, h('small', { class: 'gift-kicker' }, T(its.length > 1 ? 'Pakiet' : 'Oferta')),
+          pct ? h('em', { class: 'tag sale' }, '−' + pct + '%') : null,
+          o.ends_at ? h('small', { class: 'mut offer-end', title: new Date(o.ends_at).toLocaleString(LANG === 'en' ? 'en-GB' : 'pl-PL') }, T('do') + ' ' + fmtDate(o.ends_at) + ' · ' + leftText(o.ends_at)) : null),
+        h('b', { class: 'offer-name' }, o.name),
+        h('div', { class: 'offer-items' }, ...its.map(c => h('span', { class: 'offer-it' + (c.owned ? ' own' : '') + isTry(c), 'data-id': c.id,
+          title: c.name + (c.owned ? ' · ' + T('Masz') : ' · ' + T('Kliknij, żeby przymierzyć')), on: { click: () => tryToggle(c, owned) } }, h('i', { 'aria-hidden': 'true' }, itemImage(c, 3)), h('small', {}, c.name)))),
+        h('div', { class: 'offer-buy' },
+          o.full > pay && pay > 0 ? h('s', { class: 'mut old' }, fmtCoins(o.full)) : null,
+          pay > 0 ? price(pay, 'big') : null,
+          pay > 0 ? h('button', { class: 'b', type: 'button', on: { click: () => buyDialog({ offer: o, items: its, cost: pay }) } }, T(its.length > 1 ? 'Kup pakiet' : 'Kup'))
+            : h('span', { class: 'tag own' }, '✓ ' + T('Masz wszystko'))),
+        pay > 0 && pay < o.price ? h('small', { class: 'mut' }, T('Taniej, bo masz już część tych przedmiotów.')) : null);
+    });
+    const forSale = all.filter(c => c.price != null);
+    const grid = forSale.length ? h('div', { class: 'cos-grid', id: 'shop-grid' }, ...forSale.map(c => h('div', { class: 'cosi shopi' + (c.owned ? ' own' : '') + isTry(c), 'data-id': c.id,
+        title: c.texture ? T('Kliknij, żeby przymierzyć') : null, on: { click: e => { if (!e.target.closest('button')) tryToggle(c, owned); } } },
+      h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)),
+      h('b', {}, c.name), h('small', { class: 'mut' }, T(KIND[c.type] || 'Kosmetyk')), price(c.price),
+      h('div', { class: 'row' },
+        c.owned ? h('span', { class: 'tag own' }, '✓ ' + T('Masz')) : h('button', { class: 'b', type: 'button', on: { click: () => buyDialog({ item: c, cost: c.price }) } }, T('Kup')),
+        h('button', { class: 'b ghost', type: 'button', title: T('Kup ten przedmiot w prezencie dla znajomego'), on: { click: () => buyDialog({ item: c, cost: c.price, gift: true }) } }, T('Podaruj'))))))
+      : null;
+    if (!offers.length && !grid) return [h('p', { class: 'empty' }, T('W sklepie nic jeszcze nie ma. Zajrzyj tu wkrótce.'))];
+    return [offers.length ? h('div', { class: 'offers' }, ...offers) : null,
+      grid ? h('p', { class: 'mut' }, T('Kliknij przedmiot, żeby przymierzyć go na postaci. „Podaruj” kupuje go znajomemu w prezencie.')) : null, grid];
+  }
+  // Okno zakupu: podgląd na postaci, cena, saldo po zakupie; przy prezencie wybór znajomego i wiadomość.
+  // Gdy coinsów brakuje, zamiast „Kup” jest „Kup MiB Coins”.
+  async function buyDialog({ item, offer, items, cost, gift }) {
+    const old = $('buy'); if (old) old.remove();
+    // saldo prosto z bazy: coinsy mogły dojść w międzyczasie (zakup na stronie)
+    const w = await mib.call('prof:wallet');
+    if (w && Number.isInteger(w.coins)) shopCoins = w.coins;
+    const what = offer ? offer.name : item.name, coins = Number.isInteger(shopCoins) ? shopCoins : 0, short = cost - coins;
+    const canvas = h('canvas', { width: 170, height: 200, class: 'gift3d' }), err = errBox();
+    let viewer = null;
+    const close = () => { try { if (viewer) viewer.dispose(); } catch {} ov.remove(); };
+    const who = gift ? h('select', { id: 'buy-to' }, h('option', { value: '' }, T('Wczytywanie…'))) : null;
+    const note = gift ? h('textarea', { id: 'buy-msg', maxlength: 200, rows: 2, placeholder: T('Wiadomość do znajomego (nieobowiązkowa)') }) : null;
+    const go2 = h('button', { class: 'b', id: 'buy-go', type: 'submit' }, (gift ? T('Kup i wyślij za') : T('Kup za')) + ' ' + fmtCoins(cost));
+    const topUp = h('button', { class: 'b', id: 'buy-topup', type: 'button', on: { click: async () => { const r = await mib.call('prof:shopOpen'); toast(r.error ? msg(r.error) : T('Sklep otworzył się w przeglądarce. Po zakupie coinsy pojawią się tutaj.'), !!r.error); } } }, T('Kup MiB Coins'));
+    const ov = h('div', { class: 'ov on', id: 'buy' }, h('form', { class: 'm buy-m', role: 'dialog', 'aria-label': what, on: { submit: async e => {
+      e.preventDefault();
+      if (short > 0) return;
+      if (gift && !who.value) { err.textContent = T('Wybierz znajomego.'); return; }
+      go2.disabled = true; err.textContent = '';
+      const r = offer ? await mib.call('prof:buyOffer', { id: offer.id }) : await mib.call('prof:buy', { id: item.id, to: gift ? who.value : null, message: gift ? note.value : '' });
+      if (r.error) { go2.disabled = false; err.textContent = msg(r.error, r.detail); return; }
+      if (Number.isInteger(r.coins)) shopCoins = r.coins;
+      close();
+      if (gift) toast(T('Prezent wysłany!') + ' ' + who.selectedOptions[0].textContent + ' ' + T('dostanie') + ' ' + item.name + '.');
+      else if (window.mibUnlock) mibUnlock(offer ? { name: offer.name, label: T('Kupione!'), glyph: coinIcon() } : { name: item.name, type: item.type, imageUrl: item.texture, label: T('Kupione!') });
+      else toast(T('Kupione!') + ' ' + what);
+      refreshWallet();
+      if ($('p-cos').classList.contains('on')) renderCos();
+    } } },
+      h('div', { class: 'buy-top' }, canvas, h('div', { class: 'buy-t' },
+        h('small', { class: 'gift-kicker' }, T(gift ? 'Prezent dla znajomego' : offer ? (items.length > 1 ? 'Pakiet' : 'Oferta') : KIND[item.type] || 'Kosmetyk')),
+        h('h3', {}, what),
+        offer && items.length > 1 ? h('p', { class: 'mut' }, items.filter(c => !c.owned).map(c => c.name).join(', ')) : null,
+        h('div', { class: 'buy-sum' },
+          h('div', { class: 'sr' }, h('span', {}, T('Cena')), price(cost)),
+          h('div', { class: 'sr' }, h('span', {}, T('Masz')), price(coins)),
+          short > 0 ? h('div', { class: 'sr short', id: 'buy-short' }, h('span', {}, T('Brakuje')), price(short))
+            : h('div', { class: 'sr' }, h('span', {}, T('Zostanie')), price(coins - cost))))),
+      gift ? field('Dla kogo', who) : null, gift ? field('Wiadomość', note) : null,
+      gift ? h('p', { class: 'mut' }, T('Znajomy dostanie okno „Masz prezent!” z Twoim nickiem i wiadomością.')) : null,
+      err,
+      h('div', { class: 'row', style: 'justify-content:flex-end' }, h('button', { class: 'b ghost', type: 'button', on: { click: close } }, T('Anuluj')), short > 0 ? topUp : go2)));
+    ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });
+    ov.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    document.body.append(ov);
+    (short > 0 ? topUp : go2).focus();
+    if (gift) {
+      const l = await mib.call('prof:friends');
+      const fr = Array.isArray(l) ? l.filter(f => f.state === 'friend') : [];
+      who.replaceChildren(...(fr.length ? [h('option', { value: '' }, T('Wybierz znajomego')), ...fr.map(f => h('option', { value: f.id }, f.nick))]
+        : [h('option', { value: '' }, T('Nie masz jeszcze znajomych'))]));
+      who.disabled = !fr.length;
+      if (!fr.length) err.textContent = T('Prezent możesz kupić tylko znajomemu. Dodaj znajomych na stronie Znajomi.');
+    }
+    try {
+      viewer = new skinview3d.SkinViewer({ canvas, width: 170, height: 200 }); viewer.autoRotate = true; viewer.autoRotateSpeed = 0.9; viewer.controls.enableZoom = false;
+      const cur = await mib.call('skin:current');
+      await viewer.loadSkin(cur && cur.dataUrl ? cur.dataUrl : await mib.call('skin', 'MHF_Steve'), { model: cur && cur.variant === 'slim' ? 'slim' : 'default' });
+      if (ov.isConnected) window.mibDress(viewer, outfit(offer ? items : [item]));
+    } catch {}
+  }
+
+  // ===== Historia MiB Coins: zakupy, prezenty, nagrody dzienne i zmiany od MiB =====
+  const fmtTime = d => new Date(d).toLocaleString(LANG === 'en' ? 'en-GB' : 'pl-PL', { dateStyle: 'short', timeStyle: 'short' });
+  function logText(l) {
+    if (l.kind === 'buy') return T('Zakup') + ': ' + l.label;
+    if (l.kind === 'gift') return T('Prezent dla') + ' ' + (l.friend || '?') + ': ' + l.label;
+    if (l.kind === 'offer') return T('Pakiet') + ': ' + l.label;
+    if (l.kind === 'daily') return T('Nagroda dzienna') + (+l.item > 1 ? ' · ' + T('{n}. dzień z rzędu').replace('{n}', l.item) : '');
+    return T(l.delta > 0 ? 'Dodane przez MiB' : 'Zabrane przez MiB') + (l.label ? ': ' + l.label : '');
+  }
+  const logRow = l => h('div', { class: 'cl-row', 'data-kind': l.kind },
+    h('span', { class: 'cl-t' }, h('span', {}, logText(l)), h('small', { class: 'mut' }, fmtTime(l.created_at))),
+    h('b', { class: 'cl-d ' + (l.delta > 0 ? 'plus' : 'minus') }, (l.delta > 0 ? '+' : '−') + fmtCoins(Math.abs(l.delta))),
+    h('small', { class: 'mut cl-b', title: T('Saldo po zmianie') }, fmtCoins(l.balance)));
+  async function logView() {
+    const list = await mib.call('prof:coinLog');
+    if (!Array.isArray(list)) return [h('p', { class: 'empty' }, msg(list ? list.error : 'unknown', list && list.detail))];
+    if (!list.length) return [h('p', { class: 'empty' }, T('Tu pojawi się każda zmiana Twoich MiB Coins: zakupy, prezenty i nagrody dzienne.'))];
+    const box = h('div', { class: 'coin-log', id: 'cos-log' }, ...list.map(logRow));
+    let last = list[list.length - 1].id;
+    const more = list.length >= 50 ? h('button', { class: 'b ghost', type: 'button', on: { click: async () => {
+      more.disabled = true;
+      const l = await mib.call('prof:coinLog', { before: last });
+      more.disabled = false;
+      if (!Array.isArray(l)) return toast(msg(l.error, l.detail), 1);
+      box.append(...l.map(logRow));
+      if (l.length) last = l[l.length - 1].id;
+      if (l.length < 50) more.remove();
+    } } }, T('Pokaż starsze')) : null;
+    return [box, more];
   }
 
   // ===== MiB Coins (od 0.23.0): stan konta i przycisk do strony sklepu (kupuje się w przeglądarce) =====
@@ -662,7 +825,8 @@
       if (r.error) toast(msg(r.error), 1); else toast(T('Sklep otworzył się w przeglądarce. Po zakupie coinsy pojawią się tutaj.'));
     } } }, T('Kup MiB Coins'));
     const soon = h('small', { class: 'mut soon', hidden: true }, T('Sklep już wkrótce.'));
-    const card = h('div', { class: 'card wallet', id: 'cos-wallet' }, coinIcon(), h('div', { class: 'wallet-t' }, h('small', { class: 'mut' }, T('Twoje MiB Coins')), amount), soon, buy);
+    const card = h('div', { class: 'card wallet', id: 'cos-wallet' }, coinIcon(), h('div', { class: 'wallet-t' }, h('small', { class: 'mut' }, T('Twoje MiB Coins')), amount),
+      h('div', { class: 'daily', id: 'cos-daily', hidden: true }), soon, buy);
     refreshWallet(card);
     return card;
   }
@@ -672,12 +836,39 @@
     const ok = !!(w && !w.error && w.loggedIn && Number.isInteger(w.coins)), shop = !!(w && w.shopUrl);
     // bez profilu albo przed uruchomieniem nowego schema.sql (brak coinsów w bazie) karty nie ma; bez sieci: „—”
     card.hidden = !ok && !(w && w.error);
-    card.querySelector('#cos-coins').textContent = ok ? w.coins.toLocaleString(LANG === 'en' ? 'en-US' : 'pl-PL') : '—';
+    if (ok) shopCoins = w.coins;
+    card.querySelector('#cos-coins').textContent = ok ? fmtCoins(w.coins) : '—';
     card.querySelector('#cos-shop').hidden = !shop;
     card.querySelector('.soon').hidden = shop;
+    dailyPips(card);
+  }
+  // ===== Nagroda dzienna (od 0.24.0): 10 MiB Coins za każdy dzień, co 7. dzień z rzędu 50 więcej =====
+  // Launcher odbiera ją sam (baza daje ją raz na dobę); pytamy najwyżej raz na godzinę
+  let daily = null, dailyAt = 0;
+  function dailyPips(card = document.getElementById('cos-wallet')) {
+    const box = card && card.querySelector('#cos-daily');
+    if (!box) return;
+    box.hidden = !(daily && daily.streak);
+    if (box.hidden) return;
+    const n = ((daily.streak - 1) % 7) + 1;
+    box.title = T('Codziennie +10 MiB Coins, a za 7 dni z rzędu +50 więcej.');
+    box.replaceChildren(h('small', { class: 'mut' }, T('Seria') + ' ' + n + '/7'),
+      h('span', { class: 'pips', 'aria-hidden': 'true' }, ...Array.from({ length: 7 }, (_, i) => h('i', { class: (i < n ? 'on' : '') + (i === 6 ? ' bonus' : '') }))),
+      h('small', { class: 'mut' }, n === 7 ? T('Bonus odebrany!') : T('7. dzień: +50')));
+  }
+  async function dailyCheck() {
+    if (!st.loggedIn || st.banned || Date.now() - dailyAt < 3600e3) return;
+    dailyAt = Date.now();
+    const r = await mib.call('prof:daily');
+    if (!r || r.error) { dailyAt = 0; return; }
+    if (r.streak) daily = r;
+    if (r.claimed) {
+      toast(T('Nagroda dzienna') + ': +' + r.amount + ' MiB Coins' + (r.amount > 10 ? ' · ' + T('{n} dni z rzędu!').replace('{n}', r.streak) : ''));
+      refreshWallet();
+    } else dailyPips();
   }
   // po powrocie ze sklepu (okno znów aktywne) saldo odświeża się samo
-  window.addEventListener('focus', () => { if ($('p-cos').classList.contains('on')) refreshWallet(); });
+  window.addEventListener('focus', () => { if ($('p-cos').classList.contains('on')) refreshWallet(); dailyCheck(); });
 
   // ===== Prezenty od MiB: okno „Masz prezent!” z podglądem na postaci, Odbierz i Załóż od razu =====
   let giftOpen = false, giftCount = 0;
@@ -709,10 +900,10 @@
     let viewer = null;
     const actions = h('div', { class: 'row gift-act' });
     const ov = h('div', { class: 'ov on', id: 'gift' }, h('div', { class: 'm gift-m', role: 'dialog', 'aria-label': T('Masz prezent!') },
-      h('small', { class: 'gift-kicker' }, T(g.bug ? 'Nagroda za znalezienie błędu' : 'Prezent od MiB') + (total > 1 ? ' · 1/' + total : '')),
+      h('small', { class: 'gift-kicker' }, (g.from_nick ? T('Prezent od') + ' ' + g.from_nick : T(g.bug ? 'Nagroda za znalezienie błędu' : 'Prezent od MiB')) + (total > 1 ? ' · 1/' + total : '')),
       h('h3', {}, T('Masz prezent!')), canvas,
       h('b', { class: 'gift-name' }, g.name), h('span', { class: 'mut' }, T(KIND[g.type] || 'Kosmetyk')),
-      g.message ? h('blockquote', { class: 'gift-msg' }, '„' + g.message + '”', h('small', {}, '— ' + T('twórca MiB Client'))) : null,
+      g.message ? h('blockquote', { class: 'gift-msg' }, '„' + (g.from_nick ? clean(g.message) : g.message) + '”', h('small', {}, '— ' + (g.from_nick || T('twórca MiB Client')))) : null,
       actions));
     const close = () => { try { if (viewer) viewer.dispose(); } catch {} ov.remove(); giftOpen = false; if ($('p-cos').classList.contains('on')) renderCos(); giftsCheck(true); };
     const claim = h('button', { class: 'b', id: 'gift-claim', type: 'button', on: { click: async () => {
@@ -1195,7 +1386,8 @@
     friendsBadge();
     giftsCheck(!!st.loggedIn); ideasBadge();
     if (st.loggedIn) mib.call('prof:warnings').then(showWarnings);
-    if (st.loggedIn && !was) { achievementsCheck(false); mib.call('news:check'); }
+    if (st.loggedIn && !was) { achievementsCheck(false); mib.call('news:check'); daily = null; dailyAt = 0; }
+    dailyCheck();
     if (st.loggedIn && !was) { mibSync.pull(); if (window.mibWave) mibWave(); }
   }
   async function refresh() { apply(await mib.call('prof:state')); }

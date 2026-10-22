@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 function createFake() {
-  const st = { config: {}, votes: [], blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { offers: [], offerId: 0, coinLog: [], logId: 0, daily: {}, config: {}, votes: [], blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -15,6 +15,18 @@ function createFake() {
   const norm = c => String(c || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
   const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, coins: u.coins || 0, bugs_found: u.bugs || 0, warnings: u.warnings || 0, banned_at: u.banned || null, ban_reason: u.banReason || null });
   const banned = u => !!(u && u.banned);
+  // Sklep: tak jak has_cosmetic, offer_price i my_coin_log w schema.sql
+  const has = (uid, id) => st.owned.some(o => o.user === uid && o.cosmetic === id) || st.gifts.some(g => g.user === uid && g.cosmetic === id && !g.claimed);
+  const fullPrice = o => o.items.reduce((a, i) => a + ((cosmetics[i] || {}).price || 0), 0);
+  const offerPrice = (o, uid) => {
+    const it = o.items.filter(i => cosmetics[i]), miss = it.filter(i => !has(uid, i)), full = fullPrice(o), mp = miss.reduce((a, i) => a + (cosmetics[i].price || 0), 0);
+    if (!miss.length) return 0;
+    if (miss.length === it.length) return o.price;
+    return Math.max(1, Math.ceil(full > 0 ? o.price * mp / full : o.price * miss.length / it.length));
+  };
+  const live = o => !o.ends_at || new Date(o.ends_at) > new Date();
+  const coinLog = (uid, before) => st.coinLog.filter(l => l.user === uid && (!before || l.id < before)).sort((a, b) => b.id - a.id).slice(0, 50)
+    .map(l => ({ id: l.id, delta: l.delta, balance: l.balance, kind: l.kind, item: l.item, label: l.label, friend: l.to ? (st.users.find(u => u.id === l.to) || {}).nick || null : null, created_at: l.at }));
 
   const server = http.createServer((req, res) => {
     let raw = '';
@@ -122,6 +134,7 @@ function createFake() {
               if (!u) throw Object.assign(new Error('player_missing'), { pg: true });
               if ((u.coins || 0) + n < 0) throw Object.assign(new Error('coins_not_enough'), { pg: true });
               u.coins = (u.coins || 0) + n;
+              st.coinLog.push({ id: ++st.logId, user: u.id, delta: n, balance: u.coins, kind: 'admin', item: null, label: String(body.p_reason || '').trim() || null, to: null, at: new Date().toISOString() });
               return u.coins;
             },
             admin_set_config: () => {
@@ -132,6 +145,30 @@ function createFake() {
               st.config.shop_url = v;
               return null;
             },
+            // Sklep (od 0.24.0): tak jak admin_set_price, admin_*_offer(s), admin_coin_log w schema.sql
+            admin_set_price: () => {
+              const c = cosmetics[body.p_id], v = body.p_price;
+              if (v != null && !(Number.isInteger(v) && v >= 1 && v <= 1000000)) throw Object.assign(new Error('price_invalid'), { pg: true });
+              if (!c) throw Object.assign(new Error('cosmetic_missing'), { pg: true });
+              c.price = v == null ? null : v;
+              return null;
+            },
+            admin_list_offers: () => st.offers.map(o => ({ id: o.id, name: o.name, items: o.items, price: o.price, full_price: fullPrice(o), ends_at: o.ends_at,
+              sold: st.coinLog.filter(l => l.kind === 'offer' && l.item === String(o.id)).length })).sort((a, b) => b.id - a.id),
+            admin_save_offer: () => {
+              const items = [...new Set((body.p_items || []).filter(Boolean))], name = String(body.p_name || '').trim(), fail = m => { throw Object.assign(new Error(m), { pg: true }); };
+              if (!name || name.length > 40) fail('offer_name_invalid');
+              if (!items.length || items.length > 20 || items.some(i => !cosmetics[i])) fail('offer_items_invalid');
+              if (!(Number.isInteger(body.p_price) && body.p_price >= 1 && body.p_price <= 1000000)) fail('price_invalid');
+              if (body.p_ends && new Date(body.p_ends) <= new Date()) fail('offer_end_past');
+              const o = body.p_id ? st.offers.find(x => x.id === body.p_id) : { id: ++st.offerId };
+              if (!o) fail('offer_missing');
+              Object.assign(o, { name, items, price: body.p_price, ends_at: body.p_ends || null });
+              if (!body.p_id) st.offers.push(o);
+              return o.id;
+            },
+            admin_delete_offer: () => { st.offers = st.offers.filter(o => o.id !== body.p_id); return null; },
+            admin_coin_log: () => coinLog(body.p_user),
             // Zgłoszenia, ostrzeżenia i ban: tak jak admin_* w schema.sql
             admin_list_reports: () => st.reports.map(r => { const u = st.users.find(x => x.id === r.user), rp = st.users.find(x => x.id === r.reporter);
               return { id: r.id, reporter: rp ? rp.nick : null, user_id: r.user, nick: u.nick, num: u.num, warnings: u.warnings || 0, banned: banned(u), reason: r.reason, note: r.note, messages: r.messages, status: r.status, created_at: r.at }; })
@@ -163,7 +200,7 @@ function createFake() {
               return { day: d, players: Object.keys(a).length || (i % 5) + 2, played: Object.values(a).filter(Boolean).length || (i % 3) + 1, new_profiles: i % 4 === 0 ? 1 : 0 };
             }),
             admin_idea_details: () => (st.ideas.find(i => i.id === body.p_id) || {}).details || null,
-            admin_player_cosmetics: () => st.owned.filter(o => o.user === body.p_user).map(o => ({ id: o.cosmetic, name: cosmetics[o.cosmetic].name, source: 'code', acquired_at: o.at })),
+            admin_player_cosmetics: () => st.owned.filter(o => o.user === body.p_user).map(o => ({ id: o.cosmetic, name: cosmetics[o.cosmetic].name, source: o.source || 'code', acquired_at: o.at })),
             admin_grant: () => { st.owned.push({ user: body.p_user, cosmetic: body.p_cosmetic, at: new Date().toISOString() }); return null; },
             admin_revoke: () => { st.owned = st.owned.filter(o => !(o.user === body.p_user && o.cosmetic === body.p_cosmetic)); return null; },
             admin_delete_player: () => { if (st.users.find(u => u.id === body.p_user)?.num === 2) throw Object.assign(new Error('cannot_delete_admin'), { pg: true }); st.users = st.users.filter(u => u.id !== body.p_user); return null; },
@@ -284,9 +321,57 @@ function createFake() {
           }
           if (fn === 'game_invite_dismiss') { st.invites = st.invites.filter(i => !(i.to === user.id && i.from === body.p_from)); return json(res, 204); }
         }
+        // Sklep za MiB Coins: tak jak shop, buy_cosmetic, buy_offer, my_coin_log, claim_daily w schema.sql
+        if (['shop', 'buy_cosmetic', 'buy_offer', 'my_coin_log', 'claim_daily'].includes(fn)) {
+          const err = m => json(res, 400, { code: 'P0001', message: m });
+          const log = (delta, kind, item, label, to) => st.coinLog.push({ id: ++st.logId, user: user.id, delta, balance: user.coins, kind, item, label, to: to || null, at: new Date().toISOString() });
+          if (fn === 'shop') {
+            const offers = st.offers.filter(live);
+            return json(res, 200, { coins: user.coins || 0,
+              items: Object.values(cosmetics).filter(c => c.price != null || offers.some(o => o.items.includes(c.id))).sort((a, b) => (a.price ?? 1e9) - (b.price ?? 1e9) || a.name.localeCompare(b.name))
+                .map(c => ({ id: c.id, name: c.name, type: c.type, texture: c.texture || c.image_url || null, price: c.price ?? null, owned: has(user.id, c.id) })),
+              offers: offers.map(o => ({ id: o.id, name: o.name, items: o.items, price: o.price, full: fullPrice(o), mine: offerPrice(o, user.id), ends_at: o.ends_at })) });
+          }
+          if (fn === 'my_coin_log') return json(res, 200, coinLog(user.id, body.p_before));
+          if (fn === 'claim_daily') {
+            if (banned(user)) return json(res, 200, { claimed: false });
+            const today = new Date().toISOString().slice(0, 10), d = st.daily[user.id];
+            if (d && d.day === today) return json(res, 200, { claimed: false, streak: d.streak });
+            const y = new Date(Date.now() - 86400000).toISOString().slice(0, 10), streak = d && d.day === y ? d.streak + 1 : 1, amount = 10 + (streak % 7 === 0 ? 50 : 0);
+            st.daily[user.id] = { day: today, streak };
+            user.coins = (user.coins || 0) + amount;
+            log(amount, 'daily', String(streak), null);
+            return json(res, 200, { claimed: true, amount, streak, coins: user.coins });
+          }
+          if (banned(user)) return err('banned');
+          if (fn === 'buy_cosmetic') {
+            const c = cosmetics[body.p_cosmetic], to = body.p_for || user.id;
+            if (!c || c.price == null) return err('not_for_sale');
+            if (to !== user.id && !st.friends.some(f => f.accepted && ((f.from === user.id && f.to === to) || (f.from === to && f.to === user.id)))) return err('gift_not_friend');
+            if (has(to, c.id)) return err(to === user.id ? 'already_owned' : 'friend_has_it');
+            if ((user.coins || 0) < c.price) return err('coins_not_enough');
+            user.coins -= c.price;
+            let gift = null;
+            if (to === user.id) st.owned.push({ user: user.id, cosmetic: c.id, source: 'shop', at: new Date().toISOString() });
+            else { st.gifts.push({ id: (gift = ++st.giftId), user: to, cosmetic: c.id, message: String(body.p_message || '').replace(/§./g, '').trim() || null, bug: false, claimed: false, from: user.id }); }
+            log(-c.price, to === user.id ? 'buy' : 'gift', c.id, c.name, to === user.id ? null : to);
+            return json(res, 200, { coins: user.coins, id: c.id, name: c.name, type: c.type, gift });
+          }
+          if (fn === 'buy_offer') {
+            const o = st.offers.find(x => x.id === body.p_offer && live(x));
+            if (!o) return err('offer_missing');
+            const price = offerPrice(o, user.id), items = o.items.filter(i => cosmetics[i] && !has(user.id, i));
+            if (!price) return err('already_owned');
+            if ((user.coins || 0) < price) return err('coins_not_enough');
+            user.coins -= price;
+            for (const i of items) st.owned.push({ user: user.id, cosmetic: i, source: 'shop', at: new Date().toISOString() });
+            log(-price, 'offer', String(o.id), o.name);
+            return json(res, 200, { coins: user.coins, price, items });
+          }
+        }
         // Prezenty i zmiany w pomysłach: tak jak my_gifts, claim_gift, ideas_updates, ideas_seen w schema.sql
         if (fn === 'my_gifts') return json(res, 200, st.gifts.filter(g => g.user === user.id && !g.claimed).map(g => ({ id: g.id, cosmetic_id: g.cosmetic,
-          name: cosmetics[g.cosmetic].name, type: cosmetics[g.cosmetic].type, texture: cosmetics[g.cosmetic].texture || null, message: g.message, bug: g.bug, created_at: new Date().toISOString() })));
+          name: cosmetics[g.cosmetic].name, type: cosmetics[g.cosmetic].type, texture: cosmetics[g.cosmetic].texture || null, message: g.message, bug: g.bug, created_at: new Date().toISOString(), from_nick: g.from ? (st.users.find(u => u.id === g.from) || {}).nick || null : null })));
         if (fn === 'claim_gift') {
           const g = st.gifts.find(x => x.id === body.p_id && x.user === user.id && !x.claimed);
           if (!g) return json(res, 400, { code: 'P0001', message: 'gift_missing' });
@@ -355,7 +440,7 @@ function createFake() {
         return json(res, 200, user.noProfile ? [] : [profileRow(user)]);
       }
       if (p === '/rest/v1/ideas') return json(res, 200, st.ideas.filter(i => i.user === user.id).sort((a, b) => b.id - a.id).map(({ user: _, ...i }) => i));
-      if (p === '/rest/v1/owned_cosmetics') return json(res, 200, st.owned.filter(o => o.user === user.id).map(o => ({ source: 'code', acquired_at: o.at, cosmetics: cosmetics[o.cosmetic] })));
+      if (p === '/rest/v1/owned_cosmetics') return json(res, 200, st.owned.filter(o => o.user === user.id).map(o => ({ source: o.source || 'code', acquired_at: o.at, cosmetics: cosmetics[o.cosmetic] })));
       if (p === '/rest/v1/mod_backups') {
         if (req.method === 'POST') { st.backups = st.backups.filter(b => !(b.user === user.id && b.game_version === body.game_version)); st.backups.push({ ...body, user: user.id }); return json(res, 201); }
         const gv = decodeURIComponent((url.searchParams.get('game_version') || '').replace(/^eq\./, ''));

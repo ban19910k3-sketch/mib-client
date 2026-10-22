@@ -910,3 +910,159 @@ do $$ begin assert (select count(*) from public.profiles where id = '77777777-77
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 do $$ begin perform public.admin_set_config('shop_url', ''); assert not exists (select 1 from public.app_config), 'pusty link usuwa przycisk'; end $$;
 reset role;
+
+-- Sklep za MiB Coins (od 0.24.0): ceny i oferty ustawia admin, gracz kupuje dla siebie albo dla znajomego,
+-- pakiet taniej o to, co już ma, historia coinsów i nagroda dzienna
+insert into auth.users (id, email, encrypted_password, raw_user_meta_data) values
+  ('88888888-8888-8888-8888-888888888888', 'shop1@test.pl', 'x', '{"nick":"Kupiec"}'),
+  ('99999999-9999-9999-9999-999999999999', 'shop2@test.pl', 'x', '{"nick":"Kumpel"}');
+insert into public.cosmetics (id, name, type) values ('shop_test_hat', 'Testowa czapka', 'hat');
+set role authenticated;
+set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+select pg_temp.expect_error($q$select public.buy_cosmetic('halloween_cape_pumpkin')$q$, 'not_for_sale');
+select pg_temp.expect_error($q$select public.admin_set_price('halloween_cape_pumpkin', 800)$q$, 'not_admin');
+select pg_temp.expect_error($q$select public.admin_save_offer(null, 'X', array['halloween_cape_pumpkin'], 1, null)$q$, 'not_admin');
+select pg_temp.expect_error($q$select * from private.shop_offers$q$, 'permission denied');
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select pg_temp.expect_error($q$select public.admin_set_price('halloween_cape_pumpkin', 0)$q$, 'price_invalid');
+select pg_temp.expect_error($q$select public.admin_set_price('nie_ma_takiego', 100)$q$, 'cosmetic_missing');
+select pg_temp.expect_error($q$select public.admin_save_offer(null, 'Zły', array['nie_ma_takiego'], 100, null)$q$, 'offer_items_invalid');
+select pg_temp.expect_error($q$select public.admin_save_offer(null, 'Zły', array[]::text[], 100, null)$q$, 'offer_items_invalid');
+select pg_temp.expect_error($q$select public.admin_save_offer(null, '', array['halloween_hat_skull'], 100, null)$q$, 'offer_name_invalid');
+select pg_temp.expect_error($q$select public.admin_save_offer(null, 'Zły', array['halloween_hat_skull'], 0, null)$q$, 'price_invalid');
+select pg_temp.expect_error($q$select public.admin_save_offer(null, 'Zły', array['halloween_hat_skull'], 100, now() - interval '1 minute')$q$, 'offer_end_past');
+select pg_temp.expect_error($q$select public.admin_save_offer(99999999, 'Zły', array['halloween_hat_skull'], 100, null)$q$, 'offer_missing');
+do $$
+declare v_id bigint;
+begin
+  perform public.admin_set_price('halloween_cape_pumpkin', 800);
+  perform public.admin_set_price('halloween_hat_pumpkin', 500);
+  perform public.admin_set_price('halloween_hat_skull', 500);
+  perform public.admin_set_price('halloween_aura_souls', 1000);
+  v_id := public.admin_save_offer(null, ' Pakiet Halloween ', array['halloween_cape_pumpkin', 'halloween_hat_pumpkin', 'halloween_hat_skull', 'halloween_hat_skull'],
+    1200, now() + interval '5 days');
+  assert (select name || ' ' || cardinality(items) || ' ' || full_price from public.admin_list_offers() where id = v_id) = 'Pakiet Halloween 3 1800',
+    'oferta bez powtórzeń z sumą zwykłych cen';
+  perform public.admin_save_offer(null, 'Tylko testowa', array['shop_test_hat'], 50, null);
+  perform public.admin_give_coins('88888888-8888-8888-8888-888888888888', 2000, 'zakup na stronie');
+end $$;
+select pg_temp.expect_error($q$select public.admin_delete_cosmetic('shop_test_hat')$q$, 'cosmetic_in_use');
+do $$ begin
+  perform public.admin_delete_offer((select id from public.admin_list_offers() where name = 'Tylko testowa'));
+  perform public.admin_delete_cosmetic('shop_test_hat');
+  assert not exists (select 1 from public.cosmetics where id = 'shop_test_hat'), 'kosmetyk bez oferty można usunąć';
+end $$;
+set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+do $$
+declare s json; r json;
+begin
+  s := public.shop();
+  assert (s ->> 'coins')::integer = 2000, 'saldo w sklepie';
+  assert (select (x ->> 'price')::integer from json_array_elements(s -> 'items') x where x ->> 'id' = 'halloween_cape_pumpkin') = 800, 'cena kosmetyku';
+  assert (select x ->> 'texture' from json_array_elements(s -> 'items') x where x ->> 'id' = 'halloween_cape_pumpkin') like 'data:image/png;base64,%', 'tekstura do podglądu';
+  assert not exists (select 1 from json_array_elements(s -> 'items') x where x ->> 'id' = 'cape_start'), 'bez kosmetyków spoza sklepu';
+  assert (select (x ->> 'full')::integer || ' ' || (x ->> 'mine')::integer from json_array_elements(s -> 'offers') x) = '1800 1200', 'pełna i moja cena pakietu';
+  r := public.buy_cosmetic('halloween_hat_pumpkin');
+  assert (r ->> 'coins')::integer = 1500 and r ->> 'name' = 'Dynia' and r ->> 'gift' is null, 'zakup dla siebie';
+  assert (select source from public.owned_cosmetics where user_id = auth.uid() and cosmetic_id = 'halloween_hat_pumpkin') = 'shop', 'kosmetyk na profilu';
+  s := public.shop();
+  assert (select (x ->> 'owned')::boolean from json_array_elements(s -> 'items') x where x ->> 'id' = 'halloween_hat_pumpkin'), 'kupiony oznaczony';
+  assert (select (x ->> 'mine')::integer from json_array_elements(s -> 'offers') x) = 867, 'pakiet taniej o to, co już mam (1200 × 1300/1800 w górę)';
+end $$;
+select pg_temp.expect_error($q$select public.buy_cosmetic('halloween_hat_pumpkin')$q$, 'already_owned');
+select pg_temp.expect_error($q$select public.buy_cosmetic('halloween_aura_souls', '99999999-9999-9999-9999-999999999999', 'hej')$q$, 'gift_not_friend');
+select public.friend_request('Kumpel');
+set request.jwt.claim.sub = '99999999-9999-9999-9999-999999999999';
+select public.friend_answer('88888888-8888-8888-8888-888888888888', true);
+set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+select pg_temp.expect_error($q$select public.buy_cosmetic('halloween_aura_souls', '99999999-9999-9999-9999-999999999999', repeat('x', 201))$q$, 'gift_message_long');
+do $$
+declare r json;
+begin
+  r := public.buy_cosmetic('halloween_aura_souls', '99999999-9999-9999-9999-999999999999', E' Dla Ciebie! §c\n');
+  assert (r ->> 'coins')::integer = 500 and (r ->> 'gift') is not null, 'prezent dla znajomego';
+  assert not exists (select 1 from public.owned_cosmetics where user_id = auth.uid() and cosmetic_id = 'halloween_aura_souls'), 'kupujący go nie dostaje';
+end $$;
+select pg_temp.expect_error($q$select public.buy_cosmetic('halloween_aura_souls', '99999999-9999-9999-9999-999999999999', null)$q$, 'friend_has_it');
+select pg_temp.expect_error($q$select public.buy_offer((select (x ->> 'id')::bigint from json_array_elements(public.shop() -> 'offers') x))$q$, 'coins_not_enough');
+set request.jwt.claim.sub = '99999999-9999-9999-9999-999999999999';
+do $$ begin
+  assert (select from_nick || ' ' || message || ' ' || cosmetic_id from public.my_gifts()) = 'Kupiec Dla Ciebie! halloween_aura_souls', 'prezent od znajomego z wiadomością';
+end $$;
+select pg_temp.expect_error($q$select public.buy_cosmetic('halloween_aura_souls')$q$, 'already_owned');
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select public.admin_give_coins('88888888-8888-8888-8888-888888888888', 1000, null);
+set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+do $$
+declare v_offer bigint := (select (x ->> 'id')::bigint from json_array_elements(public.shop() -> 'offers') x); r json;
+begin
+  r := public.buy_offer(v_offer);
+  assert (r ->> 'coins')::integer = 633 and (r ->> 'price')::integer = 867, 'pakiet za moją cenę';
+  assert (select string_agg(x, ',' order by x) from json_array_elements_text(r -> 'items') x) = 'halloween_cape_pumpkin,halloween_hat_skull', 'brakujące przedmioty';
+  assert (select count(*) from public.owned_cosmetics where user_id = auth.uid() and source = 'shop') = 3, 'pakiet na profilu';
+  assert (select (x ->> 'mine')::integer from json_array_elements(public.shop() -> 'offers') x) = 0, 'mam wszystko z pakietu';
+  assert (select string_agg(kind, ',' order by id desc) from public.my_coin_log()) = 'offer,admin,gift,buy,admin', 'historia coinsów';
+  assert (select label || ' ' || delta || ' ' || balance from public.my_coin_log() where kind = 'offer') = 'Pakiet Halloween -867 633', 'pakiet w historii';
+  assert (select friend || ' ' || label from public.my_coin_log() where kind = 'gift') = 'Kumpel Dusze', 'komu prezent';
+  assert (select count(*) from public.my_coin_log((select max(id) from public.my_coin_log()))) = 4, 'starsze wpisy';
+end $$;
+select pg_temp.expect_error($q$select public.buy_offer((select (x ->> 'id')::bigint from json_array_elements(public.shop() -> 'offers') x))$q$, 'already_owned');
+select pg_temp.expect_error($q$select public.buy_offer(99999999)$q$, 'offer_missing');
+set request.jwt.claim.sub = '99999999-9999-9999-9999-999999999999';
+do $$ begin
+  assert not exists (select 1 from public.my_coin_log()), 'cudzej historii nie widać';
+end $$;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin
+  assert (select sold from public.admin_list_offers() where name = 'Pakiet Halloween') = 1, 'sprzedane pakiety';
+  assert (select count(*) from public.admin_coin_log('88888888-8888-8888-8888-888888888888')) = 5, 'historia gracza dla admina';
+  perform public.admin_save_offer(null, 'Krótka', array['halloween_hat_mummy'], 100, now() + interval '1 hour');
+end $$;
+reset role;
+update private.shop_offers set ends_at = now() - interval '1 second' where name = 'Krótka';
+set role authenticated;
+set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+do $$ begin
+  assert not exists (select 1 from json_array_elements(public.shop() -> 'offers') x where x ->> 'name' = 'Krótka'), 'zakończonej oferty nie ma';
+  assert not exists (select 1 from json_array_elements(public.shop() -> 'items') x where x ->> 'id' = 'halloween_hat_mummy'), 'ani jej przedmiotów';
+end $$;
+select pg_temp.expect_error($q$select public.buy_offer((select id from private.shop_offers where name = 'Krótka'))$q$, 'permission denied');
+-- nagroda dzienna: raz na dobę, co 7. dzień z rzędu 50 więcej, przerwa zeruje serię
+do $$
+declare r json;
+begin
+  r := public.claim_daily();
+  assert (r ->> 'claimed')::boolean and (r ->> 'amount')::integer = 10 and (r ->> 'streak')::integer = 1 and (r ->> 'coins')::integer = 643, 'pierwsza nagroda';
+  r := public.claim_daily();
+  assert not (r ->> 'claimed')::boolean and (r ->> 'streak')::integer = 1, 'drugi raz tego dnia nic';
+end $$;
+reset role;
+update private.daily set last_day = private.today() - 1, streak = 6 where user_id = '88888888-8888-8888-8888-888888888888';
+set role authenticated;
+do $$
+declare r json;
+begin
+  r := public.claim_daily();
+  assert (r ->> 'streak')::integer = 7 and (r ->> 'amount')::integer = 60, '7. dzień z rzędu z bonusem';
+  assert (select kind || ' ' || item || ' ' || delta from public.my_coin_log() limit 1) = 'daily 7 60', 'nagroda w historii';
+end $$;
+reset role;
+update private.daily set last_day = private.today() - 3 where user_id = '88888888-8888-8888-8888-888888888888';
+set role authenticated;
+do $$ begin
+  assert (public.claim_daily() ->> 'streak')::integer = 1, 'przerwa zeruje serię';
+end $$;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select public.admin_ban('88888888-8888-8888-8888-888888888888', 'Test', null);
+set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+select pg_temp.expect_error($q$select public.buy_cosmetic('halloween_hat_skull')$q$, 'banned');
+do $$ begin assert not (public.claim_daily() ->> 'claimed')::boolean, 'zbanowany bez nagrody'; end $$;
+set role anon;
+select pg_temp.expect_error($q$select public.shop()$q$, 'permission denied');
+select pg_temp.expect_error($q$select public.buy_cosmetic('halloween_hat_skull')$q$, 'permission denied');
+select pg_temp.expect_error($q$select public.claim_daily()$q$, 'permission denied');
+do $$ begin assert (select price from public.cosmetics where id = 'halloween_cape_pumpkin') = 800, 'ceny widać bez profilu'; end $$;
+reset role;
+do $$ begin
+  assert not exists (select 1 from private.coin_log where kind is null), 'stare wpisy to admin';
+end $$;

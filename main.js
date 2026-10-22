@@ -129,7 +129,7 @@ async function watchGifts() {
     const r = freshKeys(giftsSeen, g, x => String(x.id));
     giftsSeen = r.seen;
     send('gifts:changed', g.length);
-    for (const x of r.fresh) friendPopup({ type: 'gift', nick: 'MiB', text: x.name });
+    for (const x of r.fresh) friendPopup({ type: 'gift', nick: x.from_nick || 'MiB', text: x.name });
   } else giftsSeen = null;
   const u = await prof.ideaUpdates();
   if (Array.isArray(u)) {

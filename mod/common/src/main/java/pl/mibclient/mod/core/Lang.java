@@ -51,6 +51,7 @@ public final class Lang {
 		put("notice.invite.body", "%s zaprasza Cię na %s (Minecraft %s). Dołącz w launcherze: Znajomi.",
 				"%s invites you to %s (Minecraft %s). Join from the launcher: Friends.");
 		put("notice.gift", "Prezent od MiB!", "A gift from MiB!");
+		put("notice.gift.from", "Prezent od %s!", "A gift from %s!");
 		put("notice.news", "Ważna aktualność MiB", "Important MiB news");
 		put("notice.gift.body", "%s czeka na Ciebie. Odbierz w launcherze.", "%s is waiting for you. Claim it in the launcher.");
 		put("notice.message", "Wiadomość od %s", "Message from %s");

@@ -71,7 +71,8 @@ public final class Notice {
 
 	public String title() {
 		if (news()) return Lang.t("notice.news");
-		if (gift()) return Lang.t("notice.gift");
+		// prezent kupiony przez znajomego (od 0.24.0): z jego nickiem
+		if (gift()) return "MiB".equals(nick) ? Lang.t("notice.gift") : Lang.t("notice.gift.from", nick);
 		if (message()) return Lang.t("notice.message", nick);
 		return Lang.t(invite() ? "notice.invite" : "notice.started");
 	}

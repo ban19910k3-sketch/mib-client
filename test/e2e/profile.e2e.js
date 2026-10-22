@@ -229,6 +229,90 @@ function png(w, h, px) {
     tester.coins = 0;
     ok('(am) MiB Coins w Kosmetykach i przycisk do sklepu');
 
+    // Sklep za MiB Coins (0.24.0): przymiarka, za mało coinsów, zakup, prezent dla znajomego, pakiet taniej o to, co gracz
+    // już ma, historia coinsów i nagroda dzienna (launcher odebrał ją sam po zalogowaniu)
+    assert.ok(fake.st.coinLog.some(l => l.user === tester.id && l.kind === 'daily'), 'nagroda dzienna odebrana po zalogowaniu');
+    fake.cosmetics.hat_shop = { id: 'hat_shop', name: 'Czapka sklepowa', type: 'hat', image_url: null, price: 500, texture: fake.cosmetics.hat_mib.texture };
+    fake.cosmetics.cape_shop = { id: 'cape_shop', name: 'Peleryna sklepowa', type: 'cape', image_url: null, price: 800, texture: fake.cosmetics.cape_start.texture };
+    fake.cosmetics.wings_test.price = 700;
+    fake.st.offers.push({ id: ++fake.st.offerId, name: 'Pakiet testowy', items: ['hat_shop', 'cape_shop', 'wings_test'], price: 1000, ends_at: new Date(Date.now() + 3 * 864e5 + 36e5).toISOString() });
+    tester.coins = 600;
+    await w.click('.nav[data-p="home"]');
+    await w.click('.nav[data-p="cos"]');
+    await w.click('#cos-tabs [data-t="shop"]');
+    await w.waitForSelector('#shop-grid .cosi[data-id="hat_shop"]');
+    assert.equal(await w.textContent('#cos-tabs .on'), 'Sklep');
+    const offer = await w.textContent('.card.offer');
+    assert.match(offer, /Pakiet.*−50%.*jeszcze 3 dni.*Pakiet testowy/s, 'pakiet: zniżka i ile zostało');
+    assert.match(offer, /2000.*650.*Kup pakiet.*Taniej, bo masz już część/s, 'zwykła cena przekreślona, cena dla mnie (mam skrzydła)');
+    assert.match(await w.textContent('#cos-daily'), /Seria 1\/7/, 'seria nagród dziennych');
+    await w.click('#shop-grid .cosi[data-id="hat_shop"] b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.hat === '1');
+    assert.ok(await w.$('#shop-grid .cosi[data-id="hat_shop"].try'), 'przymiarka w sklepie');
+    await w.click('#shop-grid .cosi[data-id="cape_shop"] button:has-text("Kup")');
+    await w.waitForSelector('#buy #buy-short');
+    assert.match(await w.textContent('#buy-short'), /Brakuje.*200/s, 'za mało coinsów: ile brakuje');
+    assert.equal(await w.$('#buy-go'), null, 'zamiast Kup jest Kup MiB Coins');
+    await w.press('#buy', 'Escape');
+    await w.click('#shop-grid .cosi[data-id="hat_shop"] button:has-text("Kup")');
+    await w.waitForSelector('#buy-go');
+    assert.match(await w.textContent('#buy .buy-sum'), /Cena.*500.*Masz.*600.*Zostanie.*100/s);
+    await w.waitForTimeout(800);
+    await shot('shop-buy.png');
+    await w.click('#buy-go');
+    await until(() => fake.st.owned.some(o => o.user === tester.id && o.cosmetic === 'hat_shop' && o.source === 'shop'));
+    assert.equal(tester.coins, 100);
+    await w.waitForFunction(() => /^100$/.test(document.getElementById('cos-coins').textContent) && /Masz/.test(document.querySelector('#shop-grid .cosi[data-id="hat_shop"]').textContent));
+    await w.waitForFunction(() => !document.getElementById('unlock'), null, { timeout: 5000 });
+    // prezent: bez znajomych nie ma komu, potem znajomy dostaje okno „Masz prezent!” z nickiem kupującego
+    await w.click('#shop-grid .cosi[data-id="cape_shop"] button:has-text("Podaruj")');
+    await w.waitForFunction(() => /tylko znajomemu/.test(document.querySelector('#buy .err').textContent));
+    assert.equal(await w.isDisabled('#buy-to'), true);
+    await w.press('#buy', 'Escape');
+    const kumpel = { id: 'u-kumpel', email: 'kumpel@mib.pl', password: 'x', nick: 'Kumpel', num: 60, created: new Date().toISOString() };
+    fake.st.users.push(kumpel);
+    fake.st.friends.push({ from: tester.id, to: kumpel.id, accepted: true });
+    tester.coins = 2000;
+    await w.click('#shop-grid .cosi[data-id="cape_shop"] button:has-text("Podaruj")');
+    await w.waitForSelector('#buy-to option[value="u-kumpel"]', { state: 'attached' });
+    await w.selectOption('#buy-to', 'u-kumpel');
+    await w.fill('#buy-msg', 'Wszystkiego najlepszego!');
+    await w.waitForTimeout(800);
+    await shot('shop-gift.png');
+    await w.click('#buy-go');
+    await until(() => fake.st.gifts.some(g => g.user === kumpel.id && g.cosmetic === 'cape_shop' && g.from === tester.id && g.message === 'Wszystkiego najlepszego!'));
+    await w.waitForSelector('.toast:has-text("Prezent wysłany")');
+    assert.equal(tester.coins, 1200);
+    assert.ok(!fake.st.owned.some(o => o.user === tester.id && o.cosmetic === 'cape_shop'), 'kupujący nie dostaje prezentu');
+    // pakiet: brakuje już tylko peleryny (800 z 2000) → 400
+    await w.waitForFunction(() => /400/.test(document.querySelector('.card.offer .price').textContent));
+    await w.click('.card.offer button:has-text("Kup pakiet")');
+    await w.waitForSelector('#buy-go');
+    assert.match(await w.textContent('#buy h3'), /Pakiet testowy/);
+    await w.click('#buy-go');
+    await until(() => fake.st.owned.some(o => o.user === tester.id && o.cosmetic === 'cape_shop'));
+    assert.equal(tester.coins, 800);
+    await w.waitForFunction(() => /Masz wszystko/.test(document.querySelector('.card.offer').textContent));
+    await w.waitForFunction(() => !document.getElementById('unlock'), null, { timeout: 5000 });
+    await w.$eval('#cos-tabs', el => el.scrollIntoView({ block: 'start' }));
+    await shot('shop.png');
+    await w.click('#cos-tabs [data-t="log"]');
+    await w.waitForSelector('#cos-log .cl-row');
+    const log = await w.$$eval('#cos-log .cl-row', l => l.map(r => r.textContent));
+    assert.match(log[0], /Pakiet: Pakiet testowy.*−400.*800/s);
+    assert.match(log[1], /Prezent dla Kumpel: Peleryna sklepowa.*−800/s);
+    assert.match(log[2], /Zakup: Czapka sklepowa.*−500.*100/s);
+    assert.ok(log.some(r => /Nagroda dzienna.*\+10/s.test(r)), 'nagroda dzienna w historii');
+    await shot('shop-history.png');
+    await w.click('#cos-tabs [data-t="mine"]');
+    await w.waitForSelector('#cos-code');
+    assert.match(await w.textContent('.cosi[data-id="cape_shop"]'), /Kupiono/);
+    fake.st.friends = fake.st.friends.filter(f => f.to !== kumpel.id);
+    fake.st.users = fake.st.users.filter(u => u !== kumpel);
+    fake.st.gifts = fake.st.gifts.filter(g => g.user !== kumpel.id);
+    tester.coins = 0;
+    ok('(an) sklep: przymiarka, za mało coinsów, zakup, prezent dla znajomego, pakiet taniej, historia i nagroda dzienna');
+
     // Znajomi: zaproszenie po nicku, zaproszenie od kogoś innego, znajomy w grze z serwerem
     const now = new Date().toISOString();
     const kolega = { id: 'u-kolega', email: 'k@mib.pl', password: 'x', nick: 'Kolega', num: 50, created: now };
@@ -403,7 +487,7 @@ function png(w, h, px) {
     await w.click('text=Wyloguj');
     await w.waitForSelector('#pf-nick');
     fake.st.users.push({ id: 'orphan-1', email: 'sierota@mib.pl', password: 'haslo1234', nick: '', num: 0, noProfile: true, created: new Date().toISOString() });
-    await w.click('.seg button:nth-child(2)');
+    await w.click('#prof-box .seg button:nth-child(2)');
     await w.fill('#pl-email', 'sierota@mib.pl'); await w.fill('#pl-pass', 'haslo1234');
     await w.press('#pl-pass', 'Enter');
     await w.waitForSelector('#pc-nick');
@@ -542,6 +626,8 @@ function png(w, h, px) {
     await w.click('#ap-coins-go');
     await w.waitForSelector('.toast:has-text("najwyżej milion")');
     assert.equal(fake.st.users.find(u => u.nick === 'Tester_1').coins, 1500, 'saldo po zmianach w panelu');
+    await w.click('#ap-coins-hist');
+    await w.waitForFunction(() => /Od admina: zakup na stronie.*\+1500/s.test(document.getElementById('ap-coins-log').textContent) && /Pakiet: Pakiet testowy/.test(document.getElementById('ap-coins-log').textContent));
     assert.equal(await w.isDisabled('#ap-del'), true, 'najpierw trzeba wpisać nick');
     await w.fill('#ap-del-nick', 'Tester_1');
     await w.click('#ap-del');
@@ -568,8 +654,26 @@ function png(w, h, px) {
     await w.fill('#ac-shop', 'https://sklep.mib.pl/coins');
     await w.click('#ac-shop-save');
     await until(() => fake.st.config.shop_url === 'https://sklep.mib.pl/coins');
+    // cena przedmiotu i oferta z datą końca
+    await w.click('#ac-list .cosi:has-text("Peleryna Start") button:has-text("Edytuj")');
+    await w.fill('#ac-price', '300');
+    await w.click('#ac-save');
+    await until(() => fake.cosmetics.cape_start.price === 300);
+    await w.waitForFunction(() => /300 coinsów/.test(document.querySelector('#ac-list').textContent));
+    await w.fill('#ao-name', 'Pakiet startowy');
+    await w.check('#ao-items input[value="cape_start"]');
+    await w.check('#ao-items input[value="hat_mib"]');
+    await w.fill('#ao-price', '200');
+    await w.waitForFunction(() => /300.*taniej o 33%/.test(document.getElementById('ao-sum').textContent));
+    await w.fill('#ao-until', new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10));
+    await w.click('#ao-save');
+    await until(() => fake.st.offers.some(o => o.name === 'Pakiet startowy' && o.ends_at && o.items.join() === 'cape_start,hat_mib' && o.price === 200));
+    await w.waitForFunction(() => /Pakiet startowy.*−33%.*200 coinsów zamiast 300/s.test(document.getElementById('ao-list').textContent));
+    await w.locator('#ao').scrollIntoViewIfNeeded();
+    await shot('admin-offers.png');
+    fake.st.offers = fake.st.offers.filter(o => o.name !== 'Pakiet startowy');
     await shot('admin-cos.png');
-    ok('(l) panel admina: kody, statystyki, gracze (z usunięciem konta), kosmetyki');
+    ok('(l) panel admina: kody, statystyki, gracze (z usunięciem konta i historią coinsów), kosmetyki z ceną, oferty');
 
     // Prezent z zakładki Gracze i nagroda za zgłoszony błąd z odpowiedzią: admin (Sierota_1) wysyła je sobie.
     // Sprawdzanie prezentów co minutę (main.js) wstrzymane, żeby okno nie wyskoczyło w połowie klikania w panelu

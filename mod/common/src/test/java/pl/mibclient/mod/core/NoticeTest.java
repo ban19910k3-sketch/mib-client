@@ -49,6 +49,8 @@ class NoticeTest {
 		assertEquals("Prezent od MiB!", n.title());
 		assertEquals("Peleryna Złota czeka na Ciebie. Odbierz w launcherze.", n.body());
 		assertNull(Notice.parse("{\"id\":\"8-2\",\"type\":\"gift\",\"nick\":\"MiB\",\"at\":8}"), "prezent bez nazwy");
+		Notice f = Notice.parse("{\"id\":\"8-3\",\"type\":\"gift\",\"nick\":\"Kumpel\",\"text\":\"Dusze\",\"at\":8}");
+		assertTrue(f.title().contains("Kumpel"), "prezent od znajomego z jego nickiem");
 	}
 
 	@Test

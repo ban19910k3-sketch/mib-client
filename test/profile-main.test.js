@@ -508,3 +508,29 @@ test('wallet: stara baza bez coinsów i sklepu nie psuje Kosmetyk', async () => 
   assert.deepEqual(await p.wallet(), { loggedIn: true, coins: null, shopUrl: null });
   assert.deepEqual(await p.shopOpen(), { error: 'shop_missing' });
 });
+
+test('sklep: zakup dla siebie i dla znajomego (wiadomość tylko przy prezencie), oferta, historia, nagroda dzienna', async () => {
+  const { p, supa } = mk();
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  await p.buy({ id: 'halloween_hat_pumpkin', message: 'nie trafi do bazy' });
+  await p.buy({ id: 'halloween_aura_souls', to: 'U2', message: '  Dla Ciebie!  ' });
+  await p.buyOffer({ id: 3 });
+  await p.coinLog({ before: 40 });
+  await p.daily();
+  const rpc = supa.calls.filter(c => c[0] === 'rpc').map(c => [c[1], c[2]]);
+  assert.deepEqual(rpc.slice(-5), [
+    ['buy_cosmetic', { p_cosmetic: 'halloween_hat_pumpkin', p_for: null, p_message: null }],
+    ['buy_cosmetic', { p_cosmetic: 'halloween_aura_souls', p_for: 'U2', p_message: 'Dla Ciebie!' }],
+    ['buy_offer', { p_offer: 3 }], ['my_coin_log', { p_before: 40 }], ['claim_daily', {}]]);
+  const n = supa.calls.length;
+  assert.deepEqual(await p.buy({ id: 'x', to: 'U2', message: 'a'.repeat(201) }), { error: 'gift_message_long' });
+  assert.equal(supa.calls.length, n, 'za długa wiadomość nie idzie do bazy');
+});
+
+test('sklep: błąd bazy wraca jako kod, a nagroda dzienna na starej bazie to nic', async () => {
+  const supa = fakeSupa({ rpc: async fn => { if (fn === 'claim_daily') throw new SupaError(404, 'schema_outdated', 'x'); throw new SupaError(400, 'coins_not_enough', 'coins_not_enough'); } });
+  const { p } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.equal((await p.buy({ id: 'halloween_hat_pumpkin' })).error, 'coins_not_enough');
+  assert.deepEqual(await p.daily(), { claimed: false });
+});

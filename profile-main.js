@@ -10,7 +10,7 @@ const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_co
   'admin_list_announcements', 'admin_save_announcement', 'admin_delete_announcement',
   'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea', 'admin_answer_idea', 'admin_gift', 'admin_gift_all',
   'admin_idea_details', 'admin_list_reports', 'admin_count_new_reports', 'admin_warn', 'admin_ban', 'admin_unban', 'admin_dismiss_report', 'admin_activity',
-  'admin_give_coins', 'admin_set_config']);
+  'admin_give_coins', 'admin_set_config', 'admin_set_price', 'admin_list_offers', 'admin_save_offer', 'admin_delete_offer', 'admin_coin_log']);
 const CRASH_MAX = 20000;
 
 // hidden(): tryb niewidoczny (znajomi widzą offline); openExternal(url): strona w przeglądarce (sklep)
@@ -203,7 +203,11 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     announcements: () => supa.select('announcements', 'select=id,title,body,pinned,popup,created_at&order=pinned.desc,created_at.desc&limit=10')
       .catch(e => (e.code === 'schema_outdated' ? supa.select('announcements', 'select=id,title,body,pinned,created_at&order=pinned.desc,created_at.desc&limit=10') : Promise.reject(e))),
     // lite: bez tekstur (do list wyboru), żeby nie pobierać ich niepotrzebnie
-    allCosmetics: ({ lite } = {}) => supa.select('cosmetics', 'select=id,name,type' + (lite ? '' : ',texture') + '&order=created_at.desc'),
+    // (cena od 0.24.0; stara baza jej nie ma)
+    allCosmetics: ({ lite } = {}) => {
+      const q = cols => supa.select('cosmetics', 'select=' + cols + (lite ? '' : ',texture') + '&order=created_at.desc');
+      return q('id,name,type,price').catch(e => (e.code === 'schema_outdated' ? q('id,name,type') : Promise.reject(e)));
+    },
     async admin({ fn, args }) {
       if (!ADMIN_FNS.has(fn)) return { error: 'not_admin_fn' };
       return authed(t => supa.rpc(fn, args || {}, t));
@@ -241,6 +245,18 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       await openExternal(url.toString());
       return { ok: true };
     },
+    // ===== Sklep za MiB Coins (od 0.24.0): ceny, zakup i prezent dla znajomego pilnuje baza =====
+    shop: () => authed(t => supa.rpc('shop', {}, t)),
+    // to: znajomy, który dostanie kosmetyk w prezencie (puste = dla siebie)
+    async buy({ id, to, message }) {
+      const m = String(message || '').trim();
+      if (m.length > 200) return { error: 'gift_message_long' };
+      return authed(t => supa.rpc('buy_cosmetic', { p_cosmetic: id, p_for: to || null, p_message: to && m ? m : null }, t));
+    },
+    buyOffer: ({ id }) => authed(t => supa.rpc('buy_offer', { p_offer: id }, t)),
+    coinLog: ({ before } = {}) => authed(t => supa.rpc('my_coin_log', { p_before: before || null }, t)),
+    // Nagroda dzienna (baza daje ją raz na dobę); stara baza: nic
+    daily: () => authed(t => supa.rpc('claim_daily', {}, t)).catch(e => (e.code === 'schema_outdated' ? { claimed: false } : Promise.reject(e))),
     // Założenie (id) albo zdjęcie (id = null) kosmetyku danego typu; baza sprawdza, czy gracz go ma
     async equip({ type, id }) {
       const equipped = await authed(t => supa.rpc('equip_cosmetic', { p_type: type, p_id: id || null }, t));
@@ -410,7 +426,8 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   chat: 'prof:chat', chatSend: 'prof:chatSend', chatRead: 'prof:chatRead', chatUnread: 'prof:chatUnread',
   ideaUpdates: 'prof:ideaUpdates', ideasSeen: 'prof:ideasSeen', gifts: 'prof:gifts', claimGift: 'prof:claimGift',
   block: 'prof:block', unblock: 'prof:unblock', blocked: 'prof:blocked', report: 'prof:report', warnings: 'prof:warnings', warningsSeen: 'prof:warningsSeen',
-  card: 'prof:card', ideasPublic: 'prof:ideasPublic', ideaVote: 'prof:ideaVote', wallet: 'prof:wallet', shopOpen: 'prof:shopOpen' };
+  card: 'prof:card', ideasPublic: 'prof:ideasPublic', ideaVote: 'prof:ideaVote', wallet: 'prof:wallet', shopOpen: 'prof:shopOpen',
+  shop: 'prof:shop', buy: 'prof:buy', buyOffer: 'prof:buyOffer', coinLog: 'prof:coinLog', daily: 'prof:daily' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

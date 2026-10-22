@@ -406,6 +406,50 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .tag.votes{background:#2a1545;color:var(--am-hi)}
 #ip .seg{margin:0}
 
+/* ===== Sklep za MiB Coins (od 0.24.0): oferty, ceny, okno zakupu, historia, nagroda dzienna ===== */
+#cos-tabs{margin-bottom:10px}
+.price{display:inline-flex;align-items:center;gap:5px;font-weight:700;color:#fde047;font-variant-numeric:tabular-nums;font-size:13px}
+.price .coin{width:14px;height:14px;flex:none}
+.price.big{font-size:18px}.price.big .coin{width:20px;height:20px}
+.tag.own{margin:0;font-size:11px;padding:3px 8px;background:#0f2a1c;color:#c8f7d4}
+.tag.sale{margin:0;font-size:11px;padding:2px 7px;background:#facc15;color:#1a0f00;font-weight:700}
+.cosi.shopi.own{opacity:.75}
+.cosi.shopi .price{margin:2px 0 4px}
+.offers{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.card.offer{display:flex;flex-direction:column;gap:8px;padding:14px 16px;margin:0;border-color:var(--am-lo);background:linear-gradient(120deg,rgba(168,85,247,.16),var(--slab) 60%)}
+.offer-top{display:flex;align-items:center;gap:8px}.offer-top .gift-kicker{margin-right:2px}
+.offer-end{margin-left:auto;font-variant-numeric:tabular-nums}
+.card.offer .offer-name{font-family:Pixelify,Geist,sans-serif;font-weight:400;font-size:20px;line-height:1.1}
+.offer-items{display:flex;flex-wrap:wrap;gap:6px}
+.offer-it{display:flex;flex-direction:column;align-items:center;gap:3px;width:92px;padding:6px 4px;background:var(--slab2);box-shadow:inset 0 0 0 2px var(--edge2);clip-path:var(--px);cursor:pointer;text-align:center}
+.offer-it:hover{box-shadow:inset 0 0 0 2px var(--am-lo)}
+.offer-it.try{box-shadow:inset 0 0 0 2px var(--am)}
+.offer-it i{display:grid;place-items:center;height:52px;font:normal 26px/1 sans-serif;color:var(--am-hi)}
+.offer-it i img{max-width:84px;max-height:52px;image-rendering:pixelated}.offer-it .wingth{width:72px;height:45px}
+.offer-it small{font-size:11px;line-height:1.2;color:var(--t)}
+.offer-it.own{opacity:.55}.offer-it.own small::after{content:" ✓";color:#86efac}
+.offer-buy{display:flex;align-items:center;gap:12px}.offer-buy .b{margin-left:auto;padding:9px 20px}
+.offer-buy .old{font-size:13px;font-variant-numeric:tabular-nums}
+#buy .buy-m{width:520px}
+.buy-top{display:flex;gap:16px;align-items:center}
+.buy-top .gift3d{flex:none;width:170px;height:200px;background:radial-gradient(circle at 50% 60%,rgba(168,85,247,.28),transparent 70%)}
+.buy-t{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}.buy-t h3{font-size:22px}
+.buy-sum{display:flex;flex-direction:column;margin-top:4px;border-top:2px solid var(--edge)}
+.buy-sum .sr{grid-template-columns:1fr auto;padding:5px 0;border-bottom:1px solid var(--edge)}
+.buy-sum .sr.short span:first-child{color:var(--bad)}.buy-sum .sr.short .price{color:var(--bad)}
+#buy label.sr{display:flex;flex-direction:column;align-items:stretch;gap:4px;text-align:left;padding:0}#buy label.sr>span{color:var(--m)}#buy .fld{display:flex;flex-direction:column}#buy select,#buy textarea{width:100%}
+.coin-log{display:flex;flex-direction:column;border-top:2px solid var(--edge)}
+.cl-row{display:grid;grid-template-columns:1fr 90px 80px;align-items:center;gap:12px;padding:8px 2px;border-bottom:1px solid var(--edge);font-size:13px}
+.cl-t{display:flex;flex-direction:column;gap:2px;min-width:0}.cl-t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl-d{text-align:right;font-variant-numeric:tabular-nums}.cl-d.plus{color:#86efac}.cl-d.minus{color:#fda4af}
+.cl-b{text-align:right;font-variant-numeric:tabular-nums}
+.coin-log+.b{margin-top:10px}
+.ao-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px 12px;max-height:210px;overflow:auto;padding:6px 8px;background:var(--slab2);box-shadow:inset 0 0 0 2px var(--edge2);clip-path:var(--px)}
+.wallet .daily{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0 14px;border-left:2px solid var(--edge);border-right:2px solid var(--edge)}
+.pips{display:flex;gap:3px}.pips i{width:10px;height:10px;background:var(--edge2)}
+.pips i.on{background:#facc15}.pips i.bonus{box-shadow:0 0 0 1px #facc15}.pips i.bonus.on{background:#fde047;box-shadow:0 0 6px rgba(250,204,21,.7)}
+@media (max-width:760px){.wallet{flex-wrap:wrap}.wallet .daily{border:0;padding:0}.cl-row{grid-template-columns:1fr 70px}.cl-b{display:none}.buy-top{flex-direction:column}}
+
 /* ===== Motyw Halloween (od 0.22.0) =====
    Zwykły motyw (czerń i ametyst) to wszystko powyżej, bez zmian. Halloweenowy włącza klasa t-halloween na <html>
    w index.html: usunięcie tej klasy przywraca zwykły motyw. Dynia na czarnym tle, nocne fioletowe niebo, księżyc
@@ -437,10 +481,12 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .t-halloween .b:not(.ghost):not(.danger):hover{background:#ea580c}
 .t-halloween .tag,.t-halloween .tag.votes{background:#3a1a12}
 .t-halloween .tag.founder{background:#4a1d0c;color:#ffedd5;box-shadow:inset 0 0 0 2px #ea580c}
+.t-halloween .tag.sale{background:#facc15;color:#1a0f00}.t-halloween .tag.own{background:#0f2a1c;color:#c8f7d4}
 .t-halloween .n p,.t-halloween .lg,.t-halloween #upd pre,.t-halloween .lead,.t-halloween .empty-state,.t-halloween .ann p{color:#d8c4b8}
 .t-halloween .idea>p,.t-halloween .idea.pub .ibody>p,.t-halloween #wn ul{color:#e3d2c6}
 .t-halloween .frow.ginv{background:linear-gradient(90deg,rgba(249,115,22,.22),rgba(249,115,22,.04) 70%)}
 .t-halloween .card.reward{background:linear-gradient(90deg,rgba(249,115,22,.2),rgba(249,115,22,.04) 75%)}
+.t-halloween .card.offer{border-color:#9a3412;background:linear-gradient(120deg,rgba(249,115,22,.18),var(--slab) 60%)}
 .t-halloween #p-mods.drop .mdrop{background:rgba(249,115,22,.12)}
 .t-halloween #gift .gift3d{background:radial-gradient(circle at 50% 60%,rgba(249,115,22,.28),transparent 70%)}
 .t-halloween .fc3d{background:radial-gradient(circle at 50% 60%,rgba(249,115,22,.24),transparent 70%)}

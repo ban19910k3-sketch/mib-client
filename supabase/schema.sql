@@ -729,14 +729,19 @@ create table if not exists private.gifts (
 );
 create index if not exists gifts_user on private.gifts (user_id, claimed_at);
 alter table public.profiles add column if not exists bugs_found integer not null default 0;
+-- prezent kupiony przez znajomego za MiB Coins (od 0.24.0); null = prezent od MiB
+alter table private.gifts add column if not exists from_user uuid references public.profiles (id) on delete set null;
 
--- Nieodebrane prezenty gracza (najstarszy pierwszy) z teksturą do podglądu; bug = nagroda za zgłoszony błąd
+-- Nieodebrane prezenty gracza (najstarszy pierwszy) z teksturą do podglądu; bug = nagroda za zgłoszony błąd;
+-- from_nick = znajomy, który kupił prezent (od 0.24.0, stąd drop: zmienia się wynik)
+drop function if exists public.my_gifts();
 create or replace function public.my_gifts()
-returns table (id bigint, cosmetic_id text, name text, type text, texture text, message text, bug boolean, created_at timestamptz)
+returns table (id bigint, cosmetic_id text, name text, type text, texture text, message text, bug boolean, created_at timestamptz, from_nick text)
 language sql stable security definer set search_path = '' as $$
   select g.id, c.id, c.name, c.type, c.texture, g.message,
-    exists (select 1 from public.ideas i where i.id = g.idea_id and i.category = 'bug'), g.created_at
+    exists (select 1 from public.ideas i where i.id = g.idea_id and i.category = 'bug'), g.created_at, f.nick
   from private.gifts g join public.cosmetics c on c.id = g.cosmetic_id
+    left join public.profiles f on f.id = g.from_user
   where g.user_id = (select auth.uid()) and g.claimed_at is null
   order by g.id;
 $$;
@@ -1129,7 +1134,8 @@ create or replace function public.admin_delete_cosmetic(p_id text) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
   perform private.need_admin();
-  if exists (select 1 from public.owned_cosmetics where cosmetic_id = p_id) or exists (select 1 from private.gift_codes where cosmetic_id = p_id) then
+  if exists (select 1 from public.owned_cosmetics where cosmetic_id = p_id) or exists (select 1 from private.gift_codes where cosmetic_id = p_id)
+    or exists (select 1 from private.shop_offers where p_id = any(items)) then
     raise exception 'cosmetic_in_use';
   end if;
   delete from public.cosmetics where id = p_id;
@@ -1505,6 +1511,234 @@ begin
     on conflict (key) do update set value = excluded.value, updated_at = now();
 end $$;
 
+-- ===== Sklep za MiB Coins (od 0.24.0) =====
+-- Kosmetyki z ceną (cosmetics.price, null = nie na sprzedaż) i oferty (pakiety albo jeden kosmetyk taniej, z datą
+-- końca) kupuje się za coinsy w launcherze; kosmetyk można też kupić znajomemu (trafia do jego prezentów). Do tego
+-- nagroda dzienna: 10 coinsów za każdy dzień, a co 7. dzień z rzędu 50 więcej. Każda zmiana salda jest w coin_log.
+alter table public.cosmetics add column if not exists price integer check (price is null or price between 1 and 1000000);
+alter table private.coin_log add column if not exists kind text not null default 'admin' check (kind in ('admin', 'buy', 'gift', 'offer', 'daily'));
+alter table private.coin_log add column if not exists item text;
+alter table private.coin_log add column if not exists to_user uuid references public.profiles (id) on delete set null;
+
+create table if not exists private.shop_offers (
+  id bigint generated always as identity primary key,
+  name text not null check (length(name) between 1 and 40),
+  items text[] not null check (cardinality(items) between 1 and 20),
+  price integer not null check (price between 1 and 1000000),
+  ends_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists private.daily (
+  user_id uuid primary key references public.profiles (id) on delete cascade,
+  last_day date not null,
+  streak integer not null default 1
+);
+
+-- Gracz ma kosmetyk albo czeka on na niego w prezentach
+create or replace function private.has_cosmetic(p_user uuid, p_cosmetic text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.owned_cosmetics where user_id = p_user and cosmetic_id = p_cosmetic)
+    or exists (select 1 from private.gifts where user_id = p_user and cosmetic_id = p_cosmetic and claimed_at is null);
+$$;
+
+-- Cena oferty dla gracza: pełna, gdy nie ma żadnego przedmiotu z oferty, 0, gdy ma wszystkie, a gdy ma część —
+-- tyle, ile ze zwykłych cen przypada na brakujące (zaokrąglone w górę; bez zwykłych cen: według liczby przedmiotów)
+create or replace function private.offer_price(p_offer bigint, p_user uuid) returns integer
+language sql stable security definer set search_path = '' as $$
+  with it as (
+    select coalesce(c.price, 0) as price, private.has_cosmetic(p_user, c.id) as has
+    from private.shop_offers s cross join lateral unnest(s.items) as x(id) join public.cosmetics c on c.id = x.id
+    where s.id = p_offer
+  ), t as (
+    select coalesce(sum(price), 0) as full_p, coalesce(sum(price) filter (where not has), 0) as miss_p,
+      count(*) as n, count(*) filter (where not has) as miss_n from it
+  )
+  select case when t.miss_n = 0 then 0
+    when t.miss_n = t.n then s.price
+    when t.full_p > 0 then greatest(1, ceil(s.price::numeric * t.miss_p / t.full_p)::integer)
+    else greatest(1, ceil(s.price::numeric * t.miss_n / t.n)::integer) end
+  from private.shop_offers s, t where s.id = p_offer;
+$$;
+
+-- Sklep: saldo, kosmetyki na sprzedaż i z aktualnych ofert (owned: gracz już go ma albo czeka w prezentach) oraz
+-- aktualne oferty (full: suma zwykłych cen, mine: cena dla tego gracza)
+create or replace function public.shop() returns json
+language sql stable security definer set search_path = '' as $$
+  with me as (select auth.uid() as id),
+  offers as (select * from private.shop_offers where ends_at is null or ends_at > now())
+  select json_build_object(
+    'coins', (select p.coins from public.profiles p, me where p.id = me.id),
+    'items', coalesce((select json_agg(json_build_object('id', c.id, 'name', c.name, 'type', c.type, 'texture', coalesce(c.texture, c.image_url),
+        'price', c.price, 'owned', private.has_cosmetic(me.id, c.id)) order by c.price nulls last, c.name)
+      from public.cosmetics c, me where c.price is not null or exists (select 1 from offers o where c.id = any(o.items))), '[]'::json),
+    'offers', coalesce((select json_agg(json_build_object('id', o.id, 'name', o.name, 'items', o.items, 'price', o.price,
+        'full', (select coalesce(sum(c.price), 0) from public.cosmetics c where c.id = any(o.items)),
+        'mine', private.offer_price(o.id, me.id), 'ends_at', o.ends_at) order by o.ends_at nulls last, o.id)
+      from offers o, me), '[]'::json));
+$$;
+
+-- Zakup kosmetyku dla siebie (p_for puste) albo w prezencie dla znajomego (z wiadomością); wynik: saldo po zakupie
+create or replace function public.buy_cosmetic(p_cosmetic text, p_for uuid default null, p_message text default null) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_to uuid := coalesce(p_for, auth.uid());
+  v_msg text := nullif(btrim(regexp_replace(regexp_replace(coalesce(p_message, ''), '§.?', '', 'g'), '[[:cntrl:]]+', ' ', 'g')), '');
+  c public.cosmetics;
+  v integer;
+  v_gift bigint;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
+  select * into c from public.cosmetics where id = p_cosmetic;
+  if not found or c.price is null then raise exception 'not_for_sale'; end if;
+  if v_to <> v_me then
+    if not private.are_friends(v_me, v_to) or private.is_blocked(v_me, v_to) then raise exception 'gift_not_friend'; end if;
+    if v_msg is not null and length(v_msg) > 200 then raise exception 'gift_message_long'; end if;
+  end if;
+  -- oba profile zablokowane (zawsze w tej samej kolejności): dwa zakupy naraz nie dadzą jednego kosmetyku dwa razy
+  perform 1 from public.profiles where id in (v_me, v_to) order by id for update;
+  if private.has_cosmetic(v_to, c.id) then
+    if v_to = v_me then raise exception 'already_owned'; end if;
+    raise exception 'friend_has_it';
+  end if;
+  update public.profiles set coins = coins - c.price where id = v_me and coins >= c.price returning coins into v;
+  if v is null then raise exception 'coins_not_enough'; end if;
+  if v_to = v_me then
+    insert into public.owned_cosmetics (user_id, cosmetic_id, source) values (v_me, c.id, 'shop');
+    insert into private.coin_log (user_id, delta, balance, reason, kind, item) values (v_me, -c.price, v, c.name, 'buy', c.id);
+  else
+    insert into private.gifts (user_id, cosmetic_id, message, from_user) values (v_to, c.id, v_msg, v_me) returning id into v_gift;
+    insert into private.coin_log (user_id, delta, balance, reason, kind, item, to_user) values (v_me, -c.price, v, c.name, 'gift', c.id, v_to);
+  end if;
+  return json_build_object('coins', v, 'id', c.id, 'name', c.name, 'type', c.type, 'gift', v_gift);
+end $$;
+
+-- Zakup oferty: przedmioty, których gracz jeszcze nie ma, za cenę z offer_price
+create or replace function public.buy_offer(p_offer bigint) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  s private.shop_offers;
+  v_price integer;
+  v_items text[];
+  v integer;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
+  perform 1 from public.profiles where id = v_me for update;
+  select * into s from private.shop_offers where id = p_offer and (ends_at is null or ends_at > now());
+  if not found then raise exception 'offer_missing'; end if;
+  v_price := coalesce(private.offer_price(s.id, v_me), 0);
+  if v_price = 0 then raise exception 'already_owned'; end if;
+  select array_agg(c.id) into v_items from public.cosmetics c where c.id = any(s.items) and not private.has_cosmetic(v_me, c.id);
+  update public.profiles set coins = coins - v_price where id = v_me and coins >= v_price returning coins into v;
+  if v is null then raise exception 'coins_not_enough'; end if;
+  insert into public.owned_cosmetics (user_id, cosmetic_id, source) select v_me, x, 'shop' from unnest(v_items) as x;
+  insert into private.coin_log (user_id, delta, balance, reason, kind, item) values (v_me, -v_price, v, s.name, 'offer', s.id::text);
+  return json_build_object('coins', v, 'price', v_price, 'items', to_json(v_items));
+end $$;
+
+-- Historia coinsów gracza: 50 ostatnich zmian (albo 50 przed p_before); friend = komu kupił prezent
+create or replace function public.my_coin_log(p_before bigint default null)
+returns table (id bigint, delta integer, balance integer, kind text, item text, label text, friend text, created_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select l.id, l.delta, l.balance, l.kind, l.item, l.reason, f.nick, l.created_at
+  from private.coin_log l left join public.profiles f on f.id = l.to_user
+  where l.user_id = (select auth.uid()) and (p_before is null or l.id < p_before)
+  order by l.id desc limit 50;
+$$;
+
+-- Nagroda dzienna (doba w czasie polskim): 10 coinsów, co 7. dzień z rzędu 50 więcej; drugi raz tego dnia: claimed = false
+create or replace function public.claim_daily() returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_day date := private.today();
+  v_streak integer;
+  v_amount integer;
+  v integer;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if private.is_banned(v_me) or not exists (select 1 from public.profiles where id = v_me) then
+    return json_build_object('claimed', false);
+  end if;
+  insert into private.daily as d (user_id, last_day, streak) values (v_me, v_day, 1)
+    on conflict (user_id) do update set streak = case when d.last_day = v_day - 1 then d.streak + 1 else 1 end, last_day = v_day
+    where d.last_day < v_day
+    returning d.streak into v_streak;
+  if v_streak is null then
+    return json_build_object('claimed', false, 'streak', (select streak from private.daily where user_id = v_me));
+  end if;
+  v_amount := 10 + case when v_streak % 7 = 0 then 50 else 0 end;
+  update public.profiles set coins = coins + v_amount where id = v_me returning coins into v;
+  insert into private.coin_log (user_id, delta, balance, kind, item) values (v_me, v_amount, v, 'daily', v_streak::text);
+  return json_build_object('claimed', true, 'amount', v_amount, 'streak', v_streak, 'coins', v);
+end $$;
+
+-- Cena kosmetyku w sklepie (null zdejmuje go ze sprzedaży)
+create or replace function public.admin_set_price(p_id text, p_price integer) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  if p_price is not null and p_price not between 1 and 1000000 then raise exception 'price_invalid'; end if;
+  update public.cosmetics set price = p_price where id = p_id;
+  if not found then raise exception 'cosmetic_missing'; end if;
+end $$;
+
+-- Oferty: wszystkie (także zakończone) z liczbą sprzedanych
+create or replace function public.admin_list_offers()
+returns table (id bigint, name text, items text[], price integer, full_price integer, ends_at timestamptz, sold bigint)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return query select s.id, s.name, s.items, s.price,
+      (select coalesce(sum(c.price), 0)::integer from public.cosmetics c where c.id = any(s.items)), s.ends_at,
+      (select count(*) from private.coin_log l where l.kind = 'offer' and l.item = s.id::text)
+    from private.shop_offers s order by s.ends_at is not null and s.ends_at < now(), s.id desc;
+end $$;
+
+-- Nowa oferta (p_id puste) albo zmiana; p_ends: koniec oferty (puste = bez końca)
+create or replace function public.admin_save_offer(p_id bigint, p_name text, p_items text[], p_price integer, p_ends timestamptz) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_items text[] := (select array_agg(distinct x) from unnest(coalesce(p_items, '{}')) as x where x is not null);
+  v_id bigint;
+begin
+  perform private.need_admin();
+  if length(btrim(coalesce(p_name, ''))) not between 1 and 40 then raise exception 'offer_name_invalid'; end if;
+  if coalesce(cardinality(v_items), 0) not between 1 and 20
+    or (select count(*) from public.cosmetics where id = any(v_items)) <> cardinality(v_items) then raise exception 'offer_items_invalid'; end if;
+  if p_price is null or p_price not between 1 and 1000000 then raise exception 'price_invalid'; end if;
+  if p_ends is not null and p_ends <= now() then raise exception 'offer_end_past'; end if;
+  if p_id is null then
+    insert into private.shop_offers (name, items, price, ends_at) values (btrim(p_name), v_items, p_price, p_ends) returning id into v_id;
+  else
+    update private.shop_offers set name = btrim(p_name), items = v_items, price = p_price, ends_at = p_ends where id = p_id returning id into v_id;
+    if v_id is null then raise exception 'offer_missing'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function public.admin_delete_offer(p_id bigint) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  delete from private.shop_offers where id = p_id;
+end $$;
+
+-- Historia coinsów gracza dla admina (np. gdy gracz pisze, że coinsy zniknęły)
+create or replace function public.admin_coin_log(p_user uuid)
+returns table (id bigint, delta integer, balance integer, kind text, item text, label text, friend text, created_at timestamptz)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return query select l.id, l.delta, l.balance, l.kind, l.item, l.reason, f.nick, l.created_at
+    from private.coin_log l left join public.profiles f on f.id = l.to_user
+    where l.user_id = p_user order by l.id desc limit 100;
+end $$;
+
 -- ===== Uprawnienia do funkcji =====
 revoke all on function public.nick_available(text) from public, anon, authenticated;
 revoke all on function public.redeem_code(text) from public, anon, authenticated;
@@ -1592,6 +1826,18 @@ revoke all on function public.ideas_public(text) from public, anon;
 revoke all on function public.idea_vote(bigint, boolean) from public, anon;
 grant execute on function public.ideas_public(text) to authenticated;
 grant execute on function public.idea_vote(bigint, boolean) to authenticated;
+revoke all on function private.has_cosmetic(uuid, text) from public, anon, authenticated;
+revoke all on function private.offer_price(bigint, uuid) from public, anon, authenticated;
+revoke all on function public.shop() from public, anon;
+revoke all on function public.buy_cosmetic(text, uuid, text) from public, anon;
+revoke all on function public.buy_offer(bigint) from public, anon;
+revoke all on function public.my_coin_log(bigint) from public, anon;
+revoke all on function public.claim_daily() from public, anon;
+grant execute on function public.shop() to authenticated;
+grant execute on function public.buy_cosmetic(text, uuid, text) to authenticated;
+grant execute on function public.buy_offer(bigint) to authenticated;
+grant execute on function public.my_coin_log(bigint) to authenticated;
+grant execute on function public.claim_daily() to authenticated;
 
 -- panel admina: wywołać może każdy zalogowany, ale każda funkcja sama sprawdza, czy to admin
 revoke all on function private.need_admin() from public, anon, authenticated;
