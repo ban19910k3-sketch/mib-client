@@ -87,6 +87,37 @@ begin
   return json_build_object('coins', v_left, 'cosmetic_id', p_id);
 end $$;
 
+-- Koszyk: kilka przedmiotów naraz, w jednej transakcji (wszystko albo nic).
+-- p_total to suma, którą gracz widział: inna suma w bazie (zmiana ceny w międzyczasie) cofa zakup.
+create or replace function public.shop_buy_many(p_ids text[], p_total integer) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_ids text[];
+  v_n integer;
+  v_total integer;
+  v_left integer;
+begin
+  if v_uid is null then raise exception 'not_signed_in'; end if;
+  select array_agg(distinct x) into v_ids from unnest(coalesce(p_ids, '{}'::text[])) x where x is not null;
+  if v_ids is null then raise exception 'cart_empty'; end if;
+  if cardinality(v_ids) > 50 then raise exception 'cart_too_big'; end if;
+  select count(*), coalesce(sum(c.price), 0) into v_n, v_total from public.cosmetics c
+    where c.id = any(v_ids) and c.visible and c.price is not null and (c.available_until is null or c.available_until > now());
+  if v_n <> cardinality(v_ids) then raise exception 'item_unavailable'; end if;
+  if p_total is null or p_total <> v_total then raise exception 'price_changed'; end if;
+  if exists (select 1 from public.owned_cosmetics where user_id = v_uid and cosmetic_id = any(v_ids)) then raise exception 'already_owned'; end if;
+  insert into public.wallets (user_id) values (v_uid) on conflict do nothing;
+  update public.wallets set coins = coins - v_total, updated_at = now()
+    where user_id = v_uid and coins >= v_total
+    returning coins into v_left;
+  if not found then raise exception 'not_enough_coins'; end if;
+  insert into public.owned_cosmetics (user_id, cosmetic_id, source) select v_uid, x, 'shop' from unnest(v_ids) x;
+  insert into private.coin_ledger (user_id, delta, reason, cosmetic_id)
+    select v_uid, -c.price, 'purchase', c.id from public.cosmetics c where c.id = any(v_ids);
+  return json_build_object('coins', v_left, 'bought', to_json(v_ids));
+end $$;
+
 -- ===== Panel admina =====
 -- Wszystkie przedmioty z polami sklepu (także ukryte i po terminie)
 create or replace function public.admin_shop_list() returns json
@@ -179,9 +210,11 @@ create policy shop_admin_delete on storage.objects for delete to authenticated
 revoke all on function public.shop_items() from public, anon, authenticated;
 revoke all on function public.my_shop() from public, anon, authenticated;
 revoke all on function public.shop_buy(text) from public, anon, authenticated;
+revoke all on function public.shop_buy_many(text[], integer) from public, anon, authenticated;
 grant execute on function public.shop_items() to anon, authenticated;
 grant execute on function public.my_shop() to authenticated;
 grant execute on function public.shop_buy(text) to authenticated;
+grant execute on function public.shop_buy_many(text[], integer) to authenticated;
 do $$
 declare f text;
 begin

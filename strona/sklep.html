@@ -429,6 +429,27 @@ footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 
 @media (max-width:640px){.packs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .packs.in-dlg .pack{padding-top:34px}
 
+/* koszyk */
+.cartbtn{gap:6px}
+.cartbtn .ic,.cartopen .ic{width:14px;height:14px;flex:none}
+.cartbtn.on{box-shadow:inset 0 0 0 2px var(--am);color:#fff}
+.cartopen{position:relative}
+.cartopen .badge{min-width:20px;height:20px;padding:0 5px;display:inline-grid;place-items:center;font:700 12px/1 var(--body);background:var(--am);color:#fff;clip-path:var(--px2)}
+.acct{position:relative}
+.cartnote{flex-basis:100%;text-align:right;color:#ffcf8a;font-size:13px;margin:0}
+.cartlist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px;max-height:min(46vh,420px);overflow:auto}
+.cartlist li{display:flex;align-items:center;gap:12px;padding:8px 10px;background:#0d0608;clip-path:var(--px2)}
+.cartlist .th{width:42px;height:42px;flex:none;display:grid;place-items:center;background:#140a0c}
+.cartlist .th .art{width:36px;height:36px;object-fit:contain;image-rendering:pixelated}
+.cartlist .th .glyph{font-size:22px;color:var(--m)}
+.cartlist .tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.cartlist .tx b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cartlist .tx small{font-size:12.5px}
+.coins.sm{font-size:20px}
+.carttot{display:flex;justify-content:space-between;align-items:center;padding:10px 4px 0;border-top:2px solid var(--line);font-weight:600}
+.carttot .coins{font-size:30px}
+.item .buy .act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
 /* ===== Halloween (jak w launcherze 0.22.0): dynia na czerni, księżyc, żar przy ziemi, pajęczyny i nietoperze ===== */
 .hero .bg{filter:hue-rotate(95deg) saturate(1.15)}
@@ -564,6 +585,9 @@ const ERR={
  player_missing:["Nie ma takiego gracza.","No such player."],
  texture_not_png:["Tekstura musi być plikiem PNG.","The texture has to be a PNG file."],
  texture_size:["Tekstura musi mieć 64×32 piksele (albo 128×64, 256×128, 512×256). Animowana: klatki jedna pod drugą, najwyżej 32.","The texture has to be 64×32 pixels (or 128×64, 256×128, 512×256). Animated: frames stacked, 32 at most."],
+ cart_empty:["Koszyk jest pusty.","Your cart is empty."],
+ cart_too_big:["W koszyku może być najwyżej 50 przedmiotów.","The cart can hold 50 items at most."],
+ price_changed:["Ceny w sklepie właśnie się zmieniły. Sprawdź koszyk i kup jeszcze raz.","Prices just changed. Check your cart and buy again."],
  aura_id_invalid:["Wybierz ruch cząsteczek aury.","Pick how the aura particles move."],
  texture_too_big:["Tekstura jest za duża (najwyżej 100 KB).","The texture is too big (100 KB max)."],
  image_bad:["Obraz musi być plikiem PNG, JPG, WebP albo GIF.","The image has to be a PNG, JPG, WebP or GIF file."],
@@ -706,25 +730,97 @@ function fillAct(el,it){
  const a=el.querySelector(".act"),e=el.querySelector(".err");
  e.textContent=notice[it.id]||"";e.className=notice[it.id]&&notice[it.id].ok?"ok":"err";
  if(me&&me.owned.includes(it.id)){a.innerHTML='<span class="owned">'+esc(T("Masz to","Owned"))+'</span>';return}
- if(!me){a.innerHTML='<button type="button" class="b2 sm" data-login>'+esc(T("Zaloguj się","Sign in"))+'</button>';return}
- if(me.coins<it.price){a.innerHTML='<button type="button" class="b2 sm" data-topup>'+esc(T("Brakuje "+fmt(it.price-me.coins),fmt(it.price-me.coins)+" short"))+'</button>';return}
+ const inCart=cart.includes(it.id);
+ const cartBtn='<button type="button" class="b2 sm cartbtn'+(inCart?' on':'')+'" data-cart="'+esc(it.id)+'" aria-pressed="'+inCart+'" title="'+esc(inCart?T("Usuń z koszyka","Remove from cart"):T("Dodaj do koszyka","Add to cart"))+'">'+CART_IC+'<span>'+esc(inCart?T("W koszyku","In cart"):T("Do koszyka","Add to cart"))+'</span></button>';
  if(pending===it.id){a.innerHTML='<button type="button" class="b2 sm pri" data-confirm="'+esc(it.id)+'">'+esc(T("Kup za "+fmt(it.price),"Buy for "+fmt(it.price)))+'</button> <button type="button" class="b2 sm" data-cancel>'+esc(T("Anuluj","Cancel"))+'</button>';return}
- a.innerHTML='<button type="button" class="b2 sm pri" data-buy="'+esc(it.id)+'">'+esc(T("Kup","Buy"))+'</button>';
+ a.innerHTML=cartBtn+(me&&me.coins>=it.price?' <button type="button" class="b2 sm pri" data-buy="'+esc(it.id)+'">'+esc(T("Kup","Buy"))+'</button>':'');
+}
+
+/* ===== koszyk: zapamiętany w przeglądarce; przedmiot, który zniknął ze sklepu (albo już go masz), sam z niego wypada ===== */
+const CART_IC='<svg class="ic" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true" shape-rendering="crispEdges"><path d="M0 1h2v1H0zM2 2h1v5H2zM3 2h9v1H3zM11 3h1v2h-1zM3 5h8v1H3zM3 7h8v1H3zM3 9h2v2H3zM9 9h2v2H9z"/></svg>';
+let cart=[],cartGone=[];
+try{cart=JSON.parse(localStorage.getItem("mib-cart")||"[]").filter(x=>typeof x==="string").slice(0,50)}catch(e){cart=[]}
+function saveCart(){try{localStorage.setItem("mib-cart",JSON.stringify(cart))}catch(e){}}
+function pruneCart(){
+ if(mode==="loading")return;
+ const ok=new Set(shopItems().map(i=>i.id)),owned=new Set(me?me.owned:[]);
+ const keep=[],gone=[];
+ cart.forEach(id=>{if(ok.has(id)&&!owned.has(id))keep.push(id);else if(!owned.has(id)){const it=all.find(i=>i.id===id);gone.push(it?it.name:id)}});
+ if(keep.length!==cart.length){cart=keep;saveCart();if(gone.length)cartGone=cartGone.concat(gone)}
+}
+function toggleCart(id){
+ const i=cart.indexOf(id);
+ if(i>=0)cart.splice(i,1);else{if(cart.length>=50)return;cart.push(id)}
+ saveCart();renderShop();
+}
+const cartItems=()=>cart.map(id=>shopItems().find(i=>i.id===id)).filter(Boolean);
+function cartDlg(){
+ pruneCart();
+ const d=dialog('<h3>'+esc(T("Koszyk","Cart"))+'</h3><div id="c-body"></div>');
+ d.el.querySelector(".dlg").classList.add("wide");
+ let msg="",busy=false;
+ const draw=()=>{
+  const list=cartItems(),total=list.reduce((s,i)=>s+i.price,0),b=d.el.querySelector("#c-body");
+  let h="";
+  if(cartGone.length)h+='<p class="demo-banner" style="margin:0">'+esc(T("Te przedmioty zniknęły ze sklepu, więc wypadły z koszyka: ","These items left the shop, so they were removed from your cart: ")+cartGone.join(", "))+'</p>';
+  if(!list.length)h+='<p class="note">'+esc(T("Koszyk jest pusty. Dodaj przedmioty przyciskiem „Do koszyka”.","Your cart is empty. Add items with the “Add to cart” button."))+'</p>';
+  else{
+   h+='<ul class="cartlist">'+list.map(i=>'<li><span class="th" data-cth="'+esc(i.id)+'"></span><span class="tx"><b>'+esc(i.name)+'</b><small style="color:'+(RAR[i.rarity]||RAR.common)[2]+'">'+esc(T((RAR[i.rarity]||RAR.common)[0],(RAR[i.rarity]||RAR.common)[1]))+' · '+esc(T((TYPES[i.type]||TYPES.cape)[0],(TYPES[i.type]||TYPES.cape)[1]))+'</small></span><span class="coins sm">'+COIN+fmt(i.price)+'</span><button type="button" class="b2 sm" data-crm="'+esc(i.id)+'">'+esc(T("Usuń","Remove"))+'</button></li>').join("")+'</ul>';
+   h+='<div class="carttot"><span>'+esc(T("Razem","Total"))+'</span><span class="coins">'+COIN+fmt(total)+'</span></div>';
+   if(me)h+='<p class="note">'+esc(T("Masz ","You have "))+fmt(me.coins)+esc(T(" MiB Coins."," MiB Coins."))+'</p>';
+  }
+  h+='<div class="'+(msg&&msg.ok?"ok":"err")+'" aria-live="polite">'+esc(msg)+'</div><div class="row2">';
+  if(list.length){
+   if(!me)h+='<button type="button" class="b2 pri" data-cgo="login">'+esc(T("Zaloguj się, żeby kupić","Sign in to buy"))+'</button>';
+   else if(me.coins<total)h+='<button type="button" class="b2 pri" data-cgo="topup">'+esc(T("Brakuje "+fmt(total-me.coins)+", doładuj",fmt(total-me.coins)+" short, top up"))+'</button>';
+   else h+='<button type="button" class="b2 pri" data-cgo="buy"'+(busy?' disabled':'')+'>'+esc(T("Kup wszystko za "+fmt(total),"Buy all for "+fmt(total)))+'</button>';
+  }
+  h+='<button type="button" class="b2" data-close>'+esc(T("Zamknij","Close"))+'</button></div>';
+  b.innerHTML=h;
+  list.forEach(i=>{const s=b.querySelector('[data-cth="'+CSS.escape(i.id)+'"]');if(s)s.replaceWith(thumb(i))});
+  b.querySelectorAll("[data-close]").forEach(x=>x.onclick=d.close);
+ };
+ d.el.addEventListener("click",async e=>{
+  const rm=e.target.closest("[data-crm]");if(rm){cart=cart.filter(x=>x!==rm.dataset.crm);saveCart();msg="";draw();renderShop();return}
+  const go=e.target.closest("[data-cgo]");if(!go)return;
+  if(go.dataset.cgo==="login"){d.close();loginDlg(cartDlg);return}
+  if(go.dataset.cgo==="topup"){d.close();topupDlg();return}
+  const list=cartItems(),ids=list.map(i=>i.id),total=list.reduce((s,i)=>s+i.price,0);
+  busy=true;msg="";draw();
+  try{
+   if(mode==="demo"){if(me.coins<total)throw mkErr("not_enough_coins");me.coins-=total;ids.forEach(id=>me.owned.push(id))}
+   else{const r=await rpc("shop_buy_many",{p_ids:ids,p_total:total});me.coins=r.coins;ids.forEach(id=>me.owned.push(id))}
+   cart=cart.filter(x=>!ids.includes(x));saveCart();cartGone=[];
+   msg=Object.assign(new String(T("Kupione: "+ids.length+". Załóż je w launcherze, w zakładce Kosmetyki.","Bought "+ids.length+". Put them on in the launcher, under Cosmetics.")),{ok:true});
+  }catch(x){
+   msg=errText(x);
+   if(mode==="live"&&["item_unavailable","item_expired","already_owned","price_changed"].includes(x.code)){await refreshItems();await loadMe();pruneCart()}
+  }
+  busy=false;draw();renderShop();
+ });
+ draw();
+ cartGone=[];
+}
+async function refreshItems(){
+ if(mode!=="live"||(adm&&!adm.hidden))return;
+ try{all=(await req("/rest/v1/rpc/shop_items",{method:"POST",body:{}})).map(i=>Object.assign({visible:true,sort:0},i))}catch(e){}
 }
 
 /* ===== sklep ===== */
 function renderAcct(){
  const a=$("acct");
  if(mode==="loading"){a.innerHTML="";return}
- if(!me){a.innerHTML='<button type="button" class="b2 pri" data-login>'+esc(T("Zaloguj się profilem MiB","Sign in with your MiB profile"))+'</button>';return}
- a.innerHTML='<span class="who2"><small>'+esc(me.nick||"")+'</small><span class="coins">'+COIN+fmt(me.coins)+'</span></span>'+
+ const cb='<button type="button" class="b2 cartopen" data-cartopen aria-label="'+esc(T("Koszyk","Cart"))+'">'+CART_IC+'<span>'+esc(T("Koszyk","Cart"))+'</span>'+(cart.length?'<span class="badge">'+cart.length+'</span>':'')+'</button>';
+ if(!me){a.innerHTML=cb+'<button type="button" class="b2 pri" data-login>'+esc(T("Zaloguj się profilem MiB","Sign in with your MiB profile"))+'</button>'+(cartGone.length?'<p class="cartnote">'+esc(T("Coś zniknęło ze sklepu i wypadło z koszyka.","Something left the shop and was removed from your cart."))+'</p>':'');return}
+ a.innerHTML=cb+'<span class="who2"><small>'+esc(me.nick||"")+'</small><span class="coins">'+COIN+fmt(me.coins)+'</span></span>'+
   '<button type="button" class="b2" data-topup>'+esc(T("Doładuj","Top up"))+'</button>'+
   (me.admin?'<button type="button" class="b2" data-admin>'+esc(T("Panel admina","Admin panel"))+'</button>':'')+
-  '<button type="button" class="b2 sm" data-logout>'+esc(T("Wyloguj","Sign out"))+'</button>';
+  '<button type="button" class="b2 sm" data-logout>'+esc(T("Wyloguj","Sign out"))+'</button>'+
+  (cartGone.length?'<p class="cartnote">'+esc(T("Coś zniknęło ze sklepu i wypadło z koszyka.","Something left the shop and was removed from your cart."))+'</p>':'');
 }
 function renderShop(){
  $("shop-demo").hidden=mode!=="demo";
- renderAcct();renderPacks();
+ pruneCart();renderAcct();renderPacks();
  const items=shopItems(),count=t=>t==="all"?items.length:items.filter(i=>i.type===t).length;
  $("shop-tabs").innerHTML=[["all","Wszystko","All"]].concat(Object.keys(TYPES).map(k=>[k,TYPES[k][2],TYPES[k][3]])).map(t=>
   '<button type="button" role="tab" aria-selected="'+(tab===t[0])+'" data-tab="'+t[0]+'">'+esc(T(t[1],t[2]))+'<span class="n">'+count(t[0])+'</span></button>').join("");
@@ -753,7 +849,7 @@ async function buy(id){
   else{const r=await rpc("shop_buy",{p_id:id});me.coins=r.coins;me.owned.push(id)}
   notice[id]=Object.assign(new String(T("Kupione. Załóż to w launcherze, w zakładce Kosmetyki.","Bought. Put it on in the launcher, under Cosmetics.")),{ok:true});
  }catch(e){notice[id]=errText(e);if(e.code==="already_owned"&&me)me.owned.push(id)}
- pending=null;renderShop();
+ cart=cart.filter(x=>!(me&&me.owned.includes(x)));saveCart();pending=null;renderShop();
 }
 
 /* ===== okna ===== */
@@ -1003,6 +1099,8 @@ function wireCoins(){
 /* ===== zdarzenia ===== */
 document.addEventListener("click",e=>{
  const pk=e.target.closest("#packs [data-pack]");if(pk){topupDlg(+pk.dataset.pack);return}
+ const cb=e.target.closest("[data-cart]");if(cb){toggleCart(cb.dataset.cart);return}
+ if(e.target.closest("[data-cartopen]")){cartDlg();return}
  const t=e.target.closest("[data-login],[data-logout],[data-topup],[data-admin],[data-buy],[data-confirm],[data-cancel],[data-tab],[data-aclose],[data-atab],[data-pick],[data-new]");
  if(!t)return;
  if(t.hasAttribute("data-login"))loginDlg();
@@ -1037,6 +1135,7 @@ clearInterval(tick);tick=setInterval(()=>document.querySelectorAll("[data-until]
  }
  renderShop();
  if(location.hash==="#admin")openAdmin();
+ setInterval(async()=>{if(mode!=="live"||document.hidden||document.querySelector(".ovl")||pending)return;const n=cart.length;await refreshItems();pruneCart();if(n!==cart.length||true)renderShop()},60000);
 })();
 })();
 

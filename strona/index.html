@@ -428,6 +428,27 @@ footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 
 @media (max-width:640px){.packs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .packs.in-dlg .pack{padding-top:34px}
 
+/* koszyk */
+.cartbtn{gap:6px}
+.cartbtn .ic,.cartopen .ic{width:14px;height:14px;flex:none}
+.cartbtn.on{box-shadow:inset 0 0 0 2px var(--am);color:#fff}
+.cartopen{position:relative}
+.cartopen .badge{min-width:20px;height:20px;padding:0 5px;display:inline-grid;place-items:center;font:700 12px/1 var(--body);background:var(--am);color:#fff;clip-path:var(--px2)}
+.acct{position:relative}
+.cartnote{flex-basis:100%;text-align:right;color:#ffcf8a;font-size:13px;margin:0}
+.cartlist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px;max-height:min(46vh,420px);overflow:auto}
+.cartlist li{display:flex;align-items:center;gap:12px;padding:8px 10px;background:#0d0608;clip-path:var(--px2)}
+.cartlist .th{width:42px;height:42px;flex:none;display:grid;place-items:center;background:#140a0c}
+.cartlist .th .art{width:36px;height:36px;object-fit:contain;image-rendering:pixelated}
+.cartlist .th .glyph{font-size:22px;color:var(--m)}
+.cartlist .tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.cartlist .tx b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cartlist .tx small{font-size:12.5px}
+.coins.sm{font-size:20px}
+.carttot{display:flex;justify-content:space-between;align-items:center;padding:10px 4px 0;border-top:2px solid var(--line);font-weight:600}
+.carttot .coins{font-size:30px}
+.item .buy .act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
 /* ===== Halloween (jak w launcherze 0.22.0): dynia na czerni, księżyc, żar przy ziemi, pajęczyny i nietoperze ===== */
 .hero .bg{filter:hue-rotate(95deg) saturate(1.15)}
