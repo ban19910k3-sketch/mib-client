@@ -214,3 +214,15 @@ test('auraParticles: te same liczby co w modzie (Auras.java), w zasięgu postaci
     }
   }
 });
+
+test('season: motyw Halloween od 15 października do 5 listopada włącznie, poza tym zwykły', () => {
+  const at = (m, d) => P.season(new Date(2026, m - 1, d, 12));
+  assert.equal(at(10, 14), '');
+  assert.equal(at(10, 15), 'halloween');
+  assert.equal(at(10, 31), 'halloween');
+  assert.equal(at(11, 5), 'halloween');
+  assert.equal(at(11, 6), '');
+  assert.equal(at(1, 1), '');
+  assert.equal(P.season(new Date(2026, 9, 15, 0, 0)), 'halloween', 'od północy');
+  assert.equal(P.season(new Date(2026, 10, 5, 23, 59)), 'halloween', 'do końca 5 listopada');
+});

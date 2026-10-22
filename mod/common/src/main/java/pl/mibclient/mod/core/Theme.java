@@ -7,9 +7,16 @@ public final class Theme {
 
 	/**
 	 * Motyw Halloween (od 0.22.0, jak w launcherze): kolory dyni zamiast ametystu i dekoracje w menu (Halloween.java).
-	 * false = zwykły motyw (druga wartość w każdym kolorze niżej).
+	 * Od 0.24.0 według daty przy starcie gry: od 15 października do 5 listopada włącznie (te same daty co season
+	 * w lib/profile.js launchera), poza tym zwykły motyw (druga wartość w każdym kolorze niżej).
 	 */
-	public static final boolean HALLOWEEN = true;
+	public static final boolean HALLOWEEN = halloween(java.time.LocalDate.now());
+
+	/** Czy w tym dniu jest motyw Halloween. */
+	public static boolean halloween(java.time.LocalDate d) {
+		int md = d.getMonthValue() * 100 + d.getDayOfMonth();
+		return md >= 1015 && md <= 1105;
+	}
 
 	public static final int VOID = HALLOWEEN ? 0xFF0A0507 : 0xFF07020C;
 	public static final int SLAB = HALLOWEEN ? 0xFF140A0C : 0xFF100618;

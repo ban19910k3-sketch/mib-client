@@ -156,6 +156,11 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		pvp = new Pvp(this);
 		world = new WorldTweaks(this, base);
 		world.register();
+		// motyw Halloween (według daty, Theme.HALLOWEEN): przyciski i suwaki gry w kolorach dyni z wbudowanej paczki zasobów
+		// resourcepacks/halloween w jarze moda; poza sezonem paczki nie ma i gra rysuje zwykłe przyciski
+		if (pl.mibclient.mod.core.Theme.HALLOWEEN) FabricLoader.getInstance().getModContainer("mibclient").ifPresent(m ->
+				net.fabricmc.fabric.api.resource.ResourceManagerHelper.registerBuiltinResourcePack(MibId.fromNamespaceAndPath("mibclient", "halloween"), m,
+						Component.literal("MiB Halloween"), net.fabricmc.fabric.api.resource.ResourcePackActivationType.ALWAYS_ENABLED));
 		extras = new Extras(this);
 		Extras.register();
 		Looks.register();

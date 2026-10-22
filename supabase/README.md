@@ -108,6 +108,14 @@ Graczom dajesz je jak inne przedmioty: kodami, prezentem albo prezentem dla wszy
 - Saldo gracza jest w `profiles.coins`. Gracz może je tylko zobaczyć, zmienia je admin: panel admina → Gracze → wybierz gracza → **MiB Coins** (liczba z minusem zabiera coinsy). Każda zmiana zapisuje się w `private.coin_log`.
 - Link do sklepu ustawiasz w panelu admina → Kosmetyki → **Sklep MiB Coins** (tylko `https://`). Przycisk „Kup MiB Coins” w launcherze otwiera go z numerem gracza na końcu, np. `https://sklep.mib.pl/coins?mib=MIB-000123`. Pusty link ukrywa przycisk.
 
+## Sklep za MiB Coins (od 0.24.0)
+
+- **Cena przedmiotu**: panel admina → Kosmetyki → Edytuj → **Cena w sklepie** (w coinsach). Puste pole = przedmiot nie jest na sprzedaż (np. nagrody za błędy i kody z konkursów). Gracze widzą przedmioty z ceną w Kosmetykach → **Sklep**, mogą je przymierzyć i kupić.
+- **Oferty i pakiety**: panel admina → Kosmetyki → **Oferty i pakiety**. Zaznaczasz przedmioty, cenę oferty i datę końca (do końca tego dnia; puste = bez końca). W Sklepie oferta jest na górze z przekreśloną zwykłą ceną (suma cen przedmiotów), zniżką w % i tym, ile dni zostało. Gracz, który ma już część pakietu, płaci tylko za brakujące przedmioty (część ceny oferty według zwykłych cen).
+- **Prezent dla znajomego**: przycisk „Podaruj” przy przedmiocie w Sklepie. Coinsy płaci kupujący, a znajomy dostaje okno „Masz prezent!” z nickiem kupującego i wiadomością.
+- **Nagroda dzienna**: launcher sam daje graczowi 10 coinsów raz na dobę (czas polski), a za każdy 7. dzień z rzędu 50 więcej. Przerwa zaczyna serię od nowa. Zbanowani nie dostają nagrody.
+- **Historia**: gracz widzi swoje zmiany coinsów w Kosmetykach → Historia, a Ty u każdego gracza w panelu admina → Gracze → **Historia** (zakupy, prezenty, pakiety, nagrody dzienne i Twoje zmiany z powodem — gracz też widzi ten powód).
+
 ## Kody prezentowe
 
 Kody są w ukrytej tabeli `private.gift_codes` (gracze jej nie widzą). Tworzysz je w **SQL Editor**:

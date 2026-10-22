@@ -1,5 +1,7 @@
-<!DOCTYPE html><html lang="pl" class="t-halloween"><head><meta charset="utf-8"><title>MiB Client</title>
+<!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><title>MiB Client</title>
 <link rel="stylesheet" href="style.css">
+<!-- Motyw według daty (od 0.24.0): klasa t-halloween od 15.10 do 5.11 (MibProfile.season), przed pierwszym rysowaniem -->
+<script src="lib/profile.js"></script><script>if(MibProfile.season()==='halloween')document.documentElement.classList.add('t-halloween')</script>
 <!-- Ikony menu: pixelarticons (MIT), font Geist (OFL) — licencje w fonts/LICENSES.txt --></head><body>
 <div id="splash"><img id="sbg" src="splash.jpg" alt=""><div class="streak"></div><div class="streak s2"></div><canvas id="pc"></canvas>
 <div id="sbox"><div id="sname">MiB Client</div><div id="bar"><div id="fill"></div></div><div id="status">Przygotowywanie interfejsu…</div></div></div>
@@ -90,4 +92,4 @@ addEventListener('resize',moveInd);
 document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('act'));n.classList.add('act');
 document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));document.getElementById('p-'+n.dataset.p).classList.add('on');moveInd()});
 const sel=document.getElementById('sel');sel.onchange=()=>document.getElementById('ver').textContent='MiB '+sel.value;
-</script><script src="skinview3d.js"></script><script src="lib/profile.js"></script><script src="ui.js"></script><script src="profile-ui.js"></script><script src="admin-ui.js"></script></body></html>
+</script><script src="skinview3d.js"></script><script src="ui.js"></script><script src="profile-ui.js"></script><script src="admin-ui.js"></script></body></html>

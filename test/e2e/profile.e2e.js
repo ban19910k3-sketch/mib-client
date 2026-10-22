@@ -39,6 +39,8 @@ function png(w, h, px) {
     await w.click('#w-go', { timeout: 5000 }).catch(() => {});
     await w.waitForFunction(() => document.getElementById('plname').textContent === 'Załóż profil MiB');
     ok('(a) dolny blok zachęca do założenia profilu');
+    assert.equal(await w.evaluate(() => document.documentElement.classList.contains('t-halloween')), require('../../lib/profile').season() === 'halloween', 'motyw według daty');
+    ok('(ao) motyw Halloween według daty');
     await w.click('.nav[data-p="ideas"]');
     await w.waitForFunction(() => /Załóż profil MiB/.test(document.getElementById('ideas-box').textContent));
     assert.equal(await w.$('#id-body'), null, 'bez profilu nie ma formularza pomysłów');

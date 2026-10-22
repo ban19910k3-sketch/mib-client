@@ -435,6 +435,10 @@ public class MibClientGameTest implements FabricClientGameTest {
 			if (pl.mibclient.mod.core.Theme.HALLOWEEN) for (String h : new String[] {"halloween_loading", "halloween_title", "halloween_pause", "halloween_dusk"}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
 			}
+			// przyciski w kolorach dyni z wbudowanej paczki moda tylko w sezonie Halloween (paczka leży nad zasobami gry)
+			int buttons = context.computeOnClient(c -> c.getResourceManager().getResourceStack(
+					net.minecraft.resources.MibId.fromNamespaceAndPath("minecraft", "textures/gui/sprites/widget/button.png")).size());
+			check(pl.mibclient.mod.core.Theme.HALLOWEEN ? buttons >= 2 : buttons == 1, "paczka przycisków Halloween: plików button.png " + buttons);
 		}
 		if (!errors.isEmpty()) throw new AssertionError(String.join("; ", errors));
 	}

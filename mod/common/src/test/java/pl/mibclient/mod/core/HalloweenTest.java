@@ -8,6 +8,17 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class HalloweenTest {
+	/** Motyw według daty: od 15 października do 5 listopada włącznie (tak samo jak season w launcherze). */
+	@Test
+	void seasonByDate() {
+		assertFalse(Theme.halloween(java.time.LocalDate.of(2026, 10, 14)));
+		assertTrue(Theme.halloween(java.time.LocalDate.of(2026, 10, 15)));
+		assertTrue(Theme.halloween(java.time.LocalDate.of(2026, 10, 31)));
+		assertTrue(Theme.halloween(java.time.LocalDate.of(2026, 11, 5)));
+		assertFalse(Theme.halloween(java.time.LocalDate.of(2026, 11, 6)));
+		assertFalse(Theme.halloween(java.time.LocalDate.of(2027, 1, 1)));
+	}
+
 	/** Prawdziwy czas w milisekundach jest większy niż int: numer klatki nie może wyjść ujemny. */
 	@Test
 	void drawsWithRealClockTimes() {
