@@ -32,3 +32,7 @@ create function extensions.http_get(uri varchar) returns extensions.http_respons
        where uri = 'https://sessionserver.mojang.com/session/minecraft/hasJoined?username=' || f.name || '&serverId=' || f.server_id),
     (204, null, null, '')::extensions.http_response)
 $$;
+
+-- Funkcje założone kiedyś w bazie właściciela poza schema.sql, z innymi nazwami parametrów: schema.sql musi je zastąpić
+create function public.admin_give_coins(p_user uuid, p_amount integer, p_note text) returns void language plpgsql as $$ begin end $$;
+create function public.admin_set_config(p_name text, p_val text) returns boolean language plpgsql as $$ begin return true; end $$;

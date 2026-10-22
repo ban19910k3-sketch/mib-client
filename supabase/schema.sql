@@ -1471,7 +1471,9 @@ grant select on public.app_config to anon, authenticated;
 drop policy if exists app_config_read on public.app_config;
 create policy app_config_read on public.app_config for select to anon, authenticated using (true);
 
--- Dodanie (albo zabranie, gdy p_amount < 0) coinsów graczowi; wynik: nowe saldo
+-- Dodanie (albo zabranie, gdy p_amount < 0) coinsów graczowi; wynik: nowe saldo. W bazie mogła już być funkcja
+-- o tej nazwie z innymi nazwami parametrów (np. p_note) — wtedy create or replace się nie uda, więc najpierw ją usuwamy.
+drop function if exists public.admin_give_coins(uuid, integer, text);
 create or replace function public.admin_give_coins(p_user uuid, p_amount integer, p_reason text) returns integer
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -1488,6 +1490,7 @@ begin
 end $$;
 
 -- Link do sklepu (tylko https); pusty usuwa przycisk „Kup MiB Coins”
+drop function if exists public.admin_set_config(text, text);
 create or replace function public.admin_set_config(p_key text, p_value text) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
