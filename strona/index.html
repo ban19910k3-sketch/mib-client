@@ -409,6 +409,25 @@ footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 
 .item[data-r="halloween"] .rar::before{content:"";display:inline-block;width:13px;height:12px;margin-right:6px;vertical-align:-1px;image-rendering:pixelated;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 8' shape-rendering='crispEdges'%3E%3Cpath fill='%2365a30d' d='M4 0h1v1h-1z'/%3E%3Cpath fill='%2365a30d' d='M3 1h2v1h-2z'/%3E%3Cpath fill='%23c2410c' d='M1 2h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M2 2h5v1h-5z'/%3E%3Cpath fill='%23c2410c' d='M7 2h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 3h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 3h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M2 3h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M3 3h3v1h-3z'/%3E%3Cpath fill='%23fde047' d='M6 3h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M7 3h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M8 3h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 4h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 4h7v1h-7z'/%3E%3Cpath fill='%23c2410c' d='M8 4h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 5h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M2 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M3 5h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M4 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M5 5h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M6 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M7 5h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M8 5h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 6h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 6h2v1h-2z'/%3E%3Cpath fill='%23fde047' d='M3 6h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M4 6h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M5 6h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M6 6h2v1h-2z'/%3E%3Cpath fill='%23c2410c' d='M8 6h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M1 7h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M2 7h5v1h-5z'/%3E%3Cpath fill='%23c2410c' d='M7 7h1v1h-1z'/%3E%3C/svg%3E") center/contain no-repeat}
 .item[data-r="halloween"].featured,.item[data-r="halloween"]:hover{box-shadow:inset 0 0 0 2px #ff7a1a}
 
+/* pakiety MiB Coins */
+.topup{margin-top:40px;display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px 30px;align-items:center}
+.topup h3{font-size:30px}
+.packs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.pack{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:16px;border:0;cursor:pointer;text-align:left;font:inherit;color:var(--t);background:var(--plum);clip-path:var(--px);box-shadow:inset 0 0 0 2px var(--line)}
+.pack:hover,.pack[aria-checked="true"]{box-shadow:inset 0 0 0 2px var(--am)}
+.pack[aria-checked="true"]{background:color-mix(in srgb,var(--am) 12%,var(--plum))}
+.pack .coins{font-size:30px}
+.pack .pln{font-weight:600;font-size:17px}
+.pack .per{color:var(--m);font-size:12.5px}
+.pack .flag.sale{position:absolute;top:10px;right:10px;font:800 13px/1 var(--display);padding:4px 7px 5px;clip-path:var(--px);background:#ff5c7a;color:#fff}
+.dlg.wide{width:min(640px,100%)}
+.packs.in-dlg .pack .coins{font-size:24px}
+.sum{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--m)}
+.sum .coins{font-size:22px;color:var(--t)}
+@media (max-width:900px){.topup{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:640px){.packs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.packs.in-dlg .pack{padding-top:34px}
+
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
 /* ===== Halloween (jak w launcherze 0.22.0): dynia na czerni, księżyc, żar przy ziemi, pajęczyny i nietoperze ===== */
 .hero .bg{filter:hue-rotate(95deg) saturate(1.15)}

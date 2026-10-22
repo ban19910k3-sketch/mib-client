@@ -410,6 +410,25 @@ footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 
 .item[data-r="halloween"] .rar::before{content:"";display:inline-block;width:13px;height:12px;margin-right:6px;vertical-align:-1px;image-rendering:pixelated;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 8' shape-rendering='crispEdges'%3E%3Cpath fill='%2365a30d' d='M4 0h1v1h-1z'/%3E%3Cpath fill='%2365a30d' d='M3 1h2v1h-2z'/%3E%3Cpath fill='%23c2410c' d='M1 2h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M2 2h5v1h-5z'/%3E%3Cpath fill='%23c2410c' d='M7 2h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 3h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 3h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M2 3h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M3 3h3v1h-3z'/%3E%3Cpath fill='%23fde047' d='M6 3h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M7 3h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M8 3h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 4h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 4h7v1h-7z'/%3E%3Cpath fill='%23c2410c' d='M8 4h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 5h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M2 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M3 5h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M4 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M5 5h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M6 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M7 5h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M8 5h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 6h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 6h2v1h-2z'/%3E%3Cpath fill='%23fde047' d='M3 6h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M4 6h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M5 6h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M6 6h2v1h-2z'/%3E%3Cpath fill='%23c2410c' d='M8 6h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M1 7h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M2 7h5v1h-5z'/%3E%3Cpath fill='%23c2410c' d='M7 7h1v1h-1z'/%3E%3C/svg%3E") center/contain no-repeat}
 .item[data-r="halloween"].featured,.item[data-r="halloween"]:hover{box-shadow:inset 0 0 0 2px #ff7a1a}
 
+/* pakiety MiB Coins */
+.topup{margin-top:40px;display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px 30px;align-items:center}
+.topup h3{font-size:30px}
+.packs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.pack{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:16px;border:0;cursor:pointer;text-align:left;font:inherit;color:var(--t);background:var(--plum);clip-path:var(--px);box-shadow:inset 0 0 0 2px var(--line)}
+.pack:hover,.pack[aria-checked="true"]{box-shadow:inset 0 0 0 2px var(--am)}
+.pack[aria-checked="true"]{background:color-mix(in srgb,var(--am) 12%,var(--plum))}
+.pack .coins{font-size:30px}
+.pack .pln{font-weight:600;font-size:17px}
+.pack .per{color:var(--m);font-size:12.5px}
+.pack .flag.sale{position:absolute;top:10px;right:10px;font:800 13px/1 var(--display);padding:4px 7px 5px;clip-path:var(--px);background:#ff5c7a;color:#fff}
+.dlg.wide{width:min(640px,100%)}
+.packs.in-dlg .pack .coins{font-size:24px}
+.sum{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--m)}
+.sum .coins{font-size:22px;color:var(--t)}
+@media (max-width:900px){.topup{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:640px){.packs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.packs.in-dlg .pack{padding-top:34px}
+
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
 /* ===== Halloween (jak w launcherze 0.22.0): dynia na czerni, księżyc, żar przy ziemi, pajęczyny i nietoperze ===== */
 .hero .bg{filter:hue-rotate(95deg) saturate(1.15)}
@@ -471,6 +490,10 @@ header .logo img{filter:hue-rotate(115deg) saturate(1.25)}
         <div class="acct" id="acct"></div>
       </div>
       <p class="demo-banner" id="shop-demo" hidden data-en="Preview: these are example items. On the real site this shows the items you add in the admin panel.">Podgląd: to przykładowe przedmioty. Na prawdziwej stronie będą tu te, które dodasz w panelu admina.</p>
+      <div class="topup">
+        <div><h3 data-en="Top up MiB Coins">Doładuj MiB Coins</h3><p class="note" data-en="The bigger the pack, the cheaper the coins.">Im większy pakiet, tym taniej za monetę.</p></div>
+        <div class="packs" id="packs"></div>
+      </div>
       <div class="tabs" role="tablist" id="shop-tabs"></div>
       <div class="shop-grid" id="shop-grid" aria-live="polite"></div>
     </div>
@@ -701,7 +724,7 @@ function renderAcct(){
 }
 function renderShop(){
  $("shop-demo").hidden=mode!=="demo";
- renderAcct();
+ renderAcct();renderPacks();
  const items=shopItems(),count=t=>t==="all"?items.length:items.filter(i=>i.type===t).length;
  $("shop-tabs").innerHTML=[["all","Wszystko","All"]].concat(Object.keys(TYPES).map(k=>[k,TYPES[k][2],TYPES[k][3]])).map(t=>
   '<button type="button" role="tab" aria-selected="'+(tab===t[0])+'" data-tab="'+t[0]+'">'+esc(T(t[1],t[2]))+'<span class="n">'+count(t[0])+'</span></button>').join("");
@@ -763,9 +786,34 @@ function loginDlg(after){
   catch(x){er.textContent=errText(x)}finally{btn.disabled=false}
  });
 }
-function topupDlg(){
- dialog('<h3>'+esc(T("Doładuj MiB Coins","Top up MiB Coins"))+'</h3><p>'+esc(T("Kupowanie monet za prawdziwe pieniądze jeszcze nie działa. Uruchomimy je wkrótce.","Buying coins with real money isn't live yet. It's coming soon."))+'</p>'+
-  '<p class="note">'+esc(T("Do tego czasu monety możesz dostać od admina, np. za konkursy.","Until then you can get coins from the admin, e.g. for events."))+'</p><div class="row2"><button class="b2" type="button" data-close>'+esc(T("Zamknij","Close"))+'</button></div>');
+/* Pakiety MiB Coins (ceny od właściciela). Płatności jeszcze nie są podpięte: wybór pakietu kończy się informacją. */
+const PACKS=[{coins:1000,pln:19.99},{coins:2000,pln:37.99},{coins:4000,pln:71.99},{coins:5000,pln:84.99}];
+const zl=v=>v.toLocaleString(isEN()?"en-US":"pl-PL",{minimumFractionDigits:2,maximumFractionDigits:2})+" zł";
+const save=p=>Math.round((1-p.pln/(p.coins/1000*PACKS[0].pln))*100);
+function packCard(p,i){
+ const s=save(p);
+ return '<button type="button" class="pack" data-pack="'+i+'">'+(s>0?'<span class="flag sale">−'+s+'%</span>':'')+
+  '<span class="coins">'+COIN+fmt(p.coins)+'</span><span class="pln">'+zl(p.pln)+'</span>'+
+  '<span class="per">'+esc(T(zl(p.pln/p.coins*1000)+" za 1000",zl(p.pln/p.coins*1000)+" per 1000"))+'</span></button>';
+}
+function renderPacks(){const b=$("packs");if(b)b.innerHTML=PACKS.map(packCard).join("")}
+function topupDlg(pick){
+ if(!me){loginDlg(()=>topupDlg(pick));return}
+ let sel=pick==null?0:pick;
+ const d=dialog('<h3>'+esc(T("Doładuj MiB Coins","Top up MiB Coins"))+'</h3><div class="packs in-dlg" role="radiogroup" aria-label="'+esc(T("Pakiet","Pack"))+'">'+
+  PACKS.map((p,i)=>packCard(p,i).replace('class="pack"','class="pack" role="radio" aria-checked="'+(i===sel)+'"')).join("")+'</div>'+
+  '<div class="sum" id="t-sum"></div><div class="row2"><button class="b2 pri" type="button" id="t-pay"></button><button class="b2" type="button" data-close>'+esc(T("Anuluj","Cancel"))+'</button></div>'+
+  '<p class="note" id="t-msg" aria-live="polite"></p>');
+ d.el.querySelector(".dlg").classList.add("wide");
+ const upd=()=>{
+  d.el.querySelectorAll("[data-pack]").forEach(b=>b.setAttribute("aria-checked",String(+b.dataset.pack===sel)));
+  const p=PACKS[sel];
+  $("t-sum").innerHTML=esc(T("Dostaniesz","You get"))+' <span class="coins">'+COIN+fmt(p.coins)+'</span> '+esc(T("na konto","on")+" "+(me.nick||""));
+  $("t-pay").textContent=T("Zapłać ","Pay ")+zl(p.pln);$("t-msg").textContent="";
+ };
+ d.el.querySelector(".packs").addEventListener("click",e=>{const b=e.target.closest("[data-pack]");if(b){e.stopPropagation();sel=+b.dataset.pack;upd()}});
+ $("t-pay").onclick=()=>{$("t-msg").textContent=T("Płatności jeszcze nie działają. Uruchomimy je wkrótce.","Payments aren't live yet. They're coming soon.")};
+ upd();
 }
 
 /* ===== panel admina ===== */
@@ -954,6 +1002,7 @@ function wireCoins(){
 
 /* ===== zdarzenia ===== */
 document.addEventListener("click",e=>{
+ const pk=e.target.closest("#packs [data-pack]");if(pk){topupDlg(+pk.dataset.pack);return}
  const t=e.target.closest("[data-login],[data-logout],[data-topup],[data-admin],[data-buy],[data-confirm],[data-cancel],[data-tab],[data-aclose],[data-atab],[data-pick],[data-new]");
  if(!t)return;
  if(t.hasAttribute("data-login"))loginDlg();
