@@ -43,7 +43,7 @@ public final class Halloween {
 				int span = w + 40, bx = (int) ((t * v + i * 131) % span) - 20;
 				if (i % 2 == 1) bx = w - bx;
 				int by = (int) (h * (0.08 + 0.07 * i) + Math.sin(t * 2 + i) * 5);
-				sprite(c, BAT[(int) (timeMs / 140 + i) % 2], bx, by, k / 2 + 1);
+				sprite(c, BAT[(int) ((timeMs / 140 + i) % 2)], bx, by, k / 2 + 1);
 			}
 		}
 		corners(c, w, s, timeMs);
@@ -64,7 +64,7 @@ public final class Halloween {
 			int col = t < 0.6 ? mix(top, mid, t / 0.6) : mix(mid, low, (t - 0.6) / 0.4);
 			c.fill(0, h * i / bands, w, h * (i + 1) / bands, col);
 		}
-		int r = Math.max(8, Math.min(w, h) / 14), mx = w * 4 / 5, my = h / 5;
+		int r = Math.max(8, Math.min(w, h) / 14), mx = w * 86 / 100, my = h * 38 / 100;
 		disc(c, mx, my, r + 4, 0x18FFE4B5);
 		disc(c, mx, my, r, 0xE6FFF1D6);
 		disc(c, mx - r / 3, my + r / 4, r / 3, 0x30A08C70);
