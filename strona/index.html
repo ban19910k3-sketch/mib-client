@@ -270,8 +270,9 @@ footer .wrap{padding-block:28px 40px;color:var(--m);font-size:13px}
 
 /* ===== sklep ===== */
 .shop{padding-top:40px}
-.shop-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:24px 60px}
-.acct{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.shop-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:24px 40px}
+@media (max-width:900px){.shop-head{grid-template-columns:minmax(0,1fr)}}
+.acct{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;max-width:620px;justify-self:end}
 .acct .who2{display:flex;flex-direction:column;align-items:flex-end;line-height:1.2}
 .acct .who2 small{color:var(--m);font-size:13px}
 .acct .who2 b{font-weight:600}
@@ -290,7 +291,8 @@ footer .wrap{padding-block:28px 40px;color:var(--m);font-size:13px}
 .tabs button:hover{color:var(--t)}
 .tabs button[aria-selected="true"]{color:#fff;box-shadow:inset 0 -2px 0 var(--am)}
 .tabs .n{color:var(--m);font-weight:500;margin-left:4px;font-variant-numeric:tabular-nums}
-.shop-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.shop-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+@media (max-width:1180px){.shop-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:900px){.shop-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:640px){.shop-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:340px){.shop-grid{grid-template-columns:minmax(0,1fr)}}
@@ -304,12 +306,12 @@ footer .wrap{padding-block:28px 40px;color:var(--m);font-size:13px}
 .item .pic img,.item .pic canvas{max-width:min(34cqw,80px);max-height:min(62cqh,70px);image-rendering:pixelated;object-fit:contain;filter:drop-shadow(0 10px 18px rgba(0,0,0,.55))}
 .item .flag{position:absolute;top:12px;left:12px;font:800 14px/1 var(--display);text-transform:uppercase;letter-spacing:.05em;padding:5px 8px 6px;clip-path:var(--px);background:var(--r);color:#1a0a04}
 .item .flag.sale{left:auto;right:12px;background:#ff5c7a;color:#fff}
-.item .body{display:flex;flex-direction:column;gap:6px;padding:16px 16px 18px;flex:1}
-.item .rar{font:700 13px/1 var(--body);color:var(--r)}
-.item h3{font:800 22px/1 var(--display);text-transform:uppercase}
-.item p{color:var(--m);font-size:14.5px;line-height:1.45}
-.item .time{color:#ffcf8a;font-size:13.5px;font-variant-numeric:tabular-nums}
-.item .buy{margin-top:auto;padding-top:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.item .body{display:flex;flex-direction:column;gap:4px;padding:10px 12px 12px;flex:1}
+.item .rar{font:700 11.5px/1.2 var(--body);color:var(--r)}
+.item h3{font:800 18px/1.05 var(--display);text-transform:uppercase}
+.item p{color:var(--m);font-size:13px;line-height:1.4}
+.item .time{color:#ffcf8a;font-size:12px;font-variant-numeric:tabular-nums}
+.item .buy{margin-top:auto;padding-top:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .price{display:flex;align-items:baseline;gap:8px}
 .price s{color:var(--m);font-size:15px;font-variant-numeric:tabular-nums}
 .owned{color:var(--good);font-weight:600;font-size:14px}
@@ -451,6 +453,29 @@ footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 
 @media (max-width:760px){.item h3{font-size:20px}.item .body{padding:12px 12px 14px}}
 
 .item .flag{top:8px;left:8px;font-size:12px}.item .flag.sale{right:8px}
+
+.item .coins{font-size:20px}.item .coins svg{width:17px;height:17px}
+.item .b2.sm{padding:7px 9px;font-size:12.5px;gap:6px}
+.item .pic[data-try]{cursor:pointer}
+.item h3[data-try]{cursor:pointer}
+.item .pic[data-try]:focus-visible{outline:2px solid var(--am);outline-offset:-2px}
+.tryhint{position:absolute;bottom:6px;right:8px;font:600 11px/1 var(--body);color:#fff;background:rgba(0,0,0,.55);padding:4px 6px;opacity:0;transition:opacity .15s}
+.item .pic[data-try]:hover .tryhint,.item .pic[data-try]:focus-visible .tryhint{opacity:1}
+@media (hover:none){.tryhint{opacity:.85}}
+.dlg.trydlg{width:min(720px,100%)}
+.tryon{display:grid;grid-template-columns:300px minmax(0,1fr);gap:24px;align-items:start}
+.tryon .stage{display:grid;place-items:center;min-height:300px;background:radial-gradient(ellipse at 50% 100%,rgba(168,85,247,.28),transparent 65%),#0d0608;clip-path:var(--px)}
+.tryon .stage canvas{display:block;cursor:grab;touch-action:none}
+.tryon .stage canvas:active{cursor:grabbing}
+.tryon .stage .art,.tryon .flat .art{width:140px;height:140px;object-fit:contain;image-rendering:pixelated}
+.tryon .info{display:flex;flex-direction:column;gap:10px}
+.tryon .rar{font:700 13px/1.2 var(--body)}
+.tryon h3{font-size:30px}
+.tryon .nickrow{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.tryon .nickrow .fld2{flex:1;min-width:140px}
+.tryon .buy{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.tryon .err:empty{display:none}
+@media (max-width:640px){.tryon{grid-template-columns:minmax(0,1fr)}.tryon h3{font-size:24px}}
 
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
 /* ===== Halloween (jak w launcherze 0.22.0): dynia na czerni, księżyc, żar przy ziemi, pajęczyny i nietoperze ===== */
