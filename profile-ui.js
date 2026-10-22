@@ -750,7 +750,7 @@
         offer && items.length > 1 ? h('p', { class: 'mut' }, items.filter(c => !c.owned).map(c => c.name).join(', ')) : null,
         h('div', { class: 'buy-sum' },
           h('div', { class: 'sr' }, h('span', {}, T('Cena')), price(cost)),
-          h('div', { class: 'sr' }, h('span', {}, T('Masz')), price(coins)),
+          h('div', { class: 'sr' }, h('span', {}, T('Twoje coinsy')), price(coins)),
           short > 0 ? h('div', { class: 'sr short', id: 'buy-short' }, h('span', {}, T('Brakuje')), price(short))
             : h('div', { class: 'sr' }, h('span', {}, T('Zostanie')), price(coins - cost))))),
       gift ? field('Dla kogo', who) : null, gift ? field('Wiadomość', note) : null,

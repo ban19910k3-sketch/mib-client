@@ -258,7 +258,7 @@ function png(w, h, px) {
     await w.press('#buy', 'Escape');
     await w.click('#shop-grid .cosi[data-id="hat_shop"] button:has-text("Kup")');
     await w.waitForSelector('#buy-go');
-    assert.match(await w.textContent('#buy .buy-sum'), /Cena.*500.*Masz.*600.*Zostanie.*100/s);
+    assert.match(await w.textContent('#buy .buy-sum'), /Cena.*500.*Twoje coinsy.*600.*Zostanie.*100/s);
     await w.waitForTimeout(800);
     await shot('shop-buy.png');
     await w.click('#buy-go');
