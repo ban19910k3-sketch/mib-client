@@ -10,14 +10,14 @@ import net.minecraft.resources.MibId;
 import net.minecraft.client.model.HumanoidModel;
 //#endif
 
-/** Dane MiB w stanie rysowania postaci: własna postać, skrzydła, czapka i aura (od 1.21.2; wcześniej warstwy widzą samą postać i ta wstawka jest pusta). */
+/** Dane MiB w stanie rysowania postaci: własna postać, skrzydła, czapka, maska i aura (od 1.21.2; wcześniej warstwy widzą samą postać i ta wstawka jest pusta). */
 //#if MC >= 1.21.2
 @Mixin(HumanoidRenderState.class)
 public abstract class HumanoidRenderStateMixin implements MibSelfState {
 	@Unique
 	private boolean mib$isSelf, mib$hasWings;
 	@Unique
-	private MibId mib$hatTexture, mib$fairyTexture, mib$auraTexture;
+	private MibId mib$hatTexture, mib$maskTexture, mib$fairyTexture, mib$auraTexture;
 	@Unique
 	private int mib$auraKind, mib$auraNumber;
 
@@ -49,6 +49,16 @@ public abstract class HumanoidRenderStateMixin implements MibSelfState {
 	@Override
 	public void mib$hat(MibId hat) {
 		mib$hatTexture = hat;
+	}
+
+	@Override
+	public MibId mib$mask() {
+		return mib$maskTexture;
+	}
+
+	@Override
+	public void mib$mask(MibId mask) {
+		mib$maskTexture = mask;
 	}
 
 	@Override

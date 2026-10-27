@@ -618,10 +618,10 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	// ===== Kosmetyki =====
 
-	/** Założone kosmetyki z launchera (peleryna, czapka, skrzydła, aura) trafiają do tekstur gry (tylko gdy się zmienią). */
+	/** Założone kosmetyki z launchera (peleryna, czapka, maska, skrzydła, aura) trafiają do tekstur gry (tylko gdy się zmienią). */
 	private void tickCosmetics(Minecraft c) {
 		Cosmetics cs = cosmetics();
-		for (String type : new String[] {"cape", "hat", "wings", "aura"}) {
+		for (String type : new String[] {"cape", "hat", "mask", "wings", "aura"}) {
 			Cosmetics.Item it = cs == null ? null : cs.equipped(type);
 			String old = ownKeys.get(type);
 			if (it == null || it.png == null) {
@@ -691,8 +691,16 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		}
 	}
 
-	/** Tekstury szerokie na co najmniej 128 pikseli: jako skrzydła rysują się jak u wróżki (FairyWingsLayer), nie jak elytra. */
+	/**
+	 * Tekstury szerokie na co najmniej 128 pikseli: jako skrzydła rysują się jak u wróżki (FairyWingsLayer), nie jak elytra,
+	 * a jako czapka — wysoka czapka z drugą kostką (HatLayer).
+	 */
 	private static final java.util.Set<MibId> WIDE = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+	/** Czy tekstura jest szeroka na co najmniej 128 pikseli (skrzydła wróżki, wysoka czapka). */
+	static boolean wide(MibId id) {
+		return id != null && WIDE.contains(id);
+	}
 
 	private static MibId register(String path, NativeImage img) {
 		MibId id = MibId.fromNamespaceAndPath("mibclient", path);

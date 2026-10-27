@@ -110,6 +110,13 @@ tasks.register('mibClasspath') {
 	doLast { println 'MIBCP=' + sourceSets.main.compileClasspath.asPath }
 }
 
+// -PmibTheme=<id|none>: motyw świąteczny w teście gry (jak -Dmib.theme od launchera); bez tego motyw według daty
+if (project.hasProperty('mibTheme')) {
+	tasks.matching { it.name == 'runClientGameTest' || it.name == 'runClient' }.configureEach {
+		jvmArgs "-Dmib.theme=${project.property('mibTheme')}"
+	}
+}
+
 // Starsze wersje bez testu klienta: -Psmoke uruchamia grę, mod sam otwiera menu i edytor HUD, wypisuje [MIB-SMOKE] i zamyka grę
 if (project.hasProperty('smoke')) {
 	loom {

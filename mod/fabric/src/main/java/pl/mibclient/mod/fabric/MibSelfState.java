@@ -18,6 +18,11 @@ public interface MibSelfState {
 
 	void mib$hat(MibId hat);
 
+	/** Tekstura maski MiB (od 0.25.0, pod czapką) albo null. */
+	MibId mib$mask();
+
+	void mib$mask(MibId mask);
+
 	/** Tekstura skrzydeł MiB jak u wróżki (FairyWingsLayer) albo null. */
 	MibId mib$fairy();
 

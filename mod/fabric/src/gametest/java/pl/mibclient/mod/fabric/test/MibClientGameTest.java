@@ -401,6 +401,9 @@ public class MibClientGameTest implements FabricClientGameTest {
 			context.runOnClient(c -> {
 				MibClient.get().applyCosmetic("wings", "test:fairy", Base64.getDecoder().decode(FAIRY_PNG));
 				MibClient.get().applyCosmetic("aura", "test:halloween_aura_magic:1", Base64.getDecoder().decode(AURA_PNG));
+				// maska pod czapką i wysoka czapka (tekstura szeroka na 128: druga kostka nad głową), od 0.25.0
+				MibClient.get().applyCosmetic("mask", "test:mask", Base64.getDecoder().decode(CAPE_PNG));
+				MibClient.get().applyCosmetic("hat", "test:tall", Base64.getDecoder().decode(FAIRY_PNG));
 			});
 			check(context.computeOnClient(c -> MibClient.get().fairyWingsFor(c.player) != null && MibClient.get().elytraWingsFor(c.player) == null),
 					"skrzydła szerokie na 128 pikseli nie są skrzydłami wróżki");
@@ -424,7 +427,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			for (String h : new String[] {"fov", "gamma", "click", "crosshair", "logo", "title-logo", "version", "freelook", "cape", "attack", "hit", "badge", "totem", "loading",
 					"saturation", "scoreboard", "boss_bar", "chat", "weather", "camera", "viewmodel", "own-name", "labels", "title", "tablist", "inventory", "drop",
 					"post_effect", "custom_fog", "block_overlay", "item_physic", "uhc_overlay", "light_level", "waypoints", "dark_mode", "anim_block", "anim_dip",
-					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "fairy_drawn", "aura_drawn", "time", "hitbox", "hitbox_players", "world_marks", "cos_anim", "notice", "emote_wheel"
+					"emote", "keybind_search", "ui_scale", "post_ok", "chat_badge", "auto_sprint", "wings_drawn", "hat_drawn", "mask_drawn", "tall_hat_drawn", "fairy_drawn", "aura_drawn", "time", "hitbox", "hitbox_players", "world_marks", "cos_anim", "notice", "emote_wheel"
 					//#if MC >= 1.21.2 && MC < 1.21.6
 					, "blur_previous"
 					//#endif
@@ -434,6 +437,10 @@ public class MibClientGameTest implements FabricClientGameTest {
 			// motyw Halloween: dekoracje na ekranie ładowania, tytułowym i w menu pauzy
 			if (pl.mibclient.mod.core.Theme.HALLOWEEN) for (String h : new String[] {"halloween_loading", "halloween_title", "halloween_pause", "halloween_dusk"}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h);
+			}
+			// inne święta (od 0.25.0, motyw z -PmibTheme): ozdoby na tych samych ekranach
+			else if (!pl.mibclient.mod.core.Theme.ID.isEmpty()) for (String h : new String[] {"holiday_loading", "holiday_title", "holiday_pause"}) {
+				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h + " (" + pl.mibclient.mod.core.Theme.ID + ")");
 			}
 			// przyciski w kolorach dyni z wbudowanej paczki moda tylko w sezonie Halloween (paczka leży nad zasobami gry)
 			int buttons = context.computeOnClient(c -> c.getResourceManager().getResourceStack(

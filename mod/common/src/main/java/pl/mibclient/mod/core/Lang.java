@@ -41,6 +41,7 @@ public final class Lang {
 		put("cos.hat", "Czapka", "Hat");
 		put("cos.wings", "Skrzydła", "Wings");
 		put("cos.aura", "Aura", "Aura");
+		put("cos.mask", "Maska", "Mask");
 		put("cos.working", "Zmieniam…", "Changing…");
 		put("cos.gift", "Prezent: %s", "Gift: %s");
 		put("cos.claim", "Odbierz", "Claim");

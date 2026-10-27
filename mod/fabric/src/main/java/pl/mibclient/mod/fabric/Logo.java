@@ -12,12 +12,14 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.resources.MibId;
 import pl.mibclient.mod.core.Halloween;
+import pl.mibclient.mod.core.Holidays;
 import pl.mibclient.mod.core.Theme;
 
 /**
  * Logo MiB Client: na ekranie tytułowym zamiast logo Minecrafta (TitleScreenMixin) i w menu pauzy (Esc) zamiast
  * napisu „Menu gry”. Rozmiar dobierany do miejsca nad przyciskami. W motywie Halloween (Theme.HALLOWEEN) logo w kolorach
- * dyni, a na ekranie tytułowym, w menu pauzy i na ekranie ładowania dekoracje z Halloween.java.
+ * dyni; w każdym motywie świątecznym (Theme.ID, od 0.25.0) na ekranie tytułowym, w menu pauzy i na ekranie ładowania
+ * dekoracje z Holidays.java (Halloween: Halloween.java).
  */
 public final class Logo {
 	private static final MibId TEXTURE = MibId.fromNamespaceAndPath("mibclient", Theme.HALLOWEEN ? "textures/gui/logo_halloween.png" : "textures/gui/logo.png");
@@ -34,9 +36,9 @@ public final class Logo {
 			if (screen instanceof TitleScreen) {
 				titleTop = top(screen, false);
 				//#if MC >= 26.1
-				if (Theme.HALLOWEEN) ScreenEvents.afterExtract(screen).register((s, g, mouseX, mouseY, delta) -> halloween(g, s.width, s.height, true));
+				if (!Theme.ID.isEmpty()) ScreenEvents.afterExtract(screen).register((s, g, mouseX, mouseY, delta) -> holiday(g, s.width, s.height, true));
 				//#else
-				if (Theme.HALLOWEEN) ScreenEvents.afterRender(screen).register((s, g, mouseX, mouseY, delta) -> halloween(g, s.width, s.height, true));
+				if (!Theme.ID.isEmpty()) ScreenEvents.afterRender(screen).register((s, g, mouseX, mouseY, delta) -> holiday(g, s.width, s.height, true));
 				//#endif
 				return;
 			}
@@ -49,7 +51,7 @@ public final class Logo {
 			//#else
 			ScreenEvents.afterRender(screen).register((s, g, mouseX, mouseY, delta) -> {
 			//#endif
-				if (Theme.HALLOWEEN) halloween(g, s.width, s.height, false);
+				if (!Theme.ID.isEmpty()) holiday(g, s.width, s.height, false);
 				draw(g, box, 1f);
 			});
 		});
@@ -107,10 +109,10 @@ public final class Logo {
 		Halloween.dusk(new FabricCanvas(g, Minecraft.getInstance().font), g.guiWidth(), g.guiHeight());
 	}
 
-	/** Dekoracje Halloween na brzegach ekranu tytułowego (title) albo menu pauzy. */
-	private static void halloween(MibGraphics g, int w, int h, boolean title) {
-		MibClient.hooks.add(title ? "halloween_title" : "halloween_pause");
-		Halloween.screen(new FabricCanvas(g, Minecraft.getInstance().font), w, h, System.currentTimeMillis(), title);
+	/** Dekoracje motywu świątecznego na brzegach ekranu tytułowego (title) albo menu pauzy. */
+	private static void holiday(MibGraphics g, int w, int h, boolean title) {
+		MibClient.hooks.add((Theme.HALLOWEEN ? "halloween" : "holiday") + (title ? "_title" : "_pause"));
+		Holidays.screen(Theme.ID, new FabricCanvas(g, Minecraft.getInstance().font), w, h, System.currentTimeMillis(), title);
 	}
 
 	static int argb(float alpha, int rgb) {
@@ -120,7 +122,7 @@ public final class Logo {
 	// ===== Ekran ładowania (start gry i wczytywanie paczek zasobów) =====
 
 	/** Tło ekranu ładowania zamiast czerwieni Mojang Studios. */
-	public static final int LOADING_BACKGROUND = Theme.HALLOWEEN ? 0x0A0507 : 0x0B0412;
+	public static final int LOADING_BACKGROUND = Theme.ID.isEmpty() ? 0x0B0412 : Theme.VOID & 0xFFFFFF;
 	private static final float LOADING_RATIO = 1126f / 175f;
 	private static MibId loadingTexture;
 	private static boolean loadingFailed;
@@ -151,9 +153,9 @@ public final class Logo {
 		if (alpha >= 0) FabricCanvas.blit(g, loadingTexture, x, y, 0, 0, w, h, w, h, argb(alpha, 0xFFFFFF));
 		else g.blit(loadingTexture, x, y, 0, 0, w, h, w, h);
 		//#endif
-		if (Theme.HALLOWEEN) {
-			MibClient.hooks.add("halloween_loading");
-			Halloween.loading(new FabricCanvas(g, Minecraft.getInstance().font), sw, sh, alpha < 0 ? 1f : alpha);
+		if (!Theme.ID.isEmpty()) {
+			MibClient.hooks.add(Theme.HALLOWEEN ? "halloween_loading" : "holiday_loading");
+			Holidays.loading(Theme.ID, new FabricCanvas(g, Minecraft.getInstance().font), sw, sh, alpha < 0 ? 1f : alpha);
 		}
 	}
 

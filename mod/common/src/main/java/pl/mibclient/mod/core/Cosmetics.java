@@ -49,12 +49,20 @@ public final class Cosmetics {
 		return width >= 128;
 	}
 
+	/**
+	 * Czapka z tekstury szerokiej na co najmniej 128 pikseli (klatka 128×64) jest wysoka (od 0.25.0): druga kostka nad
+	 * głową z prawej połowy tekstury (od x = 64), tak samo jak hatModel w launcherze; węższa to zwykła czapka jak hełm.
+	 */
+	public static boolean tallHat(int width) {
+		return width >= 128;
+	}
+
 	/** Klatka do pokazania w chwili timeMs dla tekstury o n klatkach. */
 	public static int frame(int n, long timeMs) {
 		return n <= 1 ? 0 : (int) ((timeMs / FRAME_MS) % n);
 	}
 
-	/** Przedmiot: id, nazwa, typ (cape, hat, wings, aura), czy założony i tekstura PNG (base64; do przymiarki także niezałożone). */
+	/** Przedmiot: id, nazwa, typ (cape, hat, mask, wings, aura), czy założony i tekstura PNG (base64; do przymiarki także niezałożone). */
 	public static final class Item {
 		public final String id, name, type, png;
 		public final boolean equipped;
@@ -73,7 +81,7 @@ public final class Cosmetics {
 		return equipped("cape");
 	}
 
-	/** Założony przedmiot danego typu (cape, hat, wings, aura) albo null. */
+	/** Założony przedmiot danego typu (cape, hat, mask, wings, aura) albo null. */
 	public Item equipped(String type) {
 		for (Item i : items) if (type.equals(i.type) && i.equipped) return i;
 		return null;

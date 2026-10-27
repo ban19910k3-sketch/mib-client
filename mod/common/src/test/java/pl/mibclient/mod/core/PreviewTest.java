@@ -180,4 +180,16 @@ class PreviewTest {
 		Halloween.loading(d, 640, 360, 0.6f);
 		d.save(new File(out, "halloween-loading.png"));
 	}
+
+	/** Ozdoby każdego święta (od 0.25.0): ekran tytułowy i menu pod prawym Shiftem w kolorach święta (kolory z Theme.palette). */
+	@Test
+	void renderHolidays() throws Exception {
+		File out = out();
+		for (String[] d : Holidays.DATES) {
+			PreviewCanvas c = new PreviewCanvas(1280, 720, 2);
+			c.gameBackground(640, 360);
+			Holidays.screen(d[0], c, 640, 360, 1234, true);
+			c.save(new File(out, "holiday-" + d[0] + ".png"));
+		}
+	}
 }

@@ -47,6 +47,7 @@ public abstract class LivingEntityRendererMixin {
 		s.mib$wings(p != null && m.elytraWingsFor(p) != null);
 		s.mib$fairy(p == null ? null : m.fairyWingsFor(p));
 		s.mib$hat(p == null ? null : m.cosmeticFor(p, "hat"));
+		s.mib$mask(p == null ? null : m.cosmeticFor(p, "mask"));
 		MibId aura = p == null ? null : m.cosmeticFor(p, "aura");
 		int style = aura == null ? 0 : m.auraStyleFor(p);
 		s.mib$aura(style == 0 ? null : aura, style, p == null ? 0 : p.getUUID().hashCode());

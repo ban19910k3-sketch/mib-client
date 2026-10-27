@@ -149,7 +149,7 @@ public final class MenuView {
 		layout = MenuLayout.compute(w, h, vis.size(), scroll);
 		scroll = layout.scroll;
 		c.fill(0, 0, w, h, Theme.DIM);
-		if (Theme.HALLOWEEN) Halloween.menu(c, w, h, System.currentTimeMillis());
+		Holidays.menu(Theme.ID, c, w, h, System.currentTimeMillis());
 		int[] p = layout.panel;
 		Shapes.panel(c, p[0], p[1], p[2], p[3], Theme.VOID, Theme.EDGE2);
 		sidebar(c, mx, my);
@@ -173,7 +173,7 @@ public final class MenuView {
 		c.fill(s[0] + 1, s[1] + 1, s[0] + s[2], s[1] + s[3] - 1, Theme.SLAB);
 		c.fill(s[0] + s[2], s[1] + 1, s[0] + s[2] + 1, s[1] + s[3] - 1, Theme.EDGE);
 		c.text("MiB Client", s[0] + 10, s[1] + 10, Theme.AM_HI, true);
-		if (Theme.HALLOWEEN) Halloween.pumpkin(c, s[0] + 14 + c.textWidth("MiB Client"), s[1] + 10, 1);
+		Holidays.badge(Theme.ID, c, s[0] + 14 + c.textWidth("MiB Client"), s[1] + 10);
 		c.text(Lang.pl() ? "Moduły" : "Modules", s[0] + 10, s[1] + 21, Theme.MUTED, false);
 		language(c, s, mx, my);
 
@@ -731,7 +731,7 @@ public final class MenuView {
 			boolean clickable = y >= top && y + 20 <= bottom;
 			final boolean trying = it.id.equals(actions.tryingOn(it.type));
 			Shapes.panel(c, lx, y, lw, 20, Theme.SLAB, it.equipped ? Theme.AM_LO : trying ? Theme.AM_HI : Theme.EDGE);
-			String kind = Lang.t("cos." + ("hat".equals(it.type) || "wings".equals(it.type) || "aura".equals(it.type) ? it.type : "cape"));
+			String kind = Lang.t("cos." + ("hat".equals(it.type) || "mask".equals(it.type) || "wings".equals(it.type) || "aura".equals(it.type) ? it.type : "cape"));
 			c.text(Shapes.ellipsize(c, it.name, lw - 150, false), lx + 8, y + 6, Theme.TEXT, false);
 			c.text(kind, lx + lw - 140, y + 6, FAINT, false);
 			// przymiarka: cały wiersz (przycisk niżej ma pierwszeństwo, bo sprawdzany jest od końca)
