@@ -197,9 +197,13 @@ test('auraParticles: te same liczby co w modzie (Auras.java), w zasięgu postaci
   assert.deepEqual([P.h32(0), P.h32(1), P.h32(123456789), P.h32(-5)], [0, 824515495, 1952335732, 3253613923]);
   const s = P.auraParticles('souls', 12.345, 777)[0];
   assert.ok(Math.abs(s.x - 7.760290074110731) < 1e-9 && Math.abs(s.y - 3.370260721633739) < 1e-9 && Math.abs(s.z + 4.649836497573228) < 1e-9);
+  // snow i burst (od 0.25.0): te same liczby w AurasTest.java
+  const sn = P.auraParticles('snow', 12.345, 777)[0], bu = P.auraParticles('burst', 12.345, 777)[0];
+  assert.ok(Math.abs(sn.x + 7.217017681779219) < 1e-9 && Math.abs(sn.y - 37.3144990696101) < 1e-9 && Math.abs(sn.z + 10.068235890165253) < 1e-9 && Math.abs(sn.alpha - 0.17273166450379662) < 1e-9);
+  assert.ok(Math.abs(bu.x - 3.7694770974434135) < 1e-9 && Math.abs(bu.y - 25.982781449966975) < 1e-9 && Math.abs(bu.z + 4.457260652910918) < 1e-9 && bu.alpha === 1);
   assert.equal(P.auraParticles('nie_ma', 1, 1).length, 0);
   for (const style of P.AURA_STYLES) {
-    const n = { souls: 22, pumpkins: 24, ghosts: 3, magic: 60 }[style];
+    const n = { souls: 22, pumpkins: 24, ghosts: 3, magic: 60, snow: 26, burst: 36 }[style];
     for (let t = 0; t < 30; t += 0.37) {
       const a = P.auraParticles(style, t, 42), b = P.auraParticles(style, t + 0.01, 42);
       assert.equal(a.length, n);

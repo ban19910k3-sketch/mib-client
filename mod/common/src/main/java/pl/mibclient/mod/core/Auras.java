@@ -6,8 +6,9 @@ package pl.mibclient.mod.core;
  * (lib/profile.js) — te same liczby dla tego samego czasu i numeru gracza.
  */
 public final class Auras {
-	public static final int NONE = 0, SOULS = 1, PUMPKINS = 2, GHOSTS = 3, MAGIC = 4;
-	private static final String[] NAMES = {"souls", "pumpkins", "ghosts", "magic"};
+	/** SNOW i BURST od 0.25.0: opadają z góry (śnieg, płatki, konfetti) i fajerwerki nad głową. */
+	public static final int NONE = 0, SOULS = 1, PUMPKINS = 2, GHOSTS = 3, MAGIC = 4, SNOW = 5, BURST = 6;
+	private static final String[] NAMES = {"souls", "pumpkins", "ghosts", "magic", "snow", "burst"};
 	/** Liczby na cząsteczkę w tablicy wyniku: x, y, z (piksele postaci, blok = 16; y od stóp), komórka, rozmiar piksela, krycie. */
 	public static final int STRIDE = 6, MAX = 64;
 	private static final double TAU = Math.PI * 2;
@@ -73,6 +74,25 @@ public final class Auras {
 				int k = (int) Math.floor(tt / life);
 				double age = tt - k * life, a = (t - age) * 5 + (rnd(seed, i, k, 2) - 0.5) * 0.6 + age * 2.2, r = 10 - age * 3;
 				n = put(out, n, Math.cos(a) * r, 1 + (14 + 4 * rnd(seed, i, k, 3)) * age, Math.sin(a) * r, age % 0.3 < 0.15 ? 0 : 1, 0.7, Math.min(1, (life - age) * 2));
+			}
+		} else if (style == SNOW) {
+			for (int i = 0; i < 26; i++) {
+				double life = life(seed, i, 2.6, 4), tt = t + rnd(seed, i, 0, 1) * life;
+				int k = (int) Math.floor(tt / life);
+				double age = tt - k * life, a = rnd(seed, i, k, 2) * TAU, r = 4 + 10 * rnd(seed, i, k, 3), sw = Math.sin(age * 2 + rnd(seed, i, k, 4) * TAU) * 1.2;
+				n = put(out, n, Math.cos(a) * r + sw, 38 - 36 * age / life, Math.sin(a) * r, (int) Math.floor(rnd(seed, i, k, 5) * 3), 0.7,
+						Math.min(1, Math.min(age * 3, (life - age) * 3)));
+			}
+		} else if (style == BURST) {
+			for (int b = 0; b < 3; b++) {
+				double life = life(seed, 200 + b, 1.4, 1.8), tt = t + rnd(seed, 200 + b, 0, 1) * life;
+				int k = (int) Math.floor(tt / life);
+				double age = tt - k * life, cx = (rnd(seed, 200 + b, k, 2) - 0.5) * 14, cy = 30 + 4 * rnd(seed, 200 + b, k, 3), cz = (rnd(seed, 200 + b, k, 4) - 0.5) * 14;
+				double d = 7 * (1 - Math.pow(1 - age / life, 2)), alpha = Math.min(1, Math.min(age * 8, (life - age) * 3));
+				for (int j = 0; j < 12; j++) {
+					double th = j * TAU / 12 + b, el = ((j % 3) - 1) * 0.6;
+					n = put(out, n, cx + Math.cos(th) * Math.cos(el) * d, cy + Math.sin(el) * d - 3 * age * age, cz + Math.sin(th) * Math.cos(el) * d, b, 0.6, alpha);
+				}
 			}
 		}
 		return n;

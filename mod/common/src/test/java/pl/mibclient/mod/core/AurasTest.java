@@ -11,6 +11,8 @@ class AurasTest {
 		assertEquals(Auras.MAGIC, Auras.style("zimowa_aura_magic"));
 		assertEquals(Auras.NONE, Auras.style("aura_magic_x"));
 		assertEquals(Auras.NONE, Auras.style(null));
+		assertEquals(Auras.SNOW, Auras.style("zima_aura_snieg_snow"));
+		assertEquals(Auras.BURST, Auras.style("sylwester_aura_fajerwerki_burst"));
 	}
 
 	/** Te same liczby co w launcherze (test/profile.test.js: auraParticles). */
@@ -25,13 +27,23 @@ class AurasTest {
 		assertEquals(7.760290074110731, out[0], 1e-4);
 		assertEquals(3.370260721633739, out[1], 1e-4);
 		assertEquals(-4.649836497573228, out[2], 1e-4);
+		// snow i burst (od 0.25.0)
+		assertEquals(26, Auras.particles(Auras.SNOW, 12.345, 777, out));
+		assertEquals(-7.217017681779219, out[0], 1e-4);
+		assertEquals(37.3144990696101, out[1], 1e-4);
+		assertEquals(-10.068235890165253, out[2], 1e-4);
+		assertEquals(0.17273166450379662, out[5], 1e-4);
+		assertEquals(36, Auras.particles(Auras.BURST, 12.345, 777, out));
+		assertEquals(3.7694770974434135, out[0], 1e-4);
+		assertEquals(25.982781449966975, out[1], 1e-4);
+		assertEquals(-4.457260652910918, out[2], 1e-4);
 	}
 
 	@Test
 	void particlesStayAroundThePlayerAndMoveSmoothly() {
-		int[] counts = {0, 22, 24, 3, 60};
+		int[] counts = {0, 22, 24, 3, 60, 26, 36};
 		float[] a = new float[Auras.MAX * Auras.STRIDE], b = new float[Auras.MAX * Auras.STRIDE];
-		for (int style = 1; style <= 4; style++) {
+		for (int style = 1; style <= 6; style++) {
 			for (double t = 0; t < 30; t += 0.37) {
 				int n = Auras.particles(style, t, 42, a);
 				assertEquals(counts[style], n);
