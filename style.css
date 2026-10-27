@@ -276,6 +276,7 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 #ideas-box .idea .ihead .tag:last-child,#ai-list .ihead .mut:last-child{margin-left:auto}
 .capeth{display:block;image-rendering:pixelated;background-repeat:no-repeat}
 .aurath,.wingth{display:block;image-rendering:pixelated}
+.headth{display:block;image-rendering:pixelated;width:auto;height:64px}.offer-it .headth{height:44px}
 /* MiB Coins w Kosmetykach: moneta, stan konta i przycisk do sklepu */
 .wallet{display:flex;align-items:center;gap:14px;padding:12px 16px;margin:4px 0 14px;border-color:var(--edge2)}
 .wallet .coin{width:36px;height:36px;flex:none}
@@ -450,6 +451,36 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .pips i.on{background:#facc15}.pips i.bonus{box-shadow:0 0 0 1px #facc15}.pips i.bonus.on{background:#fde047;box-shadow:0 0 6px rgba(250,204,21,.7)}
 @media (max-width:760px){.wallet{flex-wrap:wrap}.wallet .daily{border:0;padding:0}.cl-row{grid-template-columns:1fr 70px}.cl-b{display:none}.buy-top{flex-direction:column}}
 
+/* ===== Panel admina: motywy i kalendarz adwentowy (od 0.25.0) ===== */
+.theme-form{margin:-2px 0 10px;padding:12px 14px;background:var(--slab);box-shadow:inset 0 0 0 2px var(--edge2);clip-path:var(--px)}
+.theme-row.on{border-color:var(--am)}
+.adv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:4px 16px}
+.adv-row{display:flex;align-items:center;gap:8px;font-size:13px}.adv-row .adv-n{width:30px;font-variant-numeric:tabular-nums}
+.adv-row .adv-coins{width:84px}.adv-row select{flex:1;min-width:0}.adv-row small{width:70px}
+
+/* ===== Święta (od 0.25.0): nagroda świąteczna i kalendarz adwentowy na stronie głównej, kolekcje w sklepie ===== */
+#hol-home .card.reward{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin:0 0 10px;padding:10px 12px}
+#hol-home .card.reward b{margin:0;font-size:14px}#hol-home .card.reward p{font-size:12px}#hol-home .b{margin-top:4px}
+.adv-m{width:620px}
+.adv-cal{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:12px 0 14px}
+.adv-win{position:relative;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px;cursor:default;
+  background:var(--slab2);border:2px solid var(--edge2);clip-path:var(--px);color:var(--m);transition:transform .15s,border-color .15s}
+.adv-win em{font:normal 400 24px/1 Pixelify,Geist,sans-serif;font-style:normal}
+.adv-win.big{border-color:#a16207}.adv-star{position:absolute;top:3px;right:6px;color:#facc15;font-size:13px}
+.adv-win.ready{cursor:pointer;color:var(--t);border-color:var(--am);background:linear-gradient(160deg,rgba(var(--g,168,85,247),.28),var(--slab2) 70%);animation:advglow 1.6s ease-in-out infinite}
+.adv-win.ready:hover{transform:translateY(-2px)}.adv-win.ready:focus-visible{outline:2px solid var(--am-hi);outline-offset:2px}
+.adv-win.open{background:var(--slab);border-style:dashed;color:var(--m)}.adv-win.open em{font-size:14px;position:absolute;top:4px;left:6px}
+.adv-prize{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;text-align:center;color:var(--t);line-height:1.15}
+.adv-prize .coin{width:22px;height:22px;image-rendering:pixelated}.adv-prize b{color:#fde047;font-size:13px;font-variant-numeric:tabular-nums}
+.adv-prize i{display:grid;place-items:center;height:34px}.adv-prize i img,.adv-prize i canvas{max-height:34px;max-width:46px;image-rendering:pixelated}
+.adv-win.opening{animation:advopen .45s steps(6)}
+@keyframes advglow{50%{box-shadow:inset 0 0 0 2px rgba(255,255,255,.08)}}
+@keyframes advopen{from{transform:rotateY(90deg)}to{transform:none}}
+.noanim .adv-win.ready,.noanim .adv-win.opening{animation:none}
+.shop-col{margin:14px 0 6px;padding:12px 14px;border:2px solid var(--am-lo);clip-path:var(--px);background:linear-gradient(120deg,rgba(var(--g,168,85,247),.14),var(--slab) 55%)}
+.col-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}.col-head b{font:normal 400 20px/1.1 Pixelify,Geist,sans-serif}
+.shop-rest{margin:18px 0 8px}
+
 /* ===== Motyw Halloween (od 0.22.0) =====
    Zwykły motyw (czerń i ametyst) to wszystko powyżej, bez zmian. Halloweenowy włącza klasa t-halloween na <html>
    w index.html: usunięcie tej klasy przywraca zwykły motyw. Dynia na czarnym tle, nocne fioletowe niebo, księżyc
@@ -511,3 +542,68 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 #hw .pump{left:328px;bottom:14px;width:27px;height:24px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 8' shape-rendering='crispEdges'%3E%3Cpath fill='%2365a30d' d='M4 0h1v1h-1z'/%3E%3Cpath fill='%2365a30d' d='M3 1h2v1h-2z'/%3E%3Cpath fill='%23c2410c' d='M1 2h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M2 2h5v1h-5z'/%3E%3Cpath fill='%23c2410c' d='M7 2h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 3h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 3h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M2 3h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M3 3h3v1h-3z'/%3E%3Cpath fill='%23fde047' d='M6 3h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M7 3h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M8 3h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 4h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 4h7v1h-7z'/%3E%3Cpath fill='%23c2410c' d='M8 4h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 5h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M2 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M3 5h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M4 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M5 5h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M6 5h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M7 5h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M8 5h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M0 6h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M1 6h2v1h-2z'/%3E%3Cpath fill='%23fde047' d='M3 6h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M4 6h1v1h-1z'/%3E%3Cpath fill='%23fde047' d='M5 6h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M6 6h2v1h-2z'/%3E%3Cpath fill='%23c2410c' d='M8 6h1v1h-1z'/%3E%3Cpath fill='%23c2410c' d='M1 7h1v1h-1z'/%3E%3Cpath fill='%23ea580c' d='M2 7h5v1h-5z'/%3E%3Cpath fill='%23c2410c' d='M7 7h1v1h-1z'/%3E%3C/svg%3E");filter:drop-shadow(0 0 6px rgba(253,224,71,.35))}
 #app:not(:has(#p-home.on)) #hw :is(.spider,.coffin,.grave,.pump){display:none}
 .noanim #hw .spider{animation:none}
+
+/* ===== Motywy świąteczne (od 0.25.0) =====
+   Klasę t-<id> na <html> ustawia themes.js (i skrypt w <head> index.html przed pierwszym rysowaniem), a klasa themed
+   włącza wspólne reguły z kolorami motywu: --g (poświata, r,g,b), --go* (przycisk GRAJ), --sky (niebo w tle),
+   --sbg (filtr obrazu splasha), --spl (cząsteczki splasha). Halloween ma własne reguły wyżej. */
+:root{--spl:192,132,252}
+.t-halloween{--spl:251,146,60;--g:249,115,22}
+.t-niepodleglosc{--void:#0b0608;--slab:#150a0c;--slab2:#200f12;--edge:#361619;--edge2:#4f2026;--am:#dc143c;--am-hi:#fecdd3;--am-lo:#9f1239;--t:#fbf1f2;--m:#b39598;
+  --g:220,20,60;--go:#dc143c;--go-hi:#fb7185;--go-lo:#881337;--go-sh:#4c0519;--spl:254,205,211;--sbg:hue-rotate(85deg) saturate(1.2);
+  --sky:radial-gradient(ellipse at 18% -12%,rgba(255,255,255,.13),transparent 50%),radial-gradient(ellipse at 80% 115%,rgba(220,20,60,.22),transparent 55%)}
+.t-boze{--void:#040d08;--slab:#08160e;--slab2:#0d2116;--edge:#15331f;--edge2:#204a2d;--am:#ef4444;--am-hi:#fecaca;--am-lo:#b91c1c;--t:#f1f8f3;--m:#93ab9b;
+  --g:239,68,68;--go:#dc2626;--go-hi:#f87171;--go-lo:#7f1d1d;--go-sh:#450a0a;--spl:255,255,255;--sbg:hue-rotate(-125deg) saturate(.85);
+  --sky:radial-gradient(ellipse at 50% -20%,rgba(226,242,255,.16),transparent 55%),radial-gradient(ellipse at 50% 120%,rgba(34,197,94,.16),transparent 55%)}
+.t-sylwester{--void:#05040a;--slab:#0e0c15;--slab2:#171420;--edge:#2a2434;--edge2:#3d3449;--am:#eab308;--am-hi:#fde68a;--am-lo:#a16207;--t:#f8f5ea;--m:#a69f8c;
+  --g:234,179,8;--go:#eab308;--go-hi:#fde047;--go-lo:#854d0e;--go-sh:rgba(255,255,255,.35);--go-t:#1c1404;--spl:250,204,21;--sbg:hue-rotate(150deg) saturate(.9);
+  --sky:radial-gradient(ellipse at 25% -10%,rgba(34,211,238,.12),transparent 50%),radial-gradient(ellipse at 75% -10%,rgba(244,114,182,.12),transparent 50%)}
+.t-walentynki{--void:#0c0509;--slab:#170a12;--slab2:#22101b;--edge:#3a1729;--edge2:#55203c;--am:#f43f5e;--am-hi:#fda4af;--am-lo:#be123c;--t:#fdf0f4;--m:#b8949f;
+  --g:244,63,94;--go:#e11d48;--go-hi:#fb7185;--go-lo:#881337;--go-sh:#4c0519;--spl:251,113,133;--sbg:hue-rotate(60deg) saturate(1.1);
+  --sky:radial-gradient(ellipse at 70% -10%,rgba(244,63,94,.2),transparent 60%),radial-gradient(ellipse at 20% 120%,rgba(236,72,153,.14),transparent 55%)}
+.t-wielkanoc{--void:#070a09;--slab:#0e1512;--slab2:#15201b;--edge:#22352b;--edge2:#30493c;--am:#4ade80;--am-hi:#bbf7d0;--am-lo:#15803d;--t:#f2faf5;--m:#9db3a6;
+  --g:74,222,128;--go:#16a34a;--go-hi:#4ade80;--go-lo:#14532d;--go-sh:#052e16;--spl:249,168,212;--sbg:hue-rotate(-150deg) saturate(.7) brightness(1.1);
+  --sky:radial-gradient(ellipse at 30% -10%,rgba(253,230,138,.14),transparent 50%),radial-gradient(ellipse at 75% -10%,rgba(249,168,212,.12),transparent 50%)}
+.t-primaaprilis{--am:#22d3ee;--am-hi:#a5f3fc;--am-lo:#0e7490;
+  --g:34,211,238;--go:#0891b2;--go-hi:#22d3ee;--go-lo:#164e63;--go-sh:#083344;--spl:34,211,238;--sbg:hue-rotate(180deg);
+  --sky:radial-gradient(ellipse at 20% -10%,rgba(244,114,182,.16),transparent 50%),radial-gradient(ellipse at 80% -10%,rgba(250,204,21,.12),transparent 50%)}
+.t-urodzinymc{--void:#070a05;--slab:#0f140b;--slab2:#172012;--edge:#26331c;--edge2:#3a4d2a;--am:#6abe30;--am-hi:#c5ec9f;--am-lo:#3f7a1a;--t:#f2f8ec;--m:#9fae92;
+  --g:106,190,48;--go:#5a9e2a;--go-hi:#86d14a;--go-lo:#2f5c14;--go-sh:#1a3309;--spl:106,190,48;--sbg:hue-rotate(-150deg) saturate(.9);
+  --sky:radial-gradient(ellipse at 50% -20%,rgba(125,211,252,.14),transparent 55%),radial-gradient(ellipse at 50% 120%,rgba(139,90,43,.2),transparent 55%)}
+.t-dziendziecka{--void:#050812;--slab:#0b1120;--slab2:#111a2e;--edge:#1c2a47;--edge2:#283b63;--am:#38bdf8;--am-hi:#bae6fd;--am-lo:#0369a1;--t:#eff6ff;--m:#93a4bd;
+  --g:250,204,21;--go:#f59e0b;--go-hi:#fcd34d;--go-lo:#b45309;--go-sh:#78350f;--spl:56,189,248;--sbg:hue-rotate(-60deg);
+  --sky:radial-gradient(ellipse at 20% -10%,rgba(239,68,68,.12),transparent 45%),radial-gradient(ellipse at 55% -10%,rgba(250,204,21,.1),transparent 45%),radial-gradient(ellipse at 90% -10%,rgba(56,189,248,.14),transparent 45%)}
+.t-wakacje{--void:#03090c;--slab:#071419;--slab2:#0c1f26;--edge:#123440;--edge2:#1b4a59;--am:#06b6d4;--am-hi:#a5f3fc;--am-lo:#0e7490;--t:#ecfbff;--m:#8fb0ba;
+  --g:245,158,11;--go:#f59e0b;--go-hi:#fcd34d;--go-lo:#b45309;--go-sh:#78350f;--spl:165,243,252;--sbg:hue-rotate(-90deg) saturate(1.1);
+  --sky:radial-gradient(ellipse at 18% -12%,rgba(253,224,71,.16),transparent 50%),radial-gradient(ellipse at 50% 120%,rgba(6,182,212,.22),transparent 55%)}
+.t-urodzinymib{--g:192,132,252;--go:#9333ea;--go-hi:#c084fc;--go-lo:#6b21a8;--go-sh:#3b0764;--spl:216,180,254;
+  --sky:radial-gradient(ellipse at 20% -10%,rgba(250,204,21,.12),transparent 45%),radial-gradient(ellipse at 80% -10%,rgba(244,114,182,.14),transparent 45%),radial-gradient(ellipse at 70% -10%,#1d0733,transparent 60%)}
+.themed #app{background:var(--sky),var(--void)}
+.themed .brand svg{stroke:var(--am-hi)}
+.themed #skinw::after{background:radial-gradient(ellipse,rgba(var(--g),.35),transparent 70%)}
+.themed .play{filter:drop-shadow(0 0 18px rgba(var(--g),.35))}
+.themed .play:hover{filter:drop-shadow(0 0 26px rgba(var(--g),.6))}
+.themed .go{background:var(--go);color:var(--go-t,#fff);box-shadow:inset 0 3px 0 var(--go-hi),inset 0 -5px 0 var(--go-lo),inset 3px 0 0 var(--go-hi),inset -3px 0 0 var(--go-lo);text-shadow:0 2px 0 var(--go-sh)}
+.themed .go:hover{background:var(--go);filter:brightness(1.1)}
+.themed .go:active{box-shadow:inset 0 5px 0 var(--go-lo),inset 0 -2px 0 var(--go-hi)}
+.themed .go:disabled{background:var(--edge2);box-shadow:inset 0 3px 0 var(--edge2),inset 0 -5px 0 var(--edge);color:var(--am-hi);filter:none;text-shadow:none}
+.themed .go.loading,.themed .go.loading:disabled{background:linear-gradient(90deg,var(--go) var(--fill,0%),var(--edge2) var(--fill,0%));color:var(--go-t,#fff)}
+.themed .b:not(.ghost):not(.danger),.themed .msg.me,.themed .vote.on{box-shadow:inset 0 2px 0 var(--go-hi),inset 0 -3px 0 var(--go-lo)}
+.themed .b:not(.ghost):not(.danger):hover{background:var(--am)}
+.themed .card.reward{background:linear-gradient(90deg,rgba(var(--g),.2),rgba(var(--g),.04) 75%)}
+.themed .card.offer{border-color:var(--am-lo);background:linear-gradient(120deg,rgba(var(--g),.16),var(--slab) 60%)}
+.themed #gift .gift3d,.themed .fc3d{background:radial-gradient(circle at 50% 60%,rgba(var(--g),.26),transparent 70%)}
+.themed #sbg{filter:var(--sbg,none)}
+.themed .streak{background:linear-gradient(90deg,transparent,rgba(var(--g),.2),transparent)}
+.themed #sname{text-shadow:0 0 14px rgba(var(--g),.8)}
+.themed #bar{border-color:var(--am)}
+.themed #fill{background:repeating-linear-gradient(90deg,var(--am-hi) 0 10px,var(--am) 10px 12px);box-shadow:0 0 14px var(--am)}
+/* ozdoby motywów (themes.js): pikselowe obrazki, dwie klatki migają; .home tylko na stronie głównej */
+.themed #hw{display:block;position:absolute;inset:0;pointer-events:none;z-index:0}
+#hw .deco{background-position:left top;background-repeat:no-repeat}
+#hw .deco.blink{animation:deco 1.2s steps(1) infinite}
+@keyframes deco{0%{background-image:var(--a)}50%{background-image:var(--b)}}
+#app:not(:has(#p-home.on)) #hw .home{display:none}
+.noanim #hw .deco.blink{animation:none}
+/* Prima aprilis: postać na stronie głównej do góry nogami (jak moby z imieniem Dinnerbone) */
+.t-primaaprilis #skinw>canvas,.t-primaaprilis #skinw>img{rotate:180deg}

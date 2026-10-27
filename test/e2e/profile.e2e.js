@@ -315,6 +315,87 @@ function png(w, h, px) {
     tester.coins = 0;
     ok('(an) sklep: przymiarka, za mało coinsów, zakup, prezent dla znajomego, pakiet taniej, historia i nagroda dzienna');
 
+    // Święta (0.25.0): maska i wysoka czapka na podglądzie, kolekcja w sklepie z datą końca, nagroda świąteczna i kalendarz
+    // adwentowy na stronie głównej (dzień w atrapie: 5 grudnia), wyłączenie motywów w Ustawieniach. Tekstury z schema.sql.
+    const seededP = id => new RegExp("\\('" + id + "', '[^']*', '\\w+', \\w+, '(data:image/png;base64,[^']+)'\\)").exec(fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8'))[1];
+    for (const [id, name, type, price] of [['adwent_mask_broda', 'Broda Mikołaja', 'mask', null], ['zima_hat_renifer', 'Rogi renifera', 'hat', 600], ['zima_hat_elf', 'Czapka elfa', 'hat', 500], ['adwent_hat_pompon', 'Czapka z pomponem', 'hat', null]])
+      fake.cosmetics[id] = { id, name, type, price, image_url: null, texture: seededP(id) };
+    fake.st.owned.push({ user: tester.id, cosmetic: 'adwent_mask_broda', at: new Date().toISOString() }, { user: tester.id, cosmetic: 'zima_hat_renifer', at: new Date().toISOString() });
+    await w.click('.nav[data-p="home"]');
+    await w.click('.nav[data-p="cos"]');
+    await w.waitForSelector('.cosi[data-id="adwent_mask_broda"] canvas.headth');
+    assert.equal(await w.$eval('.cosi[data-id="zima_hat_renifer"] canvas.headth', c => c.height), 72, 'miniatura wysokiej czapki z drugą kostką');
+    assert.match(await w.textContent('.cosi[data-id="adwent_mask_broda"]'), /Broda Mikołaja/);
+    await w.click('.cosi[data-id="adwent_mask_broda"] b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.mask === '1');
+    await w.click('.cosi[data-id="zima_hat_renifer"] b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.hat === 'tall' && document.getElementById('skin3d').dataset.mask === '1');
+    await w.$eval('#skin3d', el => el.scrollIntoView({ block: 'start' }));
+    await w.waitForTimeout(1500);
+    await shot('swieta-try.png');
+    await w.click('.cosi[data-id="adwent_mask_broda"] .b');
+    await w.waitForFunction(() => /Założona/.test(document.querySelector('.cosi[data-id="adwent_mask_broda"]').textContent));
+    assert.equal(tester.equipped.mask, 'adwent_mask_broda', 'maska to osobne miejsce (razem z czapką)');
+    await w.click('.cosi[data-id="adwent_mask_broda"] .b');
+    await w.waitForFunction(() => document.querySelector('.cosi[data-id="adwent_mask_broda"] .b').textContent === 'Załóż');
+    // 5 grudnia: Boże Narodzenie trwa — kolekcja w sklepie, nagroda świąteczna i 5 okienek kalendarza
+    const boze = fake.st.themes.find(t => t.id === 'boze');
+    Object.assign(boze, { items: ['zima_hat_renifer', 'zima_hat_elf'], gift_coins: 50, gift_cosmetic: 'adwent_hat_pompon' });
+    fake.st.today = '2026-12-05';
+    tester.coins = 0;
+    await w.click('#cos-tabs [data-t="shop"]');
+    await w.waitForSelector('.shop-col[data-theme="boze"] .cosi[data-id="zima_hat_elf"]');
+    assert.match(await w.textContent('.shop-col[data-theme="boze"]'), /Kolekcja.*Boże Narodzenie.*do 6\.01\.2027.*jeszcze \d+ dni/s, 'kolekcja z datą końca');
+    assert.match(await w.textContent('.shop-col[data-theme="boze"] .cosi[data-id="zima_hat_renifer"]'), /Masz/);
+    await w.$eval('.shop-col', el => el.scrollIntoView({ block: 'start' }));
+    await shot('swieta-shop.png');
+    await w.click('#cos-tabs [data-t="mine"]');
+    await w.click('.nav[data-p="home"]');
+    await w.evaluate(() => mibProfileUI.holidays());
+    await w.waitForSelector('#hol-home .card[data-theme="boze"]');
+    assert.match(await w.textContent('#hol-home .card[data-theme="boze"]'), /Nagroda świąteczna.*Boże Narodzenie.*50 MiB Coins \+ Czapka z pomponem.*Odbierz do 6\.01\.2027/s);
+    assert.match(await w.textContent('#hol-adv'), /Kalendarz adwentowy.*5 okienek do otwarcia/s);
+    await shot('swieta-home.png');
+    await w.click('#hol-home .card[data-theme="boze"] button');
+    await until(() => tester.coins === 50 && fake.st.owned.some(o => o.user === tester.id && o.cosmetic === 'adwent_hat_pompon'));
+    await w.waitForFunction(() => !document.querySelector('#hol-home .card[data-theme="boze"]'));
+    await w.waitForFunction(() => !document.getElementById('unlock'), null, { timeout: 5000 });
+    await w.click('#hol-adv-go');
+    await w.waitForSelector('#adv .adv-win.ready');
+    assert.equal((await w.$$('#adv .adv-win.ready')).length, 5, 'okienka 1–5 do otwarcia');
+    assert.equal(await w.isDisabled('#adv .adv-win[data-day="6"]'), true, 'jutrzejsze okienko zamknięte');
+    await w.click('#adv .adv-win[data-day="5"]');
+    await w.waitForSelector('#adv .adv-win[data-day="5"].open');
+    assert.match(await w.textContent('#adv .adv-win[data-day="5"]'), /\+20/);
+    assert.equal(tester.coins, 70);
+    await w.waitForTimeout(600);
+    await shot('swieta-advent.png');
+    await w.press('#adv', 'Escape');
+    await w.waitForFunction(() => /4 okienka do otwarcia/.test(document.getElementById('hol-adv').textContent));
+    // zaległe okienko 26 grudnia, potem kalendarz zamknięty
+    fake.st.today = '2026-12-27';
+    await w.evaluate(() => mibProfileUI.holidays());
+    await w.waitForFunction(() => !document.getElementById('hol-adv'));
+    fake.st.today = null;
+    // historia coinsów: nagroda świąteczna i okienko kalendarza
+    await w.click('.nav[data-p="cos"]');
+    await w.click('#cos-tabs [data-t="log"]');
+    await w.waitForSelector('#cos-log .cl-row');
+    const log2 = await w.$$eval('#cos-log .cl-row', l => l.map(r => r.textContent));
+    assert.match(log2[0], /Kalendarz adwentowy · 5 grudnia.*\+20/s);
+    assert.match(log2[1], /Nagroda świąteczna: Boże Narodzenie.*\+50/s);
+    await w.click('#cos-tabs [data-t="mine"]');
+    // Ustawienia: bez motywów świątecznych zwykły wygląd, po włączeniu wraca motyw z dzisiejszej daty
+    const themeNow = require('../../lib/profile').themeNow(fake.st.themes);
+    await w.click('.nav[data-p="set"]');
+    assert.equal(await w.isChecked('#s-themes'), true);
+    await w.uncheck('#s-themes');
+    await w.waitForFunction(() => !/\bt-|themed/.test(document.documentElement.className));
+    await w.check('#s-themes');
+    await w.waitForFunction(id => !id || document.documentElement.classList.contains('t-' + id), themeNow);
+    tester.coins = 0;
+    ok('(ap) święta: maska i wysoka czapka, kolekcja w sklepie, nagroda świąteczna, kalendarz adwentowy, wyłączenie motywów');
+
     // Znajomi: zaproszenie po nicku, zaproszenie od kogoś innego, znajomy w grze z serwerem
     const now = new Date().toISOString();
     const kolega = { id: 'u-kolega', email: 'k@mib.pl', password: 'x', nick: 'Kolega', num: 50, created: now };
@@ -676,6 +757,41 @@ function png(w, h, px) {
     fake.st.offers = fake.st.offers.filter(o => o.name !== 'Pakiet startowy');
     await shot('admin-cos.png');
     ok('(l) panel admina: kody, statystyki, gracze (z usunięciem konta i historią coinsów), kosmetyki z ceną, oferty');
+
+    // Zakładka Motywy (0.25.0): zła data, nagroda świąteczna, dodatek dzienny, kolekcja, włączenie od razu i kalendarz adwentowy
+    const walOld = { ...fake.st.themes.find(t => t.id === 'walentynki') };
+    await w.click('[data-tab="themes"]');
+    await w.waitForSelector('#at-list .theme-row[data-id="walentynki"]');
+    assert.equal((await w.$$('#at-list .theme-row')).length, 11, '11 motywów');
+    await w.click('#at-list .theme-row[data-id="walentynki"] button');
+    await w.fill('#at-starts', '13-02');
+    await w.click('#at-save');
+    await w.waitForFunction(() => /MM-DD/.test(document.querySelector('#at-form .err').textContent));
+    await w.fill('#at-starts', '02-12');
+    await w.fill('#at-coins', '75');
+    await w.selectOption('#at-gift', 'cape_start');
+    await w.fill('#at-bonus', '5');
+    await w.check('#at-items input[value="hat_mib"]');
+    await w.check('#at-forced');
+    await w.click('#at-save');
+    await until(() => { const t = fake.st.themes.find(x => x.id === 'walentynki'); return t.starts === '02-12' && t.gift_coins === 75 && t.gift_cosmetic === 'cape_start' && t.daily_bonus === 5 && t.forced && t.items.join() === 'hat_mib'; });
+    await w.waitForFunction(() => /włączony teraz ręcznie.*Nagroda: 75 MiB Coins i Peleryna Start.*kolekcja: 1.*dzienna \+5/s.test(document.querySelector('#at-list .theme-row[data-id="walentynki"]').textContent));
+    // launcher bierze wymuszony motyw z bazy
+    await w.evaluate(() => MibThemes.refresh());
+    await w.waitForFunction(() => document.documentElement.classList.contains('t-walentynki') && document.documentElement.classList.contains('themed'));
+    await w.fill('#aa-list .adv-row[data-day="7"] .adv-coins', '40');
+    await w.press('#aa-list .adv-row[data-day="7"] .adv-coins', 'Tab');
+    await until(() => fake.st.advent.find(a => a.day === 7).coins === 40);
+    await w.selectOption('#aa-list .adv-row[data-day="8"] .adv-cos', 'cape_start');
+    await until(() => fake.st.advent.find(a => a.day === 8).cosmetic_id === 'cape_start');
+    await w.waitForTimeout(500);
+    await shot('admin-themes.png');
+    Object.assign(fake.st.themes.find(t => t.id === 'walentynki'), walOld);
+    Object.assign(fake.st.advent.find(a => a.day === 7), { coins: 20 });
+    Object.assign(fake.st.advent.find(a => a.day === 8), { cosmetic_id: null });
+    await w.evaluate(() => MibThemes.refresh());
+    await w.waitForFunction(() => !document.documentElement.classList.contains('t-walentynki'));
+    ok('(aq) zakładka Motywy: daty, nagroda świąteczna, kolekcja, włączenie od razu, kalendarz adwentowy');
 
     // Prezent z zakładki Gracze i nagroda za zgłoszony błąd z odpowiedzią: admin (Sierota_1) wysyła je sobie.
     // Sprawdzanie prezentów co minutę (main.js) wstrzymane, żeby okno nie wyskoczyło w połowie klikania w panelu

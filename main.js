@@ -8,7 +8,7 @@ const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
 const { diagnoseCrash } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
-const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText } = require('./lib/profile');
+const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText, THEME_IDS } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
 const { createMibPresence, helloMessage } = require('./lib/presence');
@@ -197,6 +197,9 @@ app.on('window-all-closed', () => app.quit());
 
 ipcMain.on('win', (_, a) => { if (!win) return; a === 'min' ? win.minimize() : a === 'max' ? (win.isMaximized() ? win.unmaximize() : win.maximize()) : win.close(); });
 ipcMain.handle('settings:get', () => ({ ...defaults(), ...rd('settings.json', {}) }));
+// Motyw świąteczny z launchera (themes.js) dla moda MiB: -Dmib.theme=<id>, „none” = bez motywu (wyłączone albo poza świętami)
+let theme = '';
+ipcMain.handle('theme:set', (_, id) => { theme = THEME_IDS.includes(id) ? id : ''; });
 ipcMain.handle('settings:set', (_, s) => {
   const was = ({ ...defaults(), ...rd('settings.json', {}) }).invisible === true;
   wr('settings.json', s); setPresence(gameInfo);
@@ -308,7 +311,7 @@ async function doLaunch(version, server) {
     try {
       const dirMib = path.join(s.root, 'mib');
       const m = await mibmod.prepareMibMod({ gv: version, inst: instGet(version), settings: s, modsDir: modsDir(version), resDir: modResDir(), mibDir: dirMib, ensureDep, setInst: o => instSet(version, o), log: t => send('log', t) });
-      if (m.active) { opts.customArgs.push(...m.jvmArgs); mibDir = dirMib; }
+      if (m.active) { opts.customArgs.push(...m.jvmArgs, '-Dmib.theme=' + (theme || 'none')); mibDir = dirMib; }
     } catch (e) { send('log', 'Mod MiB pominięty: ' + e.message); }
     const loader = instGet(version).loader;
     if (loader === 'fabric') {

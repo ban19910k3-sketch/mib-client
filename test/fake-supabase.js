@@ -2,9 +2,13 @@
 // Uruchomienie: node test/fake-supabase.js 54321
 const http = require('http');
 const crypto = require('crypto');
+const P = require('../lib/profile');
+const THEME_SEED = { niepodleglosc: ['Święto Niepodległości', 50], boze: ['Boże Narodzenie', 0], sylwester: ['Sylwester', 100], walentynki: ['Walentynki', 50], wielkanoc: ['Wielkanoc', 50],
+  primaaprilis: ['Prima Aprilis', 1], urodzinymc: ['Urodziny Minecrafta', 50], dziendziecka: ['Dzień Dziecka', 100], wakacje: ['Wakacje', 100], urodzinymib: ['Urodziny MiB Client', 200], halloween: ['Halloween', 50] };
 
 function createFake() {
-  const st = { offers: [], offerId: 0, coinLog: [], logId: 0, daily: {}, config: {}, votes: [], blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+  const st = { today: null, themes: P.DEFAULT_THEMES.map(t => ({ ...t, name: THEME_SEED[t.id][0], gift_coins: THEME_SEED[t.id][1], gift_cosmetic: null, daily_bonus: 0, items: [] })),
+    themeClaims: [], advent: Array.from({ length: 24 }, (_, i) => ({ day: i + 1, coins: i + 1 >= 20 ? 0 : 20, cosmetic_id: null })), adventClaims: [], offers: [], offerId: 0, coinLog: [], logId: 0, daily: {}, config: {}, votes: [], blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -15,6 +19,13 @@ function createFake() {
   const norm = c => String(c || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
   const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, coins: u.coins || 0, bugs_found: u.bugs || 0, warnings: u.warnings || 0, banned_at: u.banned || null, ban_reason: u.banReason || null });
   const banned = u => !!(u && u.banned);
+  // Motywy: tak jak private.theme_season, on_sale i advent_today w schema.sql (st.today podmienia dzień)
+  const today = () => (st.today ? new Date(st.today + 'T12:00:00') : new Date());
+  const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const themeUntil = t => { const sp = P.themeSpan(t, today()); return t.enabled && sp && P.themeSeason({ ...t, forced: false }, today()) != null ? iso(sp.to) : null; };
+  const onSale = id => !st.themes.some(t => t.items.includes(id)) || st.themes.some(t => t.items.includes(id) && P.themeSeason(t, today()) != null);
+  const adventToday = () => { const d = today(), b = st.themes.find(t => t.id === 'boze'); return d.getMonth() === 11 && d.getDate() <= 26 && b.enabled ? Math.min(24, d.getDate()) : 0; };
+  const cosOut = c => (c ? { id: c.id, name: c.name, type: c.type, texture: c.texture || c.image_url || null } : null);
   // Sklep: tak jak has_cosmetic, offer_price i my_coin_log w schema.sql
   const has = (uid, id) => st.owned.some(o => o.user === uid && o.cosmetic === id) || st.gifts.some(g => g.user === uid && g.cosmetic === id && !g.claimed);
   const fullPrice = o => o.items.reduce((a, i) => a + ((cosmetics[i] || {}).price || 0), 0);
@@ -169,6 +180,31 @@ function createFake() {
             },
             admin_delete_offer: () => { st.offers = st.offers.filter(o => o.id !== body.p_id); return null; },
             admin_coin_log: () => coinLog(body.p_user),
+            admin_list_themes: () => st.themes.map(t => { const sp = P.themeSpan(t, today()), season = P.themeSeason(t, today()), c = cosmetics[t.gift_cosmetic];
+              return { id: t.id, name: t.name, starts: t.starts, ends: t.ends, enabled: t.enabled, forced: t.forced, gift_coins: t.gift_coins, gift_cosmetic: t.gift_cosmetic, gift_name: c ? c.name : null,
+                daily_bonus: t.daily_bonus, items: t.items, active: season != null, d_from: iso(sp.from), d_to: iso(sp.to), claims: st.themeClaims.filter(k => k.theme === t.id && k.season === sp.season).length }; }),
+            admin_save_theme: () => {
+              const t = st.themes.find(x => x.id === body.p_id), fail = m => { throw Object.assign(new Error(m), { pg: true }); };
+              if (!t) fail('theme_missing');
+              if (!P.validThemeDate(body.p_starts) || !P.validThemeDate(body.p_ends) || [body.p_starts, body.p_ends].some(x => x[0] !== 'E' && isNaN(new Date('2028-' + x + 'T00:00:00')))) fail('theme_date_invalid');
+              if ((body.p_items || []).some(i => !cosmetics[i])) fail('theme_items_invalid');
+              if (body.p_gift_cosmetic && !cosmetics[body.p_gift_cosmetic]) fail('cosmetic_missing');
+              if (!(body.p_daily_bonus >= 0 && body.p_daily_bonus <= 1000)) fail('theme_bonus_invalid');
+              if (body.p_forced) for (const x of st.themes) x.forced = false;
+              Object.assign(t, { starts: body.p_starts, ends: body.p_ends, enabled: !!body.p_enabled || !!body.p_forced, forced: !!body.p_forced, gift_coins: body.p_gift_coins || 0,
+                gift_cosmetic: body.p_gift_cosmetic || null, daily_bonus: body.p_daily_bonus || 0, items: [...new Set(body.p_items || [])] });
+              return null;
+            },
+            admin_advent: () => st.advent.map(a => ({ day: a.day, coins: a.coins, cosmetic_id: a.cosmetic_id, cosmetic_name: a.cosmetic_id ? cosmetics[a.cosmetic_id].name : null,
+              cosmetic_type: a.cosmetic_id ? cosmetics[a.cosmetic_id].type : null, opened: st.adventClaims.filter(k => k.day === a.day && k.year === today().getFullYear()).length })),
+            admin_set_advent_day: () => {
+              const a = st.advent.find(x => x.day === body.p_day), fail = m => { throw Object.assign(new Error(m), { pg: true }); };
+              if (!a) fail('advent_day_invalid');
+              if (body.p_cosmetic && !cosmetics[body.p_cosmetic]) fail('cosmetic_missing');
+              if (!body.p_coins && !body.p_cosmetic) fail('advent_empty');
+              a.coins = body.p_coins || 0; a.cosmetic_id = body.p_cosmetic || null;
+              return null;
+            },
             // Zgłoszenia, ostrzeżenia i ban: tak jak admin_* w schema.sql
             admin_list_reports: () => st.reports.map(r => { const u = st.users.find(x => x.id === r.user), rp = st.users.find(x => x.id === r.reporter);
               return { id: r.id, reporter: rp ? rp.nick : null, user_id: r.user, nick: u.nick, num: u.num, warnings: u.warnings || 0, banned: banned(u), reason: r.reason, note: r.note, messages: r.messages, status: r.status, created_at: r.at }; })
@@ -321,6 +357,40 @@ function createFake() {
           }
           if (fn === 'game_invite_dismiss') { st.invites = st.invites.filter(i => !(i.to === user.id && i.from === body.p_from)); return json(res, 204); }
         }
+        // Motywy: nagroda świąteczna i kalendarz adwentowy, tak jak w schema.sql
+        if (['my_theme_gifts', 'claim_theme_gift', 'advent', 'claim_advent'].includes(fn)) {
+          const err = m => json(res, 400, { code: 'P0001', message: m }), y = today().getFullYear();
+          if (fn === 'my_theme_gifts') return json(res, 200, banned(user) ? [] : st.themes.filter(t => (t.gift_coins || t.gift_cosmetic) && P.themeSeason(t, today()) != null
+            && !st.themeClaims.some(k => k.user === user.id && k.theme === t.id && k.season === P.themeSeason(t, today())))
+            .map(t => { const c = cosmetics[t.gift_cosmetic]; return { id: t.id, name: t.name, coins: t.gift_coins, cosmetic_id: c ? c.id : null, cosmetic_name: c ? c.name : null, type: c ? c.type : null, texture: c ? c.texture || null : null, until: themeUntil(t) }; }));
+          if (fn === 'advent') return json(res, 200, { open: adventToday() > 0, today: adventToday(), year: y, days: st.advent.map(a => {
+            const k = st.adventClaims.some(x => x.user === user.id && x.year === y && x.day === a.day);
+            return { day: a.day, kind: a.cosmetic_id ? 'cosmetic' : 'coins', opened: k, coins: k ? a.coins : null, cosmetic: k && a.cosmetic_id ? cosOut(cosmetics[a.cosmetic_id]) : null }; }) });
+          if (banned(user)) return err('banned');
+          const give = (coins, cosId, source, kind, item, label) => {
+            if (coins > 0) { user.coins = (user.coins || 0) + coins; st.coinLog.push({ id: ++st.logId, user: user.id, delta: coins, balance: user.coins, kind, item, label, to: null, at: new Date().toISOString() }); }
+            let isNew = false;
+            if (cosId && !st.owned.some(o => o.user === user.id && o.cosmetic === cosId)) { st.owned.push({ user: user.id, cosmetic: cosId, source, at: new Date().toISOString() }); isNew = true; }
+            return { coins: user.coins || 0, amount: coins, cosmetic: cosId ? { ...cosOut(cosmetics[cosId]), new: isNew } : null };
+          };
+          if (fn === 'claim_theme_gift') {
+            const t = st.themes.find(x => x.id === body.p_theme);
+            if (!t) return err('theme_missing');
+            const season = P.themeSeason(t, today());
+            if (season == null || (!t.gift_coins && !t.gift_cosmetic)) return err('theme_gift_missing');
+            if (st.themeClaims.some(k => k.user === user.id && k.theme === t.id && k.season === season)) return err('theme_gift_claimed');
+            st.themeClaims.push({ user: user.id, theme: t.id, season });
+            return json(res, 200, give(t.gift_coins, t.gift_cosmetic, 'theme', 'theme', t.id, t.name));
+          }
+          if (fn === 'claim_advent') {
+            if (!adventToday()) return err('advent_closed');
+            if (!(body.p_day >= 1 && body.p_day <= adventToday())) return err('advent_locked');
+            if (st.adventClaims.some(k => k.user === user.id && k.year === y && k.day === body.p_day)) return err('advent_opened');
+            st.adventClaims.push({ user: user.id, year: y, day: body.p_day });
+            const a = st.advent.find(x => x.day === body.p_day);
+            return json(res, 200, { day: a.day, ...give(a.coins, a.cosmetic_id, 'advent', 'advent', String(a.day), 'Kalendarz adwentowy') });
+          }
+        }
         // Sklep za MiB Coins: tak jak shop, buy_cosmetic, buy_offer, my_coin_log, claim_daily w schema.sql
         if (['shop', 'buy_cosmetic', 'buy_offer', 'my_coin_log', 'claim_daily'].includes(fn)) {
           const err = m => json(res, 400, { code: 'P0001', message: m });
@@ -328,25 +398,27 @@ function createFake() {
           if (fn === 'shop') {
             const offers = st.offers.filter(live);
             return json(res, 200, { coins: user.coins || 0,
-              items: Object.values(cosmetics).filter(c => c.price != null || offers.some(o => o.items.includes(c.id))).sort((a, b) => (a.price ?? 1e9) - (b.price ?? 1e9) || a.name.localeCompare(b.name))
-                .map(c => ({ id: c.id, name: c.name, type: c.type, texture: c.texture || c.image_url || null, price: c.price ?? null, owned: has(user.id, c.id) })),
+              items: Object.values(cosmetics).filter(c => (c.price != null && onSale(c.id)) || offers.some(o => o.items.includes(c.id))).sort((a, b) => (a.price ?? 1e9) - (b.price ?? 1e9) || a.name.localeCompare(b.name))
+                .map(c => ({ id: c.id, name: c.name, type: c.type, texture: c.texture || c.image_url || null, price: onSale(c.id) ? c.price ?? null : null, owned: has(user.id, c.id) })),
+              themes: st.themes.filter(t => t.items.length && P.themeSeason(t, today()) != null).map(t => ({ id: t.id, name: t.name, until: themeUntil(t), items: t.items })),
               offers: offers.map(o => ({ id: o.id, name: o.name, items: o.items, price: o.price, full: fullPrice(o), mine: offerPrice(o, user.id), ends_at: o.ends_at })) });
           }
           if (fn === 'my_coin_log') return json(res, 200, coinLog(user.id, body.p_before));
           if (fn === 'claim_daily') {
             if (banned(user)) return json(res, 200, { claimed: false });
-            const today = new Date().toISOString().slice(0, 10), d = st.daily[user.id];
-            if (d && d.day === today) return json(res, 200, { claimed: false, streak: d.streak });
-            const y = new Date(Date.now() - 86400000).toISOString().slice(0, 10), streak = d && d.day === y ? d.streak + 1 : 1, amount = 10 + (streak % 7 === 0 ? 50 : 0);
-            st.daily[user.id] = { day: today, streak };
+            const day = new Date().toISOString().slice(0, 10), d = st.daily[user.id];
+            if (d && d.day === day) return json(res, 200, { claimed: false, streak: d.streak });
+            const y = new Date(Date.now() - 86400000).toISOString().slice(0, 10), streak = d && d.day === y ? d.streak + 1 : 1;
+            const bonus = Math.max(0, ...st.themes.filter(t => P.themeSeason(t, today()) != null).map(t => t.daily_bonus || 0)), amount = 10 + (streak % 7 === 0 ? 50 : 0) + bonus;
+            st.daily[user.id] = { day, streak };
             user.coins = (user.coins || 0) + amount;
             log(amount, 'daily', String(streak), null);
-            return json(res, 200, { claimed: true, amount, streak, coins: user.coins });
+            return json(res, 200, { claimed: true, amount, streak, coins: user.coins, bonus });
           }
           if (banned(user)) return err('banned');
           if (fn === 'buy_cosmetic') {
             const c = cosmetics[body.p_cosmetic], to = body.p_for || user.id;
-            if (!c || c.price == null) return err('not_for_sale');
+            if (!c || c.price == null || !onSale(c.id)) return err('not_for_sale');
             if (to !== user.id && !st.friends.some(f => f.accepted && ((f.from === user.id && f.to === to) || (f.from === to && f.to === user.id)))) return err('gift_not_friend');
             if (has(to, c.id)) return err(to === user.id ? 'already_owned' : 'friend_has_it');
             if ((user.coins || 0) < c.price) return err('coins_not_enough');
@@ -433,6 +505,7 @@ function createFake() {
       }
       if (p === '/rest/v1/announcements') return json(res, 200, st.ann.filter(a => !a.visible_until || new Date(a.visible_until) > new Date()).sort((a, b) => b.pinned - a.pinned || b.id - a.id));
       if (p === '/rest/v1/cosmetics') return json(res, 200, Object.values(cosmetics));
+      if (p === '/rest/v1/themes') return json(res, 200, st.themes.map(({ id, starts, ends, enabled, forced, sort }) => ({ id, starts, ends, enabled, forced, sort })));
       if (p === '/rest/v1/app_config') return json(res, 200, st.config.shop_url ? [{ key: 'shop_url', value: st.config.shop_url }] : []);
       if (!user) return json(res, 401, { code: '42501', message: 'permission denied' });
       if (p === '/rest/v1/profiles') {

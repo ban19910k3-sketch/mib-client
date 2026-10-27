@@ -10,7 +10,8 @@ const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_co
   'admin_list_announcements', 'admin_save_announcement', 'admin_delete_announcement',
   'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea', 'admin_answer_idea', 'admin_gift', 'admin_gift_all',
   'admin_idea_details', 'admin_list_reports', 'admin_count_new_reports', 'admin_warn', 'admin_ban', 'admin_unban', 'admin_dismiss_report', 'admin_activity',
-  'admin_give_coins', 'admin_set_config', 'admin_set_price', 'admin_list_offers', 'admin_save_offer', 'admin_delete_offer', 'admin_coin_log']);
+  'admin_give_coins', 'admin_set_config', 'admin_set_price', 'admin_list_offers', 'admin_save_offer', 'admin_delete_offer', 'admin_coin_log',
+  'admin_list_themes', 'admin_save_theme', 'admin_advent', 'admin_set_advent_day']);
 const CRASH_MAX = 20000;
 
 // hidden(): tryb niewidoczny (znajomi widzą offline); openExternal(url): strona w przeglądarce (sklep)
@@ -257,6 +258,13 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     coinLog: ({ before } = {}) => authed(t => supa.rpc('my_coin_log', { p_before: before || null }, t)),
     // Nagroda dzienna (baza daje ją raz na dobę); stara baza: nic
     daily: () => authed(t => supa.rpc('claim_daily', {}, t)).catch(e => (e.code === 'schema_outdated' ? { claimed: false } : Promise.reject(e))),
+    // ===== Motywy świąteczne (od 0.25.0): daty z bazy (czytają wszyscy), stara baza = wbudowane daty =====
+    themes: () => supa.select('themes', 'select=id,starts,ends,enabled,forced,sort&order=sort').catch(e => (e.code === 'schema_outdated' ? [] : Promise.reject(e))),
+    // Nagrody świąteczne do odebrania teraz i kalendarz adwentowy; baza sprawdza daty i to, czy już odebrane
+    themeGifts: () => authed(t => supa.rpc('my_theme_gifts', {}, t)).catch(e => (e.code === 'schema_outdated' ? [] : Promise.reject(e))),
+    claimThemeGift: ({ id }) => authed(t => supa.rpc('claim_theme_gift', { p_theme: id }, t)),
+    advent: () => authed(t => supa.rpc('advent', {}, t)).catch(e => (e.code === 'schema_outdated' ? { open: false, days: [] } : Promise.reject(e))),
+    claimAdvent: ({ day }) => authed(t => supa.rpc('claim_advent', { p_day: day }, t)),
     // Założenie (id) albo zdjęcie (id = null) kosmetyku danego typu; baza sprawdza, czy gracz go ma
     async equip({ type, id }) {
       const equipped = await authed(t => supa.rpc('equip_cosmetic', { p_type: type, p_id: id || null }, t));
@@ -427,7 +435,8 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   ideaUpdates: 'prof:ideaUpdates', ideasSeen: 'prof:ideasSeen', gifts: 'prof:gifts', claimGift: 'prof:claimGift',
   block: 'prof:block', unblock: 'prof:unblock', blocked: 'prof:blocked', report: 'prof:report', warnings: 'prof:warnings', warningsSeen: 'prof:warningsSeen',
   card: 'prof:card', ideasPublic: 'prof:ideasPublic', ideaVote: 'prof:ideaVote', wallet: 'prof:wallet', shopOpen: 'prof:shopOpen',
-  shop: 'prof:shop', buy: 'prof:buy', buyOffer: 'prof:buyOffer', coinLog: 'prof:coinLog', daily: 'prof:daily' };
+  shop: 'prof:shop', buy: 'prof:buy', buyOffer: 'prof:buyOffer', coinLog: 'prof:coinLog', daily: 'prof:daily',
+  themes: 'prof:themes', themeGifts: 'prof:themeGifts', claimThemeGift: 'prof:claimThemeGift', advent: 'prof:advent', claimAdvent: 'prof:claimAdvent' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

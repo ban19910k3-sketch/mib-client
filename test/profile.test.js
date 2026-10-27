@@ -185,6 +185,11 @@ test('wingsModel: tekstura szeroka na 128+ to skrzydła wróżki, węższa to el
   assert.equal(P.wingsModel(256), 'fairy');
 });
 
+test('hatModel: czapka z teksturą szeroką na 128+ jest wysoka (druga kostka), węższa jak hełm', () => {
+  assert.equal(P.hatModel(64), 'helmet');
+  assert.equal(P.hatModel(128), 'tall');
+});
+
 test('auraStyle: ruch z końcówki id', () => {
   assert.equal(P.auraStyle('halloween_aura_souls'), 'souls');
   assert.equal(P.auraStyle('zimowa_aura_magic'), 'magic');

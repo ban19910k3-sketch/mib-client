@@ -1,7 +1,8 @@
 <!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><title>MiB Client</title>
 <link rel="stylesheet" href="style.css">
-<!-- Motyw według daty (od 0.24.0): klasa t-halloween od 15.10 do 5.11 (MibProfile.season), przed pierwszym rysowaniem -->
-<script src="lib/profile.js"></script><script>if(MibProfile.season()==='halloween')document.documentElement.classList.add('t-halloween')</script>
+<!-- Motyw świąteczny według daty (od 0.25.0): klasa t-<id> (i themed poza Halloween) przed pierwszym rysowaniem; daty z bazy
+     zapamiętuje themes.js w localStorage (mib-themes), bez nich wbudowane (MibProfile.themeNow); mibthemes=0 wyłącza motywy -->
+<script src="lib/profile.js"></script><script>{let t=null;try{t=JSON.parse(localStorage.getItem('mib-themes'))}catch{}const id=localStorage.getItem('mibthemes')==='0'?'':MibProfile.themeNow(t);if(id)document.documentElement.classList.add('t-'+id,...(id==='halloween'?[]:['themed']))}</script>
 <!-- Ikony menu: pixelarticons (MIT), font Geist (OFL) — licencje w fonts/LICENSES.txt --></head><body>
 <div id="splash"><img id="sbg" src="splash.jpg" alt=""><div class="streak"></div><div class="streak s2"></div><canvas id="pc"></canvas>
 <div id="sbox"><div id="sname">MiB Client</div><div id="bar"><div id="fill"></div></div><div id="status">Przygotowywanie interfejsu…</div></div></div>
@@ -26,7 +27,7 @@
 <div id="skinw"><canvas id="skincv" width="300" height="320"></canvas><img id="skinimg" src="https://mc-heads.net/body/MHF_Steve/280" alt=""><div id="skin"><div class="h"></div><div class="b"></div><div class="l"></div></div></div>
 <div class="play"><button class="go" id="go">GRAJ<small id="ver">MiB 1.8.9</small></button><select id="sel"><option>1.8.9</option></select><button class="b" id="cancel" style="display:none">Anuluj</button></div>
 <div class="meta"><span>Wersja<b id="c-ver">1.8.9</b></span><span>Pamięć RAM<b id="c-ram">2 GB</b></span><span>Rozdzielczość<b id="c-res">1280×720</b></span></div></div>
-<div id="news"><h4>Aktualności</h4><div id="ann-home"></div>
+<div id="news"><h4>Aktualności</h4><div id="hol-home"></div><div id="ann-home"></div>
 <div class="n"><b>Najnowsza wersja Minecrafta</b><div class="big" id="n-ver">…</div><p>Wybierz ją na liście wersji i kliknij GRAJ.</p></div>
 <div class="n"><b>Popularne mody</b><div id="n-top"></div></div>
 </div></div>
@@ -54,6 +55,7 @@
 <label class="sr"><span>Tło launchera</span><select id="s-bg"><option value="violet">Fioletowe (domyślne)</option><option value="black">Czarne</option><option value="blue">Granatowe</option><option value="custom">Własny obraz…</option></select></label>
 <label class="sr"><span>Animacja startowa</span><select id="s-anim"><option value="full">Pełna</option><option value="short">Krótka</option><option value="off">Wyłączona</option></select></label>
 <label class="ck"><input id="s-fx" type="checkbox"> Latające cząsteczki (ekran startowy i launcher)</label>
+<label class="ck"><input id="s-themes" type="checkbox"> Motywy świąteczne (wygląd launchera i gry w święta)</label>
 <label class="ck"><input id="s-hu" type="checkbox"> Nie pokazuj powiadomień o aktualizacjach</label>
 <label class="ck"><input id="s-dc" type="checkbox"> Pokazuj na Discordzie, że grasz w MiB Client</label>
 <label class="ck"><input id="s-share" type="checkbox"> Pokazuj znajomym, na jakim serwerze grasz</label>
@@ -72,7 +74,9 @@ const A=localStorage.getItem('mibanim')||'full',sp=document.getElementById('spla
 const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;if(A==='off'||RM)document.documentElement.classList.add('noanim');
 if(A==='off')sp.style.display='none';else if(localStorage.getItem('mibfx')!=='0'){const c=document.getElementById('pc'),x=c.getContext('2d');let W,H;const rs=()=>{W=c.width=innerWidth;H=c.height=innerHeight};rs();
 const P=Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.8+.4,v:Math.random()*.6+.2,a:Math.random()*6}));
-(function loop(){x.clearRect(0,0,W,H);for(const p of P){p.y-=p.v;p.a+=.02;if(p.y<0){p.y=H;p.x=Math.random()*W}x.fillStyle=(document.documentElement.classList.contains('t-halloween')?'rgba(251,146,60,':'rgba(192,132,252,')+(.25+.35*Math.abs(Math.sin(p.a)))+')';x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()}if(!sp.classList.contains('out'))requestAnimationFrame(loop)})()}
+// kolor z motywu (--spl w style.css); w Boże Narodzenie płatki spadają
+const SPL=getComputedStyle(document.documentElement).getPropertyValue('--spl').trim()||'192,132,252',DN=document.documentElement.classList.contains('t-boze')?-1:1;
+(function loop(){x.clearRect(0,0,W,H);for(const p of P){p.y-=p.v*DN;p.a+=.02;if(p.y<0||p.y>H){p.y=DN>0?H:0;p.x=Math.random()*W}x.fillStyle='rgba('+SPL+','+(.25+.35*Math.abs(Math.sin(p.a)))+')';x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()}if(!sp.classList.contains('out'))requestAnimationFrame(loop)})()}
 const steps=[['Przygotowywanie interfejsu…',()=>new Promise(r=>requestAnimationFrame(()=>r()))],
 ['Sprawdzanie plików…',()=>Promise.resolve(document.fonts&&document.fonts.ready)],
 ['Wczytywanie ustawień…',()=>Promise.resolve()],['Gotowe',()=>new Promise(r=>setTimeout(r,dly))]];
@@ -92,4 +96,4 @@ addEventListener('resize',moveInd);
 document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>{document.querySelectorAll('.nav').forEach(x=>x.classList.remove('act'));n.classList.add('act');
 document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));document.getElementById('p-'+n.dataset.p).classList.add('on');moveInd()});
 const sel=document.getElementById('sel');sel.onchange=()=>document.getElementById('ver').textContent='MiB '+sel.value;
-</script><script src="skinview3d.js"></script><script src="ui.js"></script><script src="profile-ui.js"></script><script src="admin-ui.js"></script></body></html>
+</script><script src="skinview3d.js"></script><script src="themes.js"></script><script src="ui.js"></script><script src="profile-ui.js"></script><script src="admin-ui.js"></script></body></html>

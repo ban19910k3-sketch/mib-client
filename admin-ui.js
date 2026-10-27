@@ -35,6 +35,12 @@
     offer_items_invalid: 'Zaznacz od 1 do 20 przedmiotów.',
     offer_end_past: 'Koniec oferty musi być w przyszłości.',
     offer_missing: 'Tej oferty już nie ma.',
+    theme_missing: 'Nie ma takiego motywu.',
+    theme_date_invalid: 'Data: MM-DD (np. 12-01) albo dni od Wielkanocy: E-7, E+2.',
+    theme_items_invalid: 'Któregoś przedmiotu z kolekcji nie ma już w katalogu.',
+    theme_bonus_invalid: 'Dodatek do nagrody dziennej: od 0 do 1000 coinsów.',
+    advent_day_invalid: 'Dzień kalendarza: od 1 do 24.',
+    advent_empty: 'Każdy dzień kalendarza musi coś dawać: coinsy albo przedmiot.',
   };
   // Prezent dla gracza: kosmetyk i wiadomość (gracz odbiera w launcherze przyciskiem „Odbierz”); idea = nagroda za ten pomysł
   async function giftForm(user, idea, done, owned = []) {
@@ -55,11 +61,12 @@
   const err = r => (r && ERR[r.error]) || msg(r && r.error || 'unknown', r && r.detail);
   const call = (fn, args) => mib.call('prof:admin', { fn, args });
   const failed = r => r && !Array.isArray(r) && r.error;
-  const TYPES = { cape: 'Peleryna', hat: 'Czapka', wings: 'Skrzydła', aura: 'Aura' };
-  const SOURCES = { code: 'kod', admin: 'od admina', gift: 'prezent', shop: 'sklep' };
+  const TYPES = { cape: 'Peleryna', hat: 'Czapka', mask: 'Maska', wings: 'Skrzydła', aura: 'Aura' };
+  const SOURCES = { code: 'kod', admin: 'od admina', gift: 'prezent', shop: 'sklep', theme: 'nagroda świąteczna', advent: 'kalendarz adwentowy' };
   const coins = n => Number(n || 0).toLocaleString('pl-PL');
   // Ruch cząsteczek aury: końcówka ID (launcher i mod znają tylko te)
-  const MOTIONS = { souls: 'Dusze unoszą się z ziemi', pumpkins: 'Dynie krążą i lecą w górę, iskry', ghosts: 'Trzy duszki krążą wokół', magic: 'Spirala iskier w górę' };
+  const MOTIONS = { souls: 'Unoszą się z ziemi (dusze, serca, bańki)', pumpkins: 'Krążą i lecą w górę, z iskrami', ghosts: 'Trzy krążą wokół (duszki, prezenty, bloki)',
+    magic: 'Spirala iskier w górę', snow: 'Opadają z góry (śnieg, płatki, konfetti)', burst: 'Fajerwerki nad głową' };
   const copy = async t => { try { await navigator.clipboard.writeText(t); toast('Skopiowano'); } catch {} };
   let tab = 'ann';
   // Jeden podgląd 3D na cały panel (każdy nowy SkinViewer zajmuje kontekst WebGL)
@@ -289,7 +296,7 @@
     const motion = h('select', { id: 'ac-motion' }, ...Object.entries(MOTIONS).map(([k, v]) => h('option', { value: k }, v)));
     const motionRow = h('label', { class: 'sr', hidden: true }, h('span', {}, 'Ruch aury'), motion);
     // aura: ruch to końcówka ID (np. aura_zimowa_magic)
-    const withMotion = () => { if (type.value === 'aura' && !id.disabled) id.value = id.value.trim().replace(/_(souls|pumpkins|ghosts|magic)$/, '') + '_' + motion.value; };
+    const withMotion = () => { if (type.value === 'aura' && !id.disabled) id.value = id.value.trim().replace(/_(souls|pumpkins|ghosts|magic|snow|burst)$/, '') + '_' + motion.value; };
     const prevImg = h('img', { class: 'texprev', alt: '', hidden: true }), cv = capePreview(null);
     const price = h('input', { id: 'ac-price', type: 'number', min: 1, max: 1000000, placeholder: 'np. 800', style: 'width:150px' });
     const e = h('p', { class: 'err' }), save = h('button', { class: 'b', type: 'submit', id: 'ac-save' }, 'Zapisz przedmiot');
@@ -660,7 +667,85 @@
       ...(r.versions.length ? r.versions.map(v => row(v.version, window.MibProfile.formatPlaytime(v.min) + ', uruchomień: ' + v.runs)) : [h('p', { class: 'empty' }, 'Brak danych o grze.')])));
   }
 
-  const TABS = [['ann', 'Aktualności', viewAnn], ['ideas', 'Pomysły', viewIdeas], ['reports', 'Zgłoszenia', viewReports], ['cos', 'Kosmetyki', viewCos], ['codes', 'Kody', viewCodes], ['players', 'Gracze', viewPlayers], ['stats', 'Statystyki', viewStats]];
+  // ===== Motywy świąteczne (od 0.25.0): daty, włączanie, nagroda, dodatek do nagrody dziennej, kolekcja i kalendarz =====
+  const fmtD = d => (d ? fmtDate(d) : '—');
+  async function viewThemes(box) {
+    const cos = await mib.call('prof:allCosmetics', { lite: true }), all = Array.isArray(cos) ? cos : [];
+    const list = h('div', { id: 'at-list' }), adv = h('div', { id: 'aa-list', class: 'adv-grid' });
+    let open = null;
+    function state(t) {
+      if (!t.enabled) return ['wyłączony', 'off'];
+      if (t.forced) return ['włączony teraz ręcznie', 'now'];
+      if (t.active) return ['trwa do ' + fmtD(t.d_to), 'now'];
+      return ['od ' + fmtD(t.d_from) + ' do ' + fmtD(t.d_to), ''];
+    }
+    function form(t) {
+      const starts = h('input', { id: 'at-starts', value: t.starts, maxlength: 5, style: 'width:90px' }), ends = h('input', { id: 'at-ends', value: t.ends, maxlength: 5, style: 'width:90px' });
+      const enabled = h('input', { type: 'checkbox', id: 'at-enabled', checked: t.enabled }), forced = h('input', { type: 'checkbox', id: 'at-forced', checked: t.forced });
+      const coins = h('input', { id: 'at-coins', type: 'number', min: 0, max: 100000, value: t.gift_coins, style: 'width:120px' });
+      const gift = h('select', { id: 'at-gift' }, h('option', { value: '' }, 'bez przedmiotu'), ...all.map(c => h('option', { value: c.id, selected: c.id === t.gift_cosmetic }, c.name + ' (' + (TYPES[c.type] || c.type) + ')')));
+      const bonus = h('input', { id: 'at-bonus', type: 'number', min: 0, max: 1000, value: t.daily_bonus, style: 'width:120px' });
+      const items = h('div', { class: 'ao-items', id: 'at-items' }, ...all.map(c => h('label', { class: 'ck' }, h('input', { type: 'checkbox', value: c.id, checked: t.items.includes(c.id) }), c.name + (c.price != null ? ' · ' + coins_(c.price) : ''))));
+      const e = h('p', { class: 'err' }), save = h('button', { class: 'b', id: 'at-save', type: 'submit' }, 'Zapisz motyw');
+      return h('form', { class: 'pform theme-form', id: 'at-form', on: { submit: async ev => {
+        ev.preventDefault();
+        save.disabled = true;
+        const r = await call('admin_save_theme', { p_id: t.id, p_starts: starts.value.trim(), p_ends: ends.value.trim(), p_enabled: enabled.checked, p_forced: forced.checked,
+          p_gift_coins: Number(coins.value) || 0, p_gift_cosmetic: gift.value || null, p_daily_bonus: Number(bonus.value) || 0, p_items: [...items.querySelectorAll('input:checked')].map(x => x.value) });
+        save.disabled = false;
+        if (failed(r)) { e.textContent = err(r); return; }
+        toast('Motyw „' + t.name + '” zapisany. Launchery graczy zmienią wygląd przy następnym uruchomieniu albo w ciągu godziny.');
+        open = null; load();
+      } } },
+        h('div', { class: 'sr' }, h('span', {}, 'Daty'), h('span', { class: 'fld' }, h('span', { class: 'row', style: 'align-items:center' }, 'od', starts, 'do', ends),
+          h('small', { class: 'mut' }, 'MM-DD, np. 12-01. Wielkanoc: E-7 to 7 dni przed, E+2 to 2 dni po (liczona co roku). Koniec wcześniej niż początek = przez Nowy Rok.'))),
+        h('label', { class: 'ck' }, enabled, 'Włączony (w swoich datach)'),
+        h('label', { class: 'ck' }, forced, 'Włącz teraz, niezależnie od dat (np. żeby zobaczyć wygląd albo zacząć wcześniej; tylko jeden motyw naraz)'),
+        h('div', { class: 'sr' }, h('span', {}, 'Nagroda świąteczna'), h('span', { class: 'fld' }, h('span', { class: 'row', style: 'align-items:center' }, coins, 'MiB Coins i', gift),
+          h('small', { class: 'mut' }, 'Każdy gracz odbiera ją raz w roku na stronie głównej launchera. 0 i bez przedmiotu = bez nagrody.'))),
+        h('div', { class: 'sr' }, h('span', {}, 'Dodatek do nagrody dziennej'), h('span', { class: 'fld' }, bonus, h('small', { class: 'mut' }, 'Coinsy dodawane do codziennych 10 w czasie święta (0 = bez dodatku).'))),
+        h('div', { class: 'sr' }, h('span', {}, 'Kolekcja w sklepie'), h('span', { class: 'fld' }, items, h('small', { class: 'mut' }, 'Te przedmioty (z ceną) są w Sklepie tylko w czasie święta, na górze z odliczaniem. Kto je kupił, ma je dalej.'))),
+        e, h('div', { class: 'row' }, save, h('button', { class: 'b ghost', type: 'button', on: { click: () => { open = null; load(); } } }, 'Anuluj')));
+    }
+    async function load() {
+      const l = await call('admin_list_themes');
+      if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
+      list.replaceChildren(...l.map(t => {
+        const [st, cls] = state(t);
+        const row = h('div', { class: 'card arow theme-row' + (t.id === open ? ' on' : ''), 'data-id': t.id },
+          h('div', {}, h('b', {}, t.name, h('em', { class: 'tag ' + (cls === 'now' ? 'st-done' : cls === 'off' ? 'st-rejected' : 'st-seen') }, st)),
+            h('span', { class: 'mut' }, 'Nagroda: ' + (t.gift_coins ? t.gift_coins + ' MiB Coins' : '') + (t.gift_name ? (t.gift_coins ? ' i ' : '') + t.gift_name : '') + (!t.gift_coins && !t.gift_name ? 'brak' : '') +
+              (t.claims ? ' (odebrało ' + t.claims + ')' : '') + ' · kolekcja: ' + t.items.length + (t.daily_bonus ? ' · dzienna +' + t.daily_bonus : ''))),
+          h('button', { class: 'b ghost', type: 'button', on: { click: () => { open = open === t.id ? null : t.id; load(); } } }, open === t.id ? 'Zwiń' : 'Edytuj'));
+        return open === t.id ? h('div', {}, row, form(t)) : row;
+      }));
+    }
+    async function loadAdvent() {
+      const l = await call('admin_advent');
+      if (failed(l)) return adv.replaceChildren(h('p', { class: 'err' }, err(l)));
+      adv.replaceChildren(...l.map(d => {
+        const coinsIn = h('input', { class: 'adv-coins', type: 'number', min: 0, max: 100000, value: d.coins, 'aria-label': 'Coinsy, dzień ' + d.day });
+        const pick = h('select', { class: 'adv-cos', 'aria-label': 'Przedmiot, dzień ' + d.day }, h('option', { value: '' }, 'bez przedmiotu'),
+          ...all.map(c => h('option', { value: c.id, selected: c.id === d.cosmetic_id }, c.name)));
+        const saveDay = async () => {
+          const r = await call('admin_set_advent_day', { p_day: d.day, p_coins: Number(coinsIn.value) || 0, p_cosmetic: pick.value || null });
+          if (failed(r)) { toast(err(r), 1); coinsIn.value = d.coins; pick.value = d.cosmetic_id || ''; return; }
+          d.coins = Number(coinsIn.value) || 0; d.cosmetic_id = pick.value || null;
+          toast(d.day + ' grudnia zapisany.');
+        };
+        coinsIn.onchange = saveDay; pick.onchange = saveDay;
+        return h('div', { class: 'adv-row', 'data-day': d.day }, h('b', { class: 'adv-n' }, d.day + '.'), coinsIn, h('span', { class: 'mut' }, 'coinsów i'), pick,
+          h('small', { class: 'mut' }, d.opened ? 'otwarło ' + d.opened : ''));
+      }));
+    }
+    box.append(h('p', { class: 'lead' }, 'Wygląd każdego święta jest wbudowany w launcher i w grę. Tu ustawiasz daty, włączasz i wyłączasz motywy, nagrodę świąteczną, dodatek do nagrody dziennej i kolekcję w sklepie. Zmiany działają bez aktualizacji launchera.'),
+      list, h('div', { class: 'sec', id: 'aa' }, h('h3', {}, 'Kalendarz adwentowy'),
+        h('p', { class: 'mut' }, 'Gracze otwierają okienka od 1 do 24 grudnia na stronie głównej, zaległe do 26 grudnia, gdy motyw Bożego Narodzenia jest włączony. Nagrodę widać dopiero po otwarciu. Zmiana zapisuje się od razu.'), adv));
+    load(); loadAdvent();
+  }
+  const coins_ = n => Number(n || 0).toLocaleString('pl-PL');
+
+  const TABS = [['ann', 'Aktualności', viewAnn], ['ideas', 'Pomysły', viewIdeas], ['reports', 'Zgłoszenia', viewReports], ['cos', 'Kosmetyki', viewCos], ['themes', 'Motywy', viewThemes], ['codes', 'Kody', viewCodes], ['players', 'Gracze', viewPlayers], ['stats', 'Statystyki', viewStats]];
   function render() {
     const box = $('admin-box'), body = h('div', { id: 'admin-tab' });
     box.replaceChildren(h('h2', {}, 'Panel admina'),

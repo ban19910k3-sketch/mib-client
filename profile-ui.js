@@ -8,6 +8,12 @@
     gift_message_long: 'Wiadomość może mieć najwyżej 200 znaków.',
     friend_has_it: 'Twój znajomy ma już ten przedmiot.',
     offer_missing: 'Ta oferta już się skończyła.',
+    theme_missing: 'Tego święta nie ma już w MiB.',
+    theme_gift_missing: 'Ta nagroda świąteczna już się skończyła.',
+    theme_gift_claimed: 'Ta nagroda świąteczna jest już odebrana.',
+    advent_closed: 'Kalendarz adwentowy jest zamknięty. Otwiera się 1 grudnia.',
+    advent_locked: 'To okienko otworzysz dopiero tego dnia.',
+    advent_opened: 'To okienko jest już otwarte.',
     nick_length: 'Nick musi mieć od 3 do 16 znaków.',
     nick_chars: 'Nick może zawierać tylko litery bez polskich znaków, cyfry i _.',
     nick_taken: 'Ten nick jest już zajęty. Wybierz inny.',
@@ -297,7 +303,7 @@
   }
 
   // ===== Strona Kosmetyki =====
-  const GLYPH = { cape: '▚', hat: '▀', wings: '▞', aura: '✺' };
+  const GLYPH = { cape: '▚', hat: '▀', mask: '▄', wings: '▞', aura: '✺' };
   // Miniatura peleryny: zewnętrzna strona z tekstury Minecrafta (pole 10×16 od piksela 1,1), powiększona k razy
   // (animowana tekstura: klatki jedna pod drugą przewijane animacją capeanim ze style.css)
   function capeThumb(url, k) {
@@ -335,9 +341,27 @@
     }, () => {});
     return c;
   }
+  // Miniatura czapki i maski: przód kostki (gdy pusty, lewy bok) z nakładką; wysoka czapka z drugą kostką nad pierwszą
+  function headThumb(url, type) {
+    const c = h('canvas', { width: 40, height: 40, class: 'headth' }), x = c.getContext('2d');
+    loadImg(url).then(img => {
+      const tall = type === 'hat' && MibProfile.hatModel(img.width) === 'tall', u = img.width / (tall ? 128 : 64);
+      const probe = document.createElement('canvas'); probe.width = probe.height = 8;
+      const px = probe.getContext('2d');
+      px.drawImage(img, 8 * u, 8 * u, 8 * u, 8 * u, 0, 0, 8, 8); px.drawImage(img, 40 * u, 8 * u, 8 * u, 8 * u, 0, 0, 8, 8);
+      const fx = px.getImageData(0, 0, 8, 8).data.some((v, i) => i % 4 === 3 && v > 0) ? 8 : 16;
+      if (tall) c.height = 72;
+      x.imageSmoothingEnabled = false;
+      const box = (sx, y) => { x.drawImage(img, sx * u, 8 * u, 8 * u, 8 * u, 4, y + 4, 32, 32); x.drawImage(img, (sx + 32) * u, 8 * u, 8 * u, 8 * u, 2, y + 2, 36, 36); };
+      if (tall) box(fx + 64, 0);
+      box(fx, tall ? 32 : 0);
+    }, () => {});
+    return c;
+  }
   const itemImage = (c, k) => {
     const png = c.imageUrl && c.imageUrl.startsWith('data:image/png');
     if (png && c.type === 'cape') return capeThumb(c.imageUrl, k);
+    if (png && (c.type === 'hat' || c.type === 'mask')) return headThumb(c.imageUrl, c.type);
     if (png && c.type === 'aura') return auraThumb(c.imageUrl, k);
     if (png && c.type === 'wings') return wingsThumb(c.imageUrl);
     return c.imageUrl ? h('img', { src: c.imageUrl, alt: '' }) : GLYPH[c.type] || '◆';
@@ -436,37 +460,44 @@
   }
   // cape, wings, hat: tekstury albo null; aura: { texture, id } albo null. Skrzydła jak elytra zastępują pelerynę,
   // skrzydła wróżki są razem z nią. Zwraca, co widać.
-  async function dress(viewer, { cape = null, wings = null, hat = null, aura = null } = {}) {
+  async function dress(viewer, { cape = null, wings = null, hat = null, mask = null, aura = null } = {}) {
     const st = dressed.get(viewer) || {};
     dressed.set(viewer, st);
     const my = st.gen = (st.gen || 0) + 1;
     const load = u => (u ? frames(u).catch(() => null) : null);
-    const [cf, wf, hf, af] = await Promise.all([load(cape), load(wings), load(hat), load(aura && aura.texture)]);
+    const [cf, wf, hf, mf, af] = await Promise.all([load(cape), load(wings), load(hat), load(mask), load(aura && aura.texture)]);
     if (st.gen !== my) return null;
     clearInterval(st.timer); st.timer = null;
     const fairy = wf && MibProfile.wingsModel(wf[0].width) === 'fairy' ? wf : null;
     const bf = cf || (wf && !fairy ? wf : null), kind = cf ? 'cape' : bf ? 'elytra' : '';
     try { if (bf) viewer.loadCape(bf[0], { backEquipment: kind }); else viewer.resetCape(); } catch {}
-    await putHat(viewer, st, hf, my);
+    await putHead(viewer, st, 'hat', hf, my);
     if (st.gen !== my) return null;
+    await putHead(viewer, st, 'mask', mf, my);
+    if (st.gen !== my) return null;
+    // wysoka czapka wystaje nad głowę: kamera trochę dalej i postać niżej, żeby zmieściła się w podglądzie
+    if (st.zoom0 == null) st.zoom0 = viewer.zoom;
+    const tall = !!(st.hat && st.hat.parts.length > 1);
+    viewer.zoom = tall ? st.zoom0 * 0.84 : st.zoom0;
+    if (viewer.playerWrapper) viewer.playerWrapper.position.y = tall ? -3 : 0;
     await putWings(viewer, st, fairy, my);
     if (st.gen !== my) return null;
     const style = af && MibProfile.auraStyle(aura.id);
     await putAura(viewer, st, style ? af : null, style, my);
     if (st.gen !== my) return null;
-    const n = Math.max(bf ? bf.length : 1, hf ? hf.length : 1, fairy ? fairy.length : 1);
+    const n = Math.max(bf ? bf.length : 1, hf ? hf.length : 1, mf ? mf.length : 1, fairy ? fairy.length : 1);
     if (n > 1) {
       let i = 0;
       st.timer = setInterval(() => {
         if (!viewer.canvas || !viewer.canvas.isConnected) { clearInterval(st.timer); st.timer = null; return; }
         i++;
         if (bf && bf.length > 1 && viewer.capeTexture) draw(viewer.capeCanvas, bf[i % bf.length], 0, viewer.capeTexture);
-        if (hf && hf.length > 1 && st.hatTex) draw(st.hatCanvas, hf[i % hf.length], 0, st.hatTex);
+        for (const [slot, f] of [['hat', hf], ['mask', mf]]) if (f && f.length > 1 && st[slot]) for (const p of st[slot].parts) paint(p, f[i % f.length]);
         if (fairy && fairy.length > 1 && st.wingTex) draw(st.wingCanvas, fairy[i % fairy.length], 0, st.wingTex);
       }, MibProfile.CAPE_FRAME_MS);
     }
     if (st.wings || st.aura) animate(viewer, st);
-    return { back: kind, fairy: !!st.wings, hat: !!(hf && st.hat), aura: st.aura ? style : '', frames: n };
+    return { back: kind, fairy: !!st.wings, hat: st.hat ? (st.hat.parts.length > 1 ? 'tall' : '1') : '', mask: !!st.mask, aura: st.aura ? style : '', frames: n };
   }
   function draw(canvas, frame, y, tex) {
     const x = canvas.getContext('2d');
@@ -474,28 +505,42 @@
     x.drawImage(frame, 0, y, canvas.width, frame.height * canvas.width / frame.width);
     tex.needsUpdate = true;
   }
-  // Czapka: kopia głowy postaci powiększona jak hełm (10 i 11 pikseli zamiast 8), z teksturą czapki w górnej połowie
-  // płótna 64×64 — tak samo leżą głowa i nakładka na skinie, więc pasują współrzędne tekstury
-  async function putHat(viewer, st, hf, my) {
+  // Czapka i maska: kopia głowy postaci powiększona jak hełm (czapka 10 i 11 pikseli zamiast 8, maska 9,2 i 10,2 — pod czapką)
+  // z teksturą w górnej połowie płótna 64×64, tak jak leżą głowa i nakładka na skinie. Wysoka czapka (tekstura szeroka
+  // na 128 px, MibProfile.hatModel) ma drugą taką kostkę 10 pikseli wyżej z prawej połowy tekstury (w grze tak samo: HatLayer).
+  async function putHead(viewer, st, slot, hf, my) {
     const head = viewer.playerObject && viewer.playerObject.skin && viewer.playerObject.skin.head;
-    if (st.hat) { for (const m of st.hat) { if (m.parent) m.parent.remove(m); m.material.dispose(); } st.hat = null; }
-    if (st.hatTex) { st.hatTex.dispose(); st.hatTex = null; }
+    if (st[slot]) { for (const m of st[slot].meshes) { if (m.parent) m.parent.remove(m); m.material.dispose(); } for (const p of st[slot].parts) p.tex.dispose(); st[slot] = null; }
     if (!hf || !head || !head.innerLayer || !head.outerLayer) return;
     const Tex = await texClass(viewer, st, my);
-    if (!Tex) return;
-    st.hatCanvas = document.createElement('canvas');
-    st.hatCanvas.width = st.hatCanvas.height = hf[0].width;
-    st.hatTex = newTex(viewer, Tex, st.hatCanvas);
-    draw(st.hatCanvas, hf[0], 0, st.hatTex);
-    st.hat = [[head.innerLayer, 10], [head.outerLayer, 11]].map(([src, size]) => {
+    if (!Tex || st.gen !== my) return;
+    const tall = slot === 'hat' && MibProfile.hatModel(hf[0].width) === 'tall', k = hf[0].width / (tall ? 128 : 64);
+    const sizes = slot === 'mask' ? [9.2, 10.2] : [10, 11];
+    const parts = (tall ? [0, 64] : [0]).map(sx => {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 64 * k;
+      const p = { cv, sx: sx * k, lift: sx ? 10 : 0, tex: newTex(viewer, Tex, cv) };
+      paint(p, hf[0]);
+      return p;
+    });
+    const meshes = parts.flatMap(p => [[head.innerLayer, sizes[0]], [head.outerLayer, sizes[1]]].map(([src, size]) => {
       const m = src.clone();
       m.material = head.outerLayer.material.clone();
-      m.material.map = st.hatTex;
+      m.material.map = p.tex;
       const w = (src.geometry && src.geometry.parameters && src.geometry.parameters.width) || 8;
       m.scale.multiplyScalar(size / w);
+      m.position.y += p.lift;
       head.add(m);
       return m;
-    });
+    }));
+    st[slot] = { parts, meshes };
+  }
+  // Część tekstury czapki (od sx, 64×32 w skali tekstury) w górnej połowie płótna części
+  function paint(p, frame) {
+    const x = p.cv.getContext('2d'), w = p.cv.width;
+    x.clearRect(0, 0, w, w / 2);
+    x.drawImage(frame, p.sx, 0, w, w / 2, 0, 0, w, w / 2);
+    p.tex.needsUpdate = true;
   }
   // Skrzydła wróżki: dwie płaszczyzny 16×20 przy łopatkach, odchylone do tyłu i machające (tak samo w grze: FairyWingsLayer).
   // Na przodzie płaszczyzny tył skrzydła z tekstury, z tyłu jego przód; drugie skrzydło to lustro pierwszego.
@@ -578,20 +623,20 @@
   // Strój do dress() z listy przedmiotów { type, id, texture } (np. założone u znajomego albo prezent)
   function outfit(list) {
     const o = {};
-    for (const c of list) if (c && c.texture && ['cape', 'wings', 'hat', 'aura'].includes(c.type) && !o[c.type]) o[c.type] = c.type === 'aura' ? { texture: c.texture, id: c.id } : c.texture;
+    for (const c of list) if (c && c.texture && ['cape', 'wings', 'hat', 'mask', 'aura'].includes(c.type) && !o[c.type]) o[c.type] = c.type === 'aura' ? { texture: c.texture, id: c.id } : c.texture;
     return o;
   }
   window.mibOutfit = outfit;
 
   // Strona Kosmetyki: na postaci założone przedmioty, a klik w przedmiot to przymiarka (bez zakładania).
-  // data-back i data-hat na płótnie mówią, co widać.
+  // data-back, data-hat (1 albo tall) i data-mask na płótnie mówią, co widać.
   let trying = {};
   async function dressPage(list) {
     if (!skinViewer) return;
     const on = t => trying[t] || list.find(c => c.equipped && c.type === t && c.texture);
     const tried = trying.wings && !trying.cape ? 'wings' : null;
-    const r = await dress(skinViewer, outfit([tried ? null : on('cape'), on('wings'), on('hat'), on('aura')]));
-    if (r) Object.assign(skinCanvas.dataset, { back: r.back, hat: r.hat ? '1' : '', fairy: r.fairy ? '1' : '', aura: r.aura, frames: r.frames });
+    const r = await dress(skinViewer, outfit([tried ? null : on('cape'), on('wings'), on('hat'), on('mask'), on('aura')]));
+    if (r) Object.assign(skinCanvas.dataset, { back: r.back, hat: r.hat, mask: r.mask ? '1' : '', fairy: r.fairy ? '1' : '', aura: r.aura, frames: r.frames });
   }
 
   // Kosmetyki mają trzy zakładki: Moje przedmioty, Sklep (od 0.24.0, za MiB Coins) i Historia coinsów
@@ -702,17 +747,25 @@
         pay > 0 && pay < o.price ? h('small', { class: 'mut' }, T('Taniej, bo masz już część tych przedmiotów.')) : null);
     });
     const forSale = all.filter(c => c.price != null);
-    const grid = forSale.length ? h('div', { class: 'cos-grid', id: 'shop-grid' }, ...forSale.map(c => h('div', { class: 'cosi shopi' + (c.owned ? ' own' : '') + isTry(c), 'data-id': c.id,
+    const card = c => h('div', { class: 'cosi shopi' + (c.owned ? ' own' : '') + isTry(c), 'data-id': c.id,
         title: c.texture ? T('Kliknij, żeby przymierzyć') : null, on: { click: e => { if (!e.target.closest('button')) tryToggle(c, owned); } } },
       h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)),
       h('b', {}, c.name), h('small', { class: 'mut' }, T(KIND[c.type] || 'Kosmetyk')), price(c.price),
       h('div', { class: 'row' },
         c.owned ? h('span', { class: 'tag own' }, '✓ ' + T('Masz')) : h('button', { class: 'b', type: 'button', on: { click: () => buyDialog({ item: c, cost: c.price }) } }, T('Kup')),
-        h('button', { class: 'b ghost', type: 'button', title: T('Kup ten przedmiot w prezencie dla znajomego'), on: { click: () => buyDialog({ item: c, cost: c.price, gift: true }) } }, T('Podaruj'))))))
-      : null;
-    if (!offers.length && !grid) return [h('p', { class: 'empty' }, T('W sklepie nic jeszcze nie ma. Zajrzyj tu wkrótce.'))];
+        h('button', { class: 'b ghost', type: 'button', title: T('Kup ten przedmiot w prezencie dla znajomego'), on: { click: () => buyDialog({ item: c, cost: c.price, gift: true }) } }, T('Podaruj'))));
+    // kolekcje świąteczne (od 0.25.0) osobno, z datą końca: po święcie znikają ze sklepu
+    const cols = (s.themes || []).map(t => ({ ...t, list: forSale.filter(c => (t.items || []).includes(c.id)) })).filter(t => t.list.length);
+    const inCol = new Set(cols.flatMap(t => t.list.map(c => c.id))), rest = forSale.filter(c => !inCol.has(c.id));
+    const colBox = cols.map(t => h('div', { class: 'shop-col', 'data-theme': t.id },
+      h('div', { class: 'col-head' }, h('small', { class: 'gift-kicker' }, T('Kolekcja')), h('b', {}, T(t.name)),
+        t.until ? h('small', { class: 'mut' }, T('do') + ' ' + fmtDate(t.until + 'T12:00:00') + ' · ' + leftText(t.until + 'T23:59:59')) : null),
+      h('div', { class: 'cos-grid' }, ...t.list.map(card))));
+    const grid = rest.length ? h('div', { class: 'cos-grid', id: 'shop-grid' }, ...rest.map(card)) : null;
+    if (!offers.length && !grid && !colBox.length) return [h('p', { class: 'empty' }, T('W sklepie nic jeszcze nie ma. Zajrzyj tu wkrótce.'))];
     return [offers.length ? h('div', { class: 'offers' }, ...offers) : null,
-      grid ? h('p', { class: 'mut' }, T('Kliknij przedmiot, żeby przymierzyć go na postaci. „Podaruj” kupuje go znajomemu w prezencie.')) : null, grid];
+      grid || colBox.length ? h('p', { class: 'mut' }, T('Kliknij przedmiot, żeby przymierzyć go na postaci. „Podaruj” kupuje go znajomemu w prezencie.')) : null,
+      ...colBox, grid && colBox.length ? h('h3', { class: 'shop-rest' }, T('Zawsze w sklepie')) : null, grid];
   }
   // Okno zakupu: podgląd na postaci, cena, saldo po zakupie; przy prezencie wybór znajomego i wiadomość.
   // Gdy coinsów brakuje, zamiast „Kup” jest „Kup MiB Coins”.
@@ -783,6 +836,8 @@
     if (l.kind === 'buy') return T('Zakup') + ': ' + l.label;
     if (l.kind === 'gift') return T('Prezent dla') + ' ' + (l.friend || '?') + ': ' + l.label;
     if (l.kind === 'offer') return T('Pakiet') + ': ' + l.label;
+    if (l.kind === 'theme') return T('Nagroda świąteczna') + (l.label ? ': ' + l.label : '');
+    if (l.kind === 'advent') return T('Kalendarz adwentowy') + (l.item ? ' · ' + T('{n} grudnia').replace('{n}', l.item) : '');
     if (l.kind === 'daily') return T('Nagroda dzienna') + (+l.item > 1 ? ' · ' + T('{n}. dzień z rzędu').replace('{n}', l.item) : '');
     return T(l.delta > 0 ? 'Dodane przez MiB' : 'Zabrane przez MiB') + (l.label ? ': ' + l.label : '');
   }
@@ -872,7 +927,7 @@
 
   // ===== Prezenty od MiB: okno „Masz prezent!” z podglądem na postaci, Odbierz i Załóż od razu =====
   let giftOpen = false, giftCount = 0;
-  const KIND = { cape: 'Peleryna', hat: 'Czapka', wings: 'Skrzydła', aura: 'Aura' };
+  const KIND = { cape: 'Peleryna', hat: 'Czapka', mask: 'Maska', wings: 'Skrzydła', aura: 'Aura' };
   // licznik przy pozycji paska bocznego (Kosmetyki: prezenty, Pomysły: odpowiedzi)
   function navCount(page, n) {
     const nav = document.querySelector(`.nav[data-p="${page}"]`);
@@ -1369,6 +1424,83 @@
     box.hidden = false;
   }
 
+  // ===== Święta (od 0.25.0): nagroda świąteczna i kalendarz adwentowy na stronie głównej =====
+  let holAt = 0;
+  async function holidayCheck(force) {
+    const box = $('hol-home');
+    if (!st.loggedIn || st.banned) { box.replaceChildren(); return; }
+    if (!force && Date.now() - holAt < 600e3) return;
+    holAt = Date.now();
+    const [gifts, adv] = await Promise.all([mib.call('prof:themeGifts'), mib.call('prof:advent')]);
+    const cards = [];
+    for (const g of Array.isArray(gifts) ? gifts : []) {
+      const what = [g.coins > 0 ? fmtCoins(g.coins) + ' MiB Coins' : null, g.cosmetic_name].filter(Boolean).join(' + ');
+      const btn = h('button', { class: 'b', type: 'button', on: { click: async () => {
+        btn.disabled = true;
+        const r = await mib.call('prof:claimThemeGift', { id: g.id });
+        if (r.error) { btn.disabled = false; toast(msg(r.error, r.detail), 1); holidayCheck(true); return; }
+        if (r.cosmetic && window.mibUnlock) mibUnlock({ name: r.cosmetic.name, type: r.cosmetic.type, imageUrl: r.cosmetic.texture, label: T('Nagroda świąteczna') });
+        if (r.amount > 0) toast(T('Nagroda świąteczna') + ': +' + fmtCoins(r.amount) + ' MiB Coins');
+        refreshWallet(); holidayCheck(true);
+        if ($('p-cos').classList.contains('on')) renderCos();
+      } } }, T('Odbierz'));
+      cards.push(h('div', { class: 'card reward hol', 'data-theme': g.id }, h('small', { class: 'gift-kicker' }, T('Nagroda świąteczna')),
+        h('b', {}, T(g.name)), h('p', {}, what), g.until ? h('small', { class: 'mut' }, T('Odbierz do') + ' ' + fmtDate(g.until + 'T12:00:00')) : null, btn));
+    }
+    if (adv && adv.open && Array.isArray(adv.days)) {
+      const ready = adv.days.filter(d => d.day <= adv.today && !d.opened).length;
+      cards.push(h('div', { class: 'card reward hol', id: 'hol-adv' }, h('small', { class: 'gift-kicker' }, T('Kalendarz adwentowy')),
+        h('b', {}, ready ? (ready === 1 ? T('1 okienko do otwarcia') : T(few(ready) ? '{n} okienka do otwarcia' : '{n} okienek do otwarcia').replace('{n}', ready)) : T('Wszystko otwarte. Wróć jutro!')),
+        h('button', { class: ready ? 'b' : 'b ghost', type: 'button', id: 'hol-adv-go', on: { click: () => adventOpen(adv) } }, T('Otwórz kalendarz'))));
+    }
+    box.replaceChildren(...cards);
+  }
+  // polska liczba mnoga: 2–4, 22–24… okienka, reszta okienek
+  const few = n => n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14);
+  // Kalendarz: 24 okienka w stałej, pomieszanej kolejności; dzisiejsze i zaległe świecą, otwarte pokazują nagrodę
+  const ADV_ORDER = [7, 18, 3, 22, 11, 1, 15, 24, 9, 20, 5, 13, 2, 17, 10, 23, 6, 14, 19, 4, 12, 21, 8, 16];
+  function adventOpen(adv) {
+    const old = $('adv'); if (old) old.remove();
+    const byDay = Object.fromEntries(adv.days.map(d => [d.day, d]));
+    const reward = d => d.cosmetic ? h('span', { class: 'adv-prize' }, h('i', { 'aria-hidden': 'true' }, itemImage({ ...d.cosmetic, imageUrl: d.cosmetic.texture }, 3)), h('small', {}, d.cosmetic.name))
+      : h('span', { class: 'adv-prize' }, coinIcon(), h('b', {}, '+' + fmtCoins(d.coins || 0)));
+    const win = n => {
+      const d = byDay[n] || { day: n, kind: 'coins', opened: false }, ready = !d.opened && n <= adv.today;
+      const b = h('button', { type: 'button', class: 'adv-win' + (d.opened ? ' open' : ready ? ' ready' : '') + (d.kind === 'cosmetic' ? ' big' : ''), 'data-day': n,
+        disabled: !ready, 'aria-label': T('{n} grudnia').replace('{n}', n) + (d.opened ? ' · ' + T('otwarte') : ready ? '' : ' · ' + T('jeszcze zamknięte')),
+        title: ready || d.opened ? null : T('Otworzysz {n} grudnia').replace('{n}', n), on: { click: async () => {
+          if (!ready || b.dataset.busy) return;
+          b.dataset.busy = '1';
+          const r = await mib.call('prof:claimAdvent', { day: n });
+          delete b.dataset.busy;
+          if (r.error) { toast(msg(r.error, r.detail), 1); return; }
+          Object.assign(d, { opened: true, coins: r.amount, cosmetic: r.cosmetic });
+          b.className = 'adv-win open opening' + (d.kind === 'cosmetic' ? ' big' : '');
+          b.disabled = true;
+          b.replaceChildren(h('em', {}, String(n)), reward(d));
+          if (r.cosmetic && window.mibUnlock) mibUnlock({ name: r.cosmetic.name, type: r.cosmetic.type, imageUrl: r.cosmetic.texture, label: T('Kalendarz adwentowy') });
+          else if (r.amount > 0) toast(T('Kalendarz adwentowy') + ': +' + fmtCoins(r.amount) + ' MiB Coins');
+          refreshWallet(); holidayCheck(true);
+          // otwarte okienko traci fokus (wyłączone): fokus na następne do otwarcia albo na Zamknij
+          (ov.querySelector('.adv-win.ready') || ov.querySelector('.m .b.ghost')).focus();
+        } } }, h('em', {}, String(n)), d.opened ? reward(d) : d.kind === 'cosmetic' ? h('span', { class: 'adv-star', 'aria-hidden': 'true' }, '★') : null);
+      return b;
+    };
+    const esc = e => { if (e.key === 'Escape') close(); };
+    const close = () => { ov.remove(); document.removeEventListener('keydown', esc); };
+    const ov = h('div', { class: 'ov on', id: 'adv' }, h('div', { class: 'm adv-m', role: 'dialog', 'aria-label': T('Kalendarz adwentowy') },
+      h('h3', {}, T('Kalendarz adwentowy')),
+      h('p', { class: 'mut' }, T('Codziennie od 1 do 24 grudnia nowe okienko: MiB Coins, a w ostatnich dniach kosmetyki (gwiazdka). Zaległe okienka otworzysz do 26 grudnia.')),
+      h('div', { class: 'adv-cal' }, ...ADV_ORDER.map(win)),
+      h('div', { class: 'row', style: 'justify-content:flex-end' }, h('button', { class: 'b ghost', type: 'button', on: { click: close } }, T('Zamknij')))));
+    ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });
+    document.addEventListener('keydown', esc);
+    document.body.append(ov);
+    (ov.querySelector('.adv-win.ready') || ov.querySelector('.m .b.ghost')).focus();
+  }
+  window.addEventListener('focus', () => holidayCheck());
+  if (window.MibThemes) MibThemes.onChange(() => holidayCheck(true));
+
   // ===== Stan =====
   function apply(r) {
     const was = st.loggedIn;
@@ -1388,6 +1520,7 @@
     if (st.loggedIn) mib.call('prof:warnings').then(showWarnings);
     if (st.loggedIn && !was) { achievementsCheck(false); mib.call('news:check'); daily = null; dailyAt = 0; }
     dailyCheck();
+    holidayCheck(st.loggedIn !== was);
     if (st.loggedIn && !was) { mibSync.pull(); if (window.mibWave) mibWave(); }
   }
   async function refresh() { apply(await mib.call('prof:state')); }
@@ -1407,7 +1540,7 @@
     document.body.append(o);
     setTimeout(() => { if (o.isConnected) close(); }, 2200);
   };
-  window.mibProfileUI = { modsShown, refresh, get loggedIn() { return !!(st.loggedIn || st.offline); } };
+  window.mibProfileUI = { modsShown, refresh, holidays: () => holidayCheck(true), get loggedIn() { return !!(st.loggedIn || st.offline); } };
   window.mibUI = { h, msg, fmtDate, capeThumb, itemImage };
   sidebar();
   render();
