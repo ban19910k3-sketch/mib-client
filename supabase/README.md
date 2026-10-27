@@ -98,7 +98,9 @@ insert into public.cosmetics (id, name, type) values ('cape_start', 'Peleryna St
 Najprościej dodać je w panelu admina (zakładka Kosmetyki), razem z teksturą i podglądem na postaci.
 
 - **Skrzydła**: tekstura szeroka na 128 pikseli (klatka 128×64) to skrzydła jak u wróżki, węższa (64×32) rysuje się jak elytra.
-- **Aura** (od 0.22.0): id kończy się ruchem cząsteczek — `_souls`, `_pumpkins`, `_ghosts` albo `_magic` (w panelu admina wybierasz go z listy).
+- **Aura** (od 0.22.0): id kończy się ruchem cząsteczek — `_souls`, `_pumpkins`, `_ghosts`, `_magic`, a od 0.25.0 też `_snow` (płatki spadają) i `_burst` (wybuchy iskier) (w panelu admina wybierasz go z listy).
+- **Czapka** od 0.25.0: tekstura szeroka na 128 pikseli (klatka 128×64) to wysoka czapka — lewa połowa (64×32) to kostka na głowie, prawa to druga kostka nad nią (rogi, cylinder, uszy). Węższa (64×32) to zwykła czapka jak hełm.
+- **Maska** (od 0.25.0): tekstura 64×32 w układzie hełmu, trochę mniejsza niż czapka, więc gracz może nosić maskę i czapkę naraz (np. broda Mikołaja, okulary).
 
 `schema.sql` od 0.22.0 sam dodaje 14 kosmetyków na Halloween (3 peleryny, 5 czapek, 2 skrzydła, 4 aury; id zaczynają się od `halloween_`).
 Graczom dajesz je jak inne przedmioty: kodami, prezentem albo prezentem dla wszystkich.
@@ -115,6 +117,21 @@ Graczom dajesz je jak inne przedmioty: kodami, prezentem albo prezentem dla wszy
 - **Prezent dla znajomego**: przycisk „Podaruj” przy przedmiocie w Sklepie. Coinsy płaci kupujący, a znajomy dostaje okno „Masz prezent!” z nickiem kupującego i wiadomością.
 - **Nagroda dzienna**: launcher sam daje graczowi 10 coinsów raz na dobę (czas polski), a za każdy 7. dzień z rzędu 50 więcej. Przerwa zaczyna serię od nowa. Zbanowani nie dostają nagrody.
 - **Historia**: gracz widzi swoje zmiany coinsów w Kosmetykach → Historia, a Ty u każdego gracza w panelu admina → Gracze → **Historia** (zakupy, prezenty, pakiety, nagrody dzienne i Twoje zmiany z powodem — gracz też widzi ten powód).
+
+## Motywy świąteczne, nagrody i kalendarz adwentowy (od 0.25.0)
+
+`schema.sql` dodaje 11 świąt z datami (tabela `public.themes`) i 43 kosmetyki na święta (id od `niepodleglosc_`, `zima_`, `adwent_`, `sylwester_`, `walentynki_`, `wielkanoc_`, `primaaprilis_`, `urodzinymc_`, `dziendziecka_`, `wakacje_`, `urodzinymib_`).
+Wygląd świąt (kolory, ozdoby w launcherze i w grze) jest wbudowany w launcher i moda — w panelu ustawiasz resztę i zmiany działają bez aktualizacji launchera.
+
+- **Panel admina → Motywy**: przy każdym święcie **Edytuj**:
+  - **Daty** `MM-DD` (np. `12-01`), a Wielkanoc jako dni od niej: `E-7` (7 dni przed), `E+2` (2 dni po) — liczona co roku. Koniec wcześniej niż początek = przez Nowy Rok.
+  - **Włączony** — wyłączony motyw nie zmienia wyglądu i nie daje nagród. **Włącz teraz** — od razu, niezależnie od dat (np. żeby zobaczyć wygląd); naraz tylko jeden.
+  - **Nagroda świąteczna** — coinsy i/lub przedmiot; gracz odbiera ją raz w sezonie na stronie głównej launchera.
+  - **Dodatek do nagrody dziennej** — coinsy dodawane do codziennych 10 w czasie święta.
+  - **Kolekcja w sklepie** — zaznaczone przedmioty (z ceną) są w Sklepie tylko w czasie święta, na górze z odliczaniem do końca.
+- **Kalendarz adwentowy** (ta sama zakładka, niżej): 24 dni grudnia, przy każdym coinsy i/lub przedmiot (zapisuje się od razu). Domyślnie dni 1–19 to coinsy (6.12 — Mikołajki — 100), a 20–24 to czapka, broda, aura, peleryna i skrzydła anioła. Gracze otwierają okienka od 1 do 24 grudnia, zaległe do 26 grudnia, gdy Boże Narodzenie jest włączone.
+- Kiedy dwa święta trwają naraz (Sylwester w czasie Bożego Narodzenia), widać to krótsze.
+- Gracz może wyłączyć motywy w launcherze: Ustawienia → **Motywy świąteczne**.
 
 ## Kody prezentowe
 

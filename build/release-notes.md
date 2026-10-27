@@ -1,12 +1,16 @@
-<!-- 0.24.0 -->
+<!-- 0.25.0 -->
 ## Dodane
 
-- Sklep w Kosmetykach: kupuj peleryny, czapki, skrzydła i aury za MiB Coins. Każdy przedmiot możesz najpierw przymierzyć na swojej postaci.
-- Oferty i pakiety: kilka przedmiotów taniej, z datą końca oferty. Jeśli masz już część pakietu, płacisz tylko za brakujące przedmioty.
-- Prezent dla znajomego: kup przedmiot znajomemu z MiB i dołącz wiadomość. Znajomy zobaczy, od kogo jest prezent.
-- Historia MiB Coins: wszystkie zakupy, prezenty i nagrody w jednym miejscu.
-- Nagroda dzienna: 10 MiB Coins za każdy dzień z launcherem, a za 7 dni z rzędu dodatkowe 50.
+- Motywy świąteczne w launcherze i w grze: Święto Niepodległości, Boże Narodzenie, Sylwester, Walentynki, Wielkanoc, Prima Aprilis, urodziny Minecrafta, Dzień Dziecka, wakacje i urodziny MiB. Każde święto ma swoje kolory, ozdoby i cząsteczki, a w grze ozdoby na ekranie tytułowym, w menu pauzy, na ekranie ładowania i w menu pod prawym Shiftem.
+- Nagroda świąteczna: w czasie święta odbierzesz ją na stronie głównej launchera.
+- Kalendarz adwentowy: od 1 do 24 grudnia codziennie nowe okienko z MiB Coins, a w ostatnich dniach z kosmetykami. Zaległe okienka otworzysz do 26 grudnia.
+- Kolekcje świąteczne w sklepie: przedmioty dostępne tylko w czasie święta, z odliczaniem do końca.
+- 43 nowe kosmetyki na święta: peleryny, czapki, maski, skrzydła i aury.
+- Maski: nowy rodzaj kosmetyku, który nosisz razem z czapką.
+- Wysokie czapki: rogi renifera, cylinder, uszy zajączka i inne wystają nad głowę.
+- Nowe aury: padający śnieg i wybuchy iskier.
+- W Ustawieniach możesz wyłączyć motywy świąteczne.
 
 ## Zmienione
 
-- Motyw Halloween włącza się sam od 15 października do 5 listopada, w launcherze i w grze. Potem wraca zwykły czarno-fioletowy wygląd.
+- W czasie świąt nagroda dzienna może być większa.

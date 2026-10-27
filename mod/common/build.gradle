@@ -19,6 +19,8 @@ test {
 	useJUnitPlatform()
 	// obrazki podglądu: -Ppreview=<katalog>
 	systemProperty 'mib.preview', (project.findProperty('preview') ?: '')
+	// motyw świąteczny w podglądzie: -PmibTheme=<id|none> (jak -Dmib.theme od launchera)
+	if (project.hasProperty('mibTheme')) systemProperty 'mib.theme', project.property('mibTheme')
 	systemProperty 'java.awt.headless', 'true'
 	testLogging { events 'failed'; exceptionFormat 'full' }
 }
