@@ -324,7 +324,7 @@ declare
   v jsonb;
 begin
   if v_uid is null then raise exception 'not_logged_in'; end if;
-  if p_type is null or p_type not in ('cape', 'hat', 'wings', 'aura') then raise exception 'cosmetic_type_invalid'; end if;
+  if p_type is null or p_type not in ('cape', 'hat', 'wings', 'aura', 'mask') then raise exception 'cosmetic_type_invalid'; end if;
   if p_id is not null and not exists (
     select 1 from public.owned_cosmetics o join public.cosmetics c on c.id = o.cosmetic_id
     where o.user_id = v_uid and o.cosmetic_id = p_id and c.type = p_type) then
@@ -430,13 +430,14 @@ end $$;
 -- Zbanowanych (od 0.20.0) nie ma na liście: bez logo MiB i kosmetyków w grze.
 -- Od 0.15.0 także czapka i skrzydła, od 0.22.0 aura: inny wynik funkcji, więc najpierw stara wersja znika.
 drop function if exists public.mib_who(uuid[], text[]);
-create or replace function public.mib_who(p_ids uuid[], p_names text[]) returns table (uuid uuid, name text, cape text, hat text, wings text, aura text)
+create or replace function public.mib_who(p_ids uuid[], p_names text[]) returns table (uuid uuid, name text, cape text, hat text, wings text, aura text, mask text)
 language sql stable security definer set search_path = '' as $$
   select m.uuid, m.name,
     (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'cape')),
     (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'hat')),
     (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'wings')),
-    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'aura'))
+    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'aura')),
+    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'mask'))
   from private.mib_players m left join public.profiles p on p.id = m.user_id
   where m.seen_at > now() - interval '10 minutes' and p.banned_at is null
     and (m.uuid = any ((coalesce(p_ids, '{}'::uuid[]))[1:200])
@@ -1123,9 +1124,9 @@ begin
   perform private.need_admin();
   if p_id !~ '^[a-z0-9_]{2,32}$' then raise exception 'cosmetic_id_invalid'; end if;
   if length(trim(coalesce(p_name, ''))) not between 1 and 40 then raise exception 'cosmetic_name_invalid'; end if;
-  if p_type not in ('cape', 'hat', 'wings', 'aura') then raise exception 'cosmetic_type_invalid'; end if;
-  -- aura (od 0.22.0): końcówka id mówi, jak poruszają się cząsteczki (launcher i mod znają te ruchy)
-  if p_type = 'aura' and p_id !~ '_(souls|pumpkins|ghosts|magic)$' then raise exception 'aura_id_invalid'; end if;
+  if p_type not in ('cape', 'hat', 'wings', 'aura', 'mask') then raise exception 'cosmetic_type_invalid'; end if;
+  -- aura (od 0.22.0): końcówka id mówi, jak poruszają się cząsteczki (launcher i mod znają te ruchy; snow i burst od 0.25.0)
+  if p_type = 'aura' and p_id !~ '_(souls|pumpkins|ghosts|magic|snow|burst)$' then raise exception 'aura_id_invalid'; end if;
   insert into public.cosmetics (id, name, type, texture) values (p_id, trim(p_name), p_type, p_texture)
     on conflict (id) do update set name = excluded.name, type = excluded.type, texture = coalesce(excluded.texture, public.cosmetics.texture);
 end $$;
@@ -1511,6 +1512,90 @@ begin
     on conflict (key) do update set value = excluded.value, updated_at = now();
 end $$;
 
+-- ===== Motywy świąteczne (od 0.25.0) =====
+-- Wygląd każdego motywu jest wbudowany w launcher i mod; tutaj są daty, włączanie, „Włącz teraz” (forced), nagroda
+-- świąteczna, dodatek do nagrody dziennej i kolekcja: kosmetyki z kolekcji są na sprzedaż tylko w czasie święta.
+-- Daty: 'MM-DD' albo 'E-7' / 'E+2' (dni od Wielkanocy, liczonej co roku). Koniec przed początkiem = przez Nowy Rok.
+create table if not exists public.themes (
+  id text primary key check (id ~ '^[a-z]{3,20}$'),
+  name text not null check (length(name) between 1 and 40),
+  starts text not null check (starts ~ '^([0-9]{2}-[0-9]{2}|E[+-][0-9]{1,2})$'),
+  ends text not null check (ends ~ '^([0-9]{2}-[0-9]{2}|E[+-][0-9]{1,2})$'),
+  enabled boolean not null default true,
+  forced boolean not null default false,
+  gift_coins integer not null default 0 check (gift_coins between 0 and 100000),
+  gift_cosmetic text references public.cosmetics (id) on delete set null,
+  daily_bonus integer not null default 0 check (daily_bonus between 0 and 1000),
+  items text[] not null default '{}',
+  sort integer not null default 0
+);
+alter table public.themes enable row level security;
+revoke all on public.themes from public, anon, authenticated;
+grant select on public.themes to anon, authenticated;
+drop policy if exists themes_read on public.themes;
+create policy themes_read on public.themes for select to anon, authenticated using (true);
+insert into public.themes (id, name, starts, ends, gift_coins, items, sort) values
+  ('niepodleglosc', 'Święto Niepodległości', '11-08', '11-12', 50, '{niepodleglosc_cape_flaga,niepodleglosc_hat_kotylion,niepodleglosc_aura_iskry_magic}', 1),
+  ('boze', 'Boże Narodzenie', '12-01', '01-06', 0, '{zima_cape_sweter,zima_cape_zorza,zima_cape_sniezynki,zima_hat_mikolaj,zima_hat_renifer,zima_hat_elf,zima_hat_balwan,zima_wings_lod,zima_aura_snieg_snow,zima_aura_prezenty_ghosts}', 2),
+  ('sylwester', 'Sylwester', '12-31', '01-01', 100, '{sylwester_aura_fajerwerki_burst,sylwester_hat_cylinder,sylwester_cape_konfetti}', 3),
+  ('walentynki', 'Walentynki', '02-10', '02-15', 50, '{walentynki_wings_amor,walentynki_aura_serca_souls,walentynki_hat_wianek}', 4),
+  ('wielkanoc', 'Wielkanoc', 'E-7', 'E+2', 50, '{wielkanoc_hat_uszy,wielkanoc_hat_pisanka,wielkanoc_cape_pisanki,wielkanoc_aura_platki_snow,wielkanoc_wings_motyl}', 5),
+  ('primaaprilis', 'Prima Aprilis', '04-01', '04-01', 1, '{primaaprilis_hat_blazen,primaaprilis_cape_glitch}', 6),
+  ('urodzinymc', 'Urodziny Minecrafta', '05-17', '05-17', 50, '{urodzinymc_cape_trawa,urodzinymc_aura_kostki_ghosts}', 7),
+  ('dziendziecka', 'Dzień Dziecka', '06-01', '06-01', 100, '{dziendziecka_hat_smiglo,dziendziecka_aura_banki_souls}', 8),
+  ('wakacje', 'Wakacje', '06-25', '08-31', 100, '{wakacje_mask_okulary,wakacje_hat_slomkowy,wakacje_cape_palmy,wakacje_aura_babelki_souls,wakacje_wings_papuga}', 9),
+  ('urodzinymib', 'Urodziny MiB Client', '10-10', '10-14', 200, '{urodzinymib_cape_rok,urodzinymib_aura_konfetti_snow,urodzinymib_hat_tort}', 10),
+  ('halloween', 'Halloween', '10-15', '11-05', 50, '{halloween_cape_pumpkin,halloween_cape_bats,halloween_cape_bloodmoon,halloween_hat_pumpkin,halloween_hat_lantern,halloween_hat_skull,halloween_hat_mummy,halloween_hat_ghost,halloween_wings_fire,halloween_wings_bone,halloween_aura_souls,halloween_aura_pumpkins,halloween_aura_ghosts,halloween_aura_magic}', 11)
+on conflict (id) do nothing;
+
+-- Wielkanoc w roku y (algorytm Meeusa/Jonesa/Butchera, kalendarz gregoriański)
+create or replace function private.easter(y integer) returns date
+language plpgsql immutable set search_path = '' as $$
+declare a integer := y % 19; b integer := y / 100; c integer := y % 100; d integer; e integer; f integer; g integer; h integer; i integer; k integer; l integer; m integer;
+begin
+  d := b / 4; e := b % 4; f := (b + 8) / 25; g := (b - f + 1) / 3; h := (19 * a + b - d - g + 15) % 30; i := c / 4; k := c % 4;
+  l := (32 + 2 * e + 2 * i - h - k) % 7; m := (a + 11 * h + 22 * l) / 451;
+  return make_date(y, (h + l - 7 * m + 114) / 31, (h + l - 7 * m + 114) % 31 + 1);
+end $$;
+-- Dzień z zapisu daty motywu ('MM-DD' albo 'E±n') w roku y
+create or replace function private.theme_date(p_spec text, y integer) returns date
+language sql immutable set search_path = '' as $$
+  select case when p_spec like 'E%' then private.easter(y) + substr(p_spec, 2)::integer
+    else make_date(y, substr(p_spec, 1, 2)::integer, substr(p_spec, 4, 2)::integer) end;
+$$;
+-- Okres motywu, który trwa w dniu p_day albo zaczyna się najbliższy po nim: rok sezonu (rok początku), od, do
+create or replace function private.theme_span(t public.themes, p_day date, out season integer, out d_from date, out d_to date)
+language plpgsql stable set search_path = '' as $$
+declare y integer;
+begin
+  for y in extract(year from p_day)::integer - 1 .. extract(year from p_day)::integer + 1 loop
+    d_from := private.theme_date(t.starts, y); d_to := private.theme_date(t.ends, y);
+    if d_to < d_from then d_to := private.theme_date(t.ends, y + 1); end if;
+    if d_to >= p_day then season := y; return; end if;
+  end loop;
+end $$;
+-- Rok sezonu, gdy motyw trwa w dniu p_day (null, gdy nie trwa albo jest wyłączony); „Włącz teraz” trwa zawsze
+create or replace function private.theme_season(t public.themes, p_day date) returns integer
+language plpgsql stable set search_path = '' as $$
+declare sp record;
+begin
+  if not t.enabled then return null; end if;
+  if t.forced then return extract(year from p_day)::integer; end if;
+  sp := private.theme_span(t, p_day);
+  return case when p_day between sp.d_from and sp.d_to then sp.season end;
+end $$;
+-- Ostatni dzień trwającego motywu (do odliczania w sklepie); null, gdy nie trwa albo jest tylko wymuszony
+create or replace function private.theme_until(t public.themes, p_day date) returns date
+language sql stable set search_path = '' as $$
+  select case when t.enabled and p_day between sp.d_from and sp.d_to then sp.d_to end from private.theme_span(t, p_day) sp;
+$$;
+-- Czy kosmetyk z ceną można teraz kupić: spoza kolekcji zawsze, z kolekcji tylko w czasie jej święta
+create or replace function private.on_sale(p_cosmetic text, p_day date) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select not exists (select 1 from public.themes t where p_cosmetic = any (t.items))
+    or exists (select 1 from public.themes t where p_cosmetic = any (t.items) and private.theme_season(t, p_day) is not null);
+$$;
+
 -- ===== Sklep za MiB Coins (od 0.24.0) =====
 -- Kosmetyki z ceną (cosmetics.price, null = nie na sprzedaż) i oferty (pakiety albo jeden kosmetyk taniej, z datą
 -- końca) kupuje się za coinsy w launcherze; kosmetyk można też kupić znajomemu (trafia do jego prezentów). Do tego
@@ -1561,17 +1646,21 @@ language sql stable security definer set search_path = '' as $$
   from private.shop_offers s, t where s.id = p_offer;
 $$;
 
--- Sklep: saldo, kosmetyki na sprzedaż i z aktualnych ofert (owned: gracz już go ma albo czeka w prezentach) oraz
--- aktualne oferty (full: suma zwykłych cen, mine: cena dla tego gracza)
+-- Sklep: saldo, kosmetyki na sprzedaż i z aktualnych ofert (owned: gracz już go ma albo czeka w prezentach; price
+-- tylko gdy można go teraz kupić osobno), aktualne oferty (full: suma zwykłych cen, mine: cena dla tego gracza) i od
+-- 0.25.0 trwające święta z kolekcją (until: ostatni dzień)
+drop function if exists public.shop();
 create or replace function public.shop() returns json
 language sql stable security definer set search_path = '' as $$
-  with me as (select auth.uid() as id),
+  with me as (select auth.uid() as id, private.today() as day),
   offers as (select * from private.shop_offers where ends_at is null or ends_at > now())
   select json_build_object(
     'coins', (select p.coins from public.profiles p, me where p.id = me.id),
     'items', coalesce((select json_agg(json_build_object('id', c.id, 'name', c.name, 'type', c.type, 'texture', coalesce(c.texture, c.image_url),
-        'price', c.price, 'owned', private.has_cosmetic(me.id, c.id)) order by c.price nulls last, c.name)
-      from public.cosmetics c, me where c.price is not null or exists (select 1 from offers o where c.id = any(o.items))), '[]'::json),
+        'price', case when private.on_sale(c.id, me.day) then c.price end, 'owned', private.has_cosmetic(me.id, c.id)) order by c.price nulls last, c.name)
+      from public.cosmetics c, me where (c.price is not null and private.on_sale(c.id, me.day)) or exists (select 1 from offers o where c.id = any(o.items))), '[]'::json),
+    'themes', coalesce((select json_agg(json_build_object('id', t.id, 'name', t.name, 'until', private.theme_until(t, me.day), 'items', t.items) order by t.sort)
+      from public.themes t, me where cardinality(t.items) > 0 and private.theme_season(t, me.day) is not null), '[]'::json),
     'offers', coalesce((select json_agg(json_build_object('id', o.id, 'name', o.name, 'items', o.items, 'price', o.price,
         'full', (select coalesce(sum(c.price), 0) from public.cosmetics c where c.id = any(o.items)),
         'mine', private.offer_price(o.id, me.id), 'ends_at', o.ends_at) order by o.ends_at nulls last, o.id)
@@ -1592,7 +1681,8 @@ begin
   if v_me is null then raise exception 'not_logged_in'; end if;
   if private.is_banned(v_me) then raise exception 'banned'; end if;
   select * into c from public.cosmetics where id = p_cosmetic;
-  if not found or c.price is null then raise exception 'not_for_sale'; end if;
+  -- kosmetyk z kolekcji świątecznej (od 0.25.0) można kupić tylko w czasie święta
+  if not found or c.price is null or not private.on_sale(c.id, private.today()) then raise exception 'not_for_sale'; end if;
   if v_to <> v_me then
     if not private.are_friends(v_me, v_to) or private.is_blocked(v_me, v_to) then raise exception 'gift_not_friend'; end if;
     if v_msg is not null and length(v_msg) > 200 then raise exception 'gift_message_long'; end if;
@@ -1658,6 +1748,7 @@ declare
   v_day date := private.today();
   v_streak integer;
   v_amount integer;
+  v_bonus integer;
   v integer;
 begin
   if v_me is null then raise exception 'not_logged_in'; end if;
@@ -1671,10 +1762,12 @@ begin
   if v_streak is null then
     return json_build_object('claimed', false, 'streak', (select streak from private.daily where user_id = v_me));
   end if;
-  v_amount := 10 + case when v_streak % 7 = 0 then 50 else 0 end;
+  -- w czasie święta dodatek z panelu admina (od 0.25.0; najwyższy z trwających)
+  v_bonus := coalesce((select max(t.daily_bonus) from public.themes t where private.theme_season(t, v_day) is not null), 0);
+  v_amount := 10 + case when v_streak % 7 = 0 then 50 else 0 end + v_bonus;
   update public.profiles set coins = coins + v_amount where id = v_me returning coins into v;
   insert into private.coin_log (user_id, delta, balance, kind, item) values (v_me, v_amount, v, 'daily', v_streak::text);
-  return json_build_object('claimed', true, 'amount', v_amount, 'streak', v_streak, 'coins', v);
+  return json_build_object('claimed', true, 'amount', v_amount, 'streak', v_streak, 'coins', v, 'bonus', v_bonus);
 end $$;
 
 -- Cena kosmetyku w sklepie (null zdejmuje go ze sprzedaży)
@@ -1737,6 +1830,243 @@ begin
   return query select l.id, l.delta, l.balance, l.kind, l.item, l.reason, f.nick, l.created_at
     from private.coin_log l left join public.profiles f on f.id = l.to_user
     where l.user_id = p_user order by l.id desc limit 100;
+end $$;
+
+-- ===== Kosmetyki na święta, nagrody świąteczne i kalendarz adwentowy (od 0.25.0) =====
+-- 43 kosmetyki do motywów (ceny to propozycje, zmienia je admin). Nowy rodzaj: maska (osobne miejsce, razem z czapką).
+-- Czapka z teksturą szeroką na 128 px (klatka 128×64) ma drugą kostkę nad głową: dolna od (0,0), górna od (64,0).
+-- Kosmetyki adwent_* są tylko w kalendarzu adwentowym (bez ceny).
+insert into public.cosmetics (id, name, type, price, texture) values
+-- [kosmetyki-swieta]
+  ('niepodleglosc_cape_flaga', 'Biało-czerwona', 'cape', 800, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAEACAYAAAADRnAGAAACc0lEQVR42u3dQUrzQBjH4ZxBvIzgjTyFJ/EcXsALuHXn0uV3gEoKgVCSyaD5wHn/zwOB0mzaN0Wk8+tkmqZperl7uJx5TCOZX/Dn17/LYn48H69v79djfa7kILYGsH7zEQPoufrzYwNIGMDex7/8AI6ufsQAWld/fj5qAGvlB/Bx/3g9lhc+P748PV+P23NlB7B+87cDKP0f4dYAzrj6Qw2g5+r/ZBAGMOIA9j7+5QdwdPUjBtC6+vPzpb8XAAAAgDDxfcDeUtjtQknpPqCnEYgJJBQiaYWIREYhohAJL0Q2lsHPWCIfdgBnNQLDDEAhohAJL0QkMgqR4EIEAAAAQukDdhZDlueXc2W/EWr9XHZ9rvwAFCIKEYWIAShEIguRxq9Ff7NIOvwAlucjBvA/GoHhBqAQUYgoRE7546cQ0QcAAADAEN8J6AM6lshLL4+3dpSOHMDWMplCRCGiEKnfB7S22leIVF4Y6WkEIvqA1iqRQsQAFCIKEYVI9T7grC109AEAAADw978TiO4Deu46XfrGy0c7SpcfgELEABQiCpHoQqRnC53yfUBPIxATSOwtkylEFCIGoBBRiChE9AEAAABQQXwf0HPX6fJ9QE8jEBNIKETSChGJjEJEIZJdiBztKF2+D+htBBQiChGFiAEoRBQi+gAAAACoQB9wsKN0/Rsvd9x1OmIAChGFiELEABQiiYVI7xJ53ABuz5UPJI4WSRUiChGFSFYgIZFJKEQAAAAglD6g46bL5ZfHWztKRw5ga5lMIaIQUYjU7wNaW+0rRBJuvHzWXaeH7QNaq0QKEQNQiChEFCLV+4C9LXT0AQAAAFDGN0ABn+f3gGG9AAAAAElFTkSuQmCC'),
+  ('niepodleglosc_hat_kotylion', 'Kotylion', 'hat', 300, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAQklEQVR42u3UwQkAIAgFUIdonPafol2KDoWHFgjfA/HsV4wAAPjcTEoOP1q/VS6EE0DuLsAPKGZvPncBAAAAAPC2AM8vTdF0JqcVAAAAAElFTkSuQmCC'),
+  ('niepodleglosc_aura_iskry_magic', 'Biało-czerwone iskry', 'aura', 900, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAO0lEQVR42u3SMQ0AIBADQEQgB/8q8FLCABsGnruk2y9tvjW4kuTr8sfrZvaRnW8/oPwAAAAAAAAAUNcCpMMcmbac23sAAAAASUVORK5CYII='),
+  ('zima_cape_sweter', 'Świąteczny sweter', 'cape', 800, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAeklEQVR42u3XwQmAMBBE0alBvFuHYo+WYGP2ouxBkBx0A16S+Q+WXN1h0ChJ2of5/HPUktrljnFNTTNBxINO25KabgMIseDXSQN6DaBmKYsAgmUA9+LladWAJ6sGvKEBvAP4CngFYHcPsL8JZv4DAg3oMQAAAAAAAPxcr+xgRad0Rt8AAAAASUVORK5CYII='),
+  ('zima_cape_zorza', 'Zorza polarna', 'cape', 1200, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAIACAYAAAAyrmqbAAAFYklEQVR42u3dMY5URxSF4Y4cmMRCbIDUEpLXYQl5Dd6JN+WYxEsgs+TEoUPHNlYNFHOpqXpN4GTu+X6p1CMgoG4/QavPX6dut9vt9uKb7z78n+v2nBh/4W9f/nC5BuP1a/7sXM9mEHNT737/d7uR337954tNtR3AbuODH//45fMQ2g6gvstzjY2P9eb9u89DaDuA+i6P17HGxscavzaH0HYA9V2e7/yr128f1vi9+dp2AHOD85Gvaw5irNYDqO/2abV/AsbrIHIAr37+/vIJGJ8T2g/g+Ph/+r2+AxgbnMsANpv/tNoO4M+//v7w05uXDxseP481f44ZwNUawxmvbQfwtbQcAAAAAAAAofAD+AGPmzy5AbF+QKQgMVPimhq3FySqHzA3X92A9oJE9QOqE1Cj89aCRPUDajIUI0jwA/gB135A22SIH8AP4AfwA/gB/AAAAAAAAOLgB/AD+AFPNj7WOCwZ5wfUE+RRfsDqBsT5AasbEOcH7NyAuAKFKzcgpkAh2g+4evf5AfwAfgA/gB/AD+AHAAAAAADQBX7AnS83ZvV+lB+wa5yPOz6/DiXKD1jdgDg/YHUDIv2A6gZE+gHVDYjxA05DiPEDxv/5J0uEH8AP4AfwA/gB/AB+AD8AAAAAAIAG8AP0BzxKECc3IC4en/cLRA1gdQNi/ICTGxBVoHB1fD6iQOEUj8cUKFxtPuaChdP9AvyA128fPifwA/gB/AB+AD+AH8APAAAAAACgA/wAfsCX/QH8AH7A0+6A9vH4VXfAHE7rePyqO2AOp3U8fnV8fg4n4vj8LhvMiMcPfkBOgcJFPD4vXuAH8AP4AfwAfgA/gB8AAAAAAEAH+AH8gMdNntyAqHh8psW1VCHq+PyuOyDm+PypOyDy+HyUH3Cq2I/yA67SYX4AP4AfwA/gB/AD+AH8AH4AAAAAAAA94Afc+XJjpsT8gCQ/YC1ViPMDdk9ClB+wugFxfsDqBkT4AbtK/TmcWD8gJx4vNfq7IfR/Au7cL8AP4AfwA/gB/AB+AD8AAAAAAIAu8AP0B3yUIK7cgJh4fCbBUX7Arjtg3VBEPF67A+qTEHN8vq7aIhF1fH4+AbVFIur4/MkPiHkC1v6AnAKFO37A+JzAD+AH8AP4AfwAfgA/AAAAAACADvAD+AEfNxnrB9Tb5+sQqh8Qc/v8rjsg5vb5U3dAXLv82h3QPhxd7xNYuwOi4vHdRQvR9wvUpT+AH8AP4AfwA/gB/AB+AAAAAAAADeAH8AOeHpWP8wN2sfi8WSLm+PzpXoEIP2B1A2L9gNoiEekH1A6BWD9gd7dAlB8wnwB+AD9APG4A/AB+AD+AHwAAAAAAQEP4AXe+3JgpMT8gzQ+YQ4m5ff6qOyDOD1jdgDg/YHUD4vyAdfNxfkBePF5q9Hebj/MD1iHwA/gB/AB+AD+AH8APAAAAAACgC/yA9P6AkQPWo/K71T4e3x2br35A+3j8XndA63D05AbUzbf+N2Ct1K9WSMzx+d29ApHH509uQNz9AtH9AbvNj88J/AB+AD+AH8AP4AfwAwAAAAAA6AA/wP0C1/0BMzBtLUic/IDaLdBakLjqDpiBaet4/Ko7YPoD7cPRq+6A9v0BOz9gjczj/IDY+wXi/QD3C4jHDYAfwA/gB/ADAAAAAADoDD+AH8APON4sEeMH3OsOiCpQ2HUHRByfP3UHxNwvcNUd0D4d3jkB/AB+AD9APG4A/AB+AD+AHwAAAAAAQD/4AXe+3JjV+5F+QE2N4/yAwQxM4/yA1Q2I8wNWNyDOD4gKR0/dAVHx+LrpvHi81OifUmJ+AD+AH8AP4AfwA/gB/AAAAAAAAJ43/wFofZ2yQJWs8gAAAABJRU5ErkJggg=='),
+  ('zima_cape_sniezynki', 'Śnieżynki', 'cape', 900, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAIACAYAAAAyrmqbAAAD5ElEQVR42u3dMW4UQRCG0YkIIEGIGIkbEHMHLsalOAihQ0JyjAqppaaZmd6AxPW/J43ACwFbGiNwfe45juM43rx6+/w/r+MlqT/wt++/nkv9+Prdp8urfu/dr6+/98UMoP7Ad29+/FrrAdy9+XF3RA4g/g6I+TtgvUrMAN5//PLnKuPnZ1f7AewuAzCAgAHc/T3QdgAfPn996IocQIkYwNOPn3+98fq4/gU4f9x2APXm1mv+P8B4re0ArowhDC0HAAAAAKHi+4Cr9fj6WtuvCAkkBBICCYFEdCBxtgc82xEKJKzHDcAA2q/H53W4PiBpAGd9wHxHxPUBoxGYP47qA+b/A+gDAAAAoB99wGYpGrseF0gIJKzHBRIRd4DlqEBCIOFTQB/g/IDwQOKqD4g9P2BcJfb8gJU+AAAAAPrQB2xWYpFniwskBBICCYFETCCx2wnWm7ccFUgIJHwK6AMMIKAPmM8L0Acslz5AHwAAAABt6ANuvrAxP4I7bjcokBBICCQEEvHnBwgkBBICCYGEPkAf4PyAnD5gPi9AH6APAAAAgLb0AemP3hZICCQEEgKJ6EBiXoFbjwsk3AECibhA4pGj9fUB+gDnB+gD9AEAAADQhz7gYh2uDzAAgYRAQiCRFkjELkcFEgIJgYTnC8zXWSsgkNAH6AP0AfoAAAAA6EEfYD0ukHAHCCQEEsGBxNV6fH1NICGQEEgIJHz7vECicR8wv2l9gD5AHwAAAACd6QNshw1AIOEOEEgEBxK7pWjselwgIZAQSGQEErsuoN685wuknR+wBhIRfUDRB+gDAAAAIII+wHLUAAxAIOEOCA4kdkvRyIevCyQEEgIJ5weMNkAgkRBIeL7Acp21AvoAfQAAAAC0oQ94YDFqOWoABiCQcAckfu9wiewDBBICCYFETiAxr8CdH5AaSNz1AfXmPV9AH6APAAAAgE70AZtvmY3ZDQokrMcNwAAiA4nds8dj+wCBhEBCIJEXSMQerx8fSFz1ARGBxK4LaB9I6AMAAAAgjz7AblAgIZDwKWAAzg/4Zx2uDzAAgYRAIiKQuFqPr68JJJLuAOcHTG1A+0BiZwxBHwAAAAB96AM2X9yoL4jYDQokBBI+BQzAelwg4Q4QSAgkQo7XP1uZCySSAomz8wRa9wEjgnB+wEUb0DaQAAAAgFD6gE0b0P47RgQStsMCCYGEPsB22AAEEu6A1EBid6x+RB8gkDg5P2DtBSICibuzBFr3AWMIni8AAAAAGfQB0wrcelwg4Q6wHhdI6AMsRw1AIOEOCBrA3ZH6JbIPiAsk1vMC1kAi8vyA9bWIQEIfAAAAAO39Bv26Pu4v8lPzAAAAAElFTkSuQmCC'),
+  ('zima_hat_mikolaj', 'Czapka Mikołaja', 'hat', 600, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAA00lEQVR42u3XQQrCMBAF0JxBvIzgXb2YO5cue4BKQV0EktSW2jR5DwKFUUic75CGUHA/X8fcCrRNAARAAARAAARAAARAAARAAARAALpq8NbrqL/b+PZr7XABuJ0ui2otB2Dad6rJqVq1Zy01aPJ4Dt9Dxc8tBWDOnnKfWVrbfZTlGrz2+6UJUlsAcnsq7ftz1lytu3vT2oDtNQn/XaeC5sfTKtW8+J+euhfFk0UIvAUJQW1Kd5St6zoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD9eQFaCQF1Wu4XtAAAAABJRU5ErkJggg=='),
+  ('zima_hat_renifer', 'Rogi renifera', 'hat', 600, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAAy0lEQVR42u3XwQ2CMBQGYGYgLuAADmDiBF4cxBW8OImLuUsJBxNCCjzgQG2+L2lI2v4c6KOFpgGAvMelTa/7Odv6MU9IAQAAFZz3e871vfkj9d80w+u4fy4zd481eQVwcAH8Wm4xc4uauw7vEc0rgAKLYLyoU3Oncrl5kX7+5BiIbP9r8hS0Ayz1r32ro/nipec7fU+3VPsOsDS25cMumi/ap72mvtX8FxQZi87bkkcBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlesAQHXIaG06738AAAAASUVORK5CYII='),
+  ('zima_hat_elf', 'Czapka elfa', 'hat', 500, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAAvElEQVR42u3XwQnCMBSA4QxRz94dQVzGiVzMEZzES6QHL4U2Qogvbb4PguCjYM2fiikVnB/XvLUSxyYAAQhAAAIQgAAEIAABCEAAAhhqg1uvPX1X7+cpz2u4AKb75af39h7A956i5mEBbG3wa7rl2dprbSA9HoaoeYjSBtdeXwqkt81f+1yt54dVG1jUT+G/53R0+peb1HpOZ6d/+ZhuPcffYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYCAfnVCFS2kT3YwAAAAASUVORK5CYII='),
+  ('zima_hat_balwan', 'Bałwan', 'hat', 500, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAAwElEQVR42u3XIQ7CMBSA4SoMCMSCQnIMDGfidFgEF8ByEdQjcwtpOkVbtu9LXiApgmw/Iy+lGTHj9ngWJ/HfBJDScThFbgQgAAEIQAACEIAABCAAAVgDF3iDf80dEEBz280+clPrXAAC6D+A8Qvn3gtgZU+A9/UQ98tOAP4CBLCIAMZVrbTiTR/536/Tz5RWxNJ5D9fgNZwjN7XOmwfQcnr99dcaeygAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKzPB/6Rszh/ZcLgAAAAAElFTkSuQmCC'),
+  ('zima_wings_lod', 'Lodowe skrzydła', 'wings', 1500, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAAGACAYAAABlSWp/AAAQ3klEQVR42u2dXY7mSBFFZwUsgjWyEDbBOlgEj+yBF14RgwaNpVBw4y/tdmbjc6RWF3jcVZ/jVkRmZDrvL78A3OVXwc/4PWAxGH/557/+58/dYL3xPWAxICoYv/3569///d8/f/zbP8Jgdb+Pv/+3f/P696Pvjxh+YOB9MGyQbeCjazZI2feK7rP/dnRtRXBQBN8GJAru5FoUGCs0H2gV7OpaR3Agaq0Pvgqu+q2vrtkARwLw/130Gz+55r8f4wZHVEd92p2ke3vtwo8PlNhsQC86qb+65j+X/fN5AfgAVnW+SvdXsH3gVUZQAvDp3f47/t+blIXoM5IBFlO6umYDVd2nBJCld/tv3y0L9trnBTBN6VHg1Qg+ui8SQDe92/KwWhaua58XwB/+9Odf7Z9puleBr+7LBDBJ76rMVPf5z4sA3AO5/mTpXg2oqjJx/cZWswBbSrrp3QtB3Rd9TgQQPBj7INXIfHVW0BHA6qg/EsJvXyOAgQDUaD4K/LRB1O0E3mkGWexnQQDDDGDn4auzgmnjRd1zZ9SfBR8BCAFc2LFAN7jZCt6dxaAOUVmIPhcCcAKwD2gS3KoUrPbjs6lhNiPIUEJgLSB4ULYUrDSInliMiZaeJw0fld1YCygE4EvApEH09HJstj+gM1vIgo8Afi8B6jdfpfws3f/oDRnR2CIqC1lWs/8fAvj9gdi/fWfQP9Ddmy8iISiRqEGu/RsBiAdzfV0t8e5Oo2omoMqCGuQyCAwEYP931ejZvePGl6aoLKjPhgAKAfj+fbXbZ1fwqxmBagQhgKARdD0sn+47I/+3xwCdGYEqC17onxeAX+xR6d4LY3cp6KR+v6LoW8PXtc8LwLd3s75+9g7ADgFky8Pda58XgFqqzZZxJ0u8b9V/P+CbXEMAw3Sf9QJ2jgGivQBVWWAM4NJ6le7tb/zdBZ8nxgD2Z6l2DfmXRhgDiBZrd+Tf2eb1RgmIBnvRjIB3CBsPttME8vsCdgm3u2soeysJRG3tNoF2N4K6zSDeFVwsCVXgT1gLqIRAyn9ICKe+el39nAT+QTGc/DDZ7AEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADQ4I1TuDnp++CAV1buq4YRP/p7wGJAVDDU2YFPWcZkZwJyHsBLgVdHs06s46auYSuOoCcfYvHTBt8fIXfXOi4KTGYbPzWK7goOklM17FFxd6zjlH17ZhyZCWHFN0jZ1FIqDFEd9Wl31SnUn+BZ2cerE0lXnUQjAXJQpEHZvGV1vmMorQKfeQxkqd8KYWoUHX0OjooVGWDVHi4yk6zuUwLI0vtTTqL+2ucFsGL+HAW+e19mH99J75Vb6KRkfF4AyiVsku4nLqKRwYSypZu4hU7uwzq2EIA3jFTpXg2oumWiYx8/Te/RUfH2PsyjhwKwnoGZV8BKCakEsDrqj4SQfUYEEDyY60FGhpErTaBJJ/BOM8iijKIQQFMAykRqdVYwXQt4atQf2cYjgEAAyjy6G1z/m/fUYpDPRF2RKPNoBBAIwFurVmTp3vvzrC4HRz5G2YwgQwmBtYDEOv5yEF1tEN1djFH9gWnDJ3NEZy0gEIAvAZMG0dPLsdn+gM5sIQs+AjD28cpgOWrtZu3dN7aEZb/xqnUcfTZKgBGAMpC2vYBoOrhj80UkBCUSNci1fyMA8WCur6sl3lM8g6qlYzXIZRAYCMA3gk4yjc4GiZVlHPbxQwF4Y8hqt8+u4Hcs49RsAAGIRpCfb3ddRE/wDs7cQn1/gkaQwS/2RBaxJ5WCTuqPLGX9YtHnBeDbu1lff7rE+0b6r4yiq2ufF4Baqs2WcSdLvG/Vf+UR3L2GAIbpPusF7BwDRHsBqrLAGMCl9Srd29/4p3r+d8YA9mepdg35l0YYA4gWa3fk76eJu0pANNiLZgS8Q9h4sJ0mkN8XsEu43V1D2VtJIGprtwm0uxHUbQbxruBiSagCf8JaQCUEUv5DQjj11evq5yTwD4rh5IfJZg8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACABm+cws1J3wcHvLJyXzWM+NHfAxYDooKhzg58yjImOxOQ8wBeCrw6mnViHTd1DVtxBD35EIufNvj+CLm71nFRYDLb+KlRdFdwkJyqYY+Ku2Mdp+zbM+PITAgrvkHKppZSYYjqqE+7q06h/gTPyj5enUi66iQaCZCDIg3K2Tur8910r4ydo7OFs9TvhbBaFqLPSAZYTOmVmWR1nxJAlt6fchL11z4vgBXz5yjw3fsy+/hOeq/cQicl4/MCUC5h3XTfcRFV1zIBTNK7KjPVfVjHFgLwhpEq3Uf+vp0y0bGPn6b36Kh4ex/m0UMBWM/AzCtgpYRUAlgd9UdCyD4jAkgejnftvtsEmnQC74z6vYs5AlgQgJ9+3Z0VTNcCnhr1R7bxCCAQgDKP7gY3W8G7sxjUISoL0edCAE4A3lq1G9ys0XPHTsbODDprBB2UEFgLSKzjr3HASoPoicWYaOl50vDJHNFZCwgE4EvApEH09HJstj+gM1vIgo8AjH28MliOWrtZe/eNLWHZb7xqHUefjRJgBKAMpG0vIJoO7th8EQlBiUQNcu3fCEA8mOvraon3FM+gaulYDXIZBAYC8E7iJ5lGZzOFyjIO+/ihALwxZLXbZ1fwO5ZxajaAAEQjyPsGd11ET/AOztxCvX8wjSCDX+yJLGJPKgWd1B9ZyvrFos8LwLd3s77+dIn3jfRfGUVX1z4vALVUmy3jTpZ436r/yiO4ew0BDNO9X3zZPQbwi1PTssAYwKX1Kt1fovAPdNcYwP4M1a4hL1rGAKLF2h35nzoGqGYEvEPYeLCdJpBPvbuE2901lL2VBKK2dptAuxtB3WYQ7wouloQq8CesBVRCIOU/JIRTX72ufk4C/6AYTn6YbPYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaPDGKdyc9H1wwCsr91XDiB/9PWAxICoY6tygpyxjsjMBOQ/gpcCro1kn1nFT17AVR9CTD7H4aYPvj5C7ax0XBSazjZ8aRe86v/D/op774N81lFb27ZlxZCaEFd8gZVNLqTBEddSn3VWnUH+CZ2UfH9nG3zGK9p+LgyINytk7q/PddK+MnaOzhbPU74WwWhaiz0gGWEzplZlkdZ8SQJben3IS9dc+L4AV8+co8N37Mvv4Tnqv3EInJePzAlAuYd1033UR9dcyAUzSuyoz1X1YxxYC8IaRKt2rAVW3THTs46fpPToq3t6HefRQANYzUA3IVmcFHQGsjvojIWAfvygAG/Qo8NMGUbcTeGfUb/GOYQigKQA//bo7K5iuBTw16o9s4xFAIABlHt0NbraCd2cxqENUFqLPhQCcALy1aje4VSlY7cdnU8NsRpChhMBaQGIdf40DVhpETyzGREvPk4ZP5ojOWkAgAF8CJg2ip5djs/0BndlCFnwEYOzjlcFy1NrN2rtvbAnLfuNV6zj6bJQAIwBlIG17AdF0cMfmi0gISiRqkGv/RgDiwVxfV0u8p3gGVUvHapDLIDAQgHcSP8k0OpspVJZx2McPBWDdxO3Drdb23w5+NBC0/Qo1G0AAohHkfYO952428t/lHZwZRUefhUaQwS/2rOwE2ukdPN0Z5BeLPi8A397N+vrTJd430n9lFF1d+7wA1FJttow7WeJ9q/4rj+DuNQTgUrqvnZ09ASeMAaK9AGosw6ZQNwZQI+fuPv/dY4DuewRqRsMYQLRYrQCq3T42E+wqAeq3OtpV7MXLWkDwYDtNIL8vYJdwu7uGsreSQNRWVedXtnm98bNWy8P+cxHpQUmoAn/CWkAlBFL+Q0I49dXr6uck8A+K4eSHyWYPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAZvnMLNSd8HB7yycl81jPjR3wMWA6KCoc4OfMoyJjsTkPMAXgq8Opp1Yh03dQ1bcQQ9+RCLnzb4/gg5dXD0xDouCkx23Fv3OFj1MyKCYa31wbcB9AdHT7yEbIAz48juuX+R07j/eZVNLaXCENVRn3ZXnUL9CZ6VfXxkG3/HKNp/Lg6KNCibt6zOd9O9MnaOzhbOUr8XwoqTaPYZyQBDN9CuU2h1nxJAdtzbU06i/trnBbBi/hwFvntfZh/fSe+VW+ikZHxeAMolrJvupy6ikcGEsqWbuIVO7sM6thCAN4xU6V4NqLplomMfP03v0VHx9j7Mo4cCsJ6BmVfASgmpBLA66o+EgH38ogBs0KPAT5pAk07gnVG/xTuGIYCmAPz06+6sYLoW8NSoP7KNRwCBAJR5dDe42QrencWgDlFZiD4XAnAC8Naq3eBWpWC1H59NDbMZQYYSAmsBiXX8NQ5YaRA9sRgTLT1PGj6ZIzprAYEAfAmYNIieXo7N9gd0ZgtZ8BGAsY9XBstRazdr776xJaxaFVQlIRrnIABnHR/1AqLp4I7NF5EQlEjUINf+jQDEg7m+rpZ4T/EMqpaO1SCXQWAgAO8kfpJpdDZTqCzjsI8fCsAbQ1a7fXYFv2MZp2YDCEA0gvyWqmhHT7W+/1bwsxlBVBa80D8vAL/YE1nEnlQKOqk/spT1i0WfF4Bv72Z9/ekS7xvpvzKKrq59XgBqqTZbxp0s8b5V/5VHcPcaAhim+6wXsHMMEO0FqMoCYwCX1qt0b3/j7y74PDEGsD9LtWvIvzTCGEC0WK0Aqt0+NhPsKgHRYE/tKvbvCLAWEDzYThPI7wvYJdzurqHsrSQQtbXbBNrdCOo2g3hXcLEkVIE/YS2gEgIp/yEhnPrqdfVzEvgHxXDyw2SzBwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAECDN07h5qTvgwNeWbmvGkb86O8BiwFRwVBnBz5lGZOdCch5AC8FXh3NOrGOm7qGrTiCnnyIxU8bfH+E3F3ruCgwmW381Ci6KzhITtWwR8VF5wNOvIRsgDPjyEwIHYNpJQT/uSgVhqiO+rS76hSqThvP7OOr075XjKL95+KgSIOyecvqfDfdK2Pn6GzhLPV7IayWhegzkgGGbqBdp9DqPiWAKr0/4STqr31eACvmz1Hgu/dl9vGd9F65hU5KxucFoFzCuul+6iIaGUwoW7qJW+jkPqxjCwF4w0iV7tWAqioT9lDnbBagjnXvnASujoq392EePRSA9QzMvAK6ZaJyF/EzgZX0HgkB+/hFAdigR4GfNoi6ncA7o36LdwxDAE0B+OnX3VnBdC3gqVF/ZBuPAAIBKPPobnCzFbw7i0EdorIQfS4E4ATgrVW7wa1KwWo/PpsaZjOCDCUE1gIS6/hrHLDSIHpiMSZaep40fDJHdNYCAgH4EjBpED29HJvtD+g0fLLgIwBjH68MlqPWbtbefWNLWPYbr1rH0WejBBgBKANp2wuIpoM7Nl9EQlAiUYNc+zcCEA/m+rpa4j3FM6haOlaDXAaBgQC8k/hJptHZTKGyjMM+figAbwxZ7fbZFfyOZZyaDSAA0QjyvsFdF9ETvIMzt1DvH0wjyOAXeyKL2JNKQSf1R5ayfrHo8wLw7d2sr5+9A7DLO7gyiq6ufV4AavNklO6ra7vqv/II7l5DAMN0n/UCdo4Bor0AVVlgDODSepXu1fsBO8cA0fsAWepnW3jSYu2O/P00cVcJiAZ70YyAdwgbD7bTBPL7AnYJt7trKHsrCURt7TaBdjeCus0g3hVcLAlV4E9YC6iEQMp/SAinvnpd/ZwE/kExnPww2ewBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4D8NTxudG8BxoAAAAABJRU5ErkJggg=='),
+  ('zima_aura_snieg_snow', 'Płatki śniegu', 'aura', 1000, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAQ0lEQVR42u3UsRHAMAgEQfpvyoWoF79TBZILgN2EmBuGKqqS5DTHRXjWm7/l24bZl79FaB9o/AWM/wEAAAAAAAA09wG5rlmsWf0JKgAAAABJRU5ErkJggg=='),
+  ('zima_aura_prezenty_ghosts', 'Prezenty', 'aura', 1000, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAU0lEQVR42u3TwQmAMAwF0M4gOozgri7UEZykl0rAXqoTmPcgkOaWT1PKo9Wtf/WpxOIpl7/Wo0eNAMY7TQDnsr8CiFm6rz+XE3ACAAAAAAAA/MYNp95U/Uua0HoAAAAASUVORK5CYII='),
+  ('adwent_hat_pompon', 'Czapka z pomponem MiB', 'hat', null, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAAqUlEQVR42u3WMQqEMBAF0BzHC3mMvZcXsrC2Wra0sIzYqbhaSELU9yBgGGzyxzEhnPhUXTxagWebQ27qcRX6cu+EXtAAJoAGiP8mgRMyAXAHwATAHYAHfuGplwQK+8fvPaesS6DwCfBt4+EyAW7uLOCr75sAGuxSg0EWcSN3nQLC73/Dbkip6xTSBMuActcBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAID3mACf8eUJC4gkwgAAAABJRU5ErkJggg=='),
+  ('adwent_mask_broda', 'Broda Mikołaja', 'mask', null, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAATElEQVR42u3WsQkAIAwEQPffyAVcwIEU7IOIleYOUlgmBD+lAFwagdTNpxoCABmiLnp/ne27Q+fLzI8arq2vSnH0nG6AjwIAAAB4xQRvc9XTLxu+lAAAAABJRU5ErkJggg=='),
+  ('adwent_aura_gwiazdki_snow', 'Złote gwiazdki', 'aura', null, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAV0lEQVR42u3UwQmAMAwF0C7h0q7hOs7hAt4EifRQ9CC5G9+DQMntJ6GtcTvWKQwgcW5zlA3eK/YlxvstfO9nQ/j0BY3gWYiyF/Dc3u//AQAAAAAAAIq6ABeiNleuBGe1AAAAAElFTkSuQmCC'),
+  ('adwent_cape_gwiazda', 'Gwiazda betlejemska', 'cape', null, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAEACAYAAAADRnAGAAACQ0lEQVR42u3dMUoEQRAF0I4MNBFZMxPBA3gRL+Y1vI7n8AJmgqy0UEsz2z0YmGzVezDoqsFOOatC/fm21lq7ubo9/ufRLkl/wt313fPp2D6Oo3/t7OOrr72YAfQn/PV+fzq2J3P8fKsxgH6iswGUvwLSD8DPgMkJbK+E74/XWgOIky5xBRweX5ZHH0K8n/oKWA0gfg2mHsDedz2OPoSSL4Hx8+kHsB3G+Pd9+gHMTnZ2pBzAw+Hp9wnH63z7ON6mHsBfDgPIOAAAAAAoqnw+YLUTjLV4md3g3mY4/XZ4zAeU3Q6XvQK2PwNWgyidDyg3APmASvmA2Tp8XIuXywfMAhPyAfIB8gHyAdbjBiAfAAAAAFnoD3Dv8P7d47Ei0x+gP0B/QN18QOrdoHyA/gD9AWdZAPkA+QD5APkA+QD5APkAAAAAyEp/wGInWGYzpD9Af4D+AP0B+gPkAwrnA2br8HEA+gPkA+QD5APkA+QD5APkAwAAACAR/QHuHd6/ezz+0YL+AP0B+gPq5gP6klQ+QD5Af0CNK2D2DxfkA+QD5APkA6zHDUA+AAAAALLQH7DYCcZa3N3j+gNcAfoD9AfoD5APyDuA2Tp8XIvrD5APkA+QD5APkA+QD5APAAAAgET0B7h3eP/u8ViR6Q/QH6A/oG4+IPVuUD5Af4D+gLMsgHyAfIB8gHyAfIB8gHwAAAAAZKU/YLETLLMZ0h+gP0B/gP4A/QHyAYXzAbN1+DgA/QHyAfIB8gHyAfIB8gHyAQAAAJDDD8V1/c2P7ww0AAAAAElFTkSuQmCC'),
+  ('adwent_wings_aniol', 'Skrzydła anioła', 'wings', null, 'data:image/png;base64,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'),
+  ('sylwester_aura_fajerwerki_burst', 'Fajerwerki', 'aura', 1200, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAWUlEQVR42u3SsRFAUBQEQEXQgDp0pAqpPnQjk4qFEplhnpHI/Pyzm150N1cU8Ii2i1R+Ln0yH7Yjsi4/l028jXCX38cq3ka4y9fTGtmP8NsHAAAAAAAAwLddgVUvjBjf2XYAAAAASUVORK5CYII='),
+  ('sylwester_hat_cylinder', 'Sylwestrowy cylinder', 'hat', 600, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAAqUlEQVR42u3XoQ7CMBCA4VMYDAIckjff6/A2OMwRxBJEBySE5tJ+X3KZqNr2p+siPtjvDvlugrEJIOJ8vGRrBCAAAQhAAAIQgAAEIAABMOAL/vdUfga91ksHsLX9rTNKAK176bVe8vv27Xfu10DsAJMeoCodpATgHCSAmd2vp8zbks/r6/Rap0AArem1jt9gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABgIg/jIyG/GBhkwgAAAABJRU5ErkJggg=='),
+  ('sylwester_cape_konfetti', 'Złote konfetti', 'cape', 900, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAHACAYAAAASrm6yAAADM0lEQVR42u3cMUorURQG4KlsbCy0s5KsJr2rsHMFZiuK4Arcg2Bn7xJsIgREGLkDI5M4k9yAzZzzfXB5z/AKnXedCff8+ZumaZqv14v2P1czJ+UbPj05a9ubVffncJXXhq/3/7ZmzeZClG/08nwxuR7X379/D3sBjvmhUuyA/nd57PXwO+DpetOt1DtgaqW9Byzf73LsgM/b527ZAdmfAmOrXT/k2gH9o9AOyHAPuHr7yH0PeLlfVq2wF+CY5QJEuwAAAACQVPp8QDkTrDkXDH0q3IchtmYBO1+nnAyVgERZ5gKZdsC+aVH4HVDCEabDpsPbqwQkygq/A0o4wg7wFBhfoQMSU//bdoB8gHyAfIB8AAAAAMSkPyD7mWAJR6SfC2iQ0CBhOqxBQoOE6bAGCQ0SngIaJBI2SMgHyAfIBwAAAEA28gGVJ8AmQ5EDEhokNEhokDAd1iChQcJ0WIOEHeApkLBBQj5APkA+AAAAALKRD9Aqu6j6/LDJkAYJDRIaJNwDNEhokDAd1iChQcJTQD7AeNwFkA8AAACAOZMPMBnSKqtBQoOEBgkNEhokTIc1SGiQ8E5Qg4R8gHyAfIB8AAAAAMQnHzA4E9x3LmgypFVWg4TJkAYJDRIaJNwDNEhokPBOUIOEfIDxuAsgHwAAAAAzJh9QcSYY+kNTw1ZZp8ImQxokNEhokNAgoUFCg4QGCQ0S3gnqD5APkA+QDwAAAICo5ANMhw+3yqY4FdYgYTKkQUKDhAYJDRIaJDRIaJDQILGRD5APkA+QDwAAAIDI5AN2zgRNh02HNUjYAe4BGiQ0SGiQ0CChQUKDhAYJ+QD5APkA+QAAAAAISD5g5DAj7WSo/9CU6bDpsAYJO8A9QIOEBgkNEhokNEhokJAPkA+QD5APAAAAgGjkA0yH/57/p50NapAwHdYgYQe4B2iQ0CChQUKDhAaJRA0S8gHyAfIBAAAAkI18wIEzQXOBjK2yGiRMh02HNUjYAe4BGiTsAA0SGiRW+gPkA+QD5AMAAAAgGvmAkfO/sXPCtK2yfbOsuYAGCQ0SpsMaJDRIeApokNAg4SmgQUI+wHjcBZAPAAAAgJn6AVeDIQ1Xmv0/AAAAAElFTkSuQmCC'),
+  ('walentynki_wings_amor', 'Skrzydła amorka', 'wings', 1200, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAACFUlEQVR42u2b3U3DMBRGOwTjMFWHYw0WYAAG4K0PICFVilzb99fOrXqOFCFR0HX8nTqOnVwuAFF+rh+/7fGMNcAZxu3z++GIhrWjBjgDaYPoMQpLWydSAxkWBC+FIXEMaVYro4ZFOBDCjwQyC6mttaoOEhivtW342YGMQskYZUZ12/PiUtH55rVDZ1YIvUB7ofT+JrMNo7nFywugCSwreIsAu9qDAEl8vb3/d/D9p3VY1vzPsUYWCJAUfntkC2CtgQAbBLgPq2cJkHF5YBKoWHDRXE+94Xsl8M4TmAQKAsw6UvpcMyxHBJBqaNuPAIIAx07MvDfXrgRmrjnMwkeAiQAZoXs6fEcbEEApQKRj22+fZzPIU8vaVgRQdG7kW+ldj7deDrzngQCLh//IenvWZhQCbBJgxXZsxnY0AiwWYMcDGb0HUhCggABnPHxh3bFEgMA6wIoJXqYIUQkQYBC+pmOfRYDjOSGAYS+gsgTW8NkLGCAFXlECb/i93yGAImzrAx4VBNCeCwIog5Y+qySA5TMECHReRQGs7UcAx3AvPeV7hgDaTSEEmNwFWCd+VQTwtJe7gMESq7ZD2/vrswTwtpUXQyYdu2O7d+cqIK+KOQTQDqtnDaXediKA8pIw6+Aqb+BKu4O8LZw4N6jcmVI7CT5RhsqdyZu/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwAvwBy2uPl0pnQpkAAAAASUVORK5CYII='),
+  ('walentynki_aura_serca_souls', 'Serduszka', 'aura', 1000, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAYUlEQVR42u3UwQmAMBAEQIuwHDvyZwc2ZRs2YAEW4M/HiUgghKSBOAPLfY5ANpBh4HOMU+Tzd5ePeY13ppQ717JFPrsroEytgJTWOfd+RhcltHa6fP3aPwAAAAAAAAD9eQAR+znDHbz3WwAAAABJRU5ErkJggg=='),
+  ('walentynki_hat_wianek', 'Wianek z róż', 'hat', 500, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAj0lEQVR42u3VMQ6AIAxAUQ7B7s4RjJdxdvMGnsDbeBqP4V5TEhIG7UZCyn+LhC7YFhpC56ZzljsuEtckun72S+q94J31k5oI9wnQSv/FtBvcJ8Cq8vBXwOoON6w2H+IN4AqsKY+8MgLLOCx7LipszfnW8S4qXA5WH1S2I39bx7t76b/WreMAAAAAAAAAMIwXhfPS2SgGTXsAAAAASUVORK5CYII='),
+  ('wielkanoc_hat_uszy', 'Uszy zająca', 'hat', 500, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAAdUlEQVR42u3XsQnAIBBAUfffyAVsU2SJ7GCREAh2QeUakfcqFa4QfqEpQc/9+dsjAPdHAAAAbPDYm30ERudZOIB6XO38Xc8GMDLPAgHkcoYCiMwjAASAAPALQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMCmHk9NsxxAlluwAAAAAElFTkSuQmCC'),
+  ('wielkanoc_hat_pisanka', 'Pisanka', 'hat', 500, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAA3ElEQVR42u3XwQnCMBQG4C7hDK7gDI7jxatTeXMDNxCcwoN4qVQISont6ZG0+T54NPBOaf6mSdfNuG2P/VTt76fJ6lZiPO+uFQLw/x0IQAMB+J3r67r5VFMhEIDv4ufGAiAAAuAXIAAOgQLgGrjKBY6upSxwdL+Y9E8r9VzCFh/dtwNUdMofH/Ki+8UDsLs8+5LlA6ggAIO0ILlxZL/0/B+Hc1+y7AAVBGCQe6aK7BcPwNw1LrrsABXcAtJi5MbRfWcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgNW95ZBeaS/ZJhgAAAABJRU5ErkJggg=='),
+  ('wielkanoc_cape_pisanki', 'Pisanki', 'cape', 800, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAA3ElEQVR42u2XsQ3CQAxFPQQsQENLScEEYRNKGlpqBqKDCbIBiCkoEM2hf5KRdXIQSDSx/5O+clKuiH9834mIiKwPs/JPyZjAA2/Oi9Ld9q7sPewd2tdqNEbYoi7zXdWQIaENQOHPflqFtdcF4Q2w8rogtAHL06MoWHtZED4DULgtXo9EmhC05x2FXyerKjUhrAHeede3b7sgRQdoF9y3x3cmYB3eAO0CmwMoHEoxBr+ZBGmmQDsN0ozB9muwDccUIahfgqn+BWx7f7qGNeAXhTOAEEIIIYQQQgjJxwsb8NPJwkpApQAAAABJRU5ErkJggg=='),
+  ('wielkanoc_aura_platki_snow', 'Płatki kwiatów', 'aura', 900, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAQ0lEQVR42u3TsRGAIAADQGZmJXZwDdawx84iNp4lPfK/QXJJKfC56pGtw9/9zKyEJNOCMlp+vYC8fAUAAAAAAACW8wBdHx+mDHtF+gAAAABJRU5ErkJggg=='),
+  ('wielkanoc_wings_motyl', 'Skrzydła motyla', 'wings', 1200, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAACrklEQVR42u2b0U3EMAyGbwpmYAeWYQHG45kXlkDMAocqEclYtmM36bVHv0+Kinrcpbb/2kmaXi4Aozw9PF91u8c+YGUw3j6//7SF0WDp7y/ofhDETkFvQdYBsVr7v2yQZvSBGDYIvHb2mtYyQ9TX6O/r7EAEB4O/Nhhe8wLjlZMZ/RHJQq2V599fv6YH3ssC8rOZQlhs0HZRKgSLgxaWY3NWC0Y7NyPw0Z3pfT4qhHb9Uljy3HJEAL8O0Y7RbVbgrbFAVPvXCsGywbINARiO8lo26JmA9TLAyG9XbEIABWd5Ilhzl1YFkO2vag8CKDpMimCkTo8IwOt/jS2nF8DL48dVtozTRgdo3ixgdKCZuXZtLwJQDolEIB09e24+Y8TfE4JlKwIwnCJFIAdfI7OCrVcCLaHKa/bsRACOY3p3UyU1VxZerO+snfZJMSCApACkwzLjgKhlloAzS8KZvnp13xMCAjACXw3uFuvxa6eGUbOEwLMAx1G9DHCLhzEVEWRG/mwqCQRgOWjGquCs6xsRQJQJKAFBfYwE0UvDW2aqyiwgsosSIAQgj14J8MYCt76brL6jzKWDL48IQAU+MwPQy8F7lq/sMrBnJwJQDml//zcBWMFHAIYApMOyA8A9RGCNBaLge5ng9AKIAu6JYO+9d5VHwT27EEDBWdH07wgCsGYDPXsQQMFhR9l921sXQAATBdDOH2n7dfZ6MiUBASRrfuT03mPeLQQQPTZu14oAEuidslHNj0RwlAygP4tsWzi9APQLmL0dP57zjyCA3uBQv3zCs4BgibVXX/dK/14ZqGwtJ9Idp1ZFsPdCUPZ69xLr3WaB3v68ve+oTMaqvp4Oxtjg6K9ee6+wU+s3EMORncluHwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOAE/P4IyfVUMbVoAAAAASUVORK5CYII='),
+  ('primaaprilis_hat_blazen', 'Czapka błazna', 'hat', 400, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAAA5ElEQVR42u3Y0Q2CMBQF0A6h27it6ziCW/jnDyZ+1YbXlhC1wDkJMYFCAveKrSk13E+XKd+et/PHltg3BVAABVAABTisMvCyEJ6QAqAAKAD7DLg1CWwd31KB5ia1tYluz/il5yvAn1c7vfujVVA5vnfcsAWYHtf3/uhz7wVYEmp0nXL8UPfeCnjt+VsrQCvYWvj5/UVftMPNndYW7NclaL2yo+N5wLU3rcnzoGoBRz9xvQFHb0BPfbDw5wLu+Su8FrBl9IbC/8YqRwEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIDSCyW4UkjF+oYYAAAAAElFTkSuQmCC'),
+  ('primaaprilis_cape_glitch', 'Glitch', 'cape', 800, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAGACAYAAAAd9mTeAAADZ0lEQVR42u3dMY4UMRAF0I5ISIg4AAncgXOQ7wWIuRL3IVpxB9INF7U0LRlPuXsCkq3/ntRaQASM6ZrxlH/b27Zt2/t3H17/57W9Jfs/+PuX59dPv/7cXfufj9f+d79+fHroejMDMb6o359/3F3zi2o9AI+8qJYDMN/q1bXfDdF3QPwAtC6Bw89vL//c9vPv298B+wver/HX4ydBxABUP2M+BaoSGCdE3gQNQPBESAkoASXQcwAAAAAglHyAnuD5i9nXBtr3BGd6gmklMMdhtMUTS0A+oMgHRJWAfEB6CcR/ChwzPoujiROhOSgdOxGKDEuvbvk5Mi8fAAAAAH3IB+gJrjMBFke1xYPyAatucFwJxK0LWByVD5APUALyASZCJkLZJTBahSXkA+QDAAAAoA35gPSeYKVaJ4xpi88N0vYbKGiLWxmyMvTQAmnEHXCWEYgZgFVGIKYExoOW4krAp8BJWsxESAkYgL4lMMZknS8AAAAA/ckH6Aned4OjHpmJP2BBCWiLa4tfPjjdvgSu9g5oXwLHsvjxwucnSaNWhlarRN4EDUDzidD8sLSJkBKwhYZ8AAAAADQlH3Bri1sc1RP02JwSUALJbXHnCzhfoN47ICYl5nyB1DfBq+N12g/AVS4grgRW+4p5D0j5LjAmxeUDAAAAoCf5AIujTw8tkesJJuUDKhF3wGr7DCVgcVQ+IDcfoARuQUpvggYgYAsN3wWUQJ0TjvsuUJWDfAAAAAD0IR9QNETmNcL90hNMGoBqk+WonmD1KJ0SSDpjJDYic7ZAGnEHnGUEYgZglRFQAj4FDICNlFrfARUlcPteoATkAwAAAKAV+YAHmiHyAd17gnMWILYnWEVjIleGqk2WvQfYP6DpAKzYP8D+Ac4X8CkgH6AElEBuCThfAAAAAPqSD9ATvH5cRk8wvS1uZ2klEHL09ng5XyAtH3B85MkH3FaF5ANS3gRXT4ubCPkuEDYRqmKySkA+AAAAAFqSD9ATPH9o2uKonmBgW3zuDgtI2Fw96HyBcf8A5ws4X+DFRMhEyEQopASqqJwSSCqB/X9cPgAAAAAyyAfoCd7vGWBzdW1xj80pAfmA1HzAag+BmAE4do+QD0gsgSotdvz0KZA0EZo3Vo8ogatdJJRA5xJYnS8mHwAAAADt/AXcdjv5ibmprwAAAABJRU5ErkJggg=='),
+  ('urodzinymc_cape_trawa', 'Blok trawy', 'cape', 700, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAArElEQVR42u2WsQ2EMAwAPceXtDRfswIbUDAAo/ArfMcAbMBqIBdBIQqQggb7TrKUIAr7YkxERKRvPuuTIW9CEx6W7x7tWB32cei7v64uiteISAVcyTArIBR6dfrmO0CTDgLCWkPX5gWkiZ/tXQi4K8pNB+SemxVwVnRcuGkBmvB/mm/bnRlgVUB6+rlZ4GIG5ETwCXj4C3APKCzWtICSC5FJAQAAAAAAAAD+2ABKRwj1ExUNtwAAAABJRU5ErkJggg=='),
+  ('urodzinymc_aura_kostki_ghosts', 'Bloki trawy', 'aura', 900, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAV0lEQVR42u3UsQmAQAwF0MxhaWtj7QpuYOEAjqI7udqJQiwcwbwHn1ybT7gIIrZzbN+UK2De+3f5+12qgGMZWmadumeWKyAXz5S9gCzDzwgAAAAAAMC/XBmRNGymYGvbAAAAAElFTkSuQmCC'),
+  ('dziendziecka_hat_smiglo', 'Czapka ze śmigiełkiem', 'hat', 500, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAAEACAYAAAB7+X6nAAAB9klEQVR42u3dsU3DQBSA4QwBtLSMgBArUTEIC9AxABNkAxZAYhCgMSLSk5Jz7CdkCfvuvk9yk/gsw/2Kk+rtdomPi/vh+Ph+uzw5drRNAAIQgAAE0K3rp7vh+Ljdf54c/kMCQAAIgLo3ODb04eb9cJRf/r4erw5HfPmLdXF+rI/X47yp68b17IAA2HIAmZYCeH55HX6PuZ/Bc4/Ac+vL88vrrf5HZxu8dH3tAfzn+01aGpgAEAACQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAvDI8WgAAEIAABCKBPhkcLQAACEIAABND2BhsfLwABCGC8UZlWAoj7jPub+jk89ejL3s+uv5ql492z9TV9ApgdvMHABIAAEAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAemF4tAAEIAABCEAAfTI8WgACEIAABCCAtjfY+HgBCEAA443K1B5AGfrcI+7c6Nfy/PJ62frVLR3vnq2v6RPA7OANBiYABIAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANALw6MFIAABCEAAAuiT4dECEIAABCAAAbS9wcbHC0AAAhhvVKaVAOK+ph5t8Xqc99f3s+uvZul492x9TZ8AZgdvMDABIAAEgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBG/AA2u67nFaTlTwAAAABJRU5ErkJggg=='),
+  ('dziendziecka_aura_banki_souls', 'Bańki mydlane', 'aura', 900, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAWUlEQVR42u3UwQ2AIAwFUPbfwxHcwI28amqIcjHgXfreBULg0PaHUrgt+xHbekZdUxbf9vHo3asNmrIB78J6KWhno+aM3v0uAV+TnjYB6f8AAAAAAAAAErgA+xtA3uQoQ4gAAAAASUVORK5CYII='),
+  ('wakacje_mask_okulary', 'Okulary przeciwsłoneczne', 'mask', 400, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAR0lEQVR42u3SoQ3AIBQEUFQNhgk6R8OI7MReOEgQTQ0K1fa95MTJ/3MhAADAFI/Ud/LJh1y19TOX+8hn/9UqVh0AAAAAeI0Baowkm4qUBlkAAAAASUVORK5CYII='),
+  ('wakacje_hat_slomkowy', 'Słomkowy kapelusz', 'hat', 500, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAfklEQVR42u3UQQ2AMAyF4ScCOShAGjJwg4JdUIGBEQTQHprRMf4vIT2RsrcXJMdZ1rpvS32aaix7v6zl93xjvxWORr8B65A0gAbQABrwiwY03e/dcOupbN5HHtNsPtEQ0gPwDhh9P9qA7gOMBhQ94OcDGv0nDgAAAAAAAHTmAiP5e7O5lSm1AAAAAElFTkSuQmCC'),
+  ('wakacje_cape_palmy', 'Zachód słońca', 'cape', 800, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAzElEQVR42u2SMQrCQBBFp0ojSApJZSWBHMIbeArvoOAdrDyDniZ1CgvvYKGV1coMThgWkS1sMvMffHYWUuS/HSIimlV1+mdoSvAPr5ttUfjb+f5UlMmIgICqTrfuUBS3ApaLVsIl7RxGwGvXjMU5fP8W1xugEvRUQghIz4tkLP65S8w9hgBbPotbAavhLmEBOnNhnTVuBehPswBbgiXkpdxugH39kBuQv36oDXhcjyKAz19xL6A/b2S2pw02AAIcCgAAAAAAAAAAAOLxBgYXM5o3DK1cAAAAAElFTkSuQmCC'),
+  ('wakacje_aura_babelki_souls', 'Morskie bąbelki', 'aura', 900, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAUElEQVR42u3UwQmAMAwF0M7i7k7kHr14FeKh5CLqAMl7ECi5/U/oGCzbMSOnZfh8R8RnCWXLeQZ7C5q7vxL284qyBZS+gPZ/AAAAAAAAAA3c3TE1sNJCAWYAAAAASUVORK5CYII='),
+  ('wakacje_wings_papuga', 'Skrzydła papugi', 'wings', 1200, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAABACAYAAADS1n9/AAACsElEQVR42u2cTU7DMBBGs2LDhgVsOQdCnJA7cQOOwEEQmyJQI5mRPfONYxJXfU+yKEVN7JkX/yVlWQC28vj8erLlEs8BG5IRlRnPAZ0JeXr7/FNGJilzLK8eZGxw4m2wewXwkpM9jlInMrgx+V6QeyS4vbn7LfZc6/sjkm/rRSYTXW5P8hUJbIJb9VBE6KlX1N6r5ev94VSWNTA/r7OBrkngJdTr+luf66mTbVdZEMAEpFZ6BFCuZGXst8fJJj4qCCAESZVgTZY6lmcmf+WxRyUfAZZl+bh/OdmSlcAmJrsayE78IhFa9a+1FQEqQWlJECU+EqA1EVSHDfX8avIRwBHAk0Dpim23bRPrrUZqn1OGnmzyESAQwEoQJd5LeLT8Usd/5fxq8hFAEKAMvB0KvMSM3gn0RLNdf/k3BOgUoAxgLbDKEDDyXoC6+ihFte1AAEGAMmCtwG7ZFfwPAbwewLYFARoC2KCVwfImgmrJ1it7/NoEUGnb1QuQDbS6GTNivz3TA/S2AwEaV4a3HMwMAaNuVvXs/kWTWgQ4DwGtcT8rwF6PhGUF8OYDCHAOSPnTBi4SYO9bqy0RbD1rvZptKwI0AuPtBczywIWVINoDqLURAUxw7OvWVTWbAK3eKmofAlSCsv7u3RCyW75HJN/bDbTS1noCBDAbQfbKtxJES7C9Vy7KZHBtQ0t0BKgIYIOnLP/2ngSqy8Ha1jACFLSCZd+b6elbZV8gag9PBFUE8IJ2aQIoyUeAQAAb0EsRwNYVARICeFe8J8EsAnh156FQcYs1eupmVgHUevPFkCCwUXdfe/rn6F1Atc4kPbGzpkpwtACz1/Uih4TMPf+j66qsCOjyB8wNZv3qNf8vYEcZZg4m3/wFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAr4BuyBo/wusHkMQAAAABJRU5ErkJggg=='),
+  ('urodzinymib_cape_rok', '1 rok MiB', 'cape', 1500, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAEACAYAAAADRnAGAAAB5UlEQVR42u3dsW0CMRSAYS8RBqDKDmzAFPQoTSaAWRArMAUdFU1GSEOqCOkQSIdOluyKhve+T6JIlCJnBSe2f8WllFL+jx/DK1/lndy/4a/P87CYrZ6v1sf3r51+vvd6m4EYH+rv+9B9+PAD0Hv4+ek3/gDUDz++n6eDEXYAWg9fD074t0D98NPBGS67XHNA/RYwB2SaA8aHTTkHTB+2HhxzQPQ5oPW3fco5IN1a4PG7fr21Fuj9JKT6O6D1qzHcAAAAAEBS+gB7gvoAe4LOBvUB+gBng+aARh+w/NnoA/QB+gB9QK45wFpAH6APAAAAgMj0AfYE7QnaE3Q2qA/o9wHOBiMPQO9toA/QB5gD9AH6gMxrgf3lai2gD9AHAAAAQDj6AHuC+gD3Czgb1AfoA/QB5gD3C+gD9AH6APcL6AP0AfoAAAAAiE8fYE/Q/QL6AGeD+gD3CzgbNAfoA/QB+gB9gD7AWkAfoA8AAACA+PQB9gT1AfYEnQ3qA/QBzgbNAe4X0AfoA/QB/peYtYC1gD4AAAAA4tMH2BO0J2hP0NmgPsD9Au4XMAfoA/QB+gB9gLWA+wWsBfQBAAAAEJ8+wJ6gPsD9As4G9QH6AH2AOcD9AvoAfYA+wP0C+gB9gD4AAAAAQrsBVF69dTnKWFEAAAAASUVORK5CYII='),
+  ('urodzinymib_aura_konfetti_snow', 'Urodzinowe konfetti', 'aura', 900, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAWElEQVR42u3SsQmAQBAEQJuwAUu0JbEFqxAMbMLI5I1UOPkCHkx9Z5INLtrlmgZe69Y9qi549FNcy1YsOaa7eIs0xDm3kfOzA+TyeYTffgAAAAAAAADU6wHltSDyfDFqYgAAAABJRU5ErkJggg=='),
+  ('urodzinymib_hat_tort', 'Tort na głowie', 'hat', 600, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAAEACAYAAAB7+X6nAAACZElEQVR42u3dsWkDMRQGYE/hPuukzyJOm23cZAKv4DJDpAmkPEMwASucQcchRFw9JE7fBwL5VJn3nyS7ebvdA+mB3cb9fnyl/8bWv/89AJ/fU3WMEoA0HdP1db8UfZ7PzwRgkAC8v/zcRw7A+rMAOAIEQAAEwBEgANsNwPrSV14KhwiAn4EbPgJSY71s8WVhyy0/an1H32949FCBDgJwOZyWgtTmkesq0EEA3p6flqLkee1ZxLoKNDYXouVQgcZu0zm1HCpgB0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVjSO1DtY69jRW8dqHq15tPbxjgABEABHgCNgxACsL33lpdDPQEfAtgscrZctvixsueVHrfunqfM3PHqoQAcBuBxOS0Fq88h1FeggAHMP31yUPK89i1hXgcY0jx7cbTqnlkMF7AAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwIrGkXoHax07HZdWseVnARggAJpHax/vCBAAAXAEOAJcAoe8BPoZuOEjIDXWyxZfFrbc8qPW/dPU+RsePVSggwBcDqelILV55LoKdBCAuYdvLkqe155FrKtAY5pHD+42nVPLoQJ2AAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABgReNIvYOHbx17fd3fRy76+rMADBAAzaO1j3cECIAAOAIcAS6BQ14C/Qzc8BGQGutliy8LW275Uev+aer8DY8eKtBBAC6H01KQ2jxyXQU6CMDcwzcXJc9rzyLWVaAxzaMHd5vOqeVQATsAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIzkD4T+6m2e/MIzAAAAAElFTkSuQmCC')
+-- [/kosmetyki-swieta]
+on conflict (id) do nothing;
+
+-- nowe rodzaje zmian coinsów: nagroda świąteczna i kalendarz adwentowy
+alter table private.coin_log drop constraint if exists coin_log_kind_check;
+alter table private.coin_log add constraint coin_log_kind_check check (kind in ('admin', 'buy', 'gift', 'offer', 'daily', 'theme', 'advent'));
+
+-- Nagroda świąteczna: raz na każde święto w roku (coinsy i/lub kosmetyk z panelu admina)
+create table if not exists private.theme_claims (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  theme_id text not null references public.themes (id) on delete cascade,
+  season integer not null,
+  claimed_at timestamptz not null default now(),
+  primary key (user_id, theme_id, season)
+);
+-- Nagrody trwających świąt, których gracz jeszcze nie odebrał
+create or replace function public.my_theme_gifts()
+returns table (id text, name text, coins integer, cosmetic_id text, cosmetic_name text, type text, texture text, until date)
+language sql stable security definer set search_path = '' as $$
+  select t.id, t.name, t.gift_coins, c.id, c.name, c.type, coalesce(c.texture, c.image_url), private.theme_until(t, private.today())
+  from public.themes t left join public.cosmetics c on c.id = t.gift_cosmetic
+  where (select auth.uid()) is not null and not private.is_banned((select auth.uid()))
+    and exists (select 1 from public.profiles p where p.id = (select auth.uid()))
+    and (t.gift_coins > 0 or t.gift_cosmetic is not null)
+    and private.theme_season(t, private.today()) is not null
+    and not exists (select 1 from private.theme_claims k where k.user_id = (select auth.uid()) and k.theme_id = t.id
+      and k.season = private.theme_season(t, private.today()))
+  order by t.sort;
+$$;
+create or replace function public.claim_theme_gift(p_theme text) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  t public.themes;
+  c public.cosmetics;
+  v_season integer;
+  v integer;
+  v_new boolean := false;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
+  perform 1 from public.profiles where id = v_me for update;
+  if not found then raise exception 'no_profile'; end if;
+  select * into t from public.themes where id = p_theme;
+  if not found then raise exception 'theme_missing'; end if;
+  v_season := private.theme_season(t, private.today());
+  if v_season is null or (t.gift_coins = 0 and t.gift_cosmetic is null) then raise exception 'theme_gift_missing'; end if;
+  insert into private.theme_claims (user_id, theme_id, season) values (v_me, t.id, v_season) on conflict do nothing;
+  if not found then raise exception 'theme_gift_claimed'; end if;
+  if t.gift_coins > 0 then
+    update public.profiles set coins = coins + t.gift_coins where id = v_me returning coins into v;
+    insert into private.coin_log (user_id, delta, balance, reason, kind, item) values (v_me, t.gift_coins, v, t.name, 'theme', t.id);
+  end if;
+  if t.gift_cosmetic is not null then
+    insert into public.owned_cosmetics (user_id, cosmetic_id, source) values (v_me, t.gift_cosmetic, 'theme') on conflict do nothing;
+    v_new := found;
+    select * into c from public.cosmetics where id = t.gift_cosmetic;
+  end if;
+  return json_build_object('coins', coalesce(v, (select coins from public.profiles where id = v_me)), 'amount', t.gift_coins,
+    'cosmetic', case when c.id is null then null else json_build_object('id', c.id, 'name', c.name, 'type', c.type, 'texture', coalesce(c.texture, c.image_url), 'new', v_new) end);
+end $$;
+
+-- Kalendarz adwentowy: 24 dni (coinsy i/lub kosmetyk, zmienia admin), otwierany od 1 do 26 grudnia, gdy motyw
+-- Bożego Narodzenia jest włączony; zaległe okienka do 26 grudnia. Nagrody widać dopiero po otwarciu.
+create table if not exists private.advent_days (
+  day integer primary key check (day between 1 and 24),
+  coins integer not null default 0 check (coins between 0 and 100000),
+  cosmetic_id text references public.cosmetics (id) on delete set null
+);
+insert into private.advent_days (day, coins, cosmetic_id)
+  select d, case when d >= 20 then 0 when d = 6 then 100 when d = 13 then 50 when d < 6 then 20 when d < 13 then 25 else 30 end,
+    case d when 20 then 'adwent_hat_pompon' when 21 then 'adwent_mask_broda' when 22 then 'adwent_aura_gwiazdki_snow' when 23 then 'adwent_cape_gwiazda'
+      when 24 then 'adwent_wings_aniol' end
+  from generate_series(1, 24) d
+on conflict (day) do nothing;
+create table if not exists private.advent_claims (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  year integer not null,
+  day integer not null check (day between 1 and 24),
+  claimed_at timestamptz not null default now(),
+  primary key (user_id, year, day)
+);
+-- Dzień kalendarza, który można dziś otworzyć jako ostatni (0 = kalendarz zamknięty)
+create or replace function private.advent_today(p_day date) returns integer
+language sql stable security definer set search_path = '' as $$
+  select case when extract(month from p_day) = 12 and extract(day from p_day) <= 26 and exists (select 1 from public.themes where id = 'boze' and enabled)
+    then least(24, extract(day from p_day)::integer) else 0 end;
+$$;
+create or replace function public.advent() returns json
+language sql stable security definer set search_path = '' as $$
+  with me as (select auth.uid() as id, private.today() as day, extract(year from private.today())::integer as y)
+  select json_build_object('open', private.advent_today(me.day) > 0, 'today', private.advent_today(me.day), 'year', me.y,
+    'days', (select json_agg(json_build_object('day', a.day, 'kind', case when a.cosmetic_id is not null then 'cosmetic' else 'coins' end, 'opened', k.day is not null,
+        'coins', case when k.day is not null then a.coins end,
+        'cosmetic', case when k.day is not null and c.id is not null then json_build_object('id', c.id, 'name', c.name, 'type', c.type, 'texture', coalesce(c.texture, c.image_url)) end)
+      order by a.day)
+      from private.advent_days a left join public.cosmetics c on c.id = a.cosmetic_id
+        left join private.advent_claims k on k.user_id = me.id and k.year = me.y and k.day = a.day))
+  from me;
+$$;
+create or replace function public.claim_advent(p_day integer) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_today date := private.today();
+  a private.advent_days;
+  c public.cosmetics;
+  v integer;
+  v_new boolean := false;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
+  perform 1 from public.profiles where id = v_me for update;
+  if not found then raise exception 'no_profile'; end if;
+  if private.advent_today(v_today) = 0 then raise exception 'advent_closed'; end if;
+  if p_day is null or p_day < 1 or p_day > private.advent_today(v_today) then raise exception 'advent_locked'; end if;
+  insert into private.advent_claims (user_id, year, day) values (v_me, extract(year from v_today)::integer, p_day) on conflict do nothing;
+  if not found then raise exception 'advent_opened'; end if;
+  select * into a from private.advent_days where day = p_day;
+  if a.coins > 0 then
+    update public.profiles set coins = coins + a.coins where id = v_me returning coins into v;
+    insert into private.coin_log (user_id, delta, balance, reason, kind, item) values (v_me, a.coins, v, 'Kalendarz adwentowy', 'advent', p_day::text);
+  end if;
+  if a.cosmetic_id is not null then
+    insert into public.owned_cosmetics (user_id, cosmetic_id, source) values (v_me, a.cosmetic_id, 'advent') on conflict do nothing;
+    v_new := found;
+    select * into c from public.cosmetics where id = a.cosmetic_id;
+  end if;
+  return json_build_object('day', p_day, 'coins', coalesce(v, (select coins from public.profiles where id = v_me)), 'amount', coalesce(a.coins, 0),
+    'cosmetic', case when c.id is null then null else json_build_object('id', c.id, 'name', c.name, 'type', c.type, 'texture', coalesce(c.texture, c.image_url), 'new', v_new) end);
+end $$;
+
+-- ===== Panel admina: motywy i kalendarz =====
+create or replace function public.admin_list_themes()
+returns table (id text, name text, starts text, ends text, enabled boolean, forced boolean, gift_coins integer, gift_cosmetic text, gift_name text,
+  daily_bonus integer, items text[], active boolean, d_from date, d_to date, claims bigint)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return query select t.id, t.name, t.starts, t.ends, t.enabled, t.forced, t.gift_coins, t.gift_cosmetic, c.name, t.daily_bonus, t.items,
+      private.theme_season(t, private.today()) is not null, sp.d_from, sp.d_to,
+      (select count(*) from private.theme_claims k where k.theme_id = t.id and k.season = sp.season)
+    from public.themes t left join public.cosmetics c on c.id = t.gift_cosmetic, lateral private.theme_span(t, private.today()) sp
+    order by t.sort;
+end $$;
+-- Zmiana motywu; p_forced = „Włącz teraz” (tylko jeden naraz, włącza też motyw)
+create or replace function public.admin_save_theme(p_id text, p_starts text, p_ends text, p_enabled boolean, p_forced boolean, p_gift_coins integer,
+  p_gift_cosmetic text, p_daily_bonus integer, p_items text[]) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_items text[] := (select coalesce(array_agg(distinct x), '{}') from unnest(coalesce(p_items, '{}')) as x where x is not null);
+begin
+  perform private.need_admin();
+  if not exists (select 1 from public.themes where id = p_id) then raise exception 'theme_missing'; end if;
+  begin
+    if p_starts !~ '^([0-9]{2}-[0-9]{2}|E[+-][0-9]{1,2})$' or p_ends !~ '^([0-9]{2}-[0-9]{2}|E[+-][0-9]{1,2})$' then raise exception 'x'; end if;
+    perform private.theme_date(p_starts, 2028), private.theme_date(p_ends, 2028), private.theme_date(p_starts, 2027);
+  exception when others then raise exception 'theme_date_invalid';
+  end;
+  if coalesce(p_gift_coins, 0) not between 0 and 100000 then raise exception 'coins_amount'; end if;
+  if coalesce(p_daily_bonus, 0) not between 0 and 1000 then raise exception 'theme_bonus_invalid'; end if;
+  if p_gift_cosmetic is not null and not exists (select 1 from public.cosmetics where id = p_gift_cosmetic) then raise exception 'cosmetic_missing'; end if;
+  if (select count(*) from public.cosmetics where id = any (v_items)) <> cardinality(v_items) then raise exception 'theme_items_invalid'; end if;
+  if coalesce(p_forced, false) then update public.themes set forced = false where id <> p_id; end if;
+  update public.themes set starts = p_starts, ends = p_ends, enabled = coalesce(p_enabled, true) or coalesce(p_forced, false), forced = coalesce(p_forced, false),
+    gift_coins = coalesce(p_gift_coins, 0), gift_cosmetic = p_gift_cosmetic, daily_bonus = coalesce(p_daily_bonus, 0), items = v_items
+    where id = p_id;
+end $$;
+create or replace function public.admin_advent()
+returns table (day integer, coins integer, cosmetic_id text, cosmetic_name text, cosmetic_type text, opened bigint)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return query select a.day, a.coins, a.cosmetic_id, c.name, c.type,
+      (select count(*) from private.advent_claims k where k.day = a.day and k.year = extract(year from private.today())::integer)
+    from private.advent_days a left join public.cosmetics c on c.id = a.cosmetic_id order by a.day;
+end $$;
+create or replace function public.admin_set_advent_day(p_day integer, p_coins integer, p_cosmetic text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  if p_day is null or p_day not between 1 and 24 then raise exception 'advent_day_invalid'; end if;
+  if coalesce(p_coins, 0) not between 0 and 100000 then raise exception 'coins_amount'; end if;
+  if p_cosmetic is not null and not exists (select 1 from public.cosmetics where id = p_cosmetic) then raise exception 'cosmetic_missing'; end if;
+  if coalesce(p_coins, 0) = 0 and p_cosmetic is null then raise exception 'advent_empty'; end if;
+  update private.advent_days set coins = coalesce(p_coins, 0), cosmetic_id = p_cosmetic where day = p_day;
 end $$;
 
 -- ===== Uprawnienia do funkcji =====
@@ -1838,6 +2168,21 @@ grant execute on function public.buy_cosmetic(text, uuid, text) to authenticated
 grant execute on function public.buy_offer(bigint) to authenticated;
 grant execute on function public.my_coin_log(bigint) to authenticated;
 grant execute on function public.claim_daily() to authenticated;
+revoke all on function private.easter(integer) from public, anon, authenticated;
+revoke all on function private.theme_date(text, integer) from public, anon, authenticated;
+revoke all on function private.theme_span(public.themes, date) from public, anon, authenticated;
+revoke all on function private.theme_season(public.themes, date) from public, anon, authenticated;
+revoke all on function private.theme_until(public.themes, date) from public, anon, authenticated;
+revoke all on function private.on_sale(text, date) from public, anon, authenticated;
+revoke all on function private.advent_today(date) from public, anon, authenticated;
+revoke all on function public.my_theme_gifts() from public, anon;
+revoke all on function public.claim_theme_gift(text) from public, anon;
+revoke all on function public.advent() from public, anon;
+revoke all on function public.claim_advent(integer) from public, anon;
+grant execute on function public.my_theme_gifts() to authenticated;
+grant execute on function public.claim_theme_gift(text) to authenticated;
+grant execute on function public.advent() to authenticated;
+grant execute on function public.claim_advent(integer) to authenticated;
 
 -- panel admina: wywołać może każdy zalogowany, ale każda funkcja sama sprawdza, czy to admin
 revoke all on function private.need_admin() from public, anon, authenticated;

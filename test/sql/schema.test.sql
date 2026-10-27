@@ -916,6 +916,8 @@ reset role;
 insert into auth.users (id, email, encrypted_password, raw_user_meta_data) values
   ('88888888-8888-8888-8888-888888888888', 'shop1@test.pl', 'x', '{"nick":"Kupiec"}'),
   ('99999999-9999-9999-9999-999999999999', 'shop2@test.pl', 'x', '{"nick":"Kumpel"}');
+-- kolekcja Halloween jest na sprzedaż tylko w czasie święta (od 0.25.0): tu bez kolekcji, żeby test nie zależał od daty
+update public.themes set items = '{}' where id = 'halloween';
 insert into public.cosmetics (id, name, type) values ('shop_test_hat', 'Testowa czapka', 'hat');
 set role authenticated;
 set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
@@ -1066,3 +1068,155 @@ reset role;
 do $$ begin
   assert not exists (select 1 from private.coin_log where kind is null), 'stare wpisy to admin';
 end $$;
+
+-- Motywy świąteczne, nagrody, kalendarz adwentowy i maska (od 0.25.0). Dzień „dzisiaj” podmieniony przez mib.today.
+create or replace function private.today() returns date language sql stable set search_path = '' as $$
+  select coalesce(nullif(current_setting('mib.today', true), '')::date, (now() at time zone 'Europe/Warsaw')::date);
+$$;
+do $$ begin
+  assert private.easter(2024) = '2024-03-31' and private.easter(2025) = '2025-04-20' and private.easter(2026) = '2026-04-05'
+    and private.easter(2027) = '2027-03-28' and private.easter(2028) = '2028-04-16', 'Wielkanoc';
+  assert (select private.theme_season(t, '2026-12-31') from public.themes t where id = 'boze') = 2026, 'grudzień';
+  assert (select private.theme_season(t, '2027-01-06') from public.themes t where id = 'boze') = 2026, 'przez Nowy Rok do 6 stycznia';
+  assert (select private.theme_season(t, '2027-01-07') from public.themes t where id = 'boze') is null, 'po 6 stycznia koniec';
+  assert (select private.theme_season(t, '2027-01-01') from public.themes t where id = 'sylwester') = 2026, 'Sylwester do 1 stycznia';
+  assert (select private.theme_season(t, '2027-03-21') from public.themes t where id = 'wielkanoc') = 2027, 'tydzień przed Wielkanocą';
+  assert (select private.theme_season(t, '2027-03-30') from public.themes t where id = 'wielkanoc') = 2027, '2 dni po Wielkanocy';
+  assert (select private.theme_season(t, '2027-03-31') from public.themes t where id = 'wielkanoc') is null, 'po Wielkanocy';
+  assert (select private.theme_until(t, '2026-12-10') from public.themes t where id = 'boze') = '2027-01-06', 'do kiedy';
+  assert (select private.theme_until(t, '2026-11-20') from public.themes t where id = 'boze') is null, 'przed świętem bez końca';
+  assert not private.on_sale('zima_cape_sweter', '2026-10-27') and private.on_sale('zima_cape_sweter', '2026-12-10'), 'kolekcja tylko w czasie święta';
+  assert private.on_sale('shop_test_nie_ma', '2026-10-27') and private.on_sale('cape_start', '2026-10-27'), 'spoza kolekcji zawsze';
+  assert (select count(*) from public.cosmetics where id ~ '^(niepodleglosc|zima|adwent|sylwester|walentynki|wielkanoc|primaaprilis|urodzinymc|dziendziecka|wakacje|urodzinymib)_') = 43, '43 kosmetyki na święta';
+  assert (select count(*) from public.cosmetics where type = 'mask') = 2, 'dwie maski';
+  assert (select count(*) from public.cosmetics where id like 'adwent\_%' and price is null) = 5, 'kalendarz: bez ceny';
+  assert not exists (select 1 from public.cosmetics where type = 'aura' and id !~ '_(souls|pumpkins|ghosts|magic|snow|burst)$'), 'ruch aur';
+  assert (select count(*) from public.themes) = 11, '11 motywów';
+end $$;
+insert into auth.users (id, email, encrypted_password, raw_user_meta_data) values
+  ('aaaaaaaa-0000-0000-0000-000000000001', 'xmas1@test.pl', 'x', '{"nick":"Mikolaj"}');
+set role anon;
+do $$ begin assert (select count(*) from public.themes) = 11, 'motywy widać bez profilu'; end $$;
+select pg_temp.expect_error($q$select public.advent()$q$, 'permission denied');
+select pg_temp.expect_error($q$select * from private.advent_days$q$, 'permission denied');
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-000000000001';
+select pg_temp.expect_error($q$select public.admin_save_theme('boze', '12-01', '01-06', true, false, 0, null, 0, '{}')$q$, 'not_admin');
+select pg_temp.expect_error($q$update public.themes set gift_coins = 99999$q$, 'permission denied');
+-- 27 października: Halloween trwa (nagroda 50), kolekcja zimowa nie jest na sprzedaż
+set mib.today = '2026-10-27';
+do $$ declare s json; begin
+  s := public.shop();
+  assert (select string_agg(x ->> 'id', ',') from json_array_elements(s -> 'themes') x) is null, 'kolekcja Halloween wyłączona w tym teście';
+  assert not exists (select 1 from json_array_elements(s -> 'items') x where x ->> 'id' like 'zima\_%'), 'zimowych jeszcze nie ma w sklepie';
+  assert (select string_agg(id || ':' || coins, ',') from public.my_theme_gifts()) = 'halloween:50', 'nagroda na Halloween';
+end $$;
+select pg_temp.expect_error($q$select public.buy_cosmetic('zima_hat_mikolaj')$q$, 'not_for_sale');
+select pg_temp.expect_error($q$select public.claim_theme_gift('boze')$q$, 'theme_gift_missing');
+do $$ declare r json; begin
+  r := public.claim_theme_gift('halloween');
+  assert (r ->> 'amount')::integer = 50 and (r ->> 'coins')::integer = 50 and json_typeof(r -> 'cosmetic') = 'null', 'nagroda odebrana';
+  assert not exists (select 1 from public.my_theme_gifts()), 'drugi raz jej nie ma';
+  assert (select kind || ' ' || label || ' ' || delta from public.my_coin_log() limit 1) = 'theme Halloween 50', 'w historii';
+end $$;
+select pg_temp.expect_error($q$select public.claim_theme_gift('halloween')$q$, 'theme_gift_claimed');
+select pg_temp.expect_error($q$select public.claim_theme_gift('nie_ma')$q$, 'theme_missing');
+-- admin: nagroda z kosmetykiem, dodatek do nagrody dziennej, błędne daty, „Włącz teraz” tylko jeden
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select pg_temp.expect_error($q$select public.admin_save_theme('boze', '12-01', 'xx', true, false, 0, null, 0, '{}')$q$, 'theme_date_invalid');
+select pg_temp.expect_error($q$select public.admin_save_theme('boze', '02-30', '03-01', true, false, 0, null, 0, '{}')$q$, 'theme_date_invalid');
+select pg_temp.expect_error($q$select public.admin_save_theme('boze', '12-01', '01-06', true, false, 0, null, 0, '{nie_ma}')$q$, 'theme_items_invalid');
+select pg_temp.expect_error($q$select public.admin_save_theme('nie_ma', '12-01', '01-06', true, false, 0, null, 0, '{}')$q$, 'theme_missing');
+select pg_temp.expect_error($q$select public.admin_save_theme('boze', '12-01', '01-06', true, false, 0, 'nie_ma', 0, '{}')$q$, 'cosmetic_missing');
+select pg_temp.expect_error($q$select public.admin_save_theme('boze', '12-01', '01-06', true, false, 0, null, 5000, '{}')$q$, 'theme_bonus_invalid');
+do $$ declare r record; begin
+  perform public.admin_save_theme('niepodleglosc', '11-08', '11-12', true, false, 30, 'niepodleglosc_hat_kotylion', 0, '{niepodleglosc_cape_flaga}');
+  perform public.admin_save_theme('boze', '12-01', '01-06', true, false, 0, null, 15, (select items from public.themes where id = 'boze'));
+  perform public.admin_save_theme('walentynki', '02-10', '02-15', false, true, 50, null, 0, (select items from public.themes where id = 'walentynki'));
+  perform public.admin_save_theme('wakacje', '06-25', '08-31', true, true, 100, null, 0, (select items from public.themes where id = 'wakacje'));
+  assert (select string_agg(id, ',') from public.themes where forced) = 'wakacje', 'tylko jeden wymuszony';
+  assert (select enabled from public.themes where id = 'walentynki'), 'wymuszenie włącza motyw';
+  select * into r from public.admin_list_themes() where id = 'wakacje';
+  assert r.active and r.forced, 'wymuszony trwa';
+  select * into r from public.admin_list_themes() where id = 'halloween';
+  assert r.active and r.claims = 1 and r.d_from = '2026-10-15' and r.d_to = '2026-11-05', 'Halloween: trwa, 1 odebrana nagroda';
+  select * into r from public.admin_list_themes() where id = 'niepodleglosc';
+  assert not r.active and r.d_from = '2026-11-08' and r.gift_name = 'Kotylion' and r.items = '{niepodleglosc_cape_flaga}', 'najbliższy termin i nagroda';
+  perform public.admin_save_theme('wakacje', '06-25', '08-31', true, false, 100, null, 0, (select items from public.themes where id = 'wakacje'));
+end $$;
+-- 10 listopada: nagroda z kosmetykiem; kolekcja w sklepie z datą końca
+set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-000000000001';
+set mib.today = '2026-11-10';
+do $$ declare r json; s json; begin
+  s := public.shop();
+  assert (select (x ->> 'until') || ' ' || (x -> 'items') from json_array_elements(s -> 'themes') x where x ->> 'id' = 'niepodleglosc') = '2026-11-12 ["niepodleglosc_cape_flaga"]', 'kolekcja do 12 listopada';
+  assert (select (x ->> 'price')::integer from json_array_elements(s -> 'items') x where x ->> 'id' = 'niepodleglosc_cape_flaga') = 800, 'peleryna na sprzedaż';
+  assert (select (x ->> 'price')::integer from json_array_elements(s -> 'items') x where x ->> 'id' = 'niepodleglosc_hat_kotylion') = 300, 'wyjęty z kolekcji: na sprzedaż zawsze';
+  r := public.claim_theme_gift('niepodleglosc');
+  assert (r ->> 'amount')::integer = 30 and r -> 'cosmetic' ->> 'id' = 'niepodleglosc_hat_kotylion' and (r -> 'cosmetic' ->> 'new')::boolean, 'nagroda z kosmetykiem';
+  assert (select source from public.owned_cosmetics where user_id = auth.uid() and cosmetic_id = 'niepodleglosc_hat_kotylion') = 'theme', 'kosmetyk z nagrody';
+end $$;
+-- 30 listopada: kalendarz jeszcze zamknięty
+set mib.today = '2026-11-30';
+do $$ begin assert not (public.advent() ->> 'open')::boolean and (public.advent() ->> 'today')::integer = 0, 'kalendarz zamknięty w listopadzie'; end $$;
+select pg_temp.expect_error($q$select public.claim_advent(1)$q$, 'advent_closed');
+-- 3 grudnia: okienka 1–3, nagroda dzienna z dodatkiem świątecznym
+set mib.today = '2026-12-03';
+do $$ declare r json; a json; begin
+  r := public.claim_advent(1);
+  assert (r ->> 'amount')::integer = 20 and r -> 'cosmetic' is not null and json_typeof(r -> 'cosmetic') = 'null', 'okienko 1: 20 coinsów';
+  a := public.advent();
+  assert (a ->> 'open')::boolean and (a ->> 'today')::integer = 3 and json_array_length(a -> 'days') = 24, 'kalendarz otwarty';
+  assert (select (x ->> 'opened')::boolean and (x ->> 'coins')::integer = 20 from json_array_elements(a -> 'days') x where (x ->> 'day')::integer = 1), 'otwarte okienko pokazuje nagrodę';
+  assert (select x -> 'coins' is null or json_typeof(x -> 'coins') = 'null' from json_array_elements(a -> 'days') x where (x ->> 'day')::integer = 2), 'zamknięte nie pokazuje nagrody';
+  assert (select x ->> 'kind' from json_array_elements(a -> 'days') x where (x ->> 'day')::integer = 22) = 'cosmetic', 'wiadomo, że to kosmetyk';
+  r := public.claim_daily();
+  assert (r ->> 'amount')::integer = 25 and (r ->> 'bonus')::integer = 15, 'nagroda dzienna z dodatkiem świątecznym';
+end $$;
+select pg_temp.expect_error($q$select public.claim_advent(1)$q$, 'advent_opened');
+select pg_temp.expect_error($q$select public.claim_advent(4)$q$, 'advent_locked');
+select pg_temp.expect_error($q$select public.claim_advent(0)$q$, 'advent_locked');
+select pg_temp.expect_error($q$select public.buy_cosmetic('adwent_hat_pompon')$q$, 'not_for_sale');
+-- 21 grudnia: zaległe okienka i kosmetyki z kalendarza; maska zakłada się osobno od czapki
+set mib.today = '2026-12-21';
+do $$ declare r json; begin
+  perform public.claim_advent(2);
+  r := public.claim_advent(21);
+  assert r -> 'cosmetic' ->> 'id' = 'adwent_mask_broda' and r -> 'cosmetic' ->> 'type' = 'mask', 'okienko 21: broda';
+  perform public.claim_advent(20);
+  assert (select source from public.owned_cosmetics where user_id = auth.uid() and cosmetic_id = 'adwent_mask_broda') = 'advent', 'kosmetyk z kalendarza';
+  perform public.equip_cosmetic('mask', 'adwent_mask_broda');
+  perform public.equip_cosmetic('hat', 'adwent_hat_pompon');
+  assert (select equipped ->> 'mask' || ',' || (equipped ->> 'hat') from public.profiles where id = auth.uid()) = 'adwent_mask_broda,adwent_hat_pompon', 'maska razem z czapką';
+end $$;
+select pg_temp.expect_error($q$select public.equip_cosmetic('hat', 'adwent_mask_broda')$q$, 'not_owned');
+select pg_temp.expect_error($q$select public.claim_advent(22)$q$, 'advent_locked');
+-- 26 grudnia: ostatni dzień na zaległe (do 24 okienka), 27 grudnia zamknięty
+set mib.today = '2026-12-26';
+do $$ begin perform public.claim_advent(24); assert (public.advent() ->> 'today')::integer = 24, 'po Wigilii do okienka 24'; end $$;
+set mib.today = '2026-12-27';
+select pg_temp.expect_error($q$select public.claim_advent(23)$q$, 'advent_closed');
+-- następny rok: znów nagroda i nowy kalendarz
+set mib.today = '2027-11-09';
+do $$ begin assert (select string_agg(id, ',') from public.my_theme_gifts()) = 'niepodleglosc', 'nagroda w następnym roku'; end $$;
+set mib.today = '2027-12-01';
+do $$ begin assert not (select bool_or((x ->> 'opened')::boolean) from json_array_elements(public.advent() -> 'days') x), 'nowy kalendarz'; end $$;
+-- admin: dni kalendarza, wyłączony motyw zamyka kalendarz
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+set mib.today = '2026-12-21';
+select pg_temp.expect_error($q$select public.admin_set_advent_day(25, 10, null)$q$, 'advent_day_invalid');
+select pg_temp.expect_error($q$select public.admin_set_advent_day(3, 0, null)$q$, 'advent_empty');
+select pg_temp.expect_error($q$select public.admin_set_advent_day(3, 10, 'nie_ma')$q$, 'cosmetic_missing');
+do $$ begin
+  perform public.admin_set_advent_day(3, 40, 'zima_hat_elf');
+  assert (select coins || ' ' || cosmetic_name || ' ' || opened from public.admin_advent() where day = 3) = '40 Czapka elfa 0', 'dzień zmieniony';
+  assert (select opened from public.admin_advent() where day = 21) = 1, 'ile otwarło';
+  perform public.admin_save_theme('boze', '12-01', '01-06', false, false, 0, null, 0, (select items from public.themes where id = 'boze'));
+  assert not (public.advent() ->> 'open')::boolean, 'wyłączony motyw zamyka kalendarz';
+  perform public.admin_save_theme('boze', '12-01', '01-06', true, false, 0, null, 0, (select items from public.themes where id = 'boze'));
+  perform public.admin_save_cosmetic('zimowa_aura_snow', 'Śnieżyca', 'aura', null);
+  perform public.admin_save_cosmetic('maska_test', 'Maska', 'mask', null);
+end $$;
+reset role;
+reset mib.today;
