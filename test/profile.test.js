@@ -113,6 +113,9 @@ test('newInvites: każde zaproszenie raz, ponowne zaproszenie (nowy czas) znowu'
 test('friendNotice: krótkie teksty powiadomień po polsku i po angielsku', () => {
   assert.deepEqual(P.friendNotice({ type: 'started', nick: 'Ala', version: '1.21.11', server: 'play.mib.pl' }), { title: 'Znajomy w grze', body: 'Ala gra teraz w Minecraft 1.21.11 na play.mib.pl.' });
   assert.equal(P.friendNotice({ type: 'started', nick: 'Bob' }).body, 'Bob gra teraz w Minecraft.');
+  assert.deepEqual(P.friendNotice({ type: 'holiday', kind: 'gift', name: 'Boże Narodzenie' }), { title: 'Nagroda świąteczna', body: 'Boże Narodzenie: odbierz nagrodę na stronie głównej launchera.' });
+  assert.deepEqual(P.friendNotice({ type: 'holiday', kind: 'advent', day: 5 }), { title: 'Kalendarz adwentowy', body: 'Nowe okienko (5 grudnia) czeka na stronie głównej launchera.' });
+  assert.equal(P.friendNotice({ type: 'holiday', kind: 'advent', day: 5 }, 'en').title, 'Advent calendar');
   assert.deepEqual(P.friendNotice({ type: 'invite', nick: 'Ala', version: '1.21.11', server: 'play.mib.pl' }), { title: 'Zaproszenie do gry', body: 'Ala zaprasza Cię do gry na play.mib.pl (Minecraft 1.21.11).' });
   assert.equal(P.friendNotice({ type: 'started', nick: 'Ala', version: '1.21.11', server: 'play.mib.pl' }, 'en').body, 'Ala is now playing Minecraft 1.21.11 on play.mib.pl.');
   assert.equal(P.friendNotice({ type: 'invite', nick: 'Ala', version: '26.1', server: 'mc.x.pl' }, 'en').title, 'Game invite');

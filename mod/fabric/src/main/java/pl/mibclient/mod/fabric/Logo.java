@@ -99,6 +99,12 @@ public final class Logo {
 
 	static void draw(MibGraphics g, int[] box, float alpha) {
 		MibClient.hooks.add("logo");
+		if ("primaaprilis".equals(Theme.ID)) {
+			// Prima Aprilis (od 0.25.0): logo do góry nogami, jak mob z imieniem Dinnerbone — rysowane wierszami od dołu obrazka
+			MibClient.hooks.add("logo_upside_down");
+			for (int r = 0; r < box[3]; r++) FabricCanvas.blit(g, TEXTURE, box[0], box[1] + r, 0, box[3] - 1 - r, box[2], 1, box[2], box[3], argb(alpha, 0xFFFFFF));
+			return;
+		}
 		FabricCanvas.blit(g, TEXTURE, box[0], box[1], 0, 0, box[2], box[3], box[2], box[3], argb(alpha, 0xFFFFFF));
 	}
 

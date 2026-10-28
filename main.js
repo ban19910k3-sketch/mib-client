@@ -69,17 +69,19 @@ let friendsPrev = null, invitesSeen = null;
 const shown = new Set(); // powiadomienia trzymane do kliknięcia (bez tego Windows gubi kliknięcie)
 function friendPopup(n) {
   const s = { ...defaults(), ...rd('settings.json', {}) }, t = friendNotice(n, s.lang);
-  if (bridge && n.type !== 'idea') { try { bridge.notice(n); } catch {} }
+  // w grze święto pokazuje się jak prezent („Prezent od MiB!”, tekst: co czeka w launcherze)
+  const inGame = n.type === 'holiday' ? { type: 'gift', nick: 'MiB', text: t.title + ': ' + (n.kind === 'advent' ? n.day + (s.lang === 'en' ? ' December' : ' grudnia') : n.name) } : n;
+  if (bridge && n.type !== 'idea') { try { bridge.notice(inGame); } catch {} }
   // ważna aktualność przy otwartym launcherze: wystarczy okno w launcherze
   // przy otwartym launcherze wiadomość, prezent i odpowiedź pokazuje samo okno (dymek, okno prezentu, licznik);
   // wiadomość w grze z modem: okienko w grze
   const focused = win && !win.isDestroyed() && win.isFocused();
-  if ((n.type === 'message' && bridge) || (focused && ['message', 'gift', 'idea', 'news'].includes(n.type))) return;
+  if ((n.type === 'message' && bridge) || (focused && ['message', 'gift', 'idea', 'news', 'holiday'].includes(n.type))) return;
   try {
     if (!Notification.isSupported()) return;
     const x = new Notification({ title: 'MiB Client — ' + t.title, body: t.body, icon: path.join(__dirname, 'icon.png') });
     shown.add(x);
-    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); if (n.type === 'message') send('chat:open', n.from); else if (n.type === 'gift') send('gifts:open'); else if (n.type === 'idea') send('ideas:open'); else if (n.type === 'news') send('news:popup', n.ann); else send('friends:open'); } });
+    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); if (n.type === 'message') send('chat:open', n.from); else if (n.type === 'gift') send('gifts:open'); else if (n.type === 'idea') send('ideas:open'); else if (n.type === 'news') send('news:popup', n.ann); else if (n.type === 'holiday') send('holiday:open', n.kind); else send('friends:open'); } });
     x.on('close', () => shown.delete(x));
     x.show();
   } catch {}
@@ -143,6 +145,23 @@ async function watchGifts() {
   const w = await prof.warnings();
   if (Array.isArray(w) && w.length) send('warnings:new', w);
   await watchNews();
+  await watchHoliday().catch(() => {});
+}
+// Święta (od 0.25.0): nagroda świąteczna i dzisiejsze okienko kalendarza adwentowego — powiadomienie raz o każdej
+// (obejrzane w mib-state.json); karty z nimi są na stronie głównej launchera
+async function watchHoliday() {
+  const [g, a] = await Promise.all([prof.themeGifts(), prof.advent()]);
+  const items = [];
+  if (Array.isArray(g)) for (const x of g) items.push({ key: 'g:' + x.id + ':' + (x.until || ''), kind: 'gift', name: x.name });
+  const today = a && a.open && Array.isArray(a.days) ? a.days.find(d => d.day === a.today) : null;
+  if (today && !today.opened) items.push({ key: 'a:' + a.year + ':' + a.today, kind: 'advent', day: a.today });
+  const st = rd('mib-state.json', {}), seen = new Set(Array.isArray(st.holidaySeen) ? st.holidaySeen : []);
+  const fresh = items.filter(x => !seen.has(x.key));
+  if (!fresh.length) return;
+  for (const x of fresh) seen.add(x.key);
+  wr('mib-state.json', { ...rd('mib-state.json', {}), holidaySeen: [...seen].slice(-60) });
+  send('holiday:changed');
+  for (const x of fresh) friendPopup({ type: 'holiday', nick: 'MiB', kind: x.kind, name: x.name, day: x.day });
 }
 // Ważna aktualność (okno): każda raz, z ostatnich 7 dni; obejrzane w mib-state.json (osobno od ustawień, które zapisuje okno)
 async function watchNews() {

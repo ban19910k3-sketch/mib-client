@@ -1500,6 +1500,13 @@
   }
   window.addEventListener('focus', () => holidayCheck());
   if (window.MibThemes) MibThemes.onChange(() => holidayCheck(true));
+  // nowa nagroda albo okienko (main.js co minutę) i kliknięte powiadomienie: strona główna, przy kalendarzu od razu okno kalendarza
+  mib.on('holiday:changed', () => holidayCheck(true));
+  mib.on('holiday:open', async kind => {
+    go('home');
+    await holidayCheck(true);
+    if (kind === 'advent' && $('hol-adv-go')) $('hol-adv-go').click();
+  });
 
   // ===== Stan =====
   function apply(r) {

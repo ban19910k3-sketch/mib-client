@@ -156,11 +156,13 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		pvp = new Pvp(this);
 		world = new WorldTweaks(this, base);
 		world.register();
-		// motyw Halloween (według daty, Theme.HALLOWEEN): przyciski i suwaki gry w kolorach dyni z wbudowanej paczki zasobów
-		// resourcepacks/halloween w jarze moda; poza sezonem paczki nie ma i gra rysuje zwykłe przyciski
-		if (pl.mibclient.mod.core.Theme.HALLOWEEN) FabricLoader.getInstance().getModContainer("mibclient").ifPresent(m ->
-				net.fabricmc.fabric.api.resource.ResourceManagerHelper.registerBuiltinResourcePack(MibId.fromNamespaceAndPath("mibclient", "halloween"), m,
-						Component.literal("MiB Halloween"), net.fabricmc.fabric.api.resource.ResourcePackActivationType.ALWAYS_ENABLED));
+		// motyw Halloween i Boże Narodzenie (Theme.ID): przyciski i suwaki gry w kolorach święta z wbudowanej paczki zasobów
+		// resourcepacks/<id> w jarze moda (dynia; od 0.25.0 zielone przyciski ze śniegiem); poza świętem paczki nie ma
+		// i gra rysuje zwykłe przyciski
+		String pack = pl.mibclient.mod.core.Theme.HALLOWEEN ? "halloween" : "boze".equals(pl.mibclient.mod.core.Theme.ID) ? "boze" : null;
+		if (pack != null) FabricLoader.getInstance().getModContainer("mibclient").ifPresent(m ->
+				net.fabricmc.fabric.api.resource.ResourceManagerHelper.registerBuiltinResourcePack(MibId.fromNamespaceAndPath("mibclient", pack), m,
+						Component.literal("MiB " + pack), net.fabricmc.fabric.api.resource.ResourcePackActivationType.ALWAYS_ENABLED));
 		extras = new Extras(this);
 		Extras.register();
 		Looks.register();

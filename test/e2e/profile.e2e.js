@@ -343,6 +343,10 @@ function png(w, h, px) {
     Object.assign(boze, { items: ['zima_hat_renifer', 'zima_hat_elf'], gift_coins: 50, gift_cosmetic: 'adwent_hat_pompon' });
     fake.st.today = '2026-12-05';
     tester.coins = 0;
+    // powiadomienie raz o nagrodzie świątecznej i o dzisiejszym okienku kalendarza (main.js sprawdza co minutę)
+    const ud = await app.evaluate(({ app }) => app.getPath('userData'));
+    const holidaySeen = () => { try { return JSON.parse(fs.readFileSync(path.join(ud, 'mib-state.json'), 'utf8')).holidaySeen || []; } catch { return []; } };
+    await until(() => holidaySeen().includes('g:boze:2027-01-06') && holidaySeen().includes('a:2026:5'), 75000);
     await w.click('#cos-tabs [data-t="shop"]');
     await w.waitForSelector('.shop-col[data-theme="boze"] .cosi[data-id="zima_hat_elf"]');
     assert.match(await w.textContent('.shop-col[data-theme="boze"]'), /Kolekcja.*Boże Narodzenie.*do 6\.01\.2027.*jeszcze \d+ dni/s, 'kolekcja z datą końca');

@@ -9,6 +9,8 @@
 - Maski: nowy rodzaj kosmetyku, który nosisz razem z czapką.
 - Wysokie czapki: rogi renifera, cylinder, uszy zajączka i inne wystają nad głowę.
 - Nowe aury: padający śnieg i wybuchy iskier.
+- Powiadomienie, gdy czeka nagroda świąteczna albo nowe okienko kalendarza, także w grze.
+- W Boże Narodzenie przyciski w grze są zielone i przysypane śniegiem, a na Prima Aprilis czeka mała niespodzianka.
 - W Ustawieniach możesz wyłączyć motywy świąteczne.
 
 ## Zmienione

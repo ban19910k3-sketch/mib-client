@@ -442,10 +442,13 @@ public class MibClientGameTest implements FabricClientGameTest {
 			else if (!pl.mibclient.mod.core.Theme.ID.isEmpty()) for (String h : new String[] {"holiday_loading", "holiday_title", "holiday_pause"}) {
 				check(MibClient.hooks.contains(h), "wstawka w grę nie zadziałała: " + h + " (" + pl.mibclient.mod.core.Theme.ID + ")");
 			}
-			// przyciski w kolorach dyni z wbudowanej paczki moda tylko w sezonie Halloween (paczka leży nad zasobami gry)
+			if ("primaaprilis".equals(pl.mibclient.mod.core.Theme.ID)) check(MibClient.hooks.contains("logo_upside_down"), "na Prima Aprilis logo nie jest do góry nogami");
+			// przyciski w kolorach dyni (Halloween) albo ze śniegiem (Boże Narodzenie) z wbudowanej paczki moda tylko w te święta
+			// (paczka leży nad zasobami gry)
 			int buttons = context.computeOnClient(c -> c.getResourceManager().getResourceStack(
 					net.minecraft.resources.MibId.fromNamespaceAndPath("minecraft", "textures/gui/sprites/widget/button.png")).size());
-			check(pl.mibclient.mod.core.Theme.HALLOWEEN ? buttons >= 2 : buttons == 1, "paczka przycisków Halloween: plików button.png " + buttons);
+			boolean pack = pl.mibclient.mod.core.Theme.HALLOWEEN || "boze".equals(pl.mibclient.mod.core.Theme.ID);
+			check(pack ? buttons >= 2 : buttons == 1, "paczka przycisków święta (" + pl.mibclient.mod.core.Theme.ID + "): plików button.png " + buttons);
 		}
 		if (!errors.isEmpty()) throw new AssertionError(String.join("; ", errors));
 	}
