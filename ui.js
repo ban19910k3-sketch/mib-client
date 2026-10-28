@@ -104,7 +104,8 @@ $('s-lang').onchange=()=>{setLang($('s-lang').value);$('w-lang').value=LANG};$('
 $('s-bg').onchange=async()=>{const v=$('s-bg').value;if(v==='custom'){const p=await mib.call('pickimg');if(!p){$('s-bg').value=localStorage.getItem('mibbg')||'violet';return}localStorage.setItem('mibbgimg',p)}localStorage.setItem('mibbg',v);applyBg()};
 for(const i of ['s-lang','w-lang','s-bg','s-anim','s-fx'])$(i).addEventListener('change',()=>setTimeout(()=>mibSync.push(),0));
 $('s-anim').onchange=()=>{localStorage.setItem('mibanim',$('s-anim').value);document.documentElement.classList.toggle('noanim',$('s-anim').value==='off'||matchMedia('(prefers-reduced-motion: reduce)').matches)};$('s-fx').onchange=()=>localStorage.setItem('mibfx',$('s-fx').checked?'1':'0');
-$('s-themes').checked=MibThemes.enabled;$('s-themes').onchange=()=>MibThemes.setEnabled($('s-themes').checked);
+// bez themes.js (np. brak pliku w instalatorze) launcher działa dalej, tylko bez motywów świątecznych
+if(window.MibThemes){$('s-themes').checked=MibThemes.enabled;$('s-themes').onchange=()=>MibThemes.setEnabled($('s-themes').checked)}else $('s-themes').closest('label').hidden=true;
 $('s-about').onclick=()=>$('legal').classList.add('on');$('legal-x').onclick=()=>$('legal').classList.remove('on');
 $('w-lang').value=LANG;$('w-go').onclick=()=>{localStorage.setItem('mibfirst','1');$('welcome').classList.remove('on')};
 const wi=setInterval(()=>{if(sp.classList.contains('out')||sp.style.display==='none'){clearInterval(wi);if(!localStorage.getItem('mibfirst'))$('welcome').classList.add('on')}},300);

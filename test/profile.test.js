@@ -238,3 +238,24 @@ test('season: motyw Halloween od 15 października do 5 listopada włącznie, poz
   assert.equal(P.season(new Date(2026, 9, 15, 0, 0)), 'halloween', 'od północy');
   assert.equal(P.season(new Date(2026, 10, 5, 23, 59)), 'halloween', 'do końca 5 listopada');
 });
+
+// Instalator (electron-builder, build.files w package.json) musi mieć każdy plik, który ładują strony i procesy launchera:
+// brak themes.js w 0.25.0 zatrzymał ui.js w połowie (nie działały konta ani logowanie)
+test('instalator zawiera wszystkie pliki ładowane przez launcher', () => {
+  const fs = require('fs'), path = require('path'), root = path.join(__dirname, '..');
+  const files = require('../package.json').build.files;
+  const re = files.map(g => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*') + '$'));
+  const packed = f => re.some(r => r.test(f));
+  const need = new Set();
+  for (const page of ['index.html', 'overlay.html']) {
+    need.add(page);
+    for (const m of fs.readFileSync(path.join(root, page), 'utf8').matchAll(/(?:src|href)="([^"#?]+)"/g)) if (!/^(https?:|data:|file:|\/)/.test(m[1])) need.add(m[1]);
+  }
+  for (const js of ['main.js', 'profile-main.js', 'preload.js', 'worker.js']) {
+    need.add(js);
+    for (const m of fs.readFileSync(path.join(root, js), 'utf8').matchAll(/require\('\.\/([^']+)'\)/g)) need.add(m[1].endsWith('.js') ? m[1] : m[1] + '.js');
+  }
+  const missing = [...need].filter(f => fs.existsSync(path.join(root, f)) && !packed(f));
+  assert.deepEqual(missing, [], 'pliki spoza instalatora');
+  assert.ok(need.has('themes.js') && packed('themes.js'));
+});

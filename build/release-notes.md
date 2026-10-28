@@ -1,4 +1,4 @@
-<!-- 0.25.0 -->
+<!-- 0.25.1 -->
 ## Dodane
 
 - Motywy świąteczne w launcherze i w grze: Święto Niepodległości, Boże Narodzenie, Sylwester, Walentynki, Wielkanoc, Prima Aprilis, urodziny Minecrafta, Dzień Dziecka, wakacje i urodziny MiB. Każde święto ma swoje kolory, ozdoby i cząsteczki, a w grze ozdoby na ekranie tytułowym, w menu pauzy, na ekranie ładowania i w menu pod prawym Shiftem.
@@ -15,4 +15,5 @@
 
 ## Zmienione
 
+- Naprawione logowanie kontem Microsoft i przycisk kont, które nie działały w wersji 0.25.0.
 - W czasie świąt nagroda dzienna może być większa.

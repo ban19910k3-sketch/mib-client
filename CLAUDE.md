@@ -49,7 +49,7 @@ Darmowy launcher Minecraft PvP w Electronie (czysty HTML/JS, bez frameworka). Ro
 
 ## Wydawanie aktualizacji
 
-1. Podbij `version` w `package.json` (i `mod_version` w `mod/gradle.properties`).
+1. Podbij `version` w `package.json` (i `mod_version` w `mod/gradle.properties`). Nowy plik ładowany przez launcher (skrypt w `index.html`, `require` w procesie głównym) dopisz do `build.files` w `package.json` — inaczej nie trafi do instalatora (tak w 0.25.0 zabrakło `themes.js`); pilnuje tego test „instalator zawiera wszystkie pliki” w `npm test`.
 2. Napisz `build/release-notes.md` — to gracze widzą w oknie aktualizacji. Pierwsza linia `<!-- <wersja> -->`, potem sekcje „Dodane”, „Zmienione”, „Usunięte” z krótkimi punktami (tylko to, co się zmieniło dla gracza). Bez linków, podpisów Co-Authored-By i nazw plików — workflow odrzuci plik z linkami albo z inną wersją.
 3. Wypchnij na `main`. Workflow `.github/workflows/release.yml` zbuduje instalator na Windows i utworzy szkic wydania `v<wersja>` z `.exe` i `latest.yml`.
 4. Właściciel sam klika „Publish release” — dopiero wtedy launchery graczy pobiorą aktualizację.
