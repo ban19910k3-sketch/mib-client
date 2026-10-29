@@ -1,10 +1,4 @@
-<!-- 0.27.0 -->
+<!-- 0.28.0 -->
 ## Zmienione
 
-- Profil MiB idzie za kontem Microsoft: gdy przełączysz konto, launcher przełączy też profil MiB na profil tego konta.
-- Z profilu MiB wylogowujesz się, wylogowując się z konta Microsoft.
-
-## Usunięte
-
-- Przycisk Wyloguj na stronie Profil MiB.
-- Kody odzyskiwania. Gdy zapomnisz hasła do profilu, zaloguj się kontem Microsoft.
+- Podgląd czapek i masek w Kosmetykach działa także wtedy, gdy skin postaci jeszcze się nie wczytał.

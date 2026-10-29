@@ -44,8 +44,8 @@
   };
   // Prezent dla gracza: kosmetyk i wiadomość (gracz odbiera w launcherze przyciskiem „Odbierz”); idea = nagroda za ten pomysł
   async function giftForm(user, idea, done, owned = []) {
-    const cos = await mib.call('prof:allCosmetics', { lite: true });
-    const pick = h('select', { class: 'gift-pick', 'aria-label': 'Kosmetyk' }, ...(Array.isArray(cos) ? cos.filter(c => !owned.some(o => o.id === c.id)).map(c => h('option', { value: c.id }, c.name + ' (' + (TYPES[c.type] || c.type) + ')')) : []));
+    const cos = await allWithTextures();
+    const pick = h('select', { class: 'gift-pick', 'aria-label': 'Kosmetyk' }, ...cos.filter(c => !owned.some(o => o.id === c.id)).map(c => h('option', { value: c.id }, c.name + ' (' + (TYPES[c.type] || c.type) + ')')));
     const note = h('input', { class: 'gift-note', maxlength: 200, placeholder: idea ? 'Wiadomość, np. Dzięki za znalezienie błędu z czatem!' : 'Wiadomość dla gracza (nieobowiązkowa)' });
     const send = h('button', { class: 'b', type: 'button', on: { click: async () => {
       if (!pick.value) return toast('Najpierw dodaj przedmiot w zakładce Kosmetyki.', 1);
@@ -56,7 +56,7 @@
       toast('Prezent wysłany. Gracz odbierze go w launcherze.');
       done();
     } } }, idea ? 'Wyślij nagrodę' : 'Wyślij prezent');
-    return h('div', { class: 'row gift-form' }, pick, note, send);
+    return h('div', { class: 'row gift-form' }, pick, note, send, pickPreview(pick, cos));
   }
   const err = r => (r && ERR[r.error]) || msg(r && r.error || 'unknown', r && r.detail);
   const call = (fn, args) => mib.call('prof:admin', { fn, args });
@@ -84,6 +84,24 @@
     } catch { capeCanvas.hidden = true; }
     return capeCanvas;
   }
+
+  // Podgląd przedmiotu przy jego wyborze (od 0.28.0): miniatura obok listy, a po wybraniu postać 3D w tym przedmiocie
+  // (jedna na cały panel, przenoszona tam, gdzie ostatnio wybierano). stage: miejsce na postać, gdy lista jest w wąskim wierszu.
+  function pickPreview(select, all, stage) {
+    const box = h('span', { class: 'pick-prev' });
+    const show = big => {
+      const c = all.find(x => x.id === select.value), tex = c && (c.texture || c.image_url);
+      box.replaceChildren(...(c ? [h('i', { class: 'pick-thumb', title: c.name + ' (' + (TYPES[c.type] || c.type) + ')' }, window.mibUI.itemImage({ ...c, imageUrl: tex }, 3))] : []));
+      if (big && c && tex) (stage || box).append(capePreview(tex, c.type, c.id));
+      else if (big && stage) stage.replaceChildren();
+    };
+    select.addEventListener('change', () => show(true));
+    select.addEventListener('focus', () => show(true));
+    show(false);
+    return box;
+  }
+  // Pełna lista kosmetyków z teksturami (do podglądu); lite — bez tekstur
+  const allWithTextures = async () => { const l = await mib.call('prof:allCosmetics'); return Array.isArray(l) ? l : []; };
 
   // ===== Aktualności (panel Aktualności na stronie głównej i strona Aktualności) =====
   async function viewAnn(box) {
@@ -450,8 +468,9 @@
     const own = h('input', { id: 'ak-code', maxlength: 24, placeholder: 'np. TURNIEJ2026 (puste = losowe kody)', autocomplete: 'off' });
     own.oninput = () => { count.disabled = !!own.value.trim(); if (count.disabled) count.value = 1; };
     const e = h('p', { class: 'err' }), out = h('div', { id: 'ak-out' }), list = h('div', { id: 'ak-list' });
-    const cos = await mib.call('prof:allCosmetics', { lite: true });
-    item.replaceChildren(...(Array.isArray(cos) ? cos.map(c => h('option', { value: c.id }, c.name)) : []));
+    const cos = await allWithTextures();
+    item.replaceChildren(...cos.map(c => h('option', { value: c.id }, c.name + ' (' + (TYPES[c.type] || c.type) + ')')));
+    const itemPrev = pickPreview(item, cos);
     async function load() {
       const l = await call('admin_list_codes');
       if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
@@ -476,7 +495,7 @@
         h('button', { class: 'b ghost', on: { click: () => copy(r.join('\n')) } }, 'Kopiuj wszystkie')));
       load();
     } } },
-    h('label', { class: 'sr' }, h('span', {}, 'Przedmiot'), item), h('label', { class: 'sr' }, h('span', {}, 'Ile kodów'), count),
+    h('div', { class: 'sr' }, h('span', {}, 'Przedmiot'), h('span', { class: 'row', style: 'align-items:flex-start' }, item, itemPrev)), h('label', { class: 'sr' }, h('span', {}, 'Ile kodów'), count),
     h('label', { class: 'sr' }, h('span', {}, 'Użyć na jeden kod'), h('span', { class: 'fld' }, uses, h('small', { class: 'mut' }, '1 = kod dla jednej osoby (np. zwycięzcy)'))),
     h('label', { class: 'sr' }, h('span', {}, 'Własna nazwa kodu'), h('span', { class: 'fld' }, own, h('small', { class: 'mut' }, 'Jeden kod, który łatwo podać na streamie albo Discordzie'))),
     h('label', { class: 'sr' }, h('span', {}, 'Ważny do'), h('span', { class: 'fld' }, until, h('small', { class: 'mut' }, 'Do końca tego dnia; puste = bez końca'))), e, h('div', { class: 'row' }, gen));
@@ -497,9 +516,9 @@
         : [h('p', { class: 'empty' }, 'Nikogo nie znaleziono.')]));
     }
     async function show(p) {
-      const [owned, cos] = await Promise.all([call('admin_player_cosmetics', { p_user: p.id }), mib.call('prof:allCosmetics', { lite: true })]);
+      const [owned, cos] = await Promise.all([call('admin_player_cosmetics', { p_user: p.id }), allWithTextures()]);
       if (failed(owned)) return toast(err(owned), 1);
-      const pick = h('select', {}, ...(Array.isArray(cos) ? cos.filter(c => !owned.some(o => o.id === c.id)).map(c => h('option', { value: c.id }, c.name)) : []));
+      const pick = h('select', { class: 'grant-pick', 'aria-label': 'Przedmiot' }, ...cos.filter(c => !owned.some(o => o.id === c.id)).map(c => h('option', { value: c.id }, c.name + ' (' + (TYPES[c.type] || c.type) + ')')));
       detail.replaceChildren(h('div', { class: 'sec' },
         h('h3', {}, p.nick + ' (' + window.MibProfile.formatMibId(p.num) + ')'),
         h('div', { class: 'sr' }, h('span', {}, 'E-mail'), h('b', {}, p.email)),
@@ -508,7 +527,7 @@
           h('button', { class: 'b ghost', on: { click: async () => { const r = await call('admin_revoke', { p_user: p.id, p_cosmetic: o.id }); if (failed(r)) return toast(err(r), 1); show(p); } } }, 'Zabierz')))
           : [h('span', { class: 'mut' }, 'brak')]))),
         h('div', { class: 'sr' }, h('span', {}, 'Daj przedmiot'), h('span', { class: 'row' }, pick,
-          h('button', { class: 'b', on: { click: async () => { if (!pick.value) return; const r = await call('admin_grant', { p_user: p.id, p_cosmetic: pick.value }); if (failed(r)) return toast(err(r), 1); toast('Przedmiot dodany.'); show(p); } } }, 'Daj'))),
+          h('button', { class: 'b', on: { click: async () => { if (!pick.value) return; const r = await call('admin_grant', { p_user: p.id, p_cosmetic: pick.value }); if (failed(r)) return toast(err(r), 1); toast('Przedmiot dodany.'); show(p); } } }, 'Daj'), pickPreview(pick, cos))),
         coinsRow(p),
         h('div', { class: 'sr' }, h('span', {}, 'Wyślij prezent (z oknem „Odbierz”)'), await giftForm(p.id, null, () => show(p), owned)),
         h('div', { class: 'sr' }, h('span', {}, p.banned ? 'Ban' + (p.ban_reason ? ': ' + p.ban_reason : '') : 'Ostrzeżenia i ban'),
@@ -562,8 +581,8 @@
   }
   // Prezent dla wszystkich (np. święta, 1000 graczy): każdy, kto nie ma tego kosmetyku, dostanie okno „Masz prezent!”
   async function giftAllBox() {
-    const cos = await mib.call('prof:allCosmetics', { lite: true });
-    const pick = h('select', { id: 'ga-pick', 'aria-label': 'Kosmetyk' }, ...(Array.isArray(cos) ? cos.map(c => h('option', { value: c.id }, c.name + ' (' + (TYPES[c.type] || c.type) + ')')) : []));
+    const cos = await allWithTextures();
+    const pick = h('select', { id: 'ga-pick', 'aria-label': 'Kosmetyk' }, ...cos.map(c => h('option', { value: c.id }, c.name + ' (' + (TYPES[c.type] || c.type) + ')')));
     const note = h('input', { id: 'ga-note', maxlength: 200, placeholder: 'Wiadomość, np. Wesołych Świąt od MiB!' });
     const go = h('button', { class: 'b', id: 'ga-go', type: 'button', on: { click: async () => {
       if (!pick.value) return toast('Najpierw dodaj przedmiot w zakładce Kosmetyki.', 1);
@@ -576,7 +595,7 @@
       note.value = '';
     } } }, 'Wyślij wszystkim');
     return h('div', { class: 'sec', id: 'ga' }, h('h3', {}, 'Prezent dla wszystkich'), h('p', { class: 'mut' }, 'Każdy gracz bez bana, który nie ma tego przedmiotu, zobaczy okno „Masz prezent!”.'),
-      h('div', { class: 'row gift-form' }, pick, note, go));
+      h('div', { class: 'row gift-form' }, pick, note, go, pickPreview(pick, cos)));
   }
 
   // ===== Wykres graczy: dzień po dniu profile w launcherze i w grze (linie) oraz nowe profile (słupki) =====
@@ -670,8 +689,8 @@
   // ===== Motywy świąteczne (od 0.25.0): daty, włączanie, nagroda, dodatek do nagrody dziennej, kolekcja i kalendarz =====
   const fmtD = d => (d ? fmtDate(d) : '—');
   async function viewThemes(box) {
-    const cos = await mib.call('prof:allCosmetics', { lite: true }), all = Array.isArray(cos) ? cos : [];
-    const list = h('div', { id: 'at-list' }), adv = h('div', { id: 'aa-list', class: 'adv-grid' });
+    const all = await allWithTextures();
+    const list = h('div', { id: 'at-list' }), adv = h('div', { id: 'aa-list', class: 'adv-grid' }), advStage = h('div', { class: 'adv-stage', id: 'aa-stage' });
     let open = null;
     function state(t) {
       if (!t.enabled) return ['wyłączony', 'off'];
@@ -701,7 +720,7 @@
           h('small', { class: 'mut' }, 'MM-DD, np. 12-01. Wielkanoc: E-7 to 7 dni przed, E+2 to 2 dni po (liczona co roku). Koniec wcześniej niż początek = przez Nowy Rok.'))),
         h('label', { class: 'ck' }, enabled, 'Włączony (w swoich datach)'),
         h('label', { class: 'ck' }, forced, 'Włącz teraz, niezależnie od dat (np. żeby zobaczyć wygląd albo zacząć wcześniej; tylko jeden motyw naraz)'),
-        h('div', { class: 'sr' }, h('span', {}, 'Nagroda świąteczna'), h('span', { class: 'fld' }, h('span', { class: 'row', style: 'align-items:center' }, coins, 'MiB Coins i', gift),
+        h('div', { class: 'sr' }, h('span', {}, 'Nagroda świąteczna'), h('span', { class: 'fld' }, h('span', { class: 'row', style: 'align-items:center' }, coins, 'MiB Coins i', gift, pickPreview(gift, all)),
           h('small', { class: 'mut' }, 'Każdy gracz odbiera ją raz w roku na stronie głównej launchera. 0 i bez przedmiotu = bez nagrody.'))),
         h('div', { class: 'sr' }, h('span', {}, 'Dodatek do nagrody dziennej'), h('span', { class: 'fld' }, bonus, h('small', { class: 'mut' }, 'Coinsy dodawane do codziennych 10 w czasie święta (0 = bez dodatku).'))),
         h('div', { class: 'sr' }, h('span', {}, 'Kolekcja w sklepie'), h('span', { class: 'fld' }, items, h('small', { class: 'mut' }, 'Te przedmioty (z ceną) są w Sklepie tylko w czasie święta, na górze z odliczaniem. Kto je kupił, ma je dalej.'))),
@@ -734,13 +753,13 @@
           toast(d.day + ' grudnia zapisany.');
         };
         coinsIn.onchange = saveDay; pick.onchange = saveDay;
-        return h('div', { class: 'adv-row', 'data-day': d.day }, h('b', { class: 'adv-n' }, d.day + '.'), coinsIn, h('span', { class: 'mut' }, 'coinsów i'), pick,
+        return h('div', { class: 'adv-row', 'data-day': d.day }, h('b', { class: 'adv-n' }, d.day + '.'), coinsIn, h('span', { class: 'mut' }, 'coinsów i'), pick, pickPreview(pick, all, advStage),
           h('small', { class: 'mut' }, d.opened ? 'otwarło ' + d.opened : ''));
       }));
     }
     box.append(h('p', { class: 'lead' }, 'Wygląd każdego święta jest wbudowany w launcher i w grę. Tu ustawiasz daty, włączasz i wyłączasz motywy, nagrodę świąteczną, dodatek do nagrody dziennej i kolekcję w sklepie. Zmiany działają bez aktualizacji launchera.'),
       list, h('div', { class: 'sec', id: 'aa' }, h('h3', {}, 'Kalendarz adwentowy'),
-        h('p', { class: 'mut' }, 'Gracze otwierają okienka od 1 do 24 grudnia na stronie głównej, zaległe do 26 grudnia, gdy motyw Bożego Narodzenia jest włączony. Nagrodę widać dopiero po otwarciu. Zmiana zapisuje się od razu.'), adv));
+        h('p', { class: 'mut' }, 'Gracze otwierają okienka od 1 do 24 grudnia na stronie głównej, zaległe do 26 grudnia, gdy motyw Bożego Narodzenia jest włączony. Nagrodę widać dopiero po otwarciu. Zmiana zapisuje się od razu. Kliknij listę przedmiotu, żeby zobaczyć go na postaci.'), advStage, adv));
     load(); loadAdvent();
   }
   const coins_ = n => Number(n || 0).toLocaleString('pl-PL');

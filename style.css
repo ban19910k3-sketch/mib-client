@@ -337,6 +337,13 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .ireply{margin-top:8px;padding:8px 12px;background:var(--slab2);box-shadow:inset 3px 0 0 var(--am);clip-path:var(--px)}
 .ireply small{color:var(--am-hi);font-size:11px}.ireply p{margin:2px 0 0;font-size:13px;line-height:1.45}
 .gift-form{margin-top:8px;flex-wrap:wrap}.gift-form .gift-note{flex:1;min-width:200px}
+/* podgląd przedmiotu przy wyborze w panelu admina (od 0.28.0): miniatura i postać 3D */
+.pick-prev{display:inline-flex;align-items:center;gap:10px;flex-basis:100%}.gift-form .pick-prev,.sr .row .pick-prev{flex-basis:auto}
+.pick-thumb{display:grid;place-items:center;min-width:44px;height:44px;padding:2px 4px;background:var(--slab2);border:2px solid var(--edge);clip-path:var(--px)}
+.pick-thumb img,.pick-thumb canvas{max-height:38px;max-width:64px;image-rendering:pixelated}.pick-thumb .capeth{transform:scale(.8)}
+.pick-prev .cape3d,.adv-stage .cape3d{margin:0;align-self:center}
+.adv-row .pick-thumb{min-width:30px;height:30px}.adv-row .pick-thumb img,.adv-row .pick-thumb canvas{max-height:24px;max-width:40px}
+.adv-stage{display:flex;justify-content:center;min-height:0}
 .idea-answer{margin:6px 0;align-items:flex-start}.idea-answer textarea{flex:1;min-height:38px}
 /* ===== 0.20.0: bezpieczeństwo, karta znajomego, osiągnięcia, ważna aktualność, Co nowego, wykres graczy ===== */
 .gift-kicker{color:var(--am-hi);font-size:12px;letter-spacing:.06em;text-transform:uppercase}

@@ -419,7 +419,8 @@
   // Klasa tekstury z samego skinview3d; skin ładuje się osobno, więc chwilę na nią czekamy (null = nie ma)
   async function texClass(viewer, st, my) {
     for (let i = 0; i < 20 && !(viewer.skinTexture || viewer.capeTexture); i++) { await new Promise(r => setTimeout(r, 100)); if (st.gen !== my) return null; }
-    return (viewer.skinTexture || viewer.capeTexture || {}).constructor || null;
+    const t = viewer.skinTexture || viewer.capeTexture;
+    return t ? t.constructor : null;
   }
   function newTex(viewer, Tex, canvas) {
     const t = new Tex(canvas);

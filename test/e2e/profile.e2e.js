@@ -791,6 +791,8 @@ function png(w, h, px) {
     await until(() => fake.st.advent.find(a => a.day === 7).coins === 40);
     await w.selectOption('#aa-list .adv-row[data-day="8"] .adv-cos', 'cape_start');
     await until(() => fake.st.advent.find(a => a.day === 8).cosmetic_id === 'cape_start');
+    await w.waitForSelector('#aa-list .adv-row[data-day="8"] .pick-thumb');
+    await w.waitForSelector('#aa-stage canvas.cape3d:not([hidden])');
     await w.waitForTimeout(500);
     await shot('admin-themes.png');
     Object.assign(fake.st.themes.find(t => t.id === 'walentynki'), walOld);
@@ -808,6 +810,13 @@ function png(w, h, px) {
     await w.click('#ap-res .arow:has-text("Sierota_1")');
     await w.waitForSelector('#ap-detail .gift-pick option[value="cape_start"]', { state: 'attached' });
     await w.selectOption('#ap-detail .gift-pick', 'cape_start');
+    // podgląd przedmiotu przy wyborze (0.28.0): miniatura i postać 3D w wybranym przedmiocie
+    await w.waitForSelector('#ap-detail .gift-form .pick-thumb');
+    await w.waitForSelector('#ap-detail .gift-form canvas.cape3d:not([hidden])');
+    await w.waitForFunction(() => document.querySelector('#ap-detail .gift-form canvas.cape3d').dataset !== undefined);
+    await w.waitForTimeout(800);
+    await w.$eval('#ap-detail .gift-form', el => el.scrollIntoView({ block: 'center' }));
+    await shot('admin-gift-preview.png');
     await w.click('#ap-detail button:has-text("Wyślij prezent")');
     await until(() => fake.st.gifts.some(g => g.user === sier.id && g.cosmetic === 'cape_start'));
     fake.st.ideas.push({ id: ++fake.st.ideaId, user: sier.id, category: 'bug', body: 'Czat w grze nie przewija się do końca', status: 'new', created_at: new Date().toISOString() });
@@ -956,7 +965,7 @@ function png(w, h, px) {
     fs.writeFileSync(path.join(userData, 'mib-state.json'), JSON.stringify({ lastVersion: '0.0.1' }));
     await w.reload();
     await w.waitForSelector('#wn h4', { timeout: 15000 });
-    assert.match(await w.textContent('#wn'), /Co nowego.*Dodane/s);
+    assert.match(await w.textContent('#wn'), /Co nowego.*(Dodane|Zmienione|Usunięte)/s);
     await shot('whatsnew.png');
     await w.click('#wn-ok');
     assert.equal(JSON.parse(fs.readFileSync(path.join(userData, 'mib-state.json'), 'utf8')).lastVersion, require(path.join(ROOT, 'package.json')).version);
