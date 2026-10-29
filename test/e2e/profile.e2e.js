@@ -62,24 +62,14 @@ function png(w, h, px) {
     await w.fill('#pf-nick', 'Tester_1');
     await w.click('#pf-go');
     await w.waitForFunction(() => /Confirm email/.test(document.querySelector('#prof-box .err').textContent));
-    assert.equal(await w.$('#rc.on'), null);
     await shot('prof-confirm.png');
     fake.st.confirm = false;
     ok('(i) włączone potwierdzanie e-maila daje jasny komunikat');
 
     await w.click('#pf-go');
-    await w.waitForSelector('#rc.on');
-    assert.equal(await w.textContent('#rc-t'), 'Konto założone!');
-    assert.match(await w.textContent('#rc-done'), /pomyślnie założony.*MIB-000001/);
-    const code = await w.textContent('#rc-code');
-    assert.match(code, /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/);
-    assert.equal(await w.isDisabled('#rc-x'), true);
-    await w.waitForTimeout(400); // animacja otwierania okna
-    await shot('prof-code.png');
-    await w.check('#rc-ok');
-    assert.equal(await w.isDisabled('#rc-x'), false);
-    await w.click('#rc-x');
-    ok('(b) rejestracja pokazuje kod odzyskiwania, „Gotowe” dopiero po potwierdzeniu');
+    await w.waitForSelector('.toast:has-text("pomyślnie założony. Twoje ID: MIB-000001")');
+    assert.ok(!Object.keys(fake.st.recovery).length, 'bez kodów odzyskiwania');
+    ok('(b) rejestracja: potwierdzenie z ID, bez kodów odzyskiwania');
 
     await w.waitForFunction(() => /MIB-000001/.test(document.getElementById('prof-box').textContent) && /Założyciel/.test(document.getElementById('prof-box').textContent));
     assert.equal(await w.textContent('#plsub'), 'MIB-000001');
@@ -582,7 +572,11 @@ function png(w, h, px) {
     // Konto bez profilu (założone, zanim w Supabase uruchomiono schema.sql)
     await w.click('.nav[data-p="prof"]');
     await w.waitForSelector('#p-prof.on .phead');
-    await w.click('text=Wyloguj');
+    // bez przycisku Wyloguj i bez kodów odzyskiwania (0.27.0): profil wylogowuje konto Microsoft
+    assert.equal(await w.$('#prof-box button:has-text("Wyloguj")'), null, 'bez przycisku Wyloguj');
+    assert.equal(await w.$('#prof-box button:has-text("kod odzyskiwania")'), null, 'bez kodów odzyskiwania');
+    assert.match(await w.textContent('#prof-box'), /Profil idzie za kontem Microsoft/);
+    await w.evaluate(async () => { await mib.call('prof:logout'); await mibProfileUI.refresh(); });
     await w.waitForSelector('#pf-nick');
     fake.st.users.push({ id: 'orphan-1', email: 'sierota@mib.pl', password: 'haslo1234', nick: '', num: 0, noProfile: true, created: new Date().toISOString() });
     await w.click('#prof-box .seg button:nth-child(2)');
@@ -593,9 +587,7 @@ function png(w, h, px) {
     await shot('prof-complete.png');
     await w.fill('#pc-nick', 'Sierota_1');
     await w.click('#pc-go');
-    await w.waitForSelector('#rc.on');
-    assert.equal(await w.textContent('#rc-t'), 'Konto założone!');
-    await w.check('#rc-ok'); await w.click('#rc-x');
+    await w.waitForSelector('.toast:has-text("pomyślnie założony")');
     await w.waitForFunction(() => document.getElementById('plname').textContent === 'Sierota_1');
     ok('(j) konto bez profilu: wybór nicku dokańcza profil');
 

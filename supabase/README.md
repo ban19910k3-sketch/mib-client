@@ -188,5 +188,5 @@ select setval(pg_get_serial_sequence('public.profiles', 'num'), coalesce(max(num
 ## Dobrze wiedzieć
 
 - Klucz `sb_publishable_…` w launcherze jest publiczny i to jest w porządku. **Nigdy** nie wklejaj do launchera ani nikomu nie wysyłaj klucza `service_role` / `secret` ani hasła do bazy.
-- Gracz, który zgubi i hasło, i kod odzyskiwania, nie odzyska profilu sam. Możesz wtedy usunąć jego konto w **Authentication → Users**, żeby mógł założyć nowe.
+- Od 0.27.0 launcher nie ma kodów odzyskiwania. Gracz, który zapomni hasła do profilu e-mail, loguje się kontem Microsoft — profil połączony z jego kontem Minecraft zaloguje się sam. Gdy profil nie jest połączony, możesz usunąć jego konto w **Authentication → Users**, żeby gracz zalogował się od nowa kontem Microsoft.
 - Darmowy plan Supabase usypia projekt po tygodniu bez żadnego ruchu. Wtedy w panelu kliknij **Restore project**.

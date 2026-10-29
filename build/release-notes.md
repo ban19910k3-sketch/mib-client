@@ -1,6 +1,10 @@
-<!-- 0.26.0 -->
-## Dodane
+<!-- 0.27.0 -->
+## Zmienione
 
-- Profil MiB zakłada się sam: wystarczy zalogować się kontem Microsoft, bez e-maila i hasła. Nick to Twój nick z Minecrafta.
-- Na każdym komputerze to samo konto Minecraft loguje do tego samego profilu MiB, z kosmetykami, MiB Coins i znajomymi.
-- Profil założony e-mailem sam łączy się z Twoim kontem Minecraft. Logowanie e-mailem dalej działa.
+- Profil MiB idzie za kontem Microsoft: gdy przełączysz konto, launcher przełączy też profil MiB na profil tego konta.
+- Z profilu MiB wylogowujesz się, wylogowując się z konta Microsoft.
+
+## Usunięte
+
+- Przycisk Wyloguj na stronie Profil MiB.
+- Kody odzyskiwania. Gdy zapomnisz hasła do profilu, zaloguj się kontem Microsoft.

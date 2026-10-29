@@ -46,14 +46,13 @@ const mk = (o = {}) => {
   return { p, store, supa, tick: ms => { t += ms; } };
 };
 
-test('signup stores only the encrypted refresh token and sets a recovery code', async () => {
+test('signup stores only the encrypted refresh token, without recovery codes (0.27.0)', async () => {
   const { p, store, supa } = mk();
   const r = await p.signup({ email: 'a@b.pl', password: 'tajnehaslo1', nick: 'Gracz_1' });
   assert.equal(r.loggedIn, true);
   assert.equal(r.mibId, 'MIB-000007');
-  assert.match(r.recoveryCode, /^[0-9A-Z]{4}-/);
-  const rpc = supa.calls.find(c => c[0] === 'rpc' && c[1] === 'set_recovery_code');
-  assert.equal(rpc[2].p_code, r.recoveryCode);
+  assert.equal(r.recoveryCode, undefined);
+  assert.ok(!supa.calls.some(c => c[0] === 'rpc' && c[1] === 'set_recovery_code'), 'bez kodu odzyskiwania');
   assert.equal(Buffer.from(store.files['mib-session.json'].t, 'base64').toString(), 'xRT1');
   assert.ok(!store.writes.some(w => w.includes('tajnehaslo1')), 'hasło nie trafia na dysk');
 });
@@ -138,17 +137,6 @@ test('errors become {error} and never throw', async () => {
   assert.equal((await p.redeem({ code: 'X' })).error, 'not_logged_in');
   await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
   assert.equal((await p.redeem({ code: 'X' })).error, 'code_used_up');
-});
-
-test('reset with a wrong code reports reset_failed, a good one logs in with a new code', async () => {
-  let ok = false;
-  const supa = fakeSupa({ rpc: async n => (n === 'reset_password_with_code' ? ok : null) });
-  const { p } = mk({ supa });
-  assert.deepEqual(await p.reset({ email: 'a@b.pl', code: 'X', password: 'nowehaslo1' }), { error: 'reset_failed' });
-  ok = true;
-  const r = await p.reset({ email: 'a@b.pl', code: 'X', password: 'nowehaslo1' });
-  assert.equal(r.loggedIn, true);
-  assert.ok(r.recoveryCode);
 });
 
 test('settings sync sends only synced keys', async () => {
@@ -347,7 +335,7 @@ test('an account without a profile asks for a nick and can finish the profile', 
   const r = await p.createProfile({ nick: 'Nowy_1' });
   assert.equal(r.loggedIn, true);
   assert.equal(r.nick, 'Nowy_1');
-  assert.ok(r.recoveryCode, 'nowy profil dostaje kod odzyskiwania');
+  assert.equal(r.recoveryCode, undefined, 'bez kodu odzyskiwania');
 });
 
 test('signup finishes the profile itself when the database trigger did not', async () => {
@@ -538,19 +526,25 @@ test('sklep: błąd bazy wraca jako kod, a nagroda dzienna na starej bazie to ni
 
 
 // ===== Profil MiB z konta Minecraft (0.26.0) =====
-test('mcLogin: sesja z funkcji mc-login, profil od razu w stanie; ręczne wylogowanie wyłącza logowanie kontem Minecraft', async () => {
-  const { p, store, supa } = mk({ supa: fakeSupa({ select: async t => (t === 'profiles' ? [{ ...profileRow, nick: 'Steve', mc_name: 'Steve' }] : []) }) });
-  assert.equal(await p.mcAutoAllowed(), true);
+test('mcLogin: sesja z funkcji mc-login, profil od razu w stanie (z uuid konta Minecraft)', async () => {
+  const { p, store, supa } = mk({ supa: fakeSupa({ select: async t => (t === 'profiles' ? [{ ...profileRow, nick: 'Steve', mc_name: 'Steve', mc_uuid: '44444444-4444-4444-4444-444444444444' }] : []) }) });
   const r = await p.mcLogin({ name: 'Steve', serverId: 'a'.repeat(32) });
   assert.equal(r.loggedIn, true);
   assert.equal(r.created, true);
   assert.equal(r.mcName, 'Steve');
+  assert.equal(r.mcUuid, '44444444-4444-4444-4444-444444444444');
   assert.deepEqual(supa.calls.find(c => c[0] === 'mcLogin').slice(1), ['Steve', 'a'.repeat(32)]);
   assert.equal(Buffer.from(store.files['mib-session.json'].t, 'base64').toString(), 'xRT3');
-  await p.logout();
-  assert.equal(await p.mcAutoAllowed(), false, 'po wylogowaniu bez samoczynnego logowania');
+  assert.ok(!supa.calls.some(c => c[0] === 'signOut'), 'nie było czego wylogować');
+});
+
+test('mcLogin przy zmianie konta: poprzedni profil wylogowany na serwerze, sesja nowego zapisana', async () => {
+  const { p, store, supa } = mk();
   await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
-  assert.equal(await p.mcAutoAllowed(), true, 'po zalogowaniu znów można');
+  await p.state();
+  await p.mcLogin({ name: 'Steve', serverId: 'a'.repeat(32) });
+  assert.deepEqual(supa.calls.find(c => c[0] === 'signOut').slice(1), ['AT1']);
+  assert.equal(Buffer.from(store.files['mib-session.json'].t, 'base64').toString(), 'xRT3');
 });
 
 test('mcLogin: błąd funkcji (np. nie wgrana) wraca jako kod, bez zapisu sesji', async () => {

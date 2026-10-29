@@ -107,24 +107,8 @@
   $('plbox').addEventListener('click', () => go('prof'));
   $('plbox').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go('prof'); } });
 
-  // ===== Kod odzyskiwania =====
-  // created: okno po założeniu konta — najpierw potwierdzenie sukcesu, potem kod
-  function showCode(code, created) {
-    $('rc-t').textContent = T(created ? 'Konto założone!' : 'Zapisz kod odzyskiwania');
-    $('rc-done').hidden = !created;
-    if (created) $('rc-done').textContent = T('Profil MiB został pomyślnie założony. Twoje ID:') + ' ' + created;
-    if (!code) {
-      if (created) toast(T('Profil MiB został pomyślnie założony. Twoje ID:') + ' ' + created);
-      return;
-    }
-    $('rc-code').textContent = code;
-    $('rc-ok').checked = false;
-    $('rc-x').disabled = true;
-    $('rc').classList.add('on');
-  }
-  $('rc-ok').onchange = () => { $('rc-x').disabled = !$('rc-ok').checked; };
-  $('rc-x').onclick = () => $('rc').classList.remove('on');
-  $('rc-copy').onclick = async () => { try { await navigator.clipboard.writeText($('rc-code').textContent); toast(T('Skopiowano')); } catch {} };
+  // Po założeniu profilu: potwierdzenie z ID (kody odzyskiwania usunięte w 0.27.0 — profil loguje konto Microsoft)
+  const created = id => toast(T('Profil MiB został pomyślnie założony. Twoje ID:') + ' ' + id);
 
   // ===== Usunięcie profilu =====
   $('pdel-n').oninput = () => { $('pdel-go').disabled = $('pdel-n').value !== st.nick; };
@@ -159,9 +143,8 @@
       if (bad) { err.textContent = msg(bad); nick.focus(); return; }
       if (pass.value.length < 8) { err.textContent = msg('weak_password'); pass.focus(); return; }
       await run(submit, err, () => mib.call('prof:signup', { email: email.value, password: pass.value, nick: nick.value }), r => {
-        showCode(r.recoveryCode, r.mibId);
+        created(r.mibId);
         mib.call('profile:mc');
-        if (r.recoveryError) toast(T('Nie udało się zapisać kodu odzyskiwania. Wygeneruj nowy na stronie profilu.'), 1);
       });
     } } },
     field('Nick MiB', nick, '3–16 znaków: litery, cyfry, _'), field('E-mail', email), field('Hasło', pass, 'Co najmniej 8 znaków'), err, h('div', { class: 'row' }, submit));
@@ -174,24 +157,8 @@
       await run(submit, err, () => mib.call('prof:login', { email: email.value, password: pass.value }), () => { toast(T('Zalogowano do profilu MiB.')); mib.call('profile:mc'); });
     } } },
     field('E-mail', email), field('Hasło', pass), err,
-    h('div', { class: 'row' }, submit, h('button', { class: 'b ghost', type: 'button', on: { click: () => { tab = 'reset'; render(); } } }, T('Nie pamiętam hasła'))));
-  }
-  function formReset() {
-    const email = h('input', { type: 'email', autocomplete: 'email' }), code = h('input', { autocomplete: 'off', placeholder: 'XXXX-XXXX-XXXX-XXXX', class: 'mono' }),
-      pass = h('input', { type: 'password', autocomplete: 'new-password' }), err = errBox();
-    const submit = h('button', { class: 'b', type: 'submit' }, T('Ustaw nowe hasło'));
-    return h('form', { class: 'pform', on: { submit: async e => {
-      e.preventDefault();
-      if (pass.value.length < 8) { err.textContent = msg('weak_password'); return; }
-      await run(submit, err, () => mib.call('prof:reset', { email: email.value, code: code.value, password: pass.value }), r => {
-        toast(T('Hasło zmienione. Zapisz nowy kod odzyskiwania.'));
-        showCode(r.recoveryCode);
-        if (r.recoveryError) toast(T('Nie udało się zapisać kodu odzyskiwania. Wygeneruj nowy na stronie profilu.'), 1);
-      });
-    } } },
-    h('p', { class: 'mut' }, T('Wpisz e-mail profilu i kod odzyskiwania pokazany przy zakładaniu profilu. Stary kod przestanie działać, a launcher pokaże nowy.')),
-    field('E-mail', email), field('Kod odzyskiwania', code), field('Nowe hasło', pass, 'Co najmniej 8 znaków'), err,
-    h('div', { class: 'row' }, submit, h('button', { class: 'b ghost', type: 'button', on: { click: () => { tab = 'login'; render(); } } }, T('Wróć do logowania'))));
+    h('div', { class: 'row' }, submit),
+    h('p', { class: 'mut' }, T('Nie pamiętasz hasła? Zaloguj się kontem Microsoft — profil połączony z kontem Minecraft zaloguje się sam.')));
   }
   async function run(btn, err, call, ok) {
     if (busy) return;
@@ -209,13 +176,13 @@
 
   function viewOut() {
     const tabs = h('div', { class: 'seg', role: 'tablist' },
-      ...[['signup', 'Załóż profil'], ['login', 'Zaloguj się']].map(([k, l]) => h('button', { class: tab === k || (k === 'login' && tab === 'reset') ? 'on' : '', role: 'tab', type: 'button', on: { click: () => { tab = k; render(); } } }, T(l))));
+      ...[['signup', 'Załóż profil'], ['login', 'Zaloguj się']].map(([k, l]) => h('button', { class: tab === k ? 'on' : '', role: 'tab', type: 'button', on: { click: () => { tab = k; render(); } } }, T(l))));
     return [
       h('h2', {}, T('Profil MiB')),
       h('p', { class: 'lead' }, T('Profil zapisuje Twoje kosmetyki, ustawienia launchera i kopię modów. Grać możesz też bez niego.')),
       h('p', { class: 'card reward', id: 'pf-mc-hint' }, T('Najprościej: zaloguj się kontem Microsoft (u góry, „Zaloguj się”), a profil MiB założy się sam i będzie połączony z Twoim kontem Minecraft.')),
       tabs,
-      tab === 'signup' ? formSignup() : tab === 'login' ? formLogin() : formReset(),
+      tab === 'signup' ? formSignup() : formLogin(),
     ];
   }
   function viewComplete() {
@@ -228,9 +195,9 @@
         e.preventDefault();
         const bad = MibProfile.validateNick(nick.value);
         if (bad) { err.textContent = msg(bad); nick.focus(); return; }
-        await run(submit, err, () => mib.call('prof:createProfile', { nick: nick.value }), r => showCode(r.recoveryCode, r.mibId));
+        await run(submit, err, () => mib.call('prof:createProfile', { nick: nick.value }), r => created(r.mibId));
       } } }, field('Nick MiB', nick, '3–16 znaków: litery, cyfry, _'), err,
-      h('div', { class: 'row' }, submit, h('button', { class: 'b ghost', type: 'button', on: { click: async () => apply(await mib.call('prof:logout')) } }, T('Wyloguj')))),
+      h('div', { class: 'row' }, submit)),
     ];
   }
   function viewOffline() {
@@ -263,10 +230,8 @@
       h('div', { class: 'sec' }, h('h3', {}, T('Konto')),
         h('p', { class: 'mcline', id: 'pf-mc' }, st.mcName ? T('Konto Minecraft') + ': ' + st.mcName + ' — ' + T('logujesz się nim do MiB na każdym komputerze.')
           : T('Zaloguj się w launcherze kontem Microsoft, a profil połączy się z Twoim kontem Minecraft.')),
-        h('p', { class: 'mut' }, T('Kod odzyskiwania pozwala ustawić nowe hasło, gdy je zapomnisz. Nowy kod unieważnia poprzedni.')),
+        h('p', { class: 'mut' }, T('Profil idzie za kontem Microsoft: wylogowanie z konta Microsoft (u góry) wylogowuje też z profilu, a zmiana konta przełącza profil.')),
         h('div', { class: 'row' },
-          h('button', { class: 'b ghost', on: { click: async () => { const r = await mib.call('prof:newCode'); if (r.error) toast(msg(r.error, r.detail), 1); else showCode(r.recoveryCode); } } }, T('Nowy kod odzyskiwania')),
-          h('button', { class: 'b ghost', on: { click: async () => { apply(await mib.call('prof:logout')); toast(T('Wylogowano z profilu MiB.')); } } }, T('Wyloguj')),
           h('button', { class: 'b danger', on: { click: () => { $('pdel-n').value = ''; $('pdel-go').disabled = true; $('pdel').classList.add('on'); $('pdel-n').focus(); } } }, T('Usuń profil')))),
     ];
   }
@@ -1540,6 +1505,7 @@
     await refresh();
     if (x && x.created) toast(T('Utworzyliśmy Twój profil MiB') + ': ' + x.nick + '. ' + T('Logujesz się do niego kontem Minecraft.'));
     else if (x && x.linked) toast(T('Profil MiB połączony z kontem Minecraft') + ' ' + x.linked + '.');
+    else if (x && x.switched) toast(T('Przełączono profil MiB na') + ' ' + x.nick + '.');
     else toast(T('Zalogowano do profilu MiB kontem Minecraft.'));
   });
   document.querySelector('.nav[data-p="prof"]').addEventListener('click', () => { render(); refresh(); });

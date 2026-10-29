@@ -259,3 +259,14 @@ test('instalator zawiera wszystkie pliki ładowane przez launcher', () => {
   assert.deepEqual(missing, [], 'pliki spoza instalatora');
   assert.ok(need.has('themes.js') && packed('themes.js'));
 });
+
+test('mcProfileAction: profil MiB idzie za kontem Microsoft', () => {
+  const A = '44444444-4444-4444-4444-444444444444', B = '55555555555555555555555555555555';
+  assert.equal(P.mcProfileAction({ loggedIn: false }, A), 'login', 'bez profilu: zaloguj albo załóż');
+  assert.equal(P.mcProfileAction({ loggedIn: true, mcUuid: A }, '44444444444444444444444444444444'), 'none', 'ten sam Minecraft (z kreskami i bez)');
+  assert.equal(P.mcProfileAction({ loggedIn: true, mcUuid: A }, B), 'login', 'inne konto: przełącz profil');
+  assert.equal(P.mcProfileAction({ loggedIn: true, mcUuid: null }, A), 'link', 'profil e-mail bez Minecrafta: połącz');
+  assert.equal(P.mcProfileAction({ offline: true }, A), 'none', 'bez sieci nic');
+  assert.equal(P.mcProfileAction({ needsProfile: true }, A), 'none', 'konto bez profilu: gracz wybiera nick');
+  assert.equal(P.mcProfileAction(null, A), 'none');
+});
