@@ -17,7 +17,7 @@ function createFake() {
     return { access_token: at, refresh_token: rt, expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: u.id, email: u.email } };
   };
   const norm = c => String(c || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
-  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, coins: u.coins || 0, bugs_found: u.bugs || 0, warnings: u.warnings || 0, banned_at: u.banned || null, ban_reason: u.banReason || null });
+  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, coins: u.coins || 0, bugs_found: u.bugs || 0, warnings: u.warnings || 0, banned_at: u.banned || null, ban_reason: u.banReason || null, mc_name: u.mcName || null });
   const banned = u => !!(u && u.banned);
   // Motywy: tak jak private.theme_season, on_sale i advent_today w schema.sql (st.today podmienia dzień)
   const today = () => (st.today ? new Date(st.today + 'T12:00:00') : new Date());

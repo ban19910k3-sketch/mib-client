@@ -28,6 +28,7 @@ function fakeSupa(over = {}) {
     signIn: async () => sess(),
     refresh: async () => sess(2),
     signOut: async () => null,
+    mcLogin: async () => ({ ...sess(3), created: true }),
     rpc: async () => null,
     select: async t => (t === 'profiles' ? [profileRow] : []),
     update: async () => null,
@@ -533,4 +534,99 @@ test('sklep: błąd bazy wraca jako kod, a nagroda dzienna na starej bazie to ni
   await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
   assert.equal((await p.buy({ id: 'halloween_hat_pumpkin' })).error, 'coins_not_enough');
   assert.deepEqual(await p.daily(), { claimed: false });
+});
+
+
+// ===== Profil MiB z konta Minecraft (0.26.0) =====
+test('mcLogin: sesja z funkcji mc-login, profil od razu w stanie; ręczne wylogowanie wyłącza logowanie kontem Minecraft', async () => {
+  const { p, store, supa } = mk({ supa: fakeSupa({ select: async t => (t === 'profiles' ? [{ ...profileRow, nick: 'Steve', mc_name: 'Steve' }] : []) }) });
+  assert.equal(await p.mcAutoAllowed(), true);
+  const r = await p.mcLogin({ name: 'Steve', serverId: 'a'.repeat(32) });
+  assert.equal(r.loggedIn, true);
+  assert.equal(r.created, true);
+  assert.equal(r.mcName, 'Steve');
+  assert.deepEqual(supa.calls.find(c => c[0] === 'mcLogin').slice(1), ['Steve', 'a'.repeat(32)]);
+  assert.equal(Buffer.from(store.files['mib-session.json'].t, 'base64').toString(), 'xRT3');
+  await p.logout();
+  assert.equal(await p.mcAutoAllowed(), false, 'po wylogowaniu bez samoczynnego logowania');
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.equal(await p.mcAutoAllowed(), true, 'po zalogowaniu znów można');
+});
+
+test('mcLogin: błąd funkcji (np. nie wgrana) wraca jako kod, bez zapisu sesji', async () => {
+  const { p, store } = mk({ supa: fakeSupa({ mcLogin: async () => { throw new SupaError(404, 'mc_login_missing'); } }) });
+  const r = await p.mcLogin({ name: 'Steve', serverId: 'a'.repeat(32) });
+  assert.equal(r.error, 'mc_login_missing');
+  assert.equal(store.files['mib-session.json'], undefined);
+});
+
+test('mcLink: łączy zalogowany profil przez link_minecraft', async () => {
+  const { p, supa } = mk({ supa: fakeSupa({ rpc: async n => (n === 'link_minecraft' ? { ok: true, name: 'Notch' } : null) }) });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.mcLink({ name: 'Notch', serverId: 'c'.repeat(32) }), { ok: true, name: 'Notch' });
+  assert.deepEqual(supa.calls.find(c => c[0] === 'rpc' && c[1] === 'link_minecraft')[2], { p_name: 'Notch', p_server_id: 'c'.repeat(32) });
+});
+
+// Funkcja Supabase mc-login (supabase/functions/mc-login/index.ts, kod bez typów) na atrapie Mojanga i Supabase
+async function loadMcLogin() {
+  const fs = require('fs'), os = require('os'), path = require('path'), { pathToFileURL } = require('url');
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mib-fn-')), 'mc-login.mjs');
+  fs.copyFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'mc-login', 'index.ts'), f);
+  return (await import(pathToFileURL(f).href)).handle;
+}
+function fnWorld({ joined = true, linked = null, key = 'sb_secret_test' } = {}) {
+  const calls = [], accounts = { ...(linked ? { '44444444-4444-4444-4444-444444444444': linked } : {}) };
+  const json = (status, body) => new Response(body === undefined ? null : JSON.stringify(body), { status });
+  const fetch = async (url, init = {}) => {
+    const body = init.body ? JSON.parse(init.body) : null;
+    calls.push({ url, headers: init.headers || {}, body });
+    if (url.startsWith('https://sessionserver.mojang.com/')) return joined ? json(200, { id: '44444444444444444444444444444444', name: 'Steve' }) : json(204);
+    const path = url.replace('https://x.supabase.co', '');
+    if (path === '/rest/v1/rpc/mc_account') return json(200, accounts[body.p_uuid] || null);
+    if (path === '/auth/v1/admin/users') { accounts[body.app_metadata.mc_uuid] = { user_id: 'U9', email: body.email }; return json(200, { id: 'U9' }); }
+    if (path === '/auth/v1/admin/generate_link') return json(200, { hashed_token: 'H-' + body.email });
+    if (path === '/auth/v1/verify') return json(200, { access_token: 'AT', refresh_token: 'RT', expires_in: 3600, user: { id: 'U9' } });
+    return json(404, {});
+  };
+  const env = { url: 'https://x.supabase.co', key, domain: 'mc.mibclient.invalid' };
+  const req = b => new Request('https://fn/mc-login', { method: 'POST', body: JSON.stringify(b) });
+  return { calls, fetch, env, req };
+}
+
+test('mc-login: nowe konto Minecraft — konto z app_metadata, sesja z jednorazowego linku', async () => {
+  const handle = await loadMcLogin(), w = fnWorld();
+  const res = await handle(w.req({ name: 'Steve', serverId: 'a'.repeat(32) }), w.env, w.fetch);
+  assert.equal(res.status, 200);
+  const out = await res.json();
+  assert.deepEqual(out, { access_token: 'AT', refresh_token: 'RT', expires_in: 3600, user: { id: 'U9' }, created: true });
+  const create = w.calls.find(c => c.url.endsWith('/auth/v1/admin/users'));
+  assert.deepEqual(create.body, { email: 'mc-44444444444444444444444444444444@mc.mibclient.invalid', email_confirm: true,
+    app_metadata: { mc_uuid: '44444444-4444-4444-4444-444444444444', mc_name: 'Steve' } });
+  assert.match(w.calls[0].url, /hasJoined\?username=Steve&serverId=a{32}$/);
+  assert.equal(create.headers.apikey, 'sb_secret_test');
+  assert.equal(create.headers.Authorization, undefined, 'nowy klucz tylko w apikey');
+  assert.deepEqual(w.calls.find(c => c.url.endsWith('/auth/v1/verify')).body, { type: 'magiclink', token_hash: 'H-mc-44444444444444444444444444444444@mc.mibclient.invalid' });
+});
+
+test('mc-login: konto już połączone — logowanie bez zakładania; stary klucz także jako Bearer', async () => {
+  const handle = await loadMcLogin(), w = fnWorld({ linked: { user_id: 'U1', email: 'gracz@mail.pl' }, key: 'eyJ.legacy' });
+  const out = await (await handle(w.req({ name: 'Steve', serverId: 'b'.repeat(32) }), w.env, w.fetch)).json();
+  assert.equal(out.created, false);
+  assert.ok(!w.calls.some(c => c.url.endsWith('/auth/v1/admin/users')), 'bez nowego konta');
+  assert.equal(w.calls.find(c => c.url.endsWith('/generate_link')).body.email, 'gracz@mail.pl');
+  assert.equal(w.calls.find(c => c.url.endsWith('/generate_link')).headers.Authorization, 'Bearer eyJ.legacy');
+});
+
+test('mc-login: Mojang nie potwierdził albo złe dane — bez kont i sesji', async () => {
+  const handle = await loadMcLogin(), w = fnWorld({ joined: false });
+  const res = await handle(w.req({ name: 'Steve', serverId: 'a'.repeat(32) }), w.env, w.fetch);
+  assert.equal(res.status, 401);
+  assert.equal((await res.json()).error, 'not_verified');
+  assert.equal(w.calls.length, 1, 'tylko pytanie do Mojanga');
+  const bad = await handle(w.req({ name: 'Zły nick', serverId: 'x' }), w.env, w.fetch);
+  assert.equal(bad.status, 400);
+  const get = await handle(new Request('https://fn/mc-login'), w.env, w.fetch);
+  assert.equal(get.status, 405);
+  const noKey = await handle(w.req({ name: 'Steve', serverId: 'a'.repeat(32) }), { url: 'https://x.supabase.co' }, w.fetch);
+  assert.equal((await noKey.json()).error, 'mc_login_setup');
 });

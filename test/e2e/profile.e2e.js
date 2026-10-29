@@ -48,6 +48,7 @@ function png(w, h, px) {
     ok('(m) pomysły bez profilu: zachęta do założenia profilu');
     await w.click('#plbox');
     await w.waitForSelector('#p-prof.on #pf-nick');
+    assert.match(await w.textContent('#pf-mc-hint'), /kontem Microsoft.*założy się sam/s, 'podpowiedź: profil z konta Minecraft');
     await shot('prof-out.png');
 
     await w.fill('#pf-nick', 'Łukasz'); await w.fill('#pf-email', 'tester@mib.pl'); await w.fill('#pf-pass', 'haslo1234');
@@ -86,6 +87,16 @@ function png(w, h, px) {
     assert.ok(fake.st.users[0].settings, 'ustawienia wysłane na nowy profil');
     await shot('prof-in.png');
     ok('(c) profil z ID i odznaką Założyciel, ustawienia zsynchronizowane');
+    // Profil z konta Minecraft (0.26.0): bez połączenia podpowiedź, po połączeniu nazwa konta; komunikat z main.js
+    assert.match(await w.textContent('#pf-mc'), /Zaloguj się w launcherze kontem Microsoft/);
+    fake.st.users[0].mcName = 'Steve';
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('profile:changed', { linked: 'Steve' }));
+    await w.waitForFunction(() => /Konto Minecraft: Steve/.test(document.getElementById('pf-mc').textContent));
+    await w.waitForSelector('.toast:has-text("Profil MiB połączony z kontem Minecraft Steve")');
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('profile:changed', { created: true, nick: 'Steve' }));
+    await w.waitForSelector('.toast:has-text("Utworzyliśmy Twój profil MiB: Steve")');
+    delete fake.st.users[0].mcName;
+    ok('(ar) profil połączony z kontem Minecraft: podpowiedź, nazwa konta i komunikaty');
     assert.equal(await w.isHidden('.nav[data-p="admin"]'), true, 'zwykły gracz nie widzi panelu admina');
 
     fake.st.backups.push({ user: fake.st.users[0].id, game_version: '1.8.9', loader: null, skipped: 1,

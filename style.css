@@ -458,6 +458,9 @@ pre.codes{background:var(--void);border:2px solid var(--edge);padding:10px;margi
 .adv-row{display:flex;align-items:center;gap:8px;font-size:13px}.adv-row .adv-n{width:30px;font-variant-numeric:tabular-nums}
 .adv-row .adv-coins{width:84px}.adv-row select{flex:1;min-width:0}.adv-row small{width:70px}
 
+/* profil z konta Minecraft (od 0.26.0) */
+#pf-mc-hint{margin:0 0 14px;font-size:13px;line-height:1.5}.mcline{font-size:13px;margin:0 0 8px}
+
 /* ===== Święta (od 0.25.0): nagroda świąteczna i kalendarz adwentowy na stronie głównej, kolekcje w sklepie ===== */
 #hol-home .card.reward{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin:0 0 10px;padding:10px 12px}
 #hol-home .card.reward b{margin:0;font-size:14px}#hol-home .card.reward p{font-size:12px}#hol-home .b{margin-top:4px}

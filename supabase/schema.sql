@@ -30,6 +30,12 @@ do $$ begin
   alter table public.profiles add constraint profiles_coins_not_negative check (coins >= 0);
 exception when duplicate_object then null;
 end $$;
+-- Konto Minecraft połączone z profilem (od 0.26.0): logowanie do MiB samym kontem Minecraft (funkcja mc-login)
+alter table public.profiles add column if not exists mc_uuid uuid;
+alter table public.profiles add column if not exists mc_name text;
+-- profil założony samym kontem Minecraft (pusty taki profil ustępuje profilowi e-mail tego gracza: link_minecraft)
+alter table public.profiles add column if not exists mc_auto boolean not null default false;
+create unique index if not exists profiles_mc_uuid on public.profiles (mc_uuid) where mc_uuid is not null;
 alter table public.profiles enable row level security;
 revoke all on public.profiles from public, anon, authenticated;
 revoke all on sequence public.profiles_num_seq from public, anon, authenticated;
@@ -57,11 +63,16 @@ begin
   update public.profiles set founder = (v_num <= 1000) where id = p_uid;
 end $$;
 
--- Profil powstaje razem z kontem; nick przychodzi w danych rejestracji
+-- Profil powstaje razem z kontem; nick przychodzi w danych rejestracji. Konto z kontem Minecraft (od 0.26.0) zakłada
+-- tylko funkcja mc-login kluczem serwisowym: dane konta Minecraft są w app_metadata, której gracz przy rejestracji nie ustawi
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
-  perform private.make_profile(new.id, new.raw_user_meta_data ->> 'nick');
+  if coalesce(new.raw_app_meta_data, '{}'::jsonb) ? 'mc_uuid' then
+    perform private.mc_make_profile(new.id, (new.raw_app_meta_data ->> 'mc_uuid')::uuid, new.raw_app_meta_data ->> 'mc_name');
+  else
+    perform private.make_profile(new.id, new.raw_user_meta_data ->> 'nick');
+  end if;
   return new;
 end $$;
 
@@ -377,16 +388,15 @@ create index if not exists mib_players_name on private.mib_players (lower(name))
 create table if not exists private.hello_log (at timestamptz not null default now());
 alter table private.hello_log add column if not exists ip text not null default '';
 
--- Wynik: {uuid, name, token} albo {error}. Błędy po zapisie w hello_log są zwracane, nie rzucane — rzucony wyjątek
--- cofnąłby wpis i limit liczyłby tylko udane próby.
-create or replace function public.mib_hello(p_name text, p_server_id text) returns json
+-- Potwierdzenie konta u Mojanga (hasJoined) z limitami: {uuid, name} albo {error}. Błędy po zapisie w hello_log są
+-- zwracane, nie rzucane — rzucony wyjątek cofnąłby wpis i limit liczyłby tylko udane próby.
+create or replace function private.mojang_verify(p_name text, p_server_id text) returns json
 language plpgsql security definer set search_path = '' as $$
 declare
   v_status integer;
   v_body text;
   v_uuid uuid;
   v_name text;
-  v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_ip text := coalesce(trim(split_part(nullif(current_setting('request.headers', true), '')::json ->> 'x-forwarded-for', ',', 1)), '');
 begin
   if p_name is null or p_name !~ '^[A-Za-z0-9_]{1,16}$' then raise exception 'name_invalid'; end if;
@@ -409,11 +419,90 @@ begin
     return json_build_object('error', 'mojang_unavailable');
   end;
   if v_uuid is null or v_name is null then return json_build_object('error', 'not_verified'); end if;
+  return json_build_object('uuid', v_uuid, 'name', v_name);
+end $$;
+
+-- Wynik: {uuid, name, token} albo {error}
+create or replace function public.mib_hello(p_name text, p_server_id text) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v json := private.mojang_verify(p_name, p_server_id);
+  v_token text := encode(extensions.gen_random_bytes(24), 'hex');
+begin
+  if v ->> 'error' is not null then return v; end if;
   delete from private.mib_players where seen_at < now() - interval '30 days';
   insert into private.mib_players (uuid, name, user_id, token_hash, seen_at)
-    values (v_uuid, v_name, auth.uid(), encode(extensions.digest(v_token, 'sha256'), 'hex'), now())
+    values ((v ->> 'uuid')::uuid, v ->> 'name', auth.uid(), encode(extensions.digest(v_token, 'sha256'), 'hex'), now())
     on conflict (uuid) do update set name = excluded.name, user_id = excluded.user_id, token_hash = excluded.token_hash, seen_at = now();
-  return json_build_object('uuid', v_uuid, 'name', v_name, 'token', v_token);
+  return json_build_object('uuid', v ->> 'uuid', 'name', v ->> 'name', 'token', v_token);
+end $$;
+
+-- ===== Profil MiB z konta Minecraft (od 0.26.0) =====
+-- Profil dla konta Minecraft: nick z Minecrafta, a gdy jest zajęty (albo krótszy niż 3 znaki) — z dopiskiem _1, _2…
+create or replace function private.mc_make_profile(p_uid uuid, p_uuid uuid, p_name text) returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_base text;
+  v_nick text;
+  i integer := 0;
+begin
+  if p_uuid is null or p_name is null or p_name !~ '^[A-Za-z0-9_]{1,16}$' then raise exception 'name_invalid'; end if;
+  if exists (select 1 from public.profiles where mc_uuid = p_uuid) then raise exception 'mc_taken'; end if;
+  v_base := case when length(p_name) < 3 then rpad(p_name, 3, '_') else p_name end;
+  v_nick := v_base;
+  while exists (select 1 from public.profiles where lower(nick) = lower(v_nick)) loop
+    i := i + 1;
+    v_nick := left(v_base, 15 - length(i::text)) || '_' || i;
+  end loop;
+  perform private.make_profile(p_uid, v_nick);
+  update public.profiles set mc_uuid = p_uuid, mc_name = p_name, mc_auto = true where id = p_uid;
+  return v_nick;
+end $$;
+
+-- Dla funkcji mc-login (tylko klucz serwisowy): konto MiB połączone z kontem Minecraft {user_id, email} albo null;
+-- przy okazji zapisuje nowy nick z Minecrafta (gracz mógł go zmienić)
+create or replace function public.mc_account(p_uuid uuid, p_name text) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_id uuid;
+  v_email text;
+begin
+  select p.id, u.email into v_id, v_email from public.profiles p join auth.users u on u.id = p.id where p.mc_uuid = p_uuid;
+  if v_id is null then return null; end if;
+  if p_name ~ '^[A-Za-z0-9_]{1,16}$' then update public.profiles set mc_name = p_name where id = v_id and mc_name is distinct from p_name; end if;
+  return json_build_object('user_id', v_id, 'email', v_email);
+end $$;
+
+-- Gracz z profilem na e-mail łączy go ze swoim kontem Minecraft (launcher potwierdza je u Mojanga jak przy mib_hello):
+-- {ok, name} albo {error}: mc_taken — to konto Minecraft ma już inny profil MiB, mc_other — profil ma już inne konto.
+-- Pusty profil założony samym kontem Minecraft (bez kosmetyków i znajomych, np. na drugim komputerze, zanim gracz
+-- zalogował się tam e-mailem) jest usuwany, a konto Minecraft przechodzi do profilu e-mail.
+create or replace function public.link_minecraft(p_name text, p_server_id text) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v json;
+  v_uuid uuid;
+  v_other uuid;
+begin
+  if v_uid is null then raise exception 'not_logged_in'; end if;
+  if not exists (select 1 from public.profiles where id = v_uid) then raise exception 'no_profile'; end if;
+  v := private.mojang_verify(p_name, p_server_id);
+  if v ->> 'error' is not null then return v; end if;
+  v_uuid := (v ->> 'uuid')::uuid;
+  if exists (select 1 from public.profiles where id = v_uid and mc_uuid is not null and mc_uuid <> v_uuid) then return json_build_object('error', 'mc_other'); end if;
+  select id into v_other from public.profiles where mc_uuid = v_uuid and id <> v_uid;
+  if v_other is not null then
+    if not exists (select 1 from public.profiles where id = v_other and mc_auto)
+      or exists (select 1 from public.owned_cosmetics where user_id = v_other)
+      or exists (select 1 from private.friends where v_other in (from_id, to_id))
+      or exists (select 1 from private.admins where user_id = v_other) then
+      return json_build_object('error', 'mc_taken');
+    end if;
+    delete from auth.users where id = v_other;
+  end if;
+  update public.profiles set mc_uuid = v_uuid, mc_name = v ->> 'name' where id = v_uid;
+  return json_build_object('ok', true, 'name', v ->> 'name');
 end $$;
 
 -- Gra dalej działa (p_online) albo została zamknięta; false = zły token (konto zgłoszone od nowa, np. z innego komputera)
@@ -2080,6 +2169,10 @@ revoke all on function public.create_my_profile(text) from public, anon, authent
 revoke all on function public.submit_idea(text, text) from public, anon, authenticated;
 revoke all on function public.equip_cosmetic(text, text) from public, anon, authenticated;
 revoke all on function public.mib_hello(text, text) from public, anon, authenticated;
+revoke all on function private.mojang_verify(text, text) from public, anon, authenticated;
+revoke all on function private.mc_make_profile(uuid, uuid, text) from public, anon, authenticated;
+revoke all on function public.mc_account(uuid, text) from public, anon, authenticated;
+revoke all on function public.link_minecraft(text, text) from public, anon, authenticated;
 revoke all on function public.mib_ping(uuid, text, boolean) from public, anon, authenticated;
 revoke all on function public.mib_who(uuid[], text[]) from public, anon, authenticated;
 revoke all on function private.friend_target(text) from public, anon, authenticated;
@@ -2101,6 +2194,11 @@ grant execute on function public.create_my_profile(text) to authenticated;
 grant execute on function public.submit_idea(text, text) to authenticated;
 grant execute on function public.equip_cosmetic(text, text) to authenticated;
 grant execute on function public.mib_hello(text, text) to anon, authenticated;
+grant execute on function public.link_minecraft(text, text) to authenticated;
+-- mc_account wywołuje tylko funkcja mc-login kluczem serwisowym
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then grant execute on function public.mc_account(uuid, text) to service_role; end if;
+end $$;
 grant execute on function public.mib_ping(uuid, text, boolean) to anon, authenticated;
 grant execute on function public.mib_who(uuid[], text[]) to anon, authenticated;
 grant execute on function public.friend_request(text) to authenticated;

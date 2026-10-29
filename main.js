@@ -11,7 +11,7 @@ const { buildActivity, createPresence } = require('./lib/discord');
 const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText, THEME_IDS } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
-const { createMibPresence, helloMessage } = require('./lib/presence');
+const { createMibPresence, joinMojang, helloMessage } = require('./lib/presence');
 const skinApi = require('./lib/skin');
 let win, auth = null, launching = false;
 const dir = () => app.getPath('userData');
@@ -242,8 +242,41 @@ async function profile(xbox) {
     const a = accLoad(), rec = { id, name: p.name || 'Gracz', t: safeStorage.encryptString(xbox.save()).toString('base64') }, i = a.list.findIndex(x => x.id === id);
     if (i >= 0) a.list[i] = rec; else a.list.push(rec); a.active = id; accSave(a);
   }
+  setTimeout(() => mibFromMinecraft(), 0);
   return { name: p.name || 'Gracz', id };
 }
+// Profil MiB z konta Minecraft (od 0.26.0): po zalogowaniu kontem Microsoft (także przy starcie z zapisanym kontem)
+// launcher potwierdza konto u Mojanga (token tylko do Mojanga) i loguje do profilu MiB połączonego z tym kontem albo
+// go zakłada (funkcja mc-login w Supabase); profil założony e-mailem łączy z kontem Minecraft. Po ręcznym wylogowaniu
+// z profilu nic nie dzieje się samo.
+let mibLinking = null;
+const MC_LOGIN_ERR = { mc_login_missing: 'funkcja mc-login nie jest wgrana w Supabase (supabase/README.md)', mc_login_jwt: 'w funkcji mc-login wyłącz „Verify JWT” (supabase/README.md)',
+  mc_login_setup: 'funkcja mc-login nie ma klucza (sekret MIB_SECRET_KEY, supabase/README.md)', not_verified: 'Mojang nie potwierdził konta', mojang_unavailable: 'Mojang nie odpowiada',
+  mc_taken: 'to konto Minecraft ma już inny profil MiB', offline: 'brak połączenia z serwerem MiB' };
+const mcErr = r => MC_LOGIN_ERR[r.error] || r.error + (r.detail ? ' (' + r.detail + ')' : '');
+function mibFromMinecraft() {
+  if (mibLinking || !auth) return mibLinking;
+  const mc = auth.mclc();
+  mibLinking = (async () => {
+    const st = await prof.state();
+    if (!st || st.offline || st.needsProfile || (st.loggedIn && st.mcName)) return;
+    if (!st.loggedIn && !(await prof.mcAutoAllowed())) return;
+    const serverId = crypto.randomBytes(16).toString('hex');
+    await joinMojang({ fetch: (...a) => fetch(...a), mc, serverId });
+    if (st.loggedIn) {
+      const r = await prof.mcLink({ name: mc.name, serverId });
+      if (r && r.ok) send('profile:changed', { linked: r.name });
+      else if (r && r.error && r.error !== 'mc_other') send('log', 'Połączenie profilu MiB z kontem Minecraft: ' + mcErr(r));
+      return;
+    }
+    const r = await prof.mcLogin({ name: mc.name, serverId });
+    if (r && r.loggedIn) send('profile:changed', { created: !!r.created, nick: r.nick });
+    else if (r && r.error) send('log', 'Profil MiB z konta Minecraft: ' + mcErr(r));
+  })().catch(e => send('log', 'Profil MiB z konta Minecraft: ' + e.message)).finally(() => { mibLinking = null; });
+  return mibLinking;
+}
+// po zalogowaniu e-mailem: połączenie profilu z kontem Minecraft
+ipcMain.handle('profile:mc', () => mibFromMinecraft());
 async function switchAccount(id) {
   const rec = accLoad().list.find(x => x.id === id); if (!rec) throw new Error('brak konta');
   return profile(await new Auth('select_account').refresh(safeStorage.decryptString(Buffer.from(rec.t, 'base64'))));

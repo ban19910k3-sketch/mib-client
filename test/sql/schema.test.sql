@@ -1220,3 +1220,66 @@ do $$ begin
 end $$;
 reset role;
 reset mib.today;
+
+-- ===== Profil MiB z konta Minecraft (0.26.0) =====
+delete from private.hello_log;
+-- konto zakładane przez funkcję mc-login (dane konta Minecraft w app_metadata): profil z nickiem z Minecrafta
+insert into auth.users (id, email, raw_app_meta_data) values ('aaaaaaaa-0000-0000-0000-00000000c001', 'mc-1@mc.mib.invalid', '{"mc_uuid":"44444444-4444-4444-4444-444444444444","mc_name":"Steve"}');
+-- zajęty nick dostaje dopisek, za krótki jest dopełniony, ten sam Minecraft drugi raz nie przejdzie
+insert into auth.users (id, email, raw_app_meta_data) values ('aaaaaaaa-0000-0000-0000-00000000c002', 'mc-2@mc.mib.invalid', '{"mc_uuid":"55555555-5555-5555-5555-555555555555","mc_name":"steve"}');
+insert into auth.users (id, email, raw_app_meta_data) values ('aaaaaaaa-0000-0000-0000-00000000c003', 'mc-3@mc.mib.invalid', '{"mc_uuid":"66666666-6666-6666-6666-666666666666","mc_name":"Al"}');
+insert into auth.users (id, email, raw_app_meta_data) values ('aaaaaaaa-0000-0000-0000-00000000c004', 'mc-4@mc.mib.invalid', '{"mc_uuid":"77777777-7777-7777-7777-777777777771","mc_name":"Drugi_Nowy"}');
+select pg_temp.expect_error($q$insert into auth.users (email, raw_app_meta_data) values ('mc-5@mc.mib.invalid', '{"mc_uuid":"44444444-4444-4444-4444-444444444444","mc_name":"Steve"}')$q$, 'mc_taken');
+-- zwykła rejestracja z mc_uuid w danych gracza (user_metadata) niczego nie łączy
+insert into auth.users (id, email, raw_user_meta_data) values ('aaaaaaaa-0000-0000-0000-00000000c006', 'hack@test.pl', '{"nick":"Podszywacz","mc_uuid":"88888888-8888-8888-8888-888888888888"}');
+do $$ begin
+  assert (select nick || ' ' || mc_name || ' ' || mc_uuid from public.profiles where id = 'aaaaaaaa-0000-0000-0000-00000000c001') = 'Steve Steve 44444444-4444-4444-4444-444444444444', 'profil z konta Minecraft';
+  assert (select nick from public.profiles where id = 'aaaaaaaa-0000-0000-0000-00000000c002') = 'steve_1', 'zajęty nick z dopiskiem';
+  assert (select nick from public.profiles where id = 'aaaaaaaa-0000-0000-0000-00000000c003') = 'Al_', 'krótki nick dopełniony';
+  assert (select nick from public.profiles where id = 'aaaaaaaa-0000-0000-0000-00000000c004') = 'Drugi_Nowy_1', 'nick Drugi_Nowy zajęty';
+  assert (select mc_uuid from public.profiles where id = 'aaaaaaaa-0000-0000-0000-00000000c006') is null, 'user_metadata nie łączy konta Minecraft';
+end $$;
+-- mc_account: tylko klucz serwisowy; zapisuje nowy nick z Minecrafta
+set role service_role;
+do $$ declare v json; begin
+  v := public.mc_account('44444444-4444-4444-4444-444444444444', 'Steve2');
+  assert v ->> 'user_id' = 'aaaaaaaa-0000-0000-0000-00000000c001' and v ->> 'email' = 'mc-1@mc.mib.invalid', 'konto po Minecrafcie';
+  assert public.mc_account('99999999-9999-9999-9999-999999999999', 'Nikt') is null, 'brak konta';
+end $$;
+reset role;
+do $$ begin assert (select mc_name from public.profiles where id = 'aaaaaaaa-0000-0000-0000-00000000c001') = 'Steve2', 'nowy nick z Minecrafta'; end $$;
+set role authenticated;
+select pg_temp.expect_error($q$select public.mc_account('44444444-4444-4444-4444-444444444444', 'Steve')$q$, 'permission denied');
+reset role;
+-- link_minecraft: profil e-mail łączy się z kontem potwierdzonym u Mojanga
+insert into extensions.fake_mojang values ('Notch', 'cccccccccccccccccccccccccccccccc', '99999999999999999999999999999999'),
+  ('Steve2', 'dddddddddddddddddddddddddddddddd', '44444444444444444444444444444444'), ('Inny', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', '12121212121212121212121212121212'),
+  ('steve', 'abababababababababababababababab', '55555555555555555555555555555555');
+-- profil Steve2 (z konta Minecraft) ma już kosmetyk: nie ustąpi profilowi e-mail
+insert into public.owned_cosmetics (user_id, cosmetic_id) values ('aaaaaaaa-0000-0000-0000-00000000c001', (select id from public.cosmetics order by id limit 1));
+insert into auth.users (id, email, raw_user_meta_data) values ('aaaaaaaa-0000-0000-0000-00000000c007', 'mail7@test.pl', '{"nick":"Mailowy"}');
+set role authenticated;
+set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-00000000c006';
+do $$ begin
+  assert public.link_minecraft('Notch', 'ffffffffffffffffffffffffffffffff') ->> 'error' = 'not_verified', 'Mojang nie potwierdził';
+  assert public.link_minecraft('Steve2', 'dddddddddddddddddddddddddddddddd') ->> 'error' = 'mc_taken', 'konto Minecraft ma już inny profil';
+  assert (public.link_minecraft('Notch', 'cccccccccccccccccccccccccccccccc') ->> 'ok')::boolean, 'połączone';
+  assert public.link_minecraft('Inny', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') ->> 'error' = 'mc_other', 'profil ma już inne konto Minecraft';
+  assert (public.link_minecraft('Notch', 'cccccccccccccccccccccccccccccccc') ->> 'ok')::boolean, 'ponowne połączenie tego samego konta';
+end $$;
+select pg_temp.expect_error($q$select public.link_minecraft('Zły nick', 'cccccccccccccccccccccccccccccccc')$q$, 'name_invalid');
+-- pusty profil z samego konta Minecraft (steve_1) ustępuje profilowi e-mail tego gracza
+set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-00000000c007';
+do $$ begin assert (public.link_minecraft('steve', 'abababababababababababababababab') ->> 'ok')::boolean, 'przejęte od pustego profilu'; end $$;
+reset role;
+do $$ begin
+  assert (select mc_name || ' ' || mc_uuid from public.profiles where id = 'aaaaaaaa-0000-0000-0000-00000000c006') = 'Notch 99999999-9999-9999-9999-999999999999', 'profil e-mail połączony';
+  assert not exists (select 1 from auth.users where id = 'aaaaaaaa-0000-0000-0000-00000000c002'), 'pusty profil z konta Minecraft usunięty';
+  assert (select mc_uuid from public.profiles where id = 'aaaaaaaa-0000-0000-0000-00000000c007') = '55555555-5555-5555-5555-555555555555', 'konto Minecraft przy profilu e-mail';
+  assert not (select mc_auto from public.profiles where id = 'aaaaaaaa-0000-0000-0000-00000000c007'), 'profil e-mail nie jest „z konta Minecraft”';
+  assert (select mc_auto from public.profiles where id = 'aaaaaaaa-0000-0000-0000-00000000c001'), 'profil z konta Minecraft oznaczony';
+end $$;
+-- mib_hello dalej działa przez wspólną weryfikację
+set role anon;
+do $$ begin assert public.mib_hello('Notch', 'cccccccccccccccccccccccccccccccc') ->> 'name' = 'Notch', 'mib_hello'; end $$;
+reset role;

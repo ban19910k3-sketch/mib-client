@@ -1,19 +1,6 @@
-<!-- 0.25.1 -->
+<!-- 0.26.0 -->
 ## Dodane
 
-- Motywy świąteczne w launcherze i w grze: Święto Niepodległości, Boże Narodzenie, Sylwester, Walentynki, Wielkanoc, Prima Aprilis, urodziny Minecrafta, Dzień Dziecka, wakacje i urodziny MiB. Każde święto ma swoje kolory, ozdoby i cząsteczki, a w grze ozdoby na ekranie tytułowym, w menu pauzy, na ekranie ładowania i w menu pod prawym Shiftem.
-- Nagroda świąteczna: w czasie święta odbierzesz ją na stronie głównej launchera.
-- Kalendarz adwentowy: od 1 do 24 grudnia codziennie nowe okienko z MiB Coins, a w ostatnich dniach z kosmetykami. Zaległe okienka otworzysz do 26 grudnia.
-- Kolekcje świąteczne w sklepie: przedmioty dostępne tylko w czasie święta, z odliczaniem do końca.
-- 43 nowe kosmetyki na święta: peleryny, czapki, maski, skrzydła i aury.
-- Maski: nowy rodzaj kosmetyku, który nosisz razem z czapką.
-- Wysokie czapki: rogi renifera, cylinder, uszy zajączka i inne wystają nad głowę.
-- Nowe aury: padający śnieg i wybuchy iskier.
-- Powiadomienie, gdy czeka nagroda świąteczna albo nowe okienko kalendarza, także w grze.
-- W Boże Narodzenie przyciski w grze są zielone i przysypane śniegiem, a na Prima Aprilis czeka mała niespodzianka.
-- W Ustawieniach możesz wyłączyć motywy świąteczne.
-
-## Zmienione
-
-- Naprawione logowanie kontem Microsoft i przycisk kont, które nie działały w wersji 0.25.0.
-- W czasie świąt nagroda dzienna może być większa.
+- Profil MiB zakłada się sam: wystarczy zalogować się kontem Microsoft, bez e-maila i hasła. Nick to Twój nick z Minecrafta.
+- Na każdym komputerze to samo konto Minecraft loguje do tego samego profilu MiB, z kosmetykami, MiB Coins i znajomymi.
+- Profil założony e-mailem sam łączy się z Twoim kontem Minecraft. Logowanie e-mailem dalej działa.

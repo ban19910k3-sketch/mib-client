@@ -2,7 +2,7 @@
 // Wszystko, co dostaje interfejs, to zwykłe obiekty; błąd to {error: kod}, nigdy wyjątek.
 const P = require('./lib/profile');
 
-const SESSION = 'mib-session.json', QUEUE = 'mib-stats-queue.json', REVIEW = 'mib-mod-review.json';
+const SESSION = 'mib-session.json', QUEUE = 'mib-stats-queue.json', REVIEW = 'mib-mod-review.json', MC_AUTO = 'mib-mc-auto.json';
 const QUEUE_MAX = 200;
 // Funkcje panelu admina; baza i tak sprawdza, czy wywołuje je admin
 const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_cosmetics', 'admin_grant', 'admin_revoke', 'admin_delete_player',
@@ -92,8 +92,10 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     await flushStats().catch(() => {});
     try {
       const sel = cols => authed(t2 => supa.select('profiles', 'select=' + cols + '&id=eq.' + sess.userId, t2)), base = 'nick,num,founder,created_at,playtime_min,launches,version_stats,bugs_found';
-      // ostrzeżenia i ban od 0.20.0; baza bez nowego schema.sql: profil działa bez nich
-      const [p] = await sel(base + ',warnings,banned_at,ban_reason').catch(e => (e.code === 'schema_outdated' ? sel(base) : Promise.reject(e)));
+      // ostrzeżenia i ban od 0.20.0, konto Minecraft od 0.26.0; baza bez nowego schema.sql: profil działa bez nich
+      const [p] = await sel(base + ',warnings,banned_at,ban_reason,mc_name')
+        .catch(e => (e.code === 'schema_outdated' ? sel(base + ',warnings,banned_at,ban_reason') : Promise.reject(e)))
+        .catch(e => (e.code === 'schema_outdated' ? sel(base) : Promise.reject(e)));
       if (!p) return { needsProfile: true }; // konto bez profilu: gracz wybiera nick i dokańcza profil
       const admin = await authed(t2 => supa.rpc('is_admin', {}, t2)).then(Boolean, () => false);
       safe.presence({ soft: true }); // znajomi od razu widzą, że launcher działa (nie częściej niż co minutę)
@@ -101,7 +103,7 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
         admin,
         loggedIn: true, nick: p.nick, mibId: P.formatMibId(p.num), founder: p.founder, createdAt: p.created_at, bugsFound: p.bugs_found || 0,
         warnings: p.warnings || 0, banned: !!p.banned_at, banReason: p.ban_reason || null,
-        playtimeMin: p.playtime_min, launches: p.launches, versionStats: p.version_stats || {},
+        playtimeMin: p.playtime_min, launches: p.launches, versionStats: p.version_stats || {}, mcName: p.mc_name || null,
       };
     } catch (e) {
       if (e.code === 'not_logged_in') return { loggedIn: false };
@@ -167,19 +169,34 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       if (bad) return { error: bad };
       if (String(password || '').length < 8) return { error: 'weak_password' };
       saveSession(await supa.signUp(String(email).trim(), password, nick));
+      store.remove(MC_AUTO);
       const st = await state();
       // Gdy baza nie utworzyła profilu sama (np. brak triggera), dokańczamy go tym samym nickiem
       return st.needsProfile ? api.createProfile({ nick }) : withCode(st);
     },
     async login({ email, password }) {
       saveSession(await supa.signIn(String(email).trim(), password));
+      store.remove(MC_AUTO);
       return state();
     },
+    // Ręczne wylogowanie: launcher nie loguje już sam kontem Minecraft (do następnego zalogowania do profilu)
     async logout() {
       try { const t = await token(); if (t) await supa.signOut(t); } catch {}
       saveSession(null);
+      store.write(MC_AUTO, { off: true });
       return { loggedIn: false };
     },
+    // ===== Profil MiB z konta Minecraft (od 0.26.0) =====
+    // Launcher potwierdza konto u Mojanga (main.js: join z losowym serverId), a funkcja mc-login w Supabase loguje do
+    // profilu połączonego z tym kontem albo zakłada nowy; profil z e-mailem łączy się z kontem Minecraft (link_minecraft)
+    mcAutoAllowed: async () => !store.read(MC_AUTO, {}).off,
+    async mcLogin({ name, serverId }) {
+      const s = await supa.mcLogin(name, serverId);
+      saveSession(s);
+      store.remove(MC_AUTO);
+      return { ...(await state()), created: s.created };
+    },
+    mcLink: ({ name, serverId }) => authed(t => supa.rpc('link_minecraft', { p_name: name, p_server_id: serverId }, t)),
     newCode,
     async reset({ email, code, password }) {
       if (String(password || '').length < 8) return { error: 'weak_password' };

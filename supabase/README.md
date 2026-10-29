@@ -118,6 +118,27 @@ Graczom dajesz je jak inne przedmioty: kodami, prezentem albo prezentem dla wszy
 - **Nagroda dzienna**: launcher sam daje graczowi 10 coinsów raz na dobę (czas polski), a za każdy 7. dzień z rzędu 50 więcej. Przerwa zaczyna serię od nowa. Zbanowani nie dostają nagrody.
 - **Historia**: gracz widzi swoje zmiany coinsów w Kosmetykach → Historia, a Ty u każdego gracza w panelu admina → Gracze → **Historia** (zakupy, prezenty, pakiety, nagrody dzienne i Twoje zmiany z powodem — gracz też widzi ten powód).
 
+## Profil MiB z konta Minecraft (od 0.26.0)
+
+Gracz, który zaloguje się w launcherze kontem Microsoft, od razu ma profil MiB połączony z kontem Minecraft (nick z Minecrafta, a gdy jest zajęty — z dopiskiem `_1`). Na innym komputerze to samo konto Minecraft trafia do tego samego profilu. Gracze z profilem na e-mail dostają połączenie z kontem Minecraft po zalogowaniu się w launcherze. Logowanie e-mailem zostaje.
+
+Do tego potrzebna jest **jedna funkcja w Supabase** (zrób to raz, ok. 5 minut, przed opublikowaniem wydania 0.26.0):
+
+1. Uruchom ponownie `schema.sql` (jak zawsze).
+2. Po lewej **Edge Functions** → **Deploy a new function** → **Via Editor**.
+3. Nazwa funkcji: dokładnie `mc-login`.
+4. Usuń przykładowy kod i wklej całą zawartość pliku `supabase/functions/mc-login/index.ts`. Kliknij **Deploy function**.
+5. Otwórz funkcję `mc-login` → **Details** (albo **Settings**) → wyłącz **Verify JWT** / **Enforce JWT verification** → **Save**. Launcher wywołuje ją kluczem publicznym, a konto sprawdza sama funkcja (u Mojanga).
+
+Gotowe. Tajnego klucza nigdzie nie wklejasz — funkcja dostaje go od Supabase sama i nigdy nie trafia on do launchera.
+
+Gdyby w konsoli launchera (przycisk `>_`) pojawił się błąd z `mc-login`:
+- „nie ma klucza” — Edge Functions → **Secrets** → dodaj `MIB_SECRET_KEY` z wartością **Secret key** (`sb_secret_…`) z Project Settings → API Keys. Ten sekret zostaje w Supabase.
+- „nie jest wgrana” — nazwa funkcji musi być dokładnie `mc-login`.
+- „wyłącz Verify JWT” — punkt 5 wyżej.
+
+Konta założone kontem Minecraft mają techniczny adres `mc-<uuid>@mc.mibclient.invalid` (nic na niego nie wysyłamy). W tabeli `profiles` kolumny `mc_uuid` i `mc_name` pokazują połączone konto Minecraft.
+
 ## Motywy świąteczne, nagrody i kalendarz adwentowy (od 0.25.0)
 
 `schema.sql` dodaje 11 świąt z datami (tabela `public.themes`) i 43 kosmetyki na święta (id od `niepodleglosc_`, `zima_`, `adwent_`, `sylwester_`, `walentynki_`, `wielkanoc_`, `primaaprilis_`, `urodzinymc_`, `dziendziecka_`, `wakacje_`, `urodzinymib_`).
