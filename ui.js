@@ -288,15 +288,12 @@ function keysRender(){const k=keysGet(),opts=['1','2','3','4','5','6','7','8','9
  $('s-keys').querySelectorAll('select').forEach(sl=>sl.onchange=()=>{const k=keysGet();for(const id in k)if(k[id]===sl.value&&id!==sl.dataset.k)k[id]='';k[sl.dataset.k]=sl.value;localStorage.setItem('mibkeys',JSON.stringify(k));keysRender()})}
 $('s-keys-reset').onclick=()=>{localStorage.removeItem('mibkeys');keysRender()};keysRender();
 document.addEventListener('keydown',e=>{if(!e.ctrlKey||e.altKey||e.shiftKey||e.metaKey)return;const k=keysGet();for(const id in k)if(k[id]&&k[id]===e.key){const n=navOf(id);if(n&&!n.hidden){e.preventDefault();n.click()}return}});
-// karta GRAJ w pasku bocznym (poza stroną główną) i karta wersji w Ustawieniach: lustro przycisku GRAJ i listy wersji
-function sbSync(){const s=$('sel'),b=$('sb-sel'),g=$('go'),sg=$('sb-go');if(b.options.length!==s.options.length)b.innerHTML=s.innerHTML;b.value=s.value;
- $('sb-ver').textContent=$('s-ver').textContent=s.value;$('sb-st').textContent=$('ver').textContent;sg.disabled=g.disabled;sg.textContent=g.firstChild.textContent}
-new MutationObserver(sbSync).observe($('go'),{subtree:true,childList:true,characterData:true,attributes:true});new MutationObserver(sbSync).observe($('sel'),{childList:true});
-$('sel').addEventListener('change',sbSync);$('sb-sel').onchange=()=>{$('sel').value=$('sb-sel').value;$('sel').dispatchEvent(new Event('change'))};
-$('sb-go').onclick=()=>$('go').click();
+// karta wersji w Ustawieniach: wersja z listy na stronie głównej, „Zmień wersję” otwiera tę listę
+const verSync=()=>{$('s-ver').textContent=$('sel').value};
+$('sel').addEventListener('change',verSync);new MutationObserver(verSync).observe($('sel'),{childList:true});
 $('s-chver').onclick=()=>{document.querySelector('#side .nav[data-p="home"]').click();try{$('sel').showPicker()}catch{$('sel').focus()}};
 $('s-accounts').onclick=e=>{e.stopPropagation();$('accname').click()};
-sbSync();
+verSync();
 // dzwonek: liczniki z paska bocznego (prezenty, znajomi, pomysły, panel admina) w jednym miejscu
 function bell(){const l=[...document.querySelectorAll('#side .nav .cnt')].filter(c=>!c.hidden&&+c.textContent>0);$('tb-dot').hidden=!l.length;return l}
 new MutationObserver(bell).observe($('side'),{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['hidden']});

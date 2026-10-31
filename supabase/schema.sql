@@ -1108,6 +1108,30 @@ language sql stable security definer set search_path = '' as $$
   select exists (select 1 from private.admins where user_id = auth.uid());
 $$;
 
+-- Admin z konta Minecraft (od 0.31.0): panel admina ma tylko profil połączony z kontem Minecraft właściciela (ban19910k,
+-- UUID niżej; konto potwierdza Mojang przy logowaniu). Taki profil zostaje adminem od razu i po każdym połączeniu konta
+-- (wyzwalacz na profiles.mc_uuid), a inne konta admina tracą panel — ale dopiero gdy profil z tym kontem już istnieje.
+create table if not exists private.admin_mc (mc_uuid uuid primary key);
+insert into private.admin_mc (mc_uuid) values ('d9b57e25-d63d-46c8-ace3-93815017fc83') on conflict do nothing;
+
+create or replace function private.sync_admins() returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not exists (select 1 from public.profiles p join private.admin_mc a on a.mc_uuid = p.mc_uuid) then return; end if;
+  insert into private.admins (user_id) select p.id from public.profiles p join private.admin_mc a on a.mc_uuid = p.mc_uuid on conflict do nothing;
+  delete from private.admins d where not exists (select 1 from public.profiles p join private.admin_mc a on a.mc_uuid = p.mc_uuid where p.id = d.user_id);
+end $$;
+
+create or replace function private.admins_from_mc() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.mc_uuid is not null and exists (select 1 from private.admin_mc where mc_uuid = new.mc_uuid) then perform private.sync_admins(); end if;
+  return new;
+end $$;
+drop trigger if exists profiles_admin_mc on public.profiles;
+create trigger profiles_admin_mc after insert or update of mc_uuid on public.profiles for each row execute function private.admins_from_mc();
+select private.sync_admins();
+
 create or replace function private.need_admin() returns void
 language plpgsql stable security definer set search_path = '' as $$
 begin

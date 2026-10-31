@@ -1283,3 +1283,22 @@ end $$;
 set role anon;
 do $$ begin assert public.mib_hello('Notch', 'cccccccccccccccccccccccccccccccc') ->> 'name' = 'Notch', 'mib_hello'; end $$;
 reset role;
+
+-- ===== Admin z konta Minecraft (0.31.0) =====
+-- dopóki nie ma profilu z kontem właściciela, admin się nie zmienia
+do $$ begin assert exists (select 1 from private.admins where user_id = '22222222-2222-2222-2222-222222222222'), 'stary admin zostaje bez konta właściciela'; end $$;
+-- profil założony kontem Minecraft ban19910k zostaje adminem, stary admin traci panel
+insert into auth.users (id, email, raw_app_meta_data) values ('aaaaaaaa-0000-0000-0000-0000000ad001', 'mc-owner@mc.mib.invalid', '{"mc_uuid":"d9b57e25-d63d-46c8-ace3-93815017fc83","mc_name":"ban19910k"}');
+do $$ begin
+  assert (select array_agg(user_id) from private.admins) = array['aaaaaaaa-0000-0000-0000-0000000ad001']::uuid[], 'adminem tylko profil z kontem ban19910k';
+end $$;
+set role authenticated;
+set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-0000000ad001';
+do $$ begin assert public.is_admin(), 'ban19910k widzi panel admina'; end $$;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin assert not public.is_admin(), 'stary profil admina już nie'; end $$;
+select pg_temp.expect_error($q$select public.admin_stats()$q$, 'not_admin');
+reset role;
+-- ponowne uruchomienie schematu niczego nie psuje
+do $$ begin perform private.sync_admins(); assert (select count(*) from private.admins) = 1, 'jeden admin'; end $$;
+
