@@ -150,7 +150,7 @@ public final class MenuView {
 
 	// ===== Rysowanie =====
 
-	/** Piksele okna na jednostkę menu (MenuScreen): podgląd HUD na karcie zmniejsza się tak, żeby font był ostry. */
+	/** Piksele okna na jednostkę menu (MenuScreen): zaokrąglenia i podgląd HUD na kartach liczą się w pikselach okna. */
 	public void pixelScale(int s) {
 		pixels = Math.max(1, s);
 	}
@@ -162,14 +162,24 @@ public final class MenuView {
 		return r;
 	}
 
-	/** Zakładka modułów: siatka, a obok niej (w małym oknie zamiast niej) ustawienia wybranego modułu. */
+	/** Zakładka modułów: siatka kart albo strona ustawień jednego modułu. */
 	private boolean modulesTab() {
 		return page == Page.GRID || page == Page.SETTINGS;
 	}
 
-	/** Ustawienia stoją obok siatki (szeroki panel), więc siatka i wyszukiwarka dalej działają. */
-	private boolean column() {
-		return layout != null && layout.detail != null;
+	// Szklane panele nad rozmytą grą (kolory z Theme, więc działają też motywy świąteczne)
+	private static final int BOX = Theme.alpha(Theme.SLAB, 0xD8), BOX_HOVER = Theme.alpha(Theme.SLAB2, 0xEC), MAIN = Theme.alpha(Theme.SLAB, 0xC4),
+			CARD = Theme.alpha(Theme.SLAB2, 0xC0), CARD_HOVER = Theme.alpha(Theme.mix(Theme.SLAB2, Theme.EDGE, 0.6), 0xD8), INSET = Theme.alpha(Theme.VOID, 0xB4),
+			LINE = Theme.alpha(Theme.EDGE2, 0xA0), ACCENT_BG = Theme.alpha(Theme.AM_LO, 0x5C);
+
+	/** Promień zaokrąglenia: u jednostek menu w pikselach okna. */
+	private int rad(double u) {
+		return (int) Math.round(u * pixels);
+	}
+
+	/** Zaokrąglone pole (tło i ramka 1 px). */
+	private void box(Canvas c, int x, int y, int w, int h, int bg, int border) {
+		Shapes.round(c, x, y, w, h, rad(3), pixels, bg, border);
 	}
 
 	public void render(Canvas c, int w, int h, int mx, int my) {
@@ -179,31 +189,27 @@ public final class MenuView {
 		List<ModuleDef> vis = visible();
 		layout = MenuLayout.compute(w, h, vis.size(), scroll, modulesTab());
 		scroll = layout.scroll;
-		c.fill(0, 0, w, h, Theme.DIM);
+		int f0 = c.font();
+		c.font(Canvas.UI);
+		c.fill(0, 0, w, h, Theme.alpha(Theme.DIM, 0x58));
 		Holidays.menu(Theme.ID, c, w, h, System.currentTimeMillis());
-		int[] p = layout.panel;
-		Shapes.panel(c, p[0], p[1], p[2], p[3], Theme.VOID, Theme.EDGE2);
 		topBar(c, mx, my);
+		int[] m = layout.main;
+		Shapes.round(c, m[0], m[1], m[2], m[3], rad(5), pixels, MAIN, LINE);
 		if (modulesTab()) {
 			sidebar(c, mx, my);
-			if (page == Page.SETTINGS && !column()) settings(c, layout.content, false, mx, my);
+			if (page == Page.SETTINGS) settings(c, mx, my);
 			else grid(c, vis, mx, my);
-			if (column()) {
-				int[] d = layout.detail;
-				c.fill(d[0], d[1] + 1, d[0] + d[2] - 1, d[1] + d[3] - 1, Theme.SLAB);
-				c.fill(d[0] - 1, d[1] + 1, d[0], d[1] + d[3] - 1, Theme.EDGE);
-				if (page == Page.SETTINGS) settings(c, d, true, mx, my);
-				else overview(c, d, mx, my);
-			}
 		} else if (page == Page.ACCOUNTS) accounts(c, mx, my);
 		else if (page == Page.COSMETICS) cosmetics(c, mx, my);
 		else if (page == Page.FRIENDS) friends(c, mx, my);
 		else chat(c, mx, my);
 		if (tip != null) {
-			int tw = c.textWidth(tip) + 10, x = Math.max(2, Math.min(tipAt[0], w - tw - 2));
-			Shapes.panel(c, x, tipAt[1], tw, 14, Theme.VOID, Theme.EDGE2);
-			c.text(tip, x + 5, tipAt[1] + 3, Theme.TEXT, false);
+			int tw = c.textWidth(tip) + 12, x = Math.max(2, Math.min(tipAt[0], w - tw - 2));
+			box(c, x, tipAt[1], tw, 15, Theme.alpha(Theme.VOID, 0xF0), LINE);
+			c.text(tip, x + 6, tipAt[1] + 4, Theme.TEXT, false);
 		}
+		c.font(f0);
 	}
 
 	private static boolean in(int[] r, double x, double y) {
@@ -225,25 +231,29 @@ public final class MenuView {
 		}
 	}
 
-	/** Pasek u góry: logo, zakładki (Moduły, a Znajomi, Kosmetyki i Konta tylko, gdy są dostępne), język i krzyżyk. */
+	/** Rząd u góry: pole z logo, zakładki (Moduły, a Znajomi, Kosmetyki i Konta tylko, gdy są dostępne), język i krzyżyk. */
 	private void topBar(Canvas c, int mx, int my) {
-		int[] t = layout.top;
-		c.fill(t[0] + 1, t[1] + 1, t[0] + t[2] - 1, t[1] + t[3], Theme.SLAB);
-		c.fill(t[0] + 1, t[1] + t[3], t[0] + t[2] - 1, t[1] + t[3] + 1, Theme.EDGE);
-		int ty = t[1] + (t[3] - 8) / 2, logoEnd = t[0] + 10 + c.textWidth("MiB Client");
-		c.text("MiB Client", t[0] + 10, ty, Theme.AM_HI, true);
-		Holidays.badge(Theme.ID, c, logoEnd + 4, ty);
-		int[] close = {t[0] + t[2] - 6 - 16, t[1] + (t[3] - 16) / 2, 16, 16};
+		int[] t = layout.top, lg = layout.logo;
+		box(c, lg[0], lg[1], lg[2], lg[3], BOX, LINE);
+		c.font(Canvas.BOLD);
+		int lx = lg[0] + 10, ty = lg[1] + (lg[3] - 8) / 2;
+		c.text("MiB", lx, ty, Theme.AM_HI, false);
+		lx += c.textWidth("MiB") + 3;
+		c.text("Client", lx, ty, Theme.TEXT, false);
+		Holidays.badge(Theme.ID, c, lx + c.textWidth("Client") + 4, ty);
+		c.font(Canvas.UI);
+
+		int[] close = {t[0] + t[2] - t[3], t[1], t[3], t[3]};
 		boolean closeHover = in(close, mx, my);
-		if (closeHover) Shapes.pixelRect(c, close[0], close[1], close[2], close[3], Theme.SLAB2);
-		Shapes.icon(c, "close", close[0] + 2, close[1] + 2, closeHover ? WHITE : Theme.MUTED);
+		box(c, close[0], close[1], close[2], close[3], closeHover ? BOX_HOVER : BOX, closeHover ? Theme.EDGE2 : LINE);
+		Shapes.icon(c, "close", close[0] + (close[2] - 12) / 2, close[1] + (close[3] - 12) / 2, closeHover ? WHITE : Theme.MUTED);
 		hits.add(new Hit("close", close, new Runnable() {
 			@Override
 			public void run() {
 				closeRequested = true;
 			}
 		}));
-		int langX = language(c, close[0] - 6, t[1] + (t[3] - 12) / 2, mx, my);
+		int langX = language(c, close[0] - 6, t[1], t[3], mx, my);
 
 		List<Tab> tabs = new ArrayList<Tab>();
 		tabs.add(new Tab("modules", "grid-3x3", Lang.t("menu.tab_modules"), Page.GRID, false));
@@ -252,17 +262,17 @@ public final class MenuView {
 				fs.unread() > 0 && page != Page.FRIENDS && page != Page.CHAT));
 		if (actions.cosmetics() != null) tabs.add(new Tab("cosmetics", "archive", Lang.t("menu.cosmetics"), Page.COSMETICS, false));
 		if (!actions.accounts().isEmpty()) tabs.add(new Tab("accounts", "users", Lang.t("menu.tab_accounts"), Page.ACCOUNTS, false));
-		int total = 0;
-		for (Tab tb : tabs) total += c.textWidth(tb.label) + 30 + 2;
-		int x = Math.max(logoEnd + 24, Math.min(t[0] + (t[2] - total) / 2, langX - 8 - total));
+		int x = lg[0] + lg[2] + MenuLayout.GAP, room = langX - 6 - x;
+		int each = Math.min(110, (room - (tabs.size() - 1) * 6) / Math.max(1, tabs.size()));
 		for (Tab tb : tabs) {
-			int[] r = {x, t[1] + 4, c.textWidth(tb.label) + 30, t[3] - 8};
+			int[] r = {x, t[1], Math.max(each, 40), t[3]};
 			boolean on = tb.page == Page.GRID ? modulesTab() : tb.page == Page.FRIENDS ? page == Page.FRIENDS || page == Page.CHAT : page == tb.page;
 			boolean hover = in(r, mx, my);
-			if (on || hover) Shapes.pixelRect(c, r[0], r[1], r[2], r[3], Theme.SLAB2);
-			if (on) c.fill(r[0] + 4, t[1] + t[3] - 2, r[0] + r[2] - 4, t[1] + t[3], Theme.AM);
-			Shapes.icon(c, tb.icon, r[0] + 7, r[1] + (r[3] - 12) / 2, on ? Theme.AM_HI : tb.alert ? Theme.AM : Theme.MUTED);
-			c.text(tb.label, r[0] + 23, r[1] + (r[3] - 8) / 2, on ? WHITE : tb.alert ? Theme.AM_HI : hover ? Theme.TEXT : Theme.MUTED, false);
+			box(c, r[0], r[1], r[2], r[3], on ? ACCENT_BG : hover ? BOX_HOVER : BOX, on ? Theme.AM : hover ? Theme.EDGE2 : LINE);
+			String label = Shapes.ellipsize(c, tb.label, r[2] - 32, false);
+			int lw = 16 + c.textWidth(label), sx = r[0] + (r[2] - lw) / 2;
+			Shapes.icon(c, tb.icon, sx, r[1] + (r[3] - 12) / 2, on ? Theme.AM_HI : tb.alert ? Theme.AM : Theme.MUTED);
+			c.text(label, sx + 16, r[1] + (r[3] - 8) / 2, on ? WHITE : tb.alert ? Theme.AM_HI : hover ? Theme.TEXT : Theme.MUTED, false);
 			final Page target = tb.page;
 			hits.add(new Hit(tb.name, r, new Runnable() {
 				@Override
@@ -270,26 +280,14 @@ public final class MenuView {
 					page = target;
 				}
 			}));
-			x += r[2] + 2;
+			x += r[2] + 6;
 		}
 	}
 
-	/**
-	 * Lewa kolumna zakładki modułów: wyszukiwarka, kategorie (wybrana podświetlona, z fioletowym paskiem przy krawędzi
-	 * panelu) i pod kreską spokojny przycisk „Edytuj HUD”.
-	 */
+	/** Kolumna „Biblioteka” zakładki modułów: kategorie jako osobne pola i „Edytuj HUD” na dole. */
 	private void sidebar(Canvas c, int mx, int my) {
 		int[] s = layout.sidebar;
-		c.fill(s[0] + 1, s[1] + 1, s[0] + s[2], s[1] + s[3] - 1, Theme.SLAB);
-		c.fill(s[0] + s[2], s[1] + 1, s[0] + s[2] + 1, s[1] + s[3] - 1, Theme.EDGE);
-		int[] q = layout.search;
-		boolean qHover = in(q, mx, my);
-		Shapes.panel(c, q[0], q[1], q[2], q[3], Theme.VOID, searching() ? Theme.AM : qHover ? Theme.EDGE2 : Theme.EDGE);
-		Shapes.icon(c, "search", q[0] + 4, q[1] + 3, searching() ? Theme.AM_HI : Theme.MUTED);
-		String shown = query.isEmpty() ? Lang.t("menu.search") : query + "_";
-		c.text(Shapes.ellipsize(c, shown, q[2] - 20, false), q[0] + 18, q[1] + 5, query.isEmpty() ? FAINT : Theme.TEXT, false);
-		hits.add(new Hit("search", q, null));
-
+		c.text(Lang.t("menu.library"), s[0] + 4, s[1] + 2, Theme.MUTED, false);
 		List<Category> cats = new ArrayList<Category>();
 		cats.add(null);
 		cats.addAll(categories());
@@ -297,28 +295,23 @@ public final class MenuView {
 			final Category k = cats.get(i);
 			int[] r = layout.category(i);
 			boolean on = searching() ? k == null : k == category, hover = in(r, mx, my);
-			if (on) {
-				Shapes.pixelRect(c, r[0], r[1], r[2], r[3], Theme.mix(Theme.SLAB2, Theme.AM, 0.12));
-				c.fill(s[0] + 1, r[1] + 3, s[0] + 3, r[1] + r[3] - 3, Theme.AM);
-			} else if (hover) Shapes.pixelRect(c, r[0], r[1], r[2], r[3], Theme.mix(Theme.SLAB, Theme.SLAB2, 0.5));
-			Shapes.icon(c, k == null ? "grid-3x3" : k.icon, r[0] + 7, r[1] + (r[3] - 12) / 2, on ? Theme.AM_HI : hover ? Theme.TEXT : Theme.MUTED);
+			box(c, r[0], r[1], r[2], r[3], on ? ACCENT_BG : hover ? BOX_HOVER : BOX, on ? Theme.AM : hover ? Theme.EDGE2 : LINE);
+			Shapes.icon(c, k == null ? "grid-3x3" : k.icon, r[0] + 8, r[1] + (r[3] - 12) / 2, on ? Theme.AM_HI : hover ? Theme.TEXT : Theme.MUTED);
 			String label = k == null ? Lang.t("menu.all") : k.label();
-			c.text(Shapes.ellipsize(c, label, r[2] - 28, false), r[0] + 25, r[1] + (r[3] - 8) / 2, on ? WHITE : hover ? Theme.TEXT : Theme.MUTED, false);
+			c.text(Shapes.ellipsize(c, label, r[2] - 32, false), r[0] + 26, r[1] + (r[3] - 8) / 2, on ? WHITE : hover ? Theme.TEXT : Theme.MUTED, false);
 			hits.add(new Hit("cat:" + (k == null ? "ALL" : k.name()), r, new Runnable() {
 				@Override
 				public void run() {
 					category = k;
 					query = "";
 					scroll = 0;
-					if (!column()) page = Page.GRID;
+					page = Page.GRID;
 				}
 			}));
 		}
-
 		int[] e = layout.sidebarButton(0);
 		boolean eh = in(e, mx, my);
-		c.fill(s[0] + 6, e[1] - 9, s[0] + s[2] - 6, e[1] - 8, Theme.EDGE);
-		Shapes.panel(c, e[0], e[1], e[2], e[3], eh ? Theme.SLAB2 : Theme.VOID, eh ? Theme.AM : Theme.EDGE2);
+		box(c, e[0], e[1], e[2], e[3], eh ? BOX_HOVER : BOX, eh ? Theme.AM : LINE);
 		String et = Shapes.ellipsize(c, Lang.t("menu.edit_hud"), e[2] - 26, false);
 		int ex = e[0] + (e[2] - 16 - c.textWidth(et)) / 2;
 		Shapes.icon(c, "move", ex, e[1] + (e[3] - 12) / 2, Theme.AM_HI);
@@ -331,14 +324,14 @@ public final class MenuView {
 		}));
 	}
 
-	/** Język menu na pasku u góry (prawa krawędź w right): PL / EN / AUTO, kliknięcie zmienia na następny; zwraca lewą krawędź. */
-	private int language(Canvas c, int right, int y, int mx, int my) {
+	/** Język menu w polu obok krzyżyka (prawa krawędź right): PL / EN / AUTO, kliknięcie zmienia na następny; zwraca lewą krawędź. */
+	private int language(Canvas c, int right, int y, int h, int mx, int my) {
 		String cur = Lang.chosen(), label = "auto".equals(cur) ? "AUTO" : cur.toUpperCase(java.util.Locale.ROOT);
-		int w = c.textWidth(label) + 10, h = 12;
+		int w = Math.max(h, c.textWidth(label) + 14);
 		final int[] r = {right - w, y, w, h};
 		boolean hover = in(r, mx, my);
-		Shapes.panel(c, r[0], r[1], r[2], r[3], hover ? Theme.SLAB2 : Theme.SLAB, hover ? Theme.AM : Theme.EDGE2);
-		c.text(label, r[0] + 5, r[1] + 2, hover ? Theme.AM_HI : Theme.MUTED, false);
+		box(c, r[0], r[1], r[2], r[3], hover ? BOX_HOVER : BOX, hover ? Theme.AM : LINE);
+		c.text(label, r[0] + (w - c.textWidth(label)) / 2, r[1] + (h - 8) / 2, hover ? Theme.AM_HI : Theme.MUTED, false);
 		hits.add(new Hit("lang", r, new Runnable() {
 			@Override
 			public void run() {
@@ -350,30 +343,32 @@ public final class MenuView {
 		return r[0];
 	}
 
-	/** Przycisk jak w launcherze: główny (fiolet z jaśniejszą górą i ciemniejszym dołem) albo „ghost”. */
+	/** Przycisk: główny (fiolet) albo zwykły (szkło z ramką). */
 	private void button(Canvas c, int[] r, String icon, String label, boolean primary, boolean hover) {
-		if (primary) {
-			Shapes.pixelRect(c, r[0], r[1], r[2], r[3], hover ? Theme.BTN_HOVER : Theme.AM_LO);
-			c.fill(r[0] + 1, r[1], r[0] + r[2] - 1, r[1] + 1, Theme.BTN_HI);
-			c.fill(r[0] + 1, r[1] + r[3] - 1, r[0] + r[2] - 1, r[1] + r[3], Theme.BTN_LO);
-		} else Shapes.panel(c, r[0], r[1], r[2], r[3], Theme.SLAB2, hover ? Theme.AM_LO : Theme.EDGE2);
-		int iw = icon == null ? 0 : 14;
-		String t = Shapes.ellipsize(c, label, r[2] - 8 - iw, false);
+		if (primary) Shapes.round(c, r[0], r[1], r[2], r[3], rad(3), pixels, hover ? Theme.BTN_HOVER : Theme.AM_LO, Theme.alpha(Theme.BTN_HI, 0x90));
+		else box(c, r[0], r[1], r[2], r[3], hover ? BOX_HOVER : BOX, hover ? Theme.AM : LINE);
+		int iw = icon == null ? 0 : 15;
+		String t = Shapes.ellipsize(c, label, r[2] - 10 - iw, false);
 		int x = r[0] + (r[2] - iw - c.textWidth(t)) / 2;
 		if (icon != null) Shapes.icon(c, icon, x, r[1] + (r[3] - 12) / 2, WHITE);
-		c.text(t, x + iw, r[1] + (r[3] - 8) / 2, WHITE, primary);
+		c.text(t, x + iw, r[1] + (r[3] - 8) / 2, WHITE, false);
 	}
 
-	/** Środek zakładki modułów: duży tytuł (kategoria albo wyniki wyszukiwania), ile włączonych i siatka kart. */
+	/** Panel zakładki modułów: duży tytuł (kategoria albo wyniki), liczba modułów, wyszukiwarka i siatka kart. */
 	private void grid(Canvas c, List<ModuleDef> vis, int mx, int my) {
 		int[] ct = layout.content;
 		String title = searching() ? Lang.t("menu.results") : category == null ? Lang.t("menu.all_title") : category.label();
-		c.push(2, ct[0], ct[1]);
-		c.text(Shapes.ellipsize(c, title, ct[2] / 2, false), ct[0], ct[1], WHITE, true);
-		c.pop();
+		bigTitle(c, title, ct[0], ct[1], layout.search[0] - ct[0] - 10);
 		int on = 0;
 		for (ModuleDef m : vis) if (modules.isOn(m.id)) on++;
-		c.text(Lang.t("menu.enabled", on, vis.size()), ct[0], ct[1] + 21, Theme.MUTED, false);
+		c.text(Lang.t("menu.count", vis.size(), on), ct[0], ct[1] + 20, Theme.MUTED, false);
+
+		int[] s = layout.search;
+		box(c, s[0], s[1], s[2], s[3], INSET, searching() ? Theme.AM : in(s, mx, my) ? Theme.EDGE2 : LINE);
+		Shapes.icon(c, "search", s[0] + 5, s[1] + (s[3] - 12) / 2, searching() ? Theme.AM_HI : Theme.MUTED);
+		String shown = query.isEmpty() ? Lang.t("menu.search") : query + "_";
+		c.text(Shapes.ellipsize(c, shown, s[2] - 26, false), s[0] + 21, s[1] + (s[3] - 8) / 2, query.isEmpty() ? FAINT : Theme.TEXT, false);
+		hits.add(new Hit("search", s, null));
 
 		int[] g = layout.grid;
 		if (vis.isEmpty()) {
@@ -389,44 +384,49 @@ public final class MenuView {
 		}
 		c.unscissor();
 		if (layout.maxScroll > 0) {
-			int x = g[0] + g[2] + 4, thumb = Math.max(12, g[3] * g[3] / (g[3] + layout.maxScroll));
+			int x = g[0] + g[2] + 3, thumb = Math.max(12, g[3] * g[3] / (g[3] + layout.maxScroll));
 			int y = g[1] + (g[3] - thumb) * layout.scroll / layout.maxScroll;
-			c.fill(x, g[1], x + 2, g[1] + g[3], Theme.EDGE);
-			c.fill(x, y, x + 2, y + thumb, Theme.AM_LO);
+			Shapes.round(c, x, g[1], 2, g[3], rad(1), pixels, Theme.alpha(Theme.EDGE, 0x90), 0);
+			Shapes.round(c, x, y, 2, thumb, rad(1), pixels, Theme.AM_LO, 0);
 		}
 	}
 
+	/** Duży tytuł strony gładką grubą czcionką (1,6 raza większy). */
+	private void bigTitle(Canvas c, String title, int x, int y, int maxW) {
+		c.font(Canvas.TITLE);
+		c.push(1.6f, x, y);
+		c.text(Shapes.ellipsize(c, title, (int) (maxW / 1.6f), false), x, y, WHITE, false);
+		c.pop();
+		c.font(Canvas.UI);
+	}
+
 	/**
-	 * Karta modułu: nazwa, pod nią stan słowem, obok zębatka i przełącznik; niżej podgląd (element HUD z przykładową treścią,
-	 * celownik albo duża ikona) i opis w dwóch liniach. Karta, której ustawienia są otwarte, ma fioletową ramkę.
+	 * Karta modułu: nazwa i przełącznik u góry, duży podgląd (element HUD z przykładową treścią, celownik albo ikona) i na
+	 * dole „Ustawienia ›”, które otwierają stronę modułu (cała karta też).
 	 */
 	private void card(Canvas c, final ModuleDef m, int[] r, int mx, int my, boolean mouseInGrid) {
 		boolean on = modules.isOn(m.id), blocked = modules.isBlocked(m.id), hover = mouseInGrid && in(r, mx, my);
-		boolean sel = page == Page.SETTINGS && m.id.equals(selected);
 		int x = r[0], y = r[1], w = r[2], h = r[3];
-		Shapes.panel(c, x, y, w, h, sel || hover ? Theme.SLAB2 : Theme.SLAB, sel ? Theme.AM : hover ? Theme.EDGE2 : Theme.EDGE);
-		if (sel) Shapes.pixelFrame(c, x + 1, y + 1, w - 2, h - 2, 1, Theme.AM_LO);
-		c.text(Shapes.ellipsize(c, m.name, w - 16, false), x + 8, y + 8, blocked ? Theme.MUTED : WHITE, true);
-		// zablokowany moduł nie ma przełącznika: zębatka stoi na jego miejscu, a obok kłódki mieści się słowo „Zablokowane”
-		int[] pill = {x + w - 6 - 24, y + 15, 26, 18}, gear = {x + w - 6 - (blocked ? 0 : 26) - 16, y + 16, 16, 16};
-		if (blocked) {
-			Shapes.icon(c, "lock", x + 5, y + 19, FAINT);
-			c.text(Shapes.ellipsize(c, Lang.t("menu.blocked_short"), gear[0] - x - 22, false), x + 18, y + 21, FAINT, false);
-		} else {
-			c.text(Lang.t(on ? "menu.on" : "menu.off"), x + 8, y + 21, on ? Theme.AM_HI : FAINT, false);
-			toggle(c, x + w - 6 - 20, y + 20, on);
-		}
+		box(c, x, y, w, h, hover ? CARD_HOVER : CARD, hover ? Theme.EDGE2 : on ? Theme.alpha(Theme.AM_LO, 0xC0) : LINE);
+		c.font(Canvas.BOLD);
+		c.text(Shapes.ellipsize(c, m.name, w - 16 - 26, false), x + 8, y + 8, blocked ? Theme.MUTED : WHITE, false);
+		c.font(Canvas.UI);
+		int[] pill = {x + w - 8 - 24, y + 3, 28, 18};
+		if (blocked) Shapes.icon(c, "lock", x + w - 8 - 14, y + 6, FAINT);
+		else toggle(c, x + w - 8 - 20, y + 7, on);
+		preview(c, m, new int[] {x + 6, y + 24, w - 12, 66}, false);
+		int[] gear = {x + 3, y + h - 22, w - 6, 19};
 		boolean gearHover = mouseInGrid && in(gear, mx, my);
-		Shapes.panel(c, gear[0], gear[1], gear[2], gear[3], gearHover ? Theme.SLAB2 : Theme.VOID, gearHover || sel ? Theme.AM : Theme.EDGE2);
-		Shapes.icon(c, "settings-cog", gear[0] + 2, gear[1] + 2, gearHover || sel ? Theme.AM_HI : Theme.MUTED);
-		preview(c, m, new int[] {x + 6, y + 38, w - 12, 38}, false);
-		String[] lines = Shapes.wrap(c, m.desc(), w - 14, 2);
-		for (int i = 0; i < lines.length; i++) c.text(lines[i], x + 7, y + 81 + i * 10, Theme.MUTED, false);
+		int fc = gearHover ? Theme.AM_HI : Theme.MUTED;
+		Shapes.icon(c, "settings-cog", x + 8, y + h - 18, fc);
+		String st = blocked ? Lang.t("menu.blocked_short") : Lang.t("menu.settings");
+		c.text(Shapes.ellipsize(c, st, w - 44, false), x + 24, y + h - 16, gearHover ? WHITE : Theme.MUTED, false);
+		c.text("›", x + w - 12, y + h - 16, fc, false);
 		int[] g = layout.grid;
 		if (r[1] < g[1] || r[1] + r[3] > g[1] + g[3]) return; // karta częściowo schowana: nie da się jej kliknąć
 		if (gearHover) {
 			tip = Lang.t("menu.settings_of", m.name);
-			tipAt = new int[] {gear[0] - 4, gear[1] + gear[3] + 3};
+			tipAt = new int[] {gear[0], gear[1] + gear[3] + 3};
 		}
 		hits.add(new Hit("card:" + m.id, r, new Runnable() {
 			@Override
@@ -449,42 +449,28 @@ public final class MenuView {
 	}
 
 	/**
-	 * Podgląd modułu w ramce b: na tle przyciemnionego świata gry element HUD z przykładową treścią (jak w edytorze HUD),
-	 * celownik albo duża ikona modułu.
+	 * Podgląd modułu w ciemnej ramce b: element HUD z przykładową treścią (jak w edytorze HUD, czcionką gry), celownik
+	 * albo duża ikona modułu.
 	 */
 	private void preview(Canvas c, ModuleDef m, int[] b, boolean big) {
-		scene(c, m.id, b);
+		box(c, b[0], b[1], b[2], b[3], INSET, 0);
 		c.scissor(b[0] + 1, b[1] + 1, b[0] + b[2] - 1, b[1] + b[3] - 1);
 		boolean drawn = false;
 		if ("custom_crosshair".equals(m.id)) {
 			crosshair(c, m, b);
 			drawn = true;
-		} else if (m.hud && actions.gameInfo() != null) drawn = hud.preview(c, actions.gameInfo(), m, b[0] + 4, b[1] + 3, b[2] - 8, b[3] - 6, pixels);
+		} else if (m.hud && actions.gameInfo() != null) {
+			c.font(Canvas.GAME);
+			drawn = hud.preview(c, actions.gameInfo(), m, b[0] + 4, b[1] + 3, b[2] - 8, b[3] - 6, pixels);
+			c.font(Canvas.UI);
+		}
 		if (!drawn) {
-			int k = big ? 3 : 2, ox = b[0] + (b[2] - 12 * k) / 2, oy = b[1] + (b[3] - 12 * k) / 2;
+			int k = big ? 4 : 2, ox = b[0] + (b[2] - 12 * k) / 2, oy = b[1] + (b[3] - 12 * k) / 2;
 			c.push(k, ox, oy);
 			Shapes.icon(c, m.icon, ox, oy, modules.isOn(m.id) ? Theme.AM_HI : Theme.MUTED);
 			c.pop();
 		}
 		c.unscissor();
-		Shapes.pixelFrame(c, b[0], b[1], b[2], b[3], 1, Theme.EDGE);
-	}
-
-	/** Tło podglądu: przyciemniony kawałek świata gry nocą (niebo, trawa i ziemia z klocków 4×4), na każdej karcie inny. */
-	private static void scene(Canvas c, String id, int[] b) {
-		int x = b[0], y = b[1], w = b[2], h = b[3], horizon = y + h * 5 / 8;
-		Shapes.pixelRect(c, x, y, w, h, 0xFF15131F);
-		c.fill(x + 1, y + (horizon - y) / 2, x + w - 1, horizon, 0xFF1A1828);
-		int seed = id.hashCode();
-		for (int cy = horizon; cy < y + h - 1; cy += 4) {
-			for (int cx = x + 1; cx < x + w - 1; cx += 4) {
-				int n = ((cx - x) / 4 * 73856093) ^ ((cy - horizon) / 4 * 19349663) ^ seed;
-				n = (n ^ (n >>> 13)) * 0x5bd1e995;
-				int v = (n >>> 24) % 3;
-				int col = cy == horizon ? (v == 0 ? 0xFF22351C : v == 1 ? 0xFF1F301A : 0xFF263B20) : (v == 0 ? 0xFF241C16 : v == 1 ? 0xFF201913 : 0xFF2A2119);
-				c.fill(cx, cy, Math.min(cx + 4, x + w - 1), Math.min(cy + 4, y + h - 1), col);
-			}
-		}
 	}
 
 	private void header(Canvas c, String title, int mx, int my) {
@@ -492,41 +478,41 @@ public final class MenuView {
 	}
 
 	/**
-	 * Pasek u góry strony: strzałka powrotu (rozmowa i ustawienia w małym oknie), kafelek z ikoną (gdy jest) i tytuł; strona
-	 * zakładki (Znajomi, Kosmetyki, Konta) ma sam duży tytuł jak siatka modułów.
+	 * Nagłówek strony: strzałka powrotu (rozmowa i strona modułu), kafelek z ikoną (gdy jest) i tytuł; strona zakładki
+	 * (Znajomi, Kosmetyki, Konta) ma sam duży tytuł jak siatka modułów.
 	 */
 	private void header(Canvas c, int[] ct, String title, String icon, boolean on, int mx, int my) {
 		int tx = ct[0];
 		if (page == Page.CHAT || page == Page.SETTINGS) {
-			int[] back = {ct[0], ct[1], 16, 16};
-			Shapes.panel(c, back[0], back[1], back[2], back[3], in(back, mx, my) ? Theme.SLAB2 : Theme.SLAB, Theme.EDGE2);
-			Shapes.icon(c, "arrow-left", back[0] + 2, back[1] + 2, Theme.TEXT);
+			int[] back = {ct[0], ct[1], 18, 18};
+			boolean bh = in(back, mx, my);
+			box(c, back[0], back[1], back[2], back[3], bh ? BOX_HOVER : BOX, bh ? Theme.AM : LINE);
+			Shapes.icon(c, "arrow-left", back[0] + 3, back[1] + 3, Theme.TEXT);
 			hits.add(new Hit("back", back, new Runnable() {
 				@Override
 				public void run() {
 					page = page == Page.CHAT ? Page.FRIENDS : Page.GRID;
 				}
 			}));
-			tx += 22;
+			tx += 24;
 		}
 		if (icon != null) {
-			if (on) {
-				Shapes.pixelRect(c, tx, ct[1], 16, 16, Theme.AM_LO);
-				c.fill(tx + 1, ct[1], tx + 15, ct[1] + 1, Theme.BTN_HI);
-			} else Shapes.panel(c, tx, ct[1], 16, 16, Theme.SLAB2, Theme.EDGE2);
-			Shapes.icon(c, icon, tx + 2, ct[1] + 2, on ? WHITE : Theme.MUTED);
-			tx += 22;
+			Shapes.round(c, tx, ct[1], 18, 18, rad(3), pixels, on ? Theme.AM_LO : BOX, on ? Theme.alpha(Theme.BTN_HI, 0x90) : LINE);
+			Shapes.icon(c, icon, tx + 3, ct[1] + 3, on ? WHITE : Theme.MUTED);
+			tx += 24;
 		}
-		if (tx == ct[0]) {
-			c.push(2, ct[0], ct[1]);
-			c.text(Shapes.ellipsize(c, title, ct[2] / 2, false), ct[0], ct[1], WHITE, true);
-			c.pop();
-		} else c.text(title, tx, ct[1] + 4, WHITE, true);
+		if (tx == ct[0]) bigTitle(c, title, ct[0], ct[1], ct[2]);
+		else {
+			c.font(Canvas.BOLD);
+			c.text(title, tx, ct[1] + 5, WHITE, false);
+			c.font(Canvas.UI);
+		}
 	}
 
+	/** Przełącznik: zaokrąglona pigułka z kółkiem. */
 	private void toggle(Canvas c, int x, int y, boolean on) {
-		Shapes.pixelRect(c, x, y, 20, 10, on ? Theme.AM : Theme.OFF);
-		c.fill(on ? x + 12 : x + 2, y + 2, on ? x + 18 : x + 8, y + 8, on ? WHITE : FAINT);
+		Shapes.round(c, x, y, 20, 10, rad(5), pixels, on ? Theme.AM : Theme.OFF, 0);
+		Shapes.round(c, on ? x + 11 : x + 1, y + 1, 8, 8, rad(4), pixels, on ? WHITE : FAINT, 0);
 	}
 
 	/** Custom crosshair: celownik na środku ramki, powiększony (najwyżej ×2), zmienia się od razu z ustawieniami. */
@@ -546,75 +532,34 @@ public final class MenuView {
 		c.pop();
 	}
 
-	/** Prawa kolumna, gdy żaden moduł nie jest wybrany: podpowiedź i włączone moduły (klik otwiera ich ustawienia). */
-	private void overview(Canvas c, int[] d, int mx, int my) {
-		int x0 = d[0] + 8, x1 = d[0] + d[2] - 8, y = d[1] + 10;
-		c.text(Lang.t("menu.active"), x0, y, WHITE, true);
-		y += 14;
-		for (String l : Shapes.wrap(c, Lang.t("menu.pick"), x1 - x0, 3)) {
-			c.text(l, x0, y, Theme.MUTED, false);
-			y += 10;
-		}
-		y += 6;
-		List<ModuleDef> on = new ArrayList<ModuleDef>();
-		for (ModuleDef m : modules.all()) if (modules.isOn(m.id)) on.add(m);
-		Collections.sort(on, new Comparator<ModuleDef>() {
-			@Override
-			public int compare(ModuleDef a, ModuleDef b) {
-				return a.name.compareToIgnoreCase(b.name);
-			}
-		});
-		if (on.isEmpty()) {
-			c.text(Shapes.ellipsize(c, Lang.t("menu.none_on"), x1 - x0, false), x0, y, FAINT, false);
-			return;
-		}
-		int bottom = d[1] + d[3] - 8, fit = Math.max(0, (bottom - y) / 16);
-		int shown = on.size() <= fit ? on.size() : Math.max(0, fit - 1);
-		for (int i = 0; i < shown; i++, y += 16) {
-			final ModuleDef m = on.get(i);
-			int[] r = {x0 - 3, y, x1 - x0 + 6, 15};
-			boolean hover = in(r, mx, my);
-			if (hover) Shapes.pixelRect(c, r[0], r[1], r[2], r[3], Theme.SLAB2);
-			Shapes.icon(c, m.icon, x0, y + 2, Theme.AM_HI);
-			c.text(Shapes.ellipsize(c, m.name, x1 - x0 - 18, false), x0 + 17, y + 4, hover ? WHITE : Theme.TEXT, false);
-			hits.add(new Hit("on:" + m.id, r, new Runnable() {
-				@Override
-				public void run() {
-					openSettings(m.id);
-				}
-			}));
-		}
-		if (shown < on.size()) c.text(Lang.t("menu.more", on.size() - shown), x0, y + 4, FAINT, false);
-	}
-
 	/** Wysokość wiersza ustawienia: w wąskiej kolumnie suwak, kolory i pole tekstowe są pod nazwą. */
-	private static int rowH(Setting<?> s, boolean column) {
-		return column && (s instanceof IntSetting || s instanceof ColorSetting || s instanceof TextSetting) ? 32 : 18;
+	private static int rowH(Setting<?> s, boolean narrow) {
+		return narrow && (s instanceof IntSetting || s instanceof ColorSetting || s instanceof TextSetting) ? 32 : 18;
 	}
 
 	/**
-	 * Ustawienia modułu w prostokącie a: w prawej kolumnie obok siatki (column) albo zamiast siatki w małym oknie (ze
-	 * strzałką powrotu). Nazwa i przełącznik, opis, podgląd, przewijana lista opcji, a na dole „Ustaw na ekranie”,
-	 * dodawanie punktów (Waypoints) albo podpowiedź o klawiszu.
+	 * Strona modułu (zamiast siatki): strzałka powrotu, nazwa i przełącznik, opis; z lewej duży podgląd i „Ustaw na ekranie”
+	 * (albo dodawanie punktów, albo podpowiedź o klawiszu), z prawej przewijana lista opcji. W wąskim panelu podgląd
+	 * jest nad listą.
 	 */
-	private void settings(Canvas c, int[] a, boolean column, int mx, int my) {
+	private void settings(Canvas c, int mx, int my) {
 		final ModuleDef m = modules.def(selected);
 		final ModuleState st = modules.state(m.id);
 		final boolean blocked = modules.isBlocked(m.id);
-		int left = column ? a[0] + 8 : a[0], right = column ? a[0] + a[2] - 8 : a[0] + a[2], y = column ? a[1] + 9 : a[1];
-		if (column) c.text(Shapes.ellipsize(c, m.name, right - left - 28, false), left, y + 1, WHITE, true);
-		else header(c, a, m.name, m.icon, modules.isOn(m.id), mx, my);
-		int[] sw = {right - 20, y, 20, 10};
+		int[] a = layout.content;
+		int left = a[0], right = a[0] + a[2], y = a[1];
+		header(c, a, m.name, m.icon, modules.isOn(m.id), mx, my);
 		if (!blocked) {
+			int[] sw = {right - 20, y + 4, 20, 10};
 			toggle(c, sw[0], sw[1], modules.isOn(m.id));
-			hits.add(new Hit("toggle", new int[] {sw[0] - 2, sw[1] - 3, 24, 16}, new Runnable() {
+			hits.add(new Hit("toggle", new int[] {sw[0] - 2, sw[1] - 4, 24, 18}, new Runnable() {
 				@Override
 				public void run() {
 					modules.toggle(m.id);
 				}
 			}));
 		}
-		y += column ? 16 : 22;
+		y += 26;
 		if (blocked) {
 			Shapes.icon(c, "lock", left, y - 2, Theme.MUTED);
 			for (String l : Shapes.wrap(c, Lang.t("menu.blocked"), right - left - 14, 2)) {
@@ -623,47 +568,26 @@ public final class MenuView {
 			}
 			y += 2;
 		}
-		String[] desc = Shapes.wrap(c, m.desc(), right - left, column ? 3 : 2);
-		for (String l : desc) {
+		for (String l : Shapes.wrap(c, m.desc(), right - left, 2)) {
 			c.text(l, left, y, Theme.MUTED, false);
 			y += 10;
 		}
-		y += 4;
-		int pvH = column ? 56 : 40;
-		preview(c, m, new int[] {left, y, right - left, pvH}, column);
-		y += pvH + 6;
+		y += 6;
 
+		boolean wide = a[2] >= 330;
+		int pw = wide ? Math.min(220, a[2] * 2 / 5) : a[2], ph = wide ? Math.min(130, a[1] + a[3] - y - 30) : 52;
+		preview(c, m, new int[] {left, y, pw, ph}, wide);
 		final boolean wp = "waypoints".equals(m.id);
 		final String world = wp ? actions.worldKey() : null, dim = wp ? actions.dimension() : null;
 		final List<Waypoints.Point> points = world == null ? java.util.Collections.<Waypoints.Point>emptyList() : Waypoints.in(st, world, dim);
 		boolean keyHint = "zoom".equals(m.id) || "perspective".equals(m.id);
-		String[] hint = keyHint ? Shapes.wrap(c, Lang.t("menu.key_hint"), right - left, 2) : wp && world == null ? Shapes.wrap(c, Lang.t("wp.no_world"), right - left, 2) : null;
-		int top = y, bottom = a[1] + a[3] - (column ? 8 : 0) - (m.hud || wp && world != null ? 22 : hint != null ? hint.length * 10 + 4 : 0);
-		int listH = 0;
-		for (Setting<?> s : m.settings) listH += rowH(s, column);
-		if (wp) listH += (1 + Math.max(1, points.size())) * 18;
-		maxSettingsScroll = Math.max(0, listH - (bottom - top));
-		settingsScroll = Math.max(0, Math.min(maxSettingsScroll, settingsScroll));
-		c.scissor(left, top, right, bottom);
-		y = top - settingsScroll;
-		for (Setting<?> s : m.settings) {
-			int rh = rowH(s, column);
-			if (y + rh > top && y < bottom) row(c, m, st, s, y, rh, left, right, mx, my, y >= top && y + rh <= bottom);
-			y += rh;
-		}
-		if (wp) waypointRows(c, st, world, dim, points, y, top, bottom, left, right, mx, my);
-		c.unscissor();
-		if (maxSettingsScroll > 0) {
-			int bx = column ? a[0] + a[2] - 4 : right + 4, thumb = Math.max(10, (bottom - top) * (bottom - top) / (bottom - top + maxSettingsScroll));
-			int by = top + (bottom - top - thumb) * settingsScroll / maxSettingsScroll;
-			c.fill(bx, top, bx + 2, bottom, Theme.EDGE);
-			c.fill(bx, by, bx + 2, by + thumb, Theme.AM_LO);
-		}
-
-		int by = a[1] + a[3] - (column ? 8 : 0) - 16;
+		int aw = wide ? pw : right - left;
+		String[] hint = keyHint ? Shapes.wrap(c, Lang.t("menu.key_hint"), aw, 3) : wp && world == null ? Shapes.wrap(c, Lang.t("wp.no_world"), aw, 3) : null;
+		int by = y + ph + 8;
+		if (!wide) by = a[1] + a[3] - 18;
 		if (m.hud) {
 			String t = Lang.t("menu.place");
-			int[] b = {left, by, column ? right - left : c.textWidth(t) + 28, 16};
+			int[] b = {left, by, wide ? pw : c.textWidth(t) + 30, 18};
 			button(c, b, "move", t, true, in(b, mx, my));
 			hits.add(new Hit("place", b, new Runnable() {
 				@Override
@@ -673,7 +597,7 @@ public final class MenuView {
 			}));
 		} else if (wp && world != null) {
 			String t = Lang.t("wp.add");
-			final int[] b = {left, by, column ? right - left : c.textWidth(t) + 28, 16};
+			final int[] b = {left, by, wide ? pw : c.textWidth(t) + 30, 18};
 			button(c, b, "flag", t, true, in(b, mx, my));
 			hits.add(new Hit("wp_add", b, new Runnable() {
 				@Override
@@ -683,11 +607,36 @@ public final class MenuView {
 				}
 			}));
 		} else if (hint != null) {
-			int hy = a[1] + a[3] - (column ? 8 : 0) - hint.length * 10 + 1;
+			int hy = wide ? by + 2 : a[1] + a[3] - hint.length * 10;
 			for (String l : hint) {
 				c.text(l, left, hy, FAINT, false);
 				hy += 10;
 			}
+		}
+
+		int lx = wide ? left + pw + 14 : left, top = wide ? y : y + ph + 8;
+		int bottom = a[1] + a[3] - (wide ? 0 : (m.hud || wp && world != null ? 24 : hint != null ? hint.length * 10 + 4 : 0));
+		boolean narrow = right - lx < 260;
+		int listH = 0;
+		for (Setting<?> s : m.settings) listH += rowH(s, narrow);
+		if (wp) listH += (1 + Math.max(1, points.size())) * 18;
+		maxSettingsScroll = Math.max(0, listH - (bottom - top));
+		settingsScroll = Math.max(0, Math.min(maxSettingsScroll, settingsScroll));
+		if (m.settings.isEmpty() && !wp) c.text(Lang.t("menu.no_options"), lx + 3, top + 5, FAINT, false);
+		c.scissor(lx, top, right, bottom);
+		int ry = top - settingsScroll;
+		for (Setting<?> s : m.settings) {
+			int rh = rowH(s, narrow);
+			if (ry + rh > top && ry < bottom) row(c, m, st, s, ry, rh, lx, right, mx, my, ry >= top && ry + rh <= bottom);
+			ry += rh;
+		}
+		if (wp) waypointRows(c, st, world, dim, points, ry, top, bottom, lx, right, mx, my);
+		c.unscissor();
+		if (maxSettingsScroll > 0) {
+			int bx = right + 4, thumb = Math.max(10, (bottom - top) * (bottom - top) / (bottom - top + maxSettingsScroll));
+			int sy = top + (bottom - top - thumb) * settingsScroll / maxSettingsScroll;
+			Shapes.round(c, bx, top, 2, bottom - top, rad(1), pixels, Theme.alpha(Theme.EDGE, 0x90), 0);
+			Shapes.round(c, bx, sy, 2, thumb, rad(1), pixels, Theme.AM_LO, 0);
 		}
 	}
 
@@ -728,7 +677,7 @@ public final class MenuView {
 	private void row(Canvas c, final ModuleDef m, final ModuleState st, final Setting<?> s, int y, int rh, int left, int right, int mx, int my,
 			boolean clickable) {
 		// wiersz podświetlony pod myszą, cienka linia między wierszami, treść z wcięciem
-		if (clickable && mx >= left && mx < right && my >= y && my < y + rh) c.fill(left, y, right, y + rh, Theme.SLAB2);
+		if (clickable && mx >= left && mx < right && my >= y && my < y + rh) Shapes.round(c, left, y, right - left, rh - 1, rad(2), pixels, BOX_HOVER, 0);
 		c.fill(left, y + rh - 1, right, y + rh, ROW_LINE);
 		int inset = right - left < 200 ? 3 : 6;
 		left += inset;
@@ -764,7 +713,7 @@ public final class MenuView {
 			int bw = c.textWidth(t) + 16;
 			int[] r = {right - bw, y + 1, bw, 16};
 			label(c, s, left, y, right - left - bw - 8);
-			Shapes.panel(c, r[0], r[1], r[2], r[3], in(r, mx, my) ? Theme.SLAB2 : Theme.SLAB, Theme.EDGE2);
+			box(c, r[0], r[1], r[2], r[3], in(r, mx, my) ? BOX_HOVER : BOX, LINE);
 			c.text(t, r[0] + 8, r[1] + 4, Theme.TEXT, false);
 			if (clickable) hits.add(new Hit("setting:" + s.key, r, new Runnable() {
 				@Override
@@ -778,7 +727,7 @@ public final class MenuView {
 			label(c, s, left, y, stacked ? right - left : half);
 			boolean active = s.key.equals(editing) && m.id.equals(selected);
 			final int[] r = stacked ? new int[] {left, y + 15, right - left, 15} : new int[] {left + (right - left) / 2, y + 1, (right - left) / 2, 16};
-			Shapes.panel(c, r[0], r[1], r[2], r[3], Theme.VOID, active ? Theme.AM : in(r, mx, my) ? Theme.AM_LO : Theme.EDGE2);
+			box(c, r[0], r[1], r[2], r[3], Theme.VOID, active ? Theme.AM : in(r, mx, my) ? Theme.AM_LO : Theme.EDGE2);
 			String v = ts.get(st) + (active ? "_" : "");
 			String shown = c.textWidth(v) > r[2] - 10 ? "…" + tail(c, v, r[2] - 16) : v;
 			c.text(shown, r[0] + 5, r[1] + (r[3] - 8) / 2, v.isEmpty() ? FAINT : Theme.TEXT, false);
@@ -851,7 +800,7 @@ public final class MenuView {
 		List<Account> list = actions.accounts();
 		int y = ct[1] + 40;
 		for (final Account a : list) {
-			Shapes.panel(c, ct[0], y, ct[2], 20, Theme.SLAB, a.active ? Theme.AM_LO : Theme.EDGE);
+			box(c, ct[0], y, ct[2], 20, BOX, a.active ? Theme.AM_LO : LINE);
 			c.text(Shapes.ellipsize(c, a.name, ct[2] - 90, false), ct[0] + 8, y + 6, Theme.TEXT, false);
 			if (a.active) {
 				String t = Lang.t("acc.active");
@@ -904,7 +853,7 @@ public final class MenuView {
 		// podgląd postaci: obrót 50° na sekundę, więc co kilka sekund widać pelerynę i skrzydła z tyłu
 		int pw = ct[2] >= 300 ? 84 : 0, lx = ct[0] + (pw > 0 ? pw + 8 : 0), lw = ct[2] - (lx - ct[0]);
 		if (pw > 0) {
-			Shapes.panel(c, ct[0], top, pw, bottom - top, Theme.SLAB, Theme.EDGE);
+			box(c, ct[0], top, pw, bottom - top, BOX, LINE);
 			int size = Math.max(20, Math.min(pw * 2 / 5, (bottom - top) * 2 / 7));
 			c.playerTurned(ct[0] + 2, top + 2, ct[0] + pw - 2, bottom - 2, size, (System.currentTimeMillis() / 20) % 360);
 		}
@@ -914,7 +863,7 @@ public final class MenuView {
 		y = top - cosScroll;
 		for (final Cosmetics.Gift g : cs.gifts) {
 			if (y + 20 > top && y < bottom) {
-				Shapes.panel(c, lx, y, lw, 20, Theme.SLAB, Theme.AM);
+				box(c, lx, y, lw, 20, BOX, Theme.AM);
 				Shapes.icon(c, "archive", lx + 6, y + 4, Theme.AM_HI);
 				String t = Lang.t("cos.claim");
 				int[] b = {lx + lw - 4 - (c.textWidth(t) + 16), y + 2, c.textWidth(t) + 16, 16};
@@ -936,10 +885,9 @@ public final class MenuView {
 			}
 			boolean clickable = y >= top && y + 20 <= bottom;
 			final boolean trying = it.id.equals(actions.tryingOn(it.type));
-			Shapes.panel(c, lx, y, lw, 20, Theme.SLAB, it.equipped ? Theme.AM_LO : trying ? Theme.AM_HI : Theme.EDGE);
+			box(c, lx, y, lw, 20, BOX, it.equipped ? Theme.AM_LO : trying ? Theme.AM_HI : LINE);
 			String kind = Lang.t("cos." + ("hat".equals(it.type) || "mask".equals(it.type) || "wings".equals(it.type) || "aura".equals(it.type) ? it.type : "cape"));
 			c.text(Shapes.ellipsize(c, it.name, lw - 150, false), lx + 8, y + 6, Theme.TEXT, false);
-			c.text(kind, lx + lw - 140, y + 6, FAINT, false);
 			// przymiarka: cały wiersz (przycisk niżej ma pierwszeństwo, bo sprawdzany jest od końca)
 			if (clickable && it.png != null && !it.equipped) hits.add(new Hit("try:" + it.id, new int[] {lx, y, lw, 20}, new Runnable() {
 				@Override
@@ -953,6 +901,8 @@ public final class MenuView {
 				button(c, b, null, t, !it.equipped, in(b, mx, my));
 				String label = it.equipped ? Lang.t("cos.on") : trying ? Lang.t("cos.trying") : null;
 				if (label != null) c.text(label, b[0] - 6 - c.textWidth(label), y + 6, Theme.AM_HI, false);
+				// rodzaj przedmiotu przed napisem „Założona” / „Przymierzasz” (szerokość zależy od czcionki)
+				c.text(kind, (label != null ? b[0] - 6 - c.textWidth(label) : b[0]) - 14 - c.textWidth(kind), y + 6, FAINT, false);
 				if (clickable) hits.add(new Hit("cos:" + it.id, b, new Runnable() {
 					@Override
 					public void run() {
@@ -1005,8 +955,8 @@ public final class MenuView {
 			}
 			final int[] r = {ct[0], y, ct[2], 20};
 			boolean clickable = y >= top && y + 20 <= bottom, hover = clickable && in(r, mx, my);
-			Shapes.panel(c, r[0], y, r[2], 20, hover ? Theme.SLAB2 : Theme.SLAB, f.unread > 0 ? Theme.AM : hover ? Theme.EDGE2 : Theme.EDGE);
-			Shapes.pixelRect(c, r[0] + 7, y + 7, 6, 6, "game".equals(f.status) ? Theme.GOOD : "launcher".equals(f.status) ? Theme.AM : Theme.OFF);
+			box(c, r[0], y, r[2], 20, hover ? BOX_HOVER : BOX, f.unread > 0 ? Theme.AM : hover ? Theme.EDGE2 : LINE);
+			Shapes.round(c, r[0] + 7, y + 7, 6, 6, rad(3), pixels, "game".equals(f.status) ? Theme.GOOD : "launcher".equals(f.status) ? Theme.AM : Theme.OFF, 0);
 			String right = f.unread > 0 ? Lang.t("friends.new", f.unread) : null;
 			int rw = right != null ? c.textWidth(right) + 12 : 16;
 			String nick = Shapes.ellipsize(c, f.nick, Math.min(110, r[2] / 3), false);
@@ -1049,7 +999,7 @@ public final class MenuView {
 		Friends.Chat ch = actions.chat(f.id);
 		String err = actions.chatMessage();
 		int inputY = ct[1] + ct[3] - 16, top = ct[1] + 22, bottom = inputY - (err != null ? 14 : 4);
-		Shapes.panel(c, ct[0], top, ct[2], bottom - top, Theme.SLAB, Theme.EDGE);
+		box(c, ct[0], top, ct[2], bottom - top, BOX, LINE);
 		int lh = c.lineHeight() + 1, bw = Math.max(60, ct[2] * 3 / 4);
 		if (ch == null || ch.messages.isEmpty()) {
 			String t = ch == null ? Lang.t("chat.loading") : Lang.t("chat.empty", f.nick);
@@ -1082,9 +1032,8 @@ public final class MenuView {
 				y -= h;
 				if (y + h > top) {
 					if (m.mine) {
-						Shapes.pixelRect(c, x, y, w + 12, h, m.pending ? Theme.OFF : Theme.AM_LO);
-						if (!m.pending) c.fill(x + 1, y, x + w + 11, y + 1, Theme.BTN_HI);
-					} else Shapes.panel(c, x, y, w + 12, h, Theme.SLAB2, Theme.EDGE2);
+						Shapes.round(c, x, y, w + 12, h, rad(4), pixels, m.pending ? Theme.OFF : Theme.AM_LO, 0);
+					} else box(c, x, y, w + 12, h, BOX_HOVER, LINE);
 					for (int k = 0; k < l.size(); k++) c.text(l.get(k), x + 6, y + 4 + k * lh, m.pending ? Theme.MUTED : m.mine ? WHITE : Theme.TEXT, false);
 				}
 				y -= 4;
@@ -1095,7 +1044,7 @@ public final class MenuView {
 		String t = Lang.t("chat.send");
 		int[] sb = {ct[0] + ct[2] - (c.textWidth(t) + 16), inputY, c.textWidth(t) + 16, 16};
 		int[] field = {ct[0], inputY, sb[0] - 6 - ct[0], 16};
-		Shapes.panel(c, field[0], field[1], field[2], field[3], Theme.SLAB2, Theme.AM);
+		box(c, field[0], field[1], field[2], field[3], BOX_HOVER, Theme.AM);
 		String shown = draft.isEmpty() ? Lang.t("chat.placeholder") : draft + "_";
 		if (!draft.isEmpty() && c.textWidth(shown) > field[2] - 10) shown = "…" + tail(c, shown, field[2] - 16);
 		c.text(Shapes.ellipsize(c, shown, field[2] - 10, false), field[0] + 5, field[1] + 4, draft.isEmpty() ? FAINT : Theme.TEXT, false);
@@ -1137,16 +1086,8 @@ public final class MenuView {
 		return false;
 	}
 
-	/** Kółko myszy w punkcie (x, y): przy ustawieniach obok siatki przewija się ta część, nad którą jest kursor. */
+	/** Kółko myszy w punkcie (x, y) (MenuScreen); na każdej stronie przewija się jej lista. */
 	public boolean mouseScrolled(double x, double y, double amount) {
-		if (modulesTab() && column() && layout.grid != null) {
-			boolean overDetail = in(layout.detail, x, y);
-			if (page == Page.GRID && overDetail) return true;
-			if (page == Page.SETTINGS && !overDetail) {
-				scroll = Math.max(0, Math.min(layout.maxScroll, scroll - (int) Math.round(amount * 24)));
-				return true;
-			}
-		}
 		return mouseScrolled(amount);
 	}
 
@@ -1250,9 +1191,9 @@ public final class MenuView {
 		return true;
 	}
 
-	/** Pisanie trafia do wyszukiwarki: na siatce i przy ustawieniach otwartych obok niej. */
+	/** Pisanie trafia do wyszukiwarki tylko na siatce modułów. */
 	private boolean searchable() {
-		return page == Page.GRID || page == Page.SETTINGS && column();
+		return page == Page.GRID;
 	}
 
 	/** Czyści wyszukiwarkę (np. przy ponownym otwarciu menu). */

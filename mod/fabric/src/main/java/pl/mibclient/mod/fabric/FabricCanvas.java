@@ -5,6 +5,8 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.MibGraphics;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.MibId;
 import net.minecraft.world.effect.MobEffect;
@@ -24,11 +26,26 @@ import net.minecraft.client.renderer.RenderType;
 //#if MC < 1.21.2
 import com.mojang.blaze3d.systems.RenderSystem;
 //#endif
+//#if MC >= 1.21.9
+import net.minecraft.network.chat.FontDescription;
+//#endif
 
 /** Canvas części wspólnej na rysowaniu GUI danej wersji gry. */
 public final class FabricCanvas implements Canvas {
 	private final MibGraphics g;
 	private final Font font;
+	/** Gładkie czcionki MiB (assets/mibclient/font/ui*.json, rysuje je mod/tools/fonts.py): jednostki o połowę mniejsze niż w menu. */
+	private static final Style[] FACES = {null, face("ui"), face("ui_bold"), face("ui_title")};
+	private int face = GAME;
+
+	private static Style face(String name) {
+		MibId id = MibId.fromNamespaceAndPath("mibclient", name);
+		//#if MC >= 1.21.9
+		return Style.EMPTY.withFont(new FontDescription.Resource(id));
+		//#else
+		return Style.EMPTY.withFont(id);
+		//#endif
+	}
 
 	public FabricCanvas(MibGraphics g, Font font) {
 		this.g = g;
@@ -41,7 +58,29 @@ public final class FabricCanvas implements Canvas {
 	}
 
 	@Override
+	public void font(int f) {
+		face = f >= 0 && f < FACES.length ? f : GAME;
+	}
+
+	@Override
+	public int font() {
+		return face;
+	}
+
+	@Override
 	public void text(String s, int x, int y, int argb, boolean shadow) {
+		if (face != GAME) {
+			// litery czcionki MiB mają podwójną rozdzielczość: rysowane w skali 0,5, linia bazowa na y + 7 jak w czcionce gry, bez cienia
+			Component t = Component.literal(s).withStyle(FACES[face]);
+			push(0.5f, x, y);
+			//#if MC >= 26.1
+			g.text(font, t, x, y + 7, argb, false);
+			//#else
+			g.drawString(font, t, x, y + 7, argb, false);
+			//#endif
+			pop();
+			return;
+		}
 		//#if MC >= 26.1
 		g.text(font, s, x, y, argb, shadow);
 		//#else
@@ -51,6 +90,7 @@ public final class FabricCanvas implements Canvas {
 
 	@Override
 	public int textWidth(String s) {
+		if (face != GAME) return (font.width(Component.literal(s).withStyle(FACES[face])) + 1) / 2;
 		return font.width(s);
 	}
 

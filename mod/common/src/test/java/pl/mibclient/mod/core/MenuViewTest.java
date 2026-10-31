@@ -210,7 +210,7 @@ class MenuViewTest {
 		assertEquals(pvp, v.visible().size());
 		assertEquals(Category.PVP, v.category());
 		assertTrue(c.hasText("PvP"), "nazwa kategorii jako tytuł");
-		assertTrue(c.hasText("Włączone: " + countOn(v.visible()) + " z " + pvp));
+		assertTrue(c.hasText("Moduły: " + pvp + " · włączone: " + countOn(v.visible())));
 		click("cat:ALL");
 		render();
 		assertEquals(mm.all().size(), v.visible().size());
@@ -286,53 +286,23 @@ class MenuViewTest {
 	}
 
 	@Test
-	void settingsNextToGridKeepSearchAndScroll() {
+	void moduleSettingsPageReplacesGrid() {
+		render();
+		assertTrue(cards() > 0);
+		click("card:" + v.visible().get(0).id);
+		assertEquals(MenuView.Page.SETTINGS, v.page());
+		render();
+		assertEquals(0, cards(), "strona modułu zamiast siatki");
+		assertTrue(c.hasText(mm.def(v.selected()).name));
+		v.charTyped('z');
+		assertEquals("", v.query(), "na stronie modułu pisanie nie trafia do wyszukiwarki");
+		click("back");
+		assertEquals(MenuView.Page.GRID, v.page());
 		v.openSettings("keystrokes");
 		render();
-		assertNotNull(v.layout().detail);
-		assertTrue(c.hasText("Keystrokes"));
-		assertTrue(cards() > 0, "siatka zostaje obok ustawień");
-		int[] place = v.hitRect("place");
-		assertTrue(place[0] >= v.layout().detail[0], "przycisk w kolumnie ustawień");
-		v.charTyped('z');
-		assertEquals("z", v.query(), "pisanie dalej trafia do wyszukiwarki");
-		assertEquals(MenuView.Page.SETTINGS, v.page());
-		v.keyPressed(MenuView.KEY_BACKSPACE);
-		assertEquals("", v.query());
-		int[] g = v.layout().grid, d = v.layout().detail;
-		v.mouseScrolled(g[0] + 5, g[1] + 5, -3);
-		render();
-		assertTrue(v.layout().scroll > 0, "kółko nad siatką przewija siatkę");
-		int before = v.layout().scroll;
-		v.mouseScrolled(d[0] + 5, d[1] + 50, -3);
-		render();
-		assertEquals(before, v.layout().scroll, "kółko nad ustawieniami nie rusza siatki");
-		v.mouseScrolled(g[0] + 5, g[1] + 5, 1000);
-		String first = v.visible().get(0).id;
-		click("card:" + first);
-		assertEquals(first, v.selected(), "klik w kartę zmienia moduł w kolumnie");
-	}
-
-	@Test
-	void overviewListsEnabledModules() {
-		render();
-		assertTrue(c.hasText("Włączone moduły"));
-		click("on:fps");
-		assertEquals(MenuView.Page.SETTINGS, v.page());
-		assertEquals("fps", v.selected());
-	}
-
-	@Test
-	void smallWindowShowsSettingsInsteadOfGrid() {
-		v.openSettings("fps");
-		c.clear();
-		v.render(c, 320, 240, -1, -1);
-		assertNull(v.layout().detail);
-		assertEquals(0, cards(), "ustawienia zamiast siatki");
-		int[] back = v.hitRect("back");
-		assertNotNull(back);
-		v.mouseClicked(back[0] + 1, back[1] + 1, 0);
-		assertEquals(MenuView.Page.GRID, v.page());
+		assertNotNull(v.hitRect("place"));
+		assertNotNull(v.hitRect("toggle"));
+		assertTrue(v.hitRect("place")[0] < v.hitRect("setting:space")[0], "podgląd i „Ustaw na ekranie” z lewej, opcje z prawej");
 	}
 
 	@Test
@@ -458,7 +428,8 @@ class MenuViewTest {
 		render();
 		assertTrue(c.hasText("Search mods"));
 		assertTrue(c.hasText("Edit HUD"));
-		assertTrue(c.hasText("Disabled"));
+		assertTrue(c.hasText("Settings"));
+		assertTrue(c.hasText("Library"));
 	}
 
 	@Test

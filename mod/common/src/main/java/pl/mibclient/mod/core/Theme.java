@@ -58,7 +58,12 @@ public final class Theme {
 		return p;
 	}
 
-	static int mix(int a, int b, double t) {
+	/** Ten sam kolor z inną przezroczystością (0–255), np. szklane panele menu nad rozmytą grą. */
+	public static int alpha(int argb, int a) {
+		return (a & 0xFF) << 24 | (argb & 0xFFFFFF);
+	}
+
+	public static int mix(int a, int b, double t) {
 		int out = 0;
 		for (int sh = 0; sh < 32; sh += 8) {
 			int x = (a >>> sh) & 0xFF, y = (b >>> sh) & 0xFF;

@@ -5,6 +5,17 @@ package pl.mibclient.mod.core;
  * a menu, edytor HUD i HUD modułów rysują się tylko przez ten interfejs.
  */
 public interface Canvas {
+	/** Czcionki napisów: gry (Minecraft) albo gładka MiB (Geist: zwykła, pogrubiona i do dużych tytułów; od 0.30.0 w menu). */
+	int GAME = 0, UI = 1, BOLD = 2, TITLE = 3;
+
+	/** Czcionka kolejnych text()/textWidth(), do następnej zmiany; gładka MiB ma linię bazową tam, gdzie czcionka gry. */
+	default void font(int face) {
+	}
+
+	default int font() {
+		return GAME;
+	}
+
 	/** Prostokąt [x1, x2) × [y1, y2). */
 	void fill(int x1, int y1, int x2, int y2, int argb);
 

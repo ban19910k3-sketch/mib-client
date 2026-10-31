@@ -36,6 +36,45 @@ public final class Shapes {
 		pixelFrame(c, x, y, w, h, 1, border);
 	}
 
+	/**
+	 * Zaokrąglony prostokąt (od 0.30.0, menu w grze): promień r w pikselach okna (pixels = pikseli okna na jednostkę menu),
+	 * tło bg i ramka 1 px (przezroczysta = bez ramki). Prostokąty się nie nakładają, więc półprzezroczyste tło ma w rogach
+	 * ten sam odcień co w środku.
+	 */
+	public static void round(Canvas c, int x, int y, int w, int h, int r, int pixels, int bg, int border) {
+		int p = Math.max(1, pixels), W = w * p, H = h * p, R = Math.max(1, Math.min(r, Math.min(W, H) / 2));
+		if (W <= 0 || H <= 0) return;
+		boolean b = (border >>> 24) != 0, f = (bg >>> 24) != 0;
+		int[] in = corner(R);
+		c.push(1f / p, x, y);
+		for (int i = 0; i < R; i++) {
+			int a = in[i], e = !b ? a : i == 0 ? W / 2 : Math.min(W / 2, Math.max(a + 1, in[i - 1]));
+			for (int yy : new int[] {y + i, y + H - 1 - i}) {
+				if (b) {
+					c.fill(x + a, yy, x + e, yy + 1, border);
+					c.fill(x + W - e, yy, x + W - a, yy + 1, border);
+				}
+				if (f && W - 2 * e > 0) c.fill(x + e, yy, x + W - e, yy + 1, bg);
+				if (i == 0 && b) c.fill(x + e, yy, x + W - e, yy + 1, border);
+			}
+		}
+		if (H > 2 * R) {
+			if (b) {
+				c.fill(x, y + R, x + 1, y + H - R, border);
+				c.fill(x + W - 1, y + R, x + W, y + H - R, border);
+			}
+			if (f) c.fill(x + (b ? 1 : 0), y + R, x + W - (b ? 1 : 0), y + H - R, bg);
+		}
+		c.pop();
+	}
+
+	/** Wcięcie rzędów rogu koła o promieniu r (rząd 0 = najbardziej zewnętrzny). */
+	static int[] corner(int r) {
+		int[] in = new int[r];
+		for (int i = 0; i < r; i++) in[i] = (int) Math.round(r - Math.sqrt(r * r - (r - i - 0.5) * (r - i - 0.5)));
+		return in;
+	}
+
 	/** Ikona 12×12; poziome ciągi pikseli rysowane jednym prostokątem. */
 	public static void icon(Canvas c, String key, int x, int y, int argb) {
 		int[] rows = PixelIcons.get(key);
