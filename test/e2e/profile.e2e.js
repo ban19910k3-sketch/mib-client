@@ -91,7 +91,7 @@ function png(w, h, px) {
 
     fake.st.backups.push({ user: fake.st.users[0].id, game_version: '1.8.9', loader: null, skipped: 1,
       mods: [{ project: 'P1', version: 'V1', file: 'a.jar', on: true }, { project: 'P2', version: 'V2', file: 'b.jar', on: false }] });
-    await w.click('.nav[data-p="mods"]');
+    await w.click('#side .nav[data-p="hub"]'); await w.click('.nav[data-p="mods"]'); // Mody → zakładka Zainstalowane
     await w.waitForFunction(() => !document.getElementById('mbk').hidden && /Przywróć mody z profilu \(2\)/.test(document.getElementById('mbk').textContent));
     assert.match(await w.textContent('#mbk'), /spoza Modrinth: 1/);
     await shot('mods-backup.png');
@@ -393,6 +393,7 @@ function png(w, h, px) {
     // Ustawienia: bez motywów świątecznych zwykły wygląd, po włączeniu wraca motyw z dzisiejszej daty
     const themeNow = require('../../lib/profile').themeNow(fake.st.themes);
     await w.click('.nav[data-p="set"]');
+    await w.click('.stab[data-st="look"]');
     assert.equal(await w.isChecked('#s-themes'), true);
     await w.uncheck('#s-themes');
     await w.waitForFunction(() => !/\bt-|themed/.test(document.documentElement.className));
@@ -887,6 +888,7 @@ function png(w, h, px) {
     ok('(ah) prezent dla wszystkich graczy, którzy go nie mają');
 
     await w.click('.nav[data-p="set"]');
+    await w.click('.stab[data-st="game"]');
     assert.equal(await w.isChecked('#s-mib'), true, 'mod MiB domyślnie włączony');
     await w.uncheck('#s-mib');
     await w.click('#s-save');
@@ -895,6 +897,7 @@ function png(w, h, px) {
     await w.check('#s-mib'); await w.click('#s-save');
     ok('(p) ustawienie „Mod MiB w grze” zapisuje się');
     fake.st.presence[sier.id] = { at: Date.now(), playing: false };
+    await w.click('.stab[data-st="gen"]');
     await w.check('#s-inv'); await w.click('#s-save');
     await until(() => !fake.st.presence[sier.id] && fake.st.calls.some(c => c.path === '/rest/v1/rpc/presence_ping' && c.body.p_hidden === true));
     await w.uncheck('#s-inv'); await w.click('#s-save');
@@ -906,6 +909,7 @@ function png(w, h, px) {
     await w.click('.nav[data-p="ideas"]');
     await w.waitForSelector('#ip-list .idea.pub:has-text("Dodajcie kurwa tryb")');
     await w.click('.nav[data-p="set"]');
+    await w.click('.stab[data-st="gen"]');
     await w.check('#s-cf'); await w.click('#s-save');
     ok('(al) filtr wulgaryzmów można wyłączyć w Ustawieniach');
 
@@ -923,7 +927,7 @@ function png(w, h, px) {
       assert.equal(again.errors[0].code, 'exists');
       const list = await w.evaluate(() => mib.call('mods:list', '1.21.11'));
       assert.ok(list.some(m => m.file === 'sodium-test.jar'), 'mod na liście Moje mody');
-      await w.click('.nav[data-p="mods"]');
+      await w.click('#side .nav[data-p="hub"]'); await w.click('.nav[data-p="mods"]'); // Mody → zakładka Zainstalowane
       await w.waitForSelector('#p-mods.on #mdrop');
       await w.dispatchEvent('#p-mods', 'dragenter', { dataTransfer: await w.evaluateHandle(() => { const d = new DataTransfer(); d.items.add(new File(['x'], 'a.jar')); return d; }) });
       assert.ok(await w.$('#p-mods.drop'), 'pole upuszczania podświetla się przy przeciąganiu pliku');

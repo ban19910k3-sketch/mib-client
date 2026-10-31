@@ -611,8 +611,16 @@
 
   // Kosmetyki mają trzy zakładki: Moje przedmioty, Sklep (od 0.24.0, za MiB Coins) i Historia coinsów
   let cosTab = 'mine';
+  // zaznaczona pozycja paska bocznego idzie za zakładką: Sklep albo Kosmetyki
+  function cosNav() {
+    if (!$('p-cos').classList.contains('on')) return;
+    document.querySelectorAll('#side .nav[data-p="cos"]').forEach(x => x.classList.toggle('act', (x.dataset.tab === 'shop') === (cosTab === 'shop')));
+    const a = document.querySelector('#side .nav.act span'), c = $('crumb-p');
+    if (a && c) c.textContent = a.textContent;
+  }
   async function renderCos() {
     const box = $('cos-box');
+    cosNav();
     if (st.loading) return box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'mut' }, T('Wczytywanie…')));
     const skin = await skinSection();
     if (!st.loggedIn) {
@@ -1078,6 +1086,9 @@
       + (Array.isArray(un) ? un.reduce((a, u) => a + Number(u.unread || 0), 0) : 0);
     if (!b) { b = h('em', { class: 'cnt' }); nav.append(b); }
     b.textContent = String(n); b.hidden = !n;
+    // znajomi online w górnym pasku (od 0.30.0)
+    const on = l.filter(f => f.state === 'friend' && (f.status === 'game' || f.status === 'launcher')).length, pill = $('tb-friends');
+    if (pill) { pill.hidden = false; $('tb-friends-n').textContent = String(on); }
   }
   setInterval(() => { if (st.loggedIn) friendsBadge(); }, 2 * 60 * 1000);
   // Launcher sprawdza znajomych co 30 s (main.js): nowe zaproszenie do gry albo kliknięte powiadomienie
@@ -1510,7 +1521,11 @@
     else toast(T('Zalogowano do profilu MiB kontem Minecraft.'));
   });
   document.querySelector('.nav[data-p="prof"]').addEventListener('click', () => { render(); refresh(); });
-  document.querySelector('.nav[data-p="cos"]').addEventListener('click', renderCos);
+  // Kosmetyki i Sklep w pasku bocznym to ta sama strona z inną zakładką (od 0.30.0)
+  document.querySelectorAll('.nav[data-p="cos"]').forEach(n => n.addEventListener('click', () => {
+    cosTab = n.dataset.tab === 'shop' ? 'shop' : cosTab === 'shop' ? 'mine' : cosTab;
+    renderCos();
+  }));
   document.querySelector('.nav[data-p="ideas"]').addEventListener('click', renderIdeas);
   document.querySelector('.nav[data-p="friends"]').addEventListener('click', renderFriends);
   // Efekt odblokowania nowego kosmetyku
@@ -1525,7 +1540,8 @@
     document.body.append(o);
     setTimeout(() => { if (o.isConnected) close(); }, 2200);
   };
-  window.mibProfileUI = { modsShown, refresh, holidays: () => holidayCheck(true), get loggedIn() { return !!(st.loggedIn || st.offline); } };
+  window.mibProfileUI = { modsShown, refresh, holidays: () => holidayCheck(true), get loggedIn() { return !!(st.loggedIn || st.offline); },
+    openShop: () => document.querySelector('#side .nav[data-tab="shop"]').click() };
   window.mibUI = { h, msg, fmtDate, capeThumb, itemImage };
   sidebar();
   render();

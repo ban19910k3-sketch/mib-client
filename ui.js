@@ -15,12 +15,12 @@ let S={};
 })();
 let logged=false;
 function setAcc(a){logged=true;const n=encodeURIComponent(a.name);$('accn').textContent=a.name;$('nick').textContent=a.name;
-loadSkin(a.name);if(window.mibWave)mibWave();$('topav').src=$('plav').src='https://mc-heads.net/avatar/'+n+'/64'}
+loadSkin(a.name);if(window.mibWave)mibWave();$('topav').src=$('plav').src=$('s-av').src='https://mc-heads.net/avatar/'+n+'/64';$('s-acc').textContent=a.name}
 
 
 // server: „Dołącz” do znajomego — gra od razu łączy się z jego serwerem
 async function play(server){
-  const g=$('go'),t=g.firstChild;if(g.disabled)return;con.style.display='block';
+  const g=$('go'),t=g.firstChild;if(g.disabled)return;if(localStorage.getItem('mibcon')!=='0')con.style.display='block';
   if(!logged){log('Najpierw logowanie Microsoft…');try{setAcc(await mib.call('login'))}catch(e){log('Logowanie nieudane: '+e.message);return}}
   g.disabled=true;t.textContent='URUCHAMIANIE…';$('cancel').style.display='inline-block';log('Uruchamianie '+$('sel').value+(server?' i łączenie z '+server:'')+'…');
   const r=await mib.call('launch',{version:$('sel').value,server});$('cancel').style.display='none';
@@ -29,7 +29,7 @@ $('go').onclick=()=>play();
 window.mibJoin=(version,server)=>{const s=$('sel');if(![...s.options].some(o=>o.value===version))s.append(new Option(version,version));s.value=version;s.dispatchEvent(new Event('change'));document.querySelector('.nav[data-p="home"]').click();play(server)};
 // Ustawienia
 const F={ram:'s-ram',java:'s-java',width:'s-w',height:'s-h',root:'s-root',jvm:'s-jvm'};
-function fill(){for(const k in F)$(F[k]).value=S[k]??'';$('s-hu').checked=!!S.hideUpdates;$('s-pri').checked=S.priority!==false;$('s-dc').checked=S.discord!==false;$('s-mib').checked=S.mibMod!==false;$('s-perf').checked=S.perfMods!==false;$('s-share').checked=S.shareServer!==false;$('s-fn').checked=S.friendNotify!==false;$('s-inv').checked=S.invisible===true;$('s-cf').checked=S.chatFilter!==false}
+function fill(){for(const k in F)$(F[k]).value=S[k]??'';$('s-hu').checked=!!S.hideUpdates;$('s-pri').checked=S.priority!==false;$('s-dc').checked=S.discord!==false;$('s-mib').checked=S.mibMod!==false;$('s-perf').checked=S.perfMods!==false;$('s-share').checked=S.shareServer!==false;$('s-fn').checked=S.friendNotify!==false;$('s-inv').checked=S.invisible===true;$('s-cf').checked=S.chatFilter!==false;ramLbl()}
 $('s-pick').onclick=async()=>{const d=await mib.call('pickdir');if(d)$('s-root').value=d};
 $('s-save').onclick=async()=>{setTimeout(()=>mibSync.push(),0);for(const k in F)S[k]=['ram','width','height'].includes(k)?Math.max(1,+$(F[k]).value||1):$(F[k]).value;S.hideUpdates=$('s-hu').checked;S.priority=$('s-pri').checked;S.discord=$('s-dc').checked;S.mibMod=$('s-mib').checked;S.perfMods=$('s-perf').checked;S.shareServer=$('s-share').checked;S.friendNotify=$('s-fn').checked;S.invisible=$('s-inv').checked;S.chatFilter=$('s-cf').checked;await mib.call('settings:set',S);$('s-msg').textContent='Zapisano'};
 // Aktualizacje launchera
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded',()=>{});
 mib.call('ver').then(v=>{$('u-cur').textContent=v;$('brand-v').textContent=v});
 // Zastępcza głowa (8×8 pikseli), gdy skin nie wczyta się z sieci
 const FACE='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" shape-rendering="crispEdges"><rect width="8" height="8" fill="#3a2256"/><rect y="2" width="8" height="6" fill="#6b4a8f"/><rect x="1" y="4" width="2" height="1" fill="#eee6f8"/><rect x="5" y="4" width="2" height="1" fill="#eee6f8"/><rect x="2" y="4" width="1" height="1" fill="#a855f7"/><rect x="5" y="4" width="1" height="1" fill="#a855f7"/><rect x="3" y="6" width="2" height="1" fill="#2a1545"/></svg>');
-for(const i of ['topav','plav'])$(i).onerror=function(){this.onerror=null;this.src=FACE};
+for(const i of ['topav','plav','s-av'])$(i).onerror=function(){this.onerror=null;this.src=FACE};
 
 $('skinimg').onerror=()=>{$('skinimg').style.display='none';$('skin').style.display='flex'};
 const cards=()=>{$('c-ver').textContent=$('sel').value;$('c-ram').textContent=((S.ram||2048)/1024).toFixed(1).replace('.0','')+' GB';$('c-res').textContent=(S.width||1280)+'×'+(S.height||720)};
@@ -178,13 +178,13 @@ document.addEventListener('click',e=>{if(!e.target.closest('#accmenu')&&!e.targe
 $('accmenu').onclick=async e=>{const r=e.target.closest('.ai');if(!r)return;$('accmenu').classList.remove('on');
  if(r.classList.contains('add')){try{setAcc(await mib.call('login'));toast(tr('Konto dodane'))}catch(x){log('Logowanie nieudane: '+x.message)}return}
  if(e.target.classList.contains('rm')){if(!confirm(tr('Usunąć to konto z launchera?')))return;const x=await mib.call('accounts:remove',r.dataset.id);
-  if(r.querySelector('em')){logged=false;$('accn').textContent=tr('Zaloguj się');$('nick').textContent=tr('Gracz')}
+  if(r.querySelector('em')){logged=false;$('accn').textContent=tr('Zaloguj się');$('nick').textContent=tr('Gracz');$('s-acc').textContent=tr('Niezalogowany')}
   // usunięcie aktywnego konta = wylogowanie z launchera, więc także z profilu MiB
   if(x&&x.mibLoggedOut&&window.mibProfileUI){const was=mibProfileUI.loggedIn;await mibProfileUI.refresh();if(was)toast(tr('Wylogowano z launchera i z profilu MiB.'))}return}
  const x=await mib.call('accounts:switch',r.dataset.id);if(x.error)toast(x.error,1);else{setAcc(x);toast(tr('Przełączono na')+' '+x.name)}};
 mib.on('account:changed',setAcc);
 mib.on('relaunch',()=>{const g=$('go');g.disabled=true;g.firstChild.textContent='URUCHAMIANIE…';$('cancel').style.display='inline-block';con.style.display='block';log('Zmiana konta — uruchamianie gry ponownie…')});
-mib.on('started',()=>{setProg(0);$('go').firstChild.textContent='GRA DZIAŁA'});
+mib.on('started',()=>{setProg(0);$('go').firstChild.textContent='GRA DZIAŁA';if(localStorage.getItem('mibafter')==='min')mib.win('min')});
 
 // ===== Latające cząsteczki w tle: pikselowe odłamki ametystu; w motywach świątecznych kolory, kierunek, większe obrazki
 // (nietoperze, płatki śniegu, serca, balony…) i fajerwerki z MibThemes.fx() w themes.js =====
@@ -254,3 +254,60 @@ const wnWait=setInterval(async()=>{if(!(sp.classList.contains('out')||sp.style.d
 
 // Przełącznik Discorda tylko wtedy, gdy launcher ma podłączoną aplikację Discorda
 mib.call('discord:enabled').then(e=>{if(!e)$('s-dc').closest('label').hidden=true});
+
+// ===== Wygląd od 0.30.0: zakładki Ustawień, tryb i akcent, skróty, karta GRAJ w pasku bocznym, górny pasek =====
+Object.assign(EN,{"Sklep": "Shop", "Mody": "Mods", "Przeglądaj": "Browse", "Zainstalowane": "Installed", "Witaj,": "Welcome,", "Twój Minecraft PvP. Po Twojemu.": "Your Minecraft PvP. Your way.", "Zmień wersję": "Change version", "Wersja gry": "Game version", "Ustawienia": "Settings", "Dopasuj MiB Client do siebie.": "Make MiB Client yours.", "Ogólne": "General", "Wygląd": "Appearance", "Gra": "Game", "Skróty": "Shortcuts", "Małe rzeczy, które robią różnicę.": "Little things that make a difference.", "Język całego launchera.": "Language of the whole launcher.", "Discord": "Discord", "Pokazuj na Discordzie, że grasz w MiB Client.": "Show on Discord that you play MiB Client.", "Serwer dla znajomych": "Server for friends", "Znajomi widzą, na jakim serwerze grasz.": "Friends see which server you play on.", "Powiadomienia od znajomych": "Friend notifications", "Gdy znajomy zaczyna grać, zaprasza Cię do gry albo pisze.": "When a friend starts playing, invites you or writes to you.", "Tryb niewidoczny": "Invisible mode", "Znajomi widzą Cię jako offline.": "Friends see you as offline.", "Filtr przekleństw": "Profanity filter", "Gwiazdki zamiast przekleństw w wiadomościach i pomysłach innych graczy.": "Asterisks instead of swear words in other players’ messages and ideas.", "Bez okna aktualizacji": "No update window", "Nowa wersja pojawi się tylko w Aktualnościach.": "New versions show up only in News.", "Pomoc": "Help", "Naprawa plików gry, raport dla twórcy i informacje.": "Repair game files, report to the developer and information.", "O programie": "About", "Twój styl w każdym miejscu launchera.": "Your style everywhere in the launcher.", "Ciemny": "Dark", "Jasny": "Light", "System": "System", "Kolor akcentu": "Accent colour", "Przyciski, wybory i drobne detale.": "Buttons, selections and small details.", "Skala interfejsu": "Interface scale", "Większe albo mniejsze napisy i przyciski.": "Bigger or smaller text and buttons.", "Animacje": "Animations", "Płynne przyciski, przełączniki i przejścia.": "Smooth buttons, switches and transitions.", "Krycie kart": "Card opacity", "Przezroczystość paneli — przy własnym tle widać je przez karty.": "Panel transparency — with a custom background it shows through the cards.", "Tło launchera": "Launcher background", "Animacja startowa": "Startup animation", "Latające cząsteczki": "Floating particles", "Na ekranie startowym i w tle launchera.": "On the splash screen and in the launcher background.", "Motywy świąteczne": "Holiday themes", "W święta launcher i gra mają wygląd święta (zamiast trybu i koloru akcentu).": "On holidays the launcher and the game get the holiday look (instead of the mode and accent colour).", "Ustawienia gry": "Game settings", "Wszystko gotowe przed kolejną sesją.": "Everything ready for your next session.", "Gdy gra się uruchomi": "When the game starts", "Co zrobić z oknem launchera.": "What to do with the launcher window.", "Zostaw otwarty": "Keep open", "Zminimalizuj": "Minimise", "Konsola przy starcie": "Console on start", "Pokazuj log gry przy uruchomieniu (konsolę otworzysz też przyciskiem >_ u góry).": "Show the game log on launch (you can also open it with the >_ button at the top).", "Pamięć dla gry": "Memory for the game", "Rozdzielczość okna gry": "Game window resolution", "Szerokość i wysokość w pikselach.": "Width and height in pixels.", "Mod MiB w grze": "MiB mod in game", "Menu pod prawym Shiftem, wersje 1.21–26.3.": "Right Shift menu, versions 1.21–26.3.", "Mody na więcej FPS": "Mods for more FPS", "Lithium, FerriteCore, Entity Culling i ImmediatelyFast razem z modem MiB.": "Lithium, FerriteCore, Entity Culling and ImmediatelyFast together with the MiB mod.", "Wysoki priorytet gry": "High game priority", "Płynniejsze PvP.": "Smoother PvP.", "Profil wydajności": "Performance profile", "Gotowe argumenty JVM.": "Ready-made JVM arguments.", "Argumenty JVM": "JVM arguments", "Katalog gry": "Game folder", "Java": "Java", "Ścieżka do Javy; puste = launcher sam dobierze.": "Path to Java; empty = the launcher picks it.", "Skróty klawiszowe": "Keyboard shortcuts", "Szybki dostęp do najważniejszych miejsc w launcherze.": "Quick access to the most important places in the launcher.", "Przywróć domyślne skróty": "Restore default shortcuts", "Twój profil": "Your profile", "Niezalogowany": "Not signed in", "Zarządzaj kontami": "Manage accounts", "Ustawienia na tym urządzeniu": "Settings on this device", "Powiadomienia": "Notifications", "Brak nowych powiadomień.": "No new notifications.", "MiB Coins — sklep": "MiB Coins — shop", "Znajomi online": "Friends online", "Brak": "None", "Launcher ·": "Launcher ·", "Pamięć RAM": "RAM"});walk(document.body);
+document.querySelectorAll('.stab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.stab').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-selected',String(x===b))});
+ document.querySelectorAll('.spanel').forEach(p=>p.classList.toggle('on',p.dataset.st===b.dataset.st))});
+// tryb, akcent, skala, animacje i krycie kart: tylko na tym komputerze (localStorage); skrypt w <head> ustawia tryb i akcent przed rysowaniem
+const LOOK={mode:'mibmode',accent:'mibaccent',zoom:'mibzoom',motion:'mibmotion',alpha:'mibalpha'},lookGet=k=>localStorage.getItem(LOOK[k]),darkOS=matchMedia('(prefers-color-scheme: dark)');
+function applyLook(){const d=document.documentElement,m=lookGet('mode')||'dark',a=lookGet('accent')||'violet';
+ d.dataset.mode=m==='system'?(darkOS.matches?'dark':'light'):m;if(a==='violet')delete d.dataset.accent;else d.dataset.accent=a;
+ d.style.zoom=lookGet('zoom')&&lookGet('zoom')!=='1'?lookGet('zoom'):'';d.classList.toggle('nomotion',lookGet('motion')==='0');d.style.setProperty('--card-a',String((+(lookGet('alpha')||100))/100));
+ document.querySelectorAll('input[name="s-mode"]').forEach(r=>r.checked=r.value===m);document.querySelectorAll('#s-accent button').forEach(b=>b.classList.toggle('on',b.dataset.a===a));
+ $('s-zoom').value=lookGet('zoom')||'1';$('s-motion').checked=lookGet('motion')!=='0';$('s-alpha').value=lookGet('alpha')||'100';$('s-alpha-v').textContent=$('s-alpha').value+'%'}
+const setLook=(k,v)=>{localStorage.setItem(LOOK[k],v);applyLook()};
+darkOS.addEventListener('change',applyLook);
+document.querySelectorAll('input[name="s-mode"]').forEach(r=>r.onchange=()=>setLook('mode',r.value));
+document.querySelectorAll('#s-accent button').forEach(b=>b.onclick=()=>setLook('accent',b.dataset.a));
+$('s-zoom').onchange=()=>setLook('zoom',$('s-zoom').value);$('s-motion').onchange=()=>setLook('motion',$('s-motion').checked?'1':'0');$('s-alpha').oninput=()=>setLook('alpha',$('s-alpha').value);
+applyLook();
+// okno launchera po starcie gry i konsola przy starcie
+$('s-after').value=localStorage.getItem('mibafter')||'keep';$('s-after').onchange=()=>localStorage.setItem('mibafter',$('s-after').value);
+$('s-con').checked=localStorage.getItem('mibcon')!=='0';$('s-con').onchange=()=>localStorage.setItem('mibcon',$('s-con').checked?'1':'0');
+// pamięć dla gry: suwak do pamięci komputera bez 1 GB dla systemu
+function ramLbl(){$('s-ram-v').textContent=String(Math.round(+$('s-ram').value/1024*10)/10).replace('.',LANG==='en'?'.':',')+' GB'}
+$('s-ram').addEventListener('input',ramLbl);
+mib.call('sys:mem').then(m=>{if(!m)return;$('s-ram').max=String(Math.max(2048,Math.floor((m-1024)/512)*512,+S.ram||0));$('s-ram-sys').textContent='System: '+m.toLocaleString(LANG==='en'?'en-GB':'pl-PL')+' MB';$('s-ram').value=String(S.ram||2048);ramLbl()}).catch(()=>{});
+// skróty Ctrl + klawisz do stron launchera (zapamiętane w localStorage)
+const KEYS_DEF={home:'1',cos:'2',shop:'3',hub:'4',friends:'5',ideas:'6',set:','},KEY_PAGES=[['home','Strona główna'],['cos','Kosmetyki'],['shop','Sklep'],['hub','Mody'],['friends','Znajomi'],['ideas','Pomysły'],['set','Ustawienia']];
+const keysGet=()=>{try{return{...KEYS_DEF,...JSON.parse(localStorage.getItem('mibkeys')||'{}')}}catch{return{...KEYS_DEF}}};
+const navOf=k=>document.querySelector(k==='shop'?'#side .nav[data-tab="shop"]':'#side .nav[data-p="'+k+'"]');
+function keysRender(){const k=keysGet(),opts=['1','2','3','4','5','6','7','8','9',','];
+ $('s-keys').innerHTML=KEY_PAGES.map(([id,l])=>`<label class="krow"><span>${esc(l)}</span><select data-k="${id}"><option value="">Brak</option>${opts.map(o=>`<option value="${o}"${k[id]===o?' selected':''}>Ctrl ${o}</option>`).join('')}</select></label>`).join('');
+ $('s-keys').querySelectorAll('select').forEach(sl=>sl.onchange=()=>{const k=keysGet();for(const id in k)if(k[id]===sl.value&&id!==sl.dataset.k)k[id]='';k[sl.dataset.k]=sl.value;localStorage.setItem('mibkeys',JSON.stringify(k));keysRender()})}
+$('s-keys-reset').onclick=()=>{localStorage.removeItem('mibkeys');keysRender()};keysRender();
+document.addEventListener('keydown',e=>{if(!e.ctrlKey||e.altKey||e.shiftKey||e.metaKey)return;const k=keysGet();for(const id in k)if(k[id]&&k[id]===e.key){const n=navOf(id);if(n&&!n.hidden){e.preventDefault();n.click()}return}});
+// karta GRAJ w pasku bocznym (poza stroną główną) i karta wersji w Ustawieniach: lustro przycisku GRAJ i listy wersji
+function sbSync(){const s=$('sel'),b=$('sb-sel'),g=$('go'),sg=$('sb-go');if(b.options.length!==s.options.length)b.innerHTML=s.innerHTML;b.value=s.value;
+ $('sb-ver').textContent=$('s-ver').textContent=s.value;$('sb-st').textContent=$('ver').textContent;sg.disabled=g.disabled;sg.textContent=g.firstChild.textContent}
+new MutationObserver(sbSync).observe($('go'),{subtree:true,childList:true,characterData:true,attributes:true});new MutationObserver(sbSync).observe($('sel'),{childList:true});
+$('sel').addEventListener('change',sbSync);$('sb-sel').onchange=()=>{$('sel').value=$('sb-sel').value;$('sel').dispatchEvent(new Event('change'))};
+$('sb-go').onclick=()=>$('go').click();
+$('s-chver').onclick=()=>{document.querySelector('#side .nav[data-p="home"]').click();try{$('sel').showPicker()}catch{$('sel').focus()}};
+$('s-accounts').onclick=e=>{e.stopPropagation();$('accname').click()};
+sbSync();
+// dzwonek: liczniki z paska bocznego (prezenty, znajomi, pomysły, panel admina) w jednym miejscu
+function bell(){const l=[...document.querySelectorAll('#side .nav .cnt')].filter(c=>!c.hidden&&+c.textContent>0);$('tb-dot').hidden=!l.length;return l}
+new MutationObserver(bell).observe($('side'),{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['hidden']});
+$('tb-bell').onclick=e=>{e.stopPropagation();const m=$('bellmenu');if(m.classList.contains('on')){m.classList.remove('on');return}
+ const l=bell();m.innerHTML='<h4>Powiadomienia</h4>'+(l.length?l.map((c,i)=>`<button type="button" class="bi" data-i="${i}">${esc(c.closest('.nav').querySelector('span').textContent)}<em>${esc(c.textContent)}</em></button>`).join(''):'<p>Brak nowych powiadomień.</p>');
+ m.querySelectorAll('.bi').forEach(b=>b.onclick=()=>{m.classList.remove('on');l[+b.dataset.i].closest('.nav').click()});
+ const r=$('tb-bell').getBoundingClientRect();m.style.right=Math.max(8,innerWidth-r.right-40)+'px';m.classList.add('on')};
+document.addEventListener('click',e=>{if(!e.target.closest('#bellmenu'))$('bellmenu').classList.remove('on')});
+// MiB Coins i znajomi online w górnym pasku (z profilu MiB)
+async function topStats(){const p=window.mibProfileUI;if(!p||!p.loggedIn){$('tb-coins').hidden=$('tb-friends').hidden=true;return}
+ try{const w=await mib.call('prof:wallet'),ok=!!(w&&!w.error&&w.loggedIn&&Number.isInteger(w.coins));$('tb-coins').hidden=!ok;if(ok)$('tb-coins-n').textContent=w.coins.toLocaleString(LANG==='en'?'en-GB':'pl-PL')}catch{}
+ try{const l=await mib.call('prof:friends');if(Array.isArray(l)){$('tb-friends').hidden=false;$('tb-friends-n').textContent=String(l.filter(f=>f.state==='friend'&&(f.status==='game'||f.status==='launcher')).length)}}catch{}}
+$('tb-coins').onclick=()=>navOf('shop').click();$('tb-friends').onclick=()=>navOf('friends').click();
+setInterval(topStats,90000);addEventListener('focus',topStats);setTimeout(topStats,2500);mib.on('profile:changed',()=>setTimeout(topStats,1500));window.mibTopStats=topStats;

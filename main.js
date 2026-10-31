@@ -438,6 +438,8 @@ ipcMain.handle('upd:check', () => checkUpdate(true));
 ipcMain.handle('upd:install', () => { autoUpdater.downloadUpdate(); return true; });
 
 ipcMain.handle('ver', () => app.getVersion());
+// pamięć komputera w MB (suwak „Pamięć dla gry” w Ustawieniach)
+ipcMain.handle('sys:mem', () => Math.round(require('os').totalmem() / 1048576));
 
 ipcMain.handle('skin', async (_, name) => {
   try {

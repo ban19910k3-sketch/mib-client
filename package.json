@@ -1,6 +1,6 @@
 {
   "name": "mib-client",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "description": "MiB Client - darmowy launcher Minecraft PvP",
   "main": "main.js",
   "author": "MiB",
@@ -34,6 +34,7 @@
       "overlay.html",
       "icon.png",
       "splash.jpg",
+      "banner.jpg",
       "fonts/*",
       "lib/**",
       "build/release-notes.md"
