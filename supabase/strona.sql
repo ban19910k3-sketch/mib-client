@@ -12,6 +12,9 @@ alter table public.cosmetics drop constraint if exists cosmetics_rarity_check;
 alter table public.cosmetics add constraint cosmetics_rarity_check check (rarity in ('common', 'rare', 'epic', 'legendary', 'halloween', 'holiday'));
 alter table public.cosmetics add column if not exists featured boolean not null default false;
 alter table public.cosmetics add column if not exists sort integer not null default 0;
+-- Ukryty przedmiot nie jest na sprzedaż (cena zostaje), a po available_until znika ze sklepu sam — w launcherze i na stronie
+alter table public.cosmetics add column if not exists hidden boolean not null default false;
+alter table public.cosmetics add column if not exists available_until timestamptz;
 -- Obraz do karty w sklepie na stronie. Osobno od image_url, bo launcher używa image_url jako tekstury, gdy texture jest puste.
 alter table public.cosmetics add column if not exists shop_image text
   check (shop_image is null or shop_image ~ '^https://[a-z0-9]+\.supabase\.co/storage/v1/object/public/shop/[A-Za-z0-9._/-]+$');
@@ -39,6 +42,16 @@ drop function if exists public.shop_buy_many(text[], integer);
 drop function if exists public.admin_save_shop_item(text, text, text, text, text, integer, integer, text, text, timestamptz, boolean, boolean, integer);
 drop function if exists public.admin_player_wallet(uuid);
 
+-- Czy kosmetyk z ceną można teraz kupić. Ta sama funkcja co w schema.sql launchera (kolekcje świąteczne tylko w czasie
+-- święta) plus ukrycie i data końca z panelu na stronie. Po ponownym wklejeniu schema.sql wklej też ten plik.
+create or replace function private.on_sale(p_cosmetic text, p_day date) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select (not exists (select 1 from public.themes t where p_cosmetic = any (t.items))
+      or exists (select 1 from public.themes t where p_cosmetic = any (t.items) and private.theme_season(t, p_day) is not null))
+    and not exists (select 1 from public.cosmetics c where c.id = p_cosmetic and (c.hidden or (c.available_until is not null and c.available_until <= now())));
+$$;
+revoke all on function private.on_sale(text, date) from public, anon, authenticated;
+
 -- ===== Dla wszystkich (bez logowania) =====
 -- Sklep tak, jak widzi go launcher: kosmetyki, które można teraz kupić (z kolekcji świątecznych tylko w czasie święta),
 -- aktualne oferty i trwające kolekcje. Bez danych żadnego gracza.
@@ -50,7 +63,7 @@ language sql stable security definer set search_path = '' as $$
     'items', coalesce((select json_agg(json_build_object('id', c.id, 'name', c.name, 'type', c.type,
         'texture', coalesce(c.texture, c.image_url), 'image', c.shop_image,
         'price', case when c.price is not null and private.on_sale(c.id, d.day) then c.price end,
-        'old_price', c.old_price, 'description', c.description, 'rarity', c.rarity, 'featured', c.featured,
+        'old_price', c.old_price, 'description', c.description, 'rarity', c.rarity, 'featured', c.featured, 'until', c.available_until,
         'theme', (select t.id from public.themes t where c.id = any(t.items) limit 1))
       order by c.featured desc, c.sort, c.price nulls last, c.name)
       from public.cosmetics c, d
@@ -91,7 +104,7 @@ begin
   perform private.need_admin();
   return (select coalesce(json_agg(json_build_object(
       'id', c.id, 'name', c.name, 'type', c.type, 'rarity', c.rarity, 'description', c.description,
-      'price', c.price, 'old_price', c.old_price, 'featured', c.featured, 'sort', c.sort,
+      'price', c.price, 'old_price', c.old_price, 'featured', c.featured, 'sort', c.sort, 'hidden', c.hidden, 'until', c.available_until,
       'image', c.shop_image, 'texture', coalesce(c.texture, c.image_url),
       'theme', (select t.id from public.themes t where c.id = any(t.items) limit 1),
       'owners', (select count(*) from public.owned_cosmetics o where o.cosmetic_id = c.id))
@@ -100,11 +113,13 @@ begin
 end $$;
 
 -- Zapis kosmetyku z polami sklepu. Nazwa, rodzaj, tekstura i zasady id — jak w panelu launchera (admin_save_cosmetic),
--- cena — jak admin_set_price (null zdejmuje ze sprzedaży). p_texture null zostawia teksturę, p_image null zostawia obraz,
+-- cena — jak admin_set_price (null zdejmuje ze sprzedaży), p_hidden ukrywa, p_until: koniec sprzedaży (puste = bez końca). p_texture null zostawia teksturę, p_image null zostawia obraz,
 -- '' go usuwa.
+drop function if exists public.admin_web_item(text, text, text, text, text, integer, integer, text, text, boolean, integer);
 create or replace function public.admin_web_item(
   p_id text, p_name text, p_type text, p_texture text, p_image text,
-  p_price integer, p_old_price integer, p_description text, p_rarity text, p_featured boolean, p_sort integer) returns void
+  p_price integer, p_old_price integer, p_description text, p_rarity text, p_featured boolean, p_sort integer,
+  p_hidden boolean default false, p_until timestamptz default null) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
   perform private.need_admin();
@@ -121,7 +136,8 @@ begin
     shop_image = case when p_image is null then shop_image else nullif(p_image, '') end,
     price = p_price, old_price = p_old_price,
     description = nullif(trim(coalesce(p_description, '')), ''),
-    rarity = p_rarity, featured = coalesce(p_featured, false), sort = coalesce(p_sort, 0)
+    rarity = p_rarity, featured = coalesce(p_featured, false), sort = coalesce(p_sort, 0),
+    hidden = coalesce(p_hidden, false), available_until = p_until
   where id = p_id;
 end $$;
 

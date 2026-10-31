@@ -205,6 +205,7 @@ select.inp{appearance:none;background:var(--card) url("data:image/svg+xml,%3Csvg
 .item .price{display:flex;align-items:center;gap:8px;margin-top:4px}
 .item .price .coin{font-size:17px}
 .item s{color:var(--mut2);font-size:13px}
+.item .time{color:#b45309;font-size:12.5px;font-variant-numeric:tabular-nums}
 .item .off{color:var(--mut2);font-size:13px}
 .item[data-r="rare"]{--r:#2f7fd8}.item[data-r="epic"]{--r:#9333ea}.item[data-r="legendary"]{--r:#d4890b}.item[data-r="halloween"]{--r:#ea6a12}.item[data-r="holiday"]{--r:#d4314f}
 .empty{grid-column:1/-1;color:var(--mut);padding:30px 0}
@@ -311,7 +312,7 @@ select.inp{appearance:none;background:var(--card) url("data:image/svg+xml,%3Csvg
  <div class="grid" id="grid" aria-live="polite"></div>
 </section>
 </main>
-<footer class="foot"><div class="wrap"><div class="r1"><a class="brand" href="index.html"><img src="img/icon.png" alt="" width="34" height="34"><span>MiB Client</span></a><nav aria-label="Stopka"><a href="sklep.html" data-en="Shop">Sklep</a><a href="index.html#pobierz" data-en="Download">Pobierz</a><a href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener">Discord</a><a href="index.html#pytania" data-en="FAQ">Pytania</a><a href="sklep.html#admin" data-admin data-en="Admin panel">Panel admina</a><button type="button" class="motion-toggle" aria-pressed="false"><span class="mi">Ⅱ</span><span class="ml">Animacje włączone</span></button></nav></div><div class="r2"><span>© 2026 MiB Client</span><span data-en="MiB Client is not an official Minecraft product and is not affiliated with Mojang or Microsoft.">MiB Client nie jest oficjalnym produktem Minecraft i nie jest powiązany z Mojang ani Microsoft.</span><button type="button" class="to-top" aria-label="Do góry" data-en-label="Back to top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div></footer>
+<footer class="foot"><div class="wrap"><div class="r1"><a class="brand" href="index.html"><img src="img/icon.png" alt="" width="34" height="34"><span>MiB Client</span></a><nav aria-label="Stopka"><a href="sklep.html" data-en="Shop">Sklep</a><a href="index.html#pobierz" data-en="Download">Pobierz</a><a href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener">Discord</a><a href="index.html#pytania" data-en="FAQ">Pytania</a><button type="button" class="motion-toggle" aria-pressed="false"><span class="mi">Ⅱ</span><span class="ml">Animacje włączone</span></button></nav></div><div class="r2"><span>© 2026 MiB Client</span><span data-en="MiB Client is not an official Minecraft product and is not affiliated with Mojang or Microsoft.">MiB Client nie jest oficjalnym produktem Minecraft i nie jest powiązany z Mojang ani Microsoft.</span><button type="button" class="to-top" aria-label="Do góry" data-en-label="Back to top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div></footer>
 <div class="adm" id="adm" hidden></div>
 <script src="skinview3d.js" defer></script>
 <script>
@@ -379,6 +380,14 @@ const MIB = (() => {
   }
   const up = document.querySelector('.to-top');
   if (up) up.addEventListener('click', () => scrollTo({ top: 0, behavior: paused() ? 'auto' : 'smooth' }));
+
+  // Panel admina pod klawiszem F12 (w sklepie otwiera logowanie, z innej strony przechodzi do sklepu)
+  addEventListener('keydown', e => {
+    if (e.key !== 'F12' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+    e.preventDefault();
+    if (document.getElementById('adm')) document.dispatchEvent(new Event('mib-admin'));
+    else location.href = 'sklep.html#admin';
+  });
 
   // Pobieranie: zawsze plik .exe z najnowszego wydania, z numerem wersji i rozmiarem
   const links = [...document.querySelectorAll('a[data-dl]')];
@@ -748,12 +757,21 @@ const MibTry = (() => {
   }
 
   // ===== kosmetyki i oferty =====
-  const items = () => shop.items.filter(i => i.price != null);
+  const live = i => i.price != null && !i.hidden && (!i.until || new Date(i.until) > Date.now());
+  const items = () => shop.items.filter(live);
+  function left(until) {
+    const ms = new Date(until) - Date.now(); if (ms <= 0) return T('Koniec', 'Ended');
+    const d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4);
+    if (d) return T('Zostało ' + d + ' d ' + h + ' h', d + 'd ' + h + 'h left');
+    if (h) return T('Zostało ' + h + ' h ' + m + ' min', h + 'h ' + m + 'm left');
+    return T('Zostało ' + m + ' min', m + 'm left');
+  }
+  const localInput = iso => { if (!iso) return ''; const d = new Date(iso), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); };
   function card(it) {
     const r = RAR[it.rarity] || RAR.common, ty = TYPES[it.type] || TYPES.cape;
     const sale = it.old_price && it.price && it.old_price > it.price ? Math.round((1 - it.price / it.old_price) * 100) : 0;
     const b = document.createElement('button'); b.type = 'button'; b.className = 'item'; b.dataset.r = it.rarity || 'common'; b.dataset.try = it.id;
-    b.innerHTML = '<span class="pic"></span><span class="body"><span class="rar">' + esc(T(r[0], r[1])) + ' · ' + esc(T(ty[0], ty[1])) + '</span><b>' + esc(it.name) + '</b><span class="price">' + coins(it.price) + (sale ? '<s>' + fmt(it.old_price) + '</s>' : '') + '</span></span>';
+    b.innerHTML = '<span class="pic"></span><span class="body"><span class="rar">' + esc(T(r[0], r[1])) + ' · ' + esc(T(ty[0], ty[1])) + '</span><b>' + esc(it.name) + '</b><span class="price">' + coins(it.price) + (sale ? '<s>' + fmt(it.old_price) + '</s>' : '') + '</span>' + (it.until ? '<span class="time" data-until="' + esc(it.until) + '">' + esc(left(it.until)) + '</span>' : '') + '</span>';
     const pic = b.querySelector('.pic'); pic.appendChild(MibTry.art(it));
     if (it.featured) pic.insertAdjacentHTML('beforeend', '<span class="flag">' + esc(T('Polecane', 'Featured')) + '</span>');
     if (sale) pic.insertAdjacentHTML('beforeend', '<span class="flag sale">−' + sale + '%</span>');
@@ -836,6 +854,7 @@ const MibTry = (() => {
   });
   document.addEventListener('mib-lang', () => { renderShop(); if (!adm.hidden) renderAdmin(); });
   addEventListener('hashchange', () => { if (location.hash === '#admin') openAdmin(); });
+  document.addEventListener('mib-admin', () => { if (adm.hidden && !document.querySelector('.ovl')) openAdmin(); });
 
   // ===== panel admina (tylko konto z private.admins; każda funkcja sprawdza to w bazie) =====
   const adm = $('adm');
@@ -879,7 +898,7 @@ const MibTry = (() => {
   function showAdmin() { adm.hidden = false; document.documentElement.style.overflow = 'hidden'; if (location.hash !== '#admin') history.replaceState(null, '', '#admin'); renderAdmin(); footerLink(); }
   function closeAdmin() { adm.hidden = true; document.documentElement.style.overflow = ''; history.replaceState(null, '', location.pathname + location.search); refresh(); }
   const alertMsg = t => dialog('<p style="margin:0">' + esc(t) + '</p><div class="row"><button class="btn" type="button" data-close>OK</button></div>');
-  const blank = () => ({ id: '', name: '', type: 'cape', motion: 'magic', rarity: 'common', description: '', price: null, old_price: null, featured: false, sort: 0, image: null, texture: null, isNew: true });
+  const blank = () => ({ id: '', name: '', type: 'cape', motion: 'magic', rarity: 'common', description: '', price: null, old_price: null, featured: false, sort: 0, hidden: false, until: null, image: null, texture: null, isNew: true });
   const slug = (s, type, motion) => {
     const b = String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 18);
     return (type + '_' + (b || 'nowy') + (type === 'aura' ? '_' + motion : '')).slice(0, 32);
@@ -902,7 +921,7 @@ const MibTry = (() => {
   }
   function itemsView() {
     if (!form) form = blank();
-    const list = all.map(it => '<button type="button" class="arow" data-pick="' + esc(it.id) + '" aria-current="' + (sel === it.id) + '"><span class="th" data-th="' + esc(it.id) + '"></span><span class="tx"><b>' + esc(it.name) + '</b><small>' + esc(T(TYPES[it.type] ? TYPES[it.type][0] : it.type, TYPES[it.type] ? TYPES[it.type][1] : it.type)) + ' · ' + (it.price == null ? esc(T('nie na sprzedaż', 'not for sale')) : fmt(it.price) + ' MC') + (it.owners ? ' · ' + it.owners + ' ' + esc(T('graczy', 'players')) : '') + '</small></span></button>').join('');
+    const list = all.map(it => '<button type="button" class="arow" data-pick="' + esc(it.id) + '" aria-current="' + (sel === it.id) + '"><span class="th" data-th="' + esc(it.id) + '"></span><span class="tx"><b>' + esc(it.name) + '</b><small>' + esc(T(TYPES[it.type] ? TYPES[it.type][0] : it.type, TYPES[it.type] ? TYPES[it.type][1] : it.type)) + ' · ' + (it.price == null ? esc(T('nie na sprzedaż', 'not for sale')) : fmt(it.price) + ' MC') + (it.hidden ? ' · ' + esc(T('ukryty', 'hidden')) : it.until ? ' · ' + esc(new Date(it.until) > Date.now() ? T('do ', 'until ') + new Date(it.until).toLocaleDateString(isEN() ? 'en-GB' : 'pl-PL') : T('po terminie', 'ended')) : '') + (it.owners ? ' · ' + it.owners + ' ' + esc(T('graczy', 'players')) : '') + '</small></span></button>').join('');
     const f = form, opt = (o, v) => Object.keys(o).map(k => '<option value="' + k + '"' + (k === v ? ' selected' : '') + '>' + esc(T(o[k][0], o[k][1])) + '</option>').join('');
     return '<div class="ag"><div><div class="aact" style="margin-bottom:12px"><button type="button" class="btn pri" data-new>' + esc(T('+ Nowy przedmiot', '+ New item')) + '</button></div><input class="inp" id="a-q" placeholder="' + esc(T('Szukaj…', 'Search…')) + '" style="margin-bottom:10px"><div class="alist" id="a-list">' + list + '</div></div>' +
       '<form class="aform" id="a-f" novalidate><h3 class="full">' + esc(f.isNew ? T('Nowy przedmiot', 'New item') : f.name) + '</h3>' +
@@ -917,6 +936,8 @@ const MibTry = (() => {
       '<label class="fld full"><span>' + esc(T('Opis (na stronie)', 'Description (on the site)')) + '</span><textarea class="inp" id="f-desc" maxlength="300">' + esc(f.description || '') + '</textarea></label>' +
       '<label class="fld"><span>' + esc(T('Rzadkość', 'Rarity')) + '</span><select class="inp" id="f-rar">' + opt(RAR, f.rarity) + '</select></label>' +
       '<label class="fld"><span>' + esc(T('Kolejność', 'Order')) + ' <small>' + esc(T('(mniejsza = wyżej)', '(lower = higher)')) + '</small></span><input class="inp" id="f-sort" type="number" value="' + (f.sort || 0) + '"></label>' +
+      '<label class="fld"><span>' + esc(T('Dostępny do', 'Available until')) + ' <small>' + esc(T('(puste = bez końca)', '(empty = no end)')) + '</small></span><input class="inp" id="f-until" type="datetime-local" value="' + esc(localInput(f.until)) + '"></label>' +
+      '<label class="ck" style="align-self:end;min-height:48px"><input type="checkbox" id="f-hid"' + (f.hidden ? ' checked' : '') + '>' + esc(T('Ukryty (nie ma go w sklepie)', 'Hidden (not in the shop)')) + '</label>' +
       '<label class="ck full"><input type="checkbox" id="f-feat"' + (f.featured ? ' checked' : '') + '>' + esc(T('Polecane (na początku sklepu, z plakietką)', 'Featured (first in the shop, with a badge)')) + '</label>' +
       '<p class="full ' + (admMsg && admMsg.ok ? 'ok' : 'err') + '" aria-live="polite">' + esc(admMsg) + '</p>' +
       '<div class="aact full"><button class="btn pri" type="submit">' + esc(T('Zapisz', 'Save')) + '</button>' + (f.isNew ? '' : '<button class="btn" type="button" id="a-del">' + esc(T('Usuń', 'Delete')) + '</button>') + '<span class="mut" style="font-size:13.5px">' + esc(T('Zmiany widać od razu w launcherze i na stronie.', 'Changes show up in the launcher and on the site right away.')) + '</span></div></form>' +
@@ -927,7 +948,7 @@ const MibTry = (() => {
   function readForm() {
     const v = id => { const n = $(id); return n ? n.value : ''; };
     const num = id => { const s = v(id).trim(); return s === '' ? null : Math.round(Number(s)); };
-    Object.assign(form, { name: v('f-name'), id: v('f-id').trim(), price: num('f-price'), old_price: num('f-old'), description: v('f-desc'), rarity: v('f-rar'), sort: num('f-sort') || 0, featured: $('f-feat').checked });
+    Object.assign(form, { name: v('f-name'), id: v('f-id').trim(), price: num('f-price'), old_price: num('f-old'), description: v('f-desc'), rarity: v('f-rar'), sort: num('f-sort') || 0, featured: $('f-feat').checked, hidden: $('f-hid').checked, until: v('f-until') ? new Date(v('f-until')).toISOString() : null });
     if (form.isNew) { form.type = v('f-type'); if ($('f-motion')) form.motion = v('f-motion'); }
   }
   const previewItem = () => Object.assign({}, form, { texture: texData || form.texture, image: imgFile ? URL.createObjectURL(imgFile) : form.image });
@@ -965,7 +986,7 @@ const MibTry = (() => {
     $('f-name').oninput = auto;
     $('f-type').onchange = () => { readForm(); form.id = slug(form.name, form.type, form.motion); renderAdmin(); };
     if ($('f-motion')) $('f-motion').onchange = auto;
-    ['f-price', 'f-old', 'f-rar', 'f-feat', 'f-desc'].forEach(id => { $(id).oninput = () => { readForm(); refreshPreview(); }; $(id).onchange = $(id).oninput; });
+    ['f-price', 'f-old', 'f-rar', 'f-feat', 'f-desc', 'f-hid', 'f-until'].forEach(id => { $(id).oninput = () => { readForm(); refreshPreview(); }; $(id).onchange = $(id).oninput; });
     wireDrop('d-tex', 'i-tex', async file => {
       readForm();
       if (file.type !== 'image/png') { admMsg = errText(mkErr('texture_bad')); return renderAdmin(); }
@@ -1001,11 +1022,11 @@ const MibTry = (() => {
           if (!/^[a-z0-9_]{2,32}$/.test(form.id)) throw mkErr('cosmetic_id_invalid');
           if (form.price != null && (form.price < 1 || form.price > 1e6)) throw mkErr('price_invalid');
           if (form.old_price != null && (form.price == null || form.old_price <= form.price)) throw mkErr('old_price_invalid');
-          const it = { id: form.id, name: form.name.trim(), type: form.type, texture: texData || form.texture, image: image === null ? form.image : image || null, price: form.price, old_price: form.old_price, description: form.description, rarity: form.rarity, featured: form.featured, sort: form.sort, owners: form.owners || 0 };
+          const it = { id: form.id, name: form.name.trim(), type: form.type, texture: texData || form.texture, image: image === null ? form.image : image || null, price: form.price, old_price: form.old_price, description: form.description, rarity: form.rarity, featured: form.featured, sort: form.sort, hidden: form.hidden, until: form.until, owners: form.owners || 0 };
           all = all.filter(x => x.id !== it.id); all.unshift(it);
           shop.items = shop.items.filter(x => x.id !== it.id); if (it.price != null) shop.items.unshift(it);
         } else {
-          await rpc('admin_web_item', { p_id: form.id, p_name: form.name, p_type: form.type, p_texture: texData, p_image: image, p_price: form.price, p_old_price: form.old_price, p_description: form.description, p_rarity: form.rarity, p_featured: form.featured, p_sort: form.sort });
+          await rpc('admin_web_item', { p_id: form.id, p_name: form.name, p_type: form.type, p_texture: texData, p_image: image, p_price: form.price, p_old_price: form.old_price, p_description: form.description, p_rarity: form.rarity, p_featured: form.featured, p_sort: form.sort, p_hidden: form.hidden, p_until: form.until });
           all = await rpc('admin_shop_list');
         }
         sel = form.id; texData = null; imgFile = null;
@@ -1066,7 +1087,7 @@ const MibTry = (() => {
       renderAdmin();
     };
   }
-  adm.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.querySelector('.ovl')) closeAdmin(); });
+  document.addEventListener('keydown', e => { if (!adm.hidden && e.key === 'Escape' && !document.querySelector('.ovl')) closeAdmin(); });
 
   // ===== start =====
   async function refresh() {
@@ -1086,6 +1107,7 @@ const MibTry = (() => {
     if (q && /^[A-Za-z0-9_-]{1,32}$/.test(q)) { await pickBuyer(q, true); history.replaceState(null, '', location.pathname + location.hash); }
     footerLink();
     if (location.hash === '#admin') openAdmin();
+    setInterval(() => document.querySelectorAll('[data-until]').forEach(n => { n.textContent = left(n.dataset.until); }), 30000);
     setInterval(() => { if (mode === 'live' && adm.hidden && !document.hidden) refresh(); }, 120000);
   })();
 })();
