@@ -53,6 +53,11 @@ class PreviewTest {
 			}
 
 			@Override
+			public GameInfo gameInfo() {
+				return sample();
+			}
+
+			@Override
 			public Friends.Chat chat(String friendId) {
 				return new Friends.Chat(friendId, 1, Arrays.asList(new Friends.Message(1, false, "Siema! Wchodzisz na play.mib.pl? Robimy bedwarsy w czwórkę.", true, false),
 						new Friends.Message(2, true, "Jasne, za 5 minut", true, false), new Friends.Message(3, false, "Ok, czekamy", true, false),
@@ -61,8 +66,24 @@ class PreviewTest {
 		};
 	}
 
+	/** Przykładowe dane gry (podglądy HUD na kartach w menu i obrazek HUD). */
+	private static FakeGameInfo sample() {
+		FakeGameInfo g = new FakeGameInfo();
+		g.keys.add(GameInfo.Key.FORWARD);
+		g.keys.add(GameInfo.Key.ATTACK);
+		for (int i = 0; i < 11; i++) g.left.click(g.now - i * 50);
+		g.effects.add(new GameInfo.Effect("Siła", 1, 1800, false, "s"));
+		g.effects.add(new GameInfo.Effect("Szybkość", 0, 600, false, "p"));
+		g.gear.add(new GameInfo.Gear("h", 363, 20, false));
+		g.gear.add(new GameInfo.Gear("c", 528, 400, false));
+		g.gear.add(new GameInfo.Gear("s", 1561, 0, true));
+		g.sprintToggled = g.sprinting = true;
+		return g;
+	}
+
 	private void menu(File out, String name, int ww, int wh, MenuView v) throws Exception {
 		int s = MenuLayout.scale(ww, wh);
+		v.pixelScale(s);
 		PreviewCanvas c = new PreviewCanvas(ww, wh, s);
 		c.gameBackground(ww / s, wh / s);
 		v.render(c, ww / s, wh / s, -1, -1);

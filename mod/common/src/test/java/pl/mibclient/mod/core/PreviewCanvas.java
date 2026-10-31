@@ -80,14 +80,20 @@ public class PreviewCanvas implements Canvas {
 		g.setTransform(stack.pop());
 	}
 
+	/** Przycięcia jak w grze: stos, a każde nowe jest częścią wspólną z poprzednim. */
+	private final ArrayDeque<java.awt.Shape> clips = new ArrayDeque<java.awt.Shape>();
+
 	@Override
 	public void scissor(int x1, int y1, int x2, int y2) {
-		g.setClip(x1, y1, x2 - x1, y2 - y1);
+		java.awt.Shape prev = g.getClip();
+		clips.push(prev == null ? new java.awt.Rectangle(-100000, -100000, 200000, 200000) : prev);
+		g.clipRect(x1, y1, x2 - x1, y2 - y1);
 	}
 
 	@Override
 	public void unscissor() {
-		g.setClip(null);
+		java.awt.Shape prev = clips.isEmpty() ? null : clips.pop();
+		g.setClip(clips.isEmpty() ? null : prev);
 	}
 
 	@Override

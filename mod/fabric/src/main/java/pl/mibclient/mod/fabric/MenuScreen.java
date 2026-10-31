@@ -78,13 +78,16 @@ public final class MenuScreen extends Screen {
 		float f = factor();
 		FabricCanvas c = new FabricCanvas(g, font);
 		c.push(f, 0, 0);
+		view.pixelScale(menuScale());
 		view.render(c, (int) (width / f), (int) (height / f), (int) (mouseX / f), (int) (mouseY / f));
 		c.pop();
 	}
 
 	private boolean click(int button) {
 		float f = factor();
-		return view.mouseClicked(Input.guiX(minecraft) / f, Input.guiY(minecraft) / f, Input.button(button));
+		boolean used = view.mouseClicked(Input.guiX(minecraft) / f, Input.guiY(minecraft) / f, Input.button(button));
+		if (view.takeClose()) onClose(); // krzyżyk w rogu menu
+		return used;
 	}
 
 	private boolean key(int key) {
@@ -156,7 +159,8 @@ public final class MenuScreen extends Screen {
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
-		return view.mouseScrolled(vertical) || super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
+		float f = factor();
+		return view.mouseScrolled(mouseX / f, mouseY / f, vertical) || super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
 	}
 
 	@Override

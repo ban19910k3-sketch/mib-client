@@ -28,6 +28,7 @@ class MenuViewTest {
 	Friends friends;
 	Friends.Chat chat;
 	String chatErr;
+	GameInfo info;
 
 	@BeforeEach
 	void setUp() {
@@ -124,6 +125,11 @@ class MenuViewTest {
 			public String chatMessage() {
 				return chatErr;
 			}
+
+			@Override
+			public GameInfo gameInfo() {
+				return info;
+			}
 		});
 		c = new RecordingCanvas();
 	}
@@ -145,6 +151,12 @@ class MenuViewTest {
 		assertTrue(v.mouseClicked(r[0] + r[2] / 2.0, r[1] + r[3] / 2.0, 0));
 	}
 
+	private int countOn(List<ModuleDef> l) {
+		int n = 0;
+		for (ModuleDef m : l) if (mm.isOn(m.id)) n++;
+		return n;
+	}
+
 	private int cards() {
 		int n = 0;
 		for (ModuleDef m : mm.all()) if (v.hitRect("pill:" + m.id) != null) n++;
@@ -164,7 +176,7 @@ class MenuViewTest {
 	@Test
 	void searchFiltersCards() {
 		render();
-		assertTrue(c.hasText("Szukaj modułu…"));
+		assertTrue(c.hasText("Szukaj modułu"));
 		for (char ch : "zoom".toCharArray()) v.charTyped(ch);
 		render();
 		assertEquals(1, cards());
@@ -193,11 +205,16 @@ class MenuViewTest {
 	void categoryFiltersCards() {
 		click("cat:PVP");
 		render();
-		assertEquals(12, cards());
+		int pvp = 0;
+		for (ModuleDef m : mm.all()) if (m.category == Category.PVP) pvp++;
+		assertEquals(pvp, v.visible().size());
 		assertEquals(Category.PVP, v.category());
+		assertTrue(c.hasText("PvP"), "nazwa kategorii jako tytuł");
+		assertTrue(c.hasText("Włączone: " + countOn(v.visible()) + " z " + pvp));
 		click("cat:ALL");
 		render();
-		assertTrue(cards() >= 12, "większość kart widoczna na normalnym oknie");
+		assertEquals(mm.all().size(), v.visible().size());
+		assertTrue(cards() >= 6, "dwa rzędy kart na normalnym oknie");
 	}
 
 	@Test
@@ -235,9 +252,93 @@ class MenuViewTest {
 	}
 
 	@Test
+	void closeButtonAsksScreenToClose() {
+		assertFalse(v.takeClose());
+		click("close");
+		assertTrue(v.takeClose());
+		assertFalse(v.takeClose(), "prośba odczytana raz");
+	}
+
+	@Test
+	void tabsSwitchPages() {
+		friends = Friends.LOGGED_OUT;
+		cosmetics = Cosmetics.LOGGED_OUT;
+		render();
+		assertNotNull(v.hitRect("modules"));
+		click("friends");
+		assertEquals(MenuView.Page.FRIENDS, v.page());
+		render();
+		assertNull(v.hitRect("cat:ALL"), "kategorie tylko na zakładce modułów");
+		click("cosmetics");
+		assertEquals(MenuView.Page.COSMETICS, v.page());
+		click("modules");
+		assertEquals(MenuView.Page.GRID, v.page());
+	}
+
+	@Test
+	void cardsPreviewHudElementsWithGameData() {
+		for (char ch : "fps".toCharArray()) v.charTyped(ch);
+		render();
+		assertFalse(c.hasTextContaining("240"), "bez danych gry karta ma ikonę");
+		info = new FakeGameInfo();
+		render();
+		assertTrue(c.hasTextContaining("240"), "podgląd FPS na karcie");
+	}
+
+	@Test
+	void settingsNextToGridKeepSearchAndScroll() {
+		v.openSettings("keystrokes");
+		render();
+		assertNotNull(v.layout().detail);
+		assertTrue(c.hasText("Keystrokes"));
+		assertTrue(cards() > 0, "siatka zostaje obok ustawień");
+		int[] place = v.hitRect("place");
+		assertTrue(place[0] >= v.layout().detail[0], "przycisk w kolumnie ustawień");
+		v.charTyped('z');
+		assertEquals("z", v.query(), "pisanie dalej trafia do wyszukiwarki");
+		assertEquals(MenuView.Page.SETTINGS, v.page());
+		v.keyPressed(MenuView.KEY_BACKSPACE);
+		assertEquals("", v.query());
+		int[] g = v.layout().grid, d = v.layout().detail;
+		v.mouseScrolled(g[0] + 5, g[1] + 5, -3);
+		render();
+		assertTrue(v.layout().scroll > 0, "kółko nad siatką przewija siatkę");
+		int before = v.layout().scroll;
+		v.mouseScrolled(d[0] + 5, d[1] + 50, -3);
+		render();
+		assertEquals(before, v.layout().scroll, "kółko nad ustawieniami nie rusza siatki");
+		v.mouseScrolled(g[0] + 5, g[1] + 5, 1000);
+		String first = v.visible().get(0).id;
+		click("card:" + first);
+		assertEquals(first, v.selected(), "klik w kartę zmienia moduł w kolumnie");
+	}
+
+	@Test
+	void overviewListsEnabledModules() {
+		render();
+		assertTrue(c.hasText("Włączone moduły"));
+		click("on:fps");
+		assertEquals(MenuView.Page.SETTINGS, v.page());
+		assertEquals("fps", v.selected());
+	}
+
+	@Test
+	void smallWindowShowsSettingsInsteadOfGrid() {
+		v.openSettings("fps");
+		c.clear();
+		v.render(c, 320, 240, -1, -1);
+		assertNull(v.layout().detail);
+		assertEquals(0, cards(), "ustawienia zamiast siatki");
+		int[] back = v.hitRect("back");
+		assertNotNull(back);
+		v.mouseClicked(back[0] + 1, back[1] + 1, 0);
+		assertEquals(MenuView.Page.GRID, v.page());
+	}
+
+	@Test
 	void accountsButtonHiddenWithoutAccounts() {
 		render();
-		assertFalse(c.hasText("Zmień konto"));
+		assertFalse(c.hasText("Konta"));
 		assertNull(v.hitRect("accounts"));
 		accounts.add(new Account("a1", "Ban19910k", true));
 		accounts.add(new Account("a2", "BanAlt", false));
@@ -331,7 +432,7 @@ class MenuViewTest {
 		assertTrue(mm.config().module("zoom").enabled(true), "klik w zablokowany moduł nic nie zmienia");
 		v.openSettings("zoom");
 		render();
-		assertTrue(c.hasText("Zablokowane na tym serwerze"));
+		assertTrue(c.hasTextContaining("Zablokowane na"));
 		assertNull(v.hitRect("toggle"));
 	}
 
@@ -341,11 +442,11 @@ class MenuViewTest {
 		v.render(c, 320, 240, -1, -1);
 		int max = v.layout().maxScroll;
 		assertTrue(max > 0);
-		for (int i = 0; i < 300; i++) v.mouseScrolled(-1);
+		for (int i = 0; i < 1000; i++) v.mouseScrolled(-1);
 		c.clear();
 		v.render(c, 320, 240, -1, -1);
 		assertEquals(max, v.layout().scroll);
-		for (int i = 0; i < 300; i++) v.mouseScrolled(1);
+		for (int i = 0; i < 1000; i++) v.mouseScrolled(1);
 		c.clear();
 		v.render(c, 320, 240, -1, -1);
 		assertEquals(0, v.layout().scroll);
@@ -355,7 +456,7 @@ class MenuViewTest {
 	void englishLabels() {
 		Lang.setGame("en_us");
 		render();
-		assertTrue(c.hasText("Search modules…"));
+		assertTrue(c.hasText("Search mods"));
 		assertTrue(c.hasText("Edit HUD"));
 		assertTrue(c.hasText("Disabled"));
 	}

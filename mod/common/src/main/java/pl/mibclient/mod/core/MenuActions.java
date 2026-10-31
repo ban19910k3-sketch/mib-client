@@ -61,6 +61,11 @@ public interface MenuActions {
 		return null;
 	}
 
+	/** Dane gry do podglądu elementów HUD na kartach modułów albo null (karty pokazują wtedy ikony). */
+	default GameInfo gameInfo() {
+		return null;
+	}
+
 	/** Zapisuje język menu wybrany w menu ("pl", "en", "auto"); Lang.choose robi już MenuView. */
 	default void languageChosen(String code) {
 	}

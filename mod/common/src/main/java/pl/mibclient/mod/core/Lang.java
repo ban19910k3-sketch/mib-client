@@ -17,7 +17,7 @@ public final class Lang {
 	}
 
 	static {
-		put("menu.search", "Szukaj modułu…", "Search modules…");
+		put("menu.search", "Szukaj modułu", "Search mods");
 		put("menu.enabled", "Włączone: %d z %d", "Enabled: %d of %d");
 		put("menu.on", "Włączony", "Enabled");
 		put("menu.off", "Wyłączony", "Disabled");
@@ -30,6 +30,15 @@ public final class Lang {
 		put("menu.place", "Ustaw na ekranie", "Place on screen");
 		put("menu.preview", "Podgląd", "Preview");
 		put("menu.cosmetics", "Kosmetyki", "Cosmetics");
+		put("menu.tab_modules", "Moduły", "Mods");
+		put("menu.tab_accounts", "Konta", "Accounts");
+		put("menu.all_title", "Wszystkie moduły", "All modules");
+		put("menu.results", "Wyniki wyszukiwania", "Search results");
+		put("menu.settings_of", "Ustawienia: %s", "Settings: %s");
+		put("menu.pick", "Kliknij kartę modułu, żeby zobaczyć jego ustawienia.", "Click a module card to see its settings.");
+		put("menu.active", "Włączone moduły", "Enabled modules");
+		put("menu.more", "i %d więcej", "and %d more");
+		put("menu.none_on", "Żaden moduł nie jest włączony.", "No modules are enabled.");
 		put("cos.hint", "Kliknij przedmiot, żeby go przymierzyć.", "Click an item to try it on.");
 		put("cos.trying", "Przymierzasz", "Trying on");
 		put("cos.login", "Załóż profil MiB w launcherze, żeby zbierać kosmetyki.", "Create a MiB profile in the launcher to collect cosmetics.");

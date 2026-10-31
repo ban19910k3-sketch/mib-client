@@ -90,7 +90,7 @@ public class MibClientGameTest implements FabricClientGameTest {
 			check(context.computeOnClient(c -> view(c) != null && view(c).page() == MenuView.Page.SETTINGS), "zębatka nie otworzyła ustawień");
 			context.takeScreenshot("04-settings");
 
-			click(context, "back");
+			click(context, "modules");
 			context.runOnClient(c -> {
 				if (view(c) != null) view(c).clearQuery();
 			});

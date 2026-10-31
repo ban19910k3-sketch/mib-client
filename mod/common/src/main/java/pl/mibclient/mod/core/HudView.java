@@ -58,6 +58,26 @@ public final class HudView {
 		}
 	}
 
+	/**
+	 * Podgląd elementu na karcie modułu w menu: przykładowa treść jak w edytorze HUD, wyśrodkowana w [x, x+w) × [y, y+h)
+	 * i w razie potrzeby zmniejszona; skala jest wielokrotnością 1/pixels (pikseli okna na jednostkę), żeby font był ostry,
+	 * chyba że wtedy element byłby dużo mniejszy niż miejsce.
+	 * false = moduł nie ma czego pokazać (wtedy menu rysuje ikonę).
+	 */
+	public boolean preview(Canvas c, GameInfo g, ModuleDef d, int x, int y, int w, int h, int pixels) {
+		if ("player_model".equals(d.id)) return false; // postać rysuje gra osobno, poza przycięciem karty
+		int[] size = draw(null, c, d, g, true);
+		if (size[0] <= 0 || size[1] <= 0) return false;
+		int s = Math.max(1, pixels);
+		float fit = Math.min(1f, Math.min(w / (float) size[0], h / (float) size[1]));
+		float sharp = (int) Math.floor(fit * s) / (float) s, k = sharp >= fit * 0.75f ? sharp : fit;
+		int dw = Math.round(size[0] * k), dh = Math.round(size[1] * k), px = x + (w - dw) / 2, py = y + (h - dh) / 2;
+		c.push(k, px, py);
+		draw(new int[] {px, py}, c, d, g, true);
+		c.pop();
+		return true;
+	}
+
 	// ===== Elementy =====
 
 	/** Rysuje element w at (null = tylko mierzy) i zwraca jego rozmiar {w, h} przed skalowaniem. */

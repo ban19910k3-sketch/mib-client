@@ -15,11 +15,11 @@ class LangTest {
 	void polishForPlCodes() {
 		Lang.setGame("pl_pl");
 		assertTrue(Lang.pl());
-		assertEquals("Szukaj modułu…", Lang.t("menu.search"));
+		assertEquals("Szukaj modułu", Lang.t("menu.search"));
 		assertEquals("Włączone: 3 z 16", Lang.t("menu.enabled", 3, 16));
 		Lang.setGame("en_us");
 		assertFalse(Lang.pl());
-		assertEquals("Search modules…", Lang.t("menu.search"));
+		assertEquals("Search mods", Lang.t("menu.search"));
 		assertEquals("Enabled: 3 of 16", Lang.t("menu.enabled", 3, 16));
 		assertEquals("no.such.key", Lang.t("no.such.key"));
 		Lang.setGame(null);

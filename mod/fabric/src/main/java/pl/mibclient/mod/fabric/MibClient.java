@@ -972,6 +972,11 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	}
 
 	@Override
+	public pl.mibclient.mod.core.GameInfo gameInfo() {
+		return info;
+	}
+
+	@Override
 	public String switchMessage() {
 		long now = System.currentTimeMillis();
 		if (bridge != null && switchAt > 0 && now - failureCheckedAt > 500) {
