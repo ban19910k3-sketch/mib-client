@@ -14,7 +14,7 @@ public final class MenuLayout {
 	public static final int PANEL_W = 680, PANEL_H = 380, MARGIN = 10, PAD = 10, TOP = 26, SIDEBAR = 112, SIDEBAR_SMALL = 96, DETAIL = 148;
 	/** Najwęższy panel, w którym ustawienia mieszczą się obok siatki. */
 	public static final int DETAIL_MIN_PANEL = 470;
-	public static final int SEARCH_H = 16, HEAD_H = 36, CARD_H = 104, CARD_MIN_W = 108, GAP = 6, ROW_H = 16;
+	public static final int SEARCH_H = 18, HEAD_H = 36, CARD_H = 104, CARD_MIN_W = 108, GAP = 6, ROW_H = 20;
 
 	/** Ile pikseli okna przypada na jednostkę menu: całkowita, żeby font i ikony były ostre. */
 	public static int scale(int windowW, int windowH) {
@@ -60,7 +60,7 @@ public final class MenuLayout {
 		int[] sidebar = {px, by, sw, bh};
 		int[] detail = pw >= DETAIL_MIN_PANEL ? new int[] {px + pw - DETAIL, by, DETAIL, bh} : null;
 		int cx = px + sw + PAD, cw = (detail != null ? detail[0] : px + pw) - PAD - cx, cy = by + PAD, ch = bh - 2 * PAD;
-		int[] search = {px + 6, by + 8, sw - 12, SEARCH_H};
+		int[] search = {px + 6, by + 10, sw - 12, SEARCH_H};
 		int gy = cy + HEAD_H, gh = by + bh - PAD - gy;
 		int cols = Math.max(1, Math.min(4, (cw + GAP) / (CARD_MIN_W + GAP)));
 		int cardW = (cw - GAP * (cols - 1)) / cols;
@@ -78,11 +78,11 @@ public final class MenuLayout {
 
 	/** i-ta pozycja listy kategorii w pasku bocznym (pod wyszukiwarką). */
 	public int[] category(int i) {
-		return new int[] {sidebar[0] + 6, search[1] + SEARCH_H + 10 + i * (ROW_H + 2), sidebar[2] - 12, ROW_H};
+		return new int[] {sidebar[0] + 6, search[1] + SEARCH_H + 12 + i * (ROW_H + 3), sidebar[2] - 12, ROW_H};
 	}
 
 	/** Przycisk na dole paska bocznego; slot 0 = najniżej. */
 	public int[] sidebarButton(int slot) {
-		return new int[] {sidebar[0] + 6, sidebar[1] + sidebar[3] - 8 - ROW_H - slot * (ROW_H + 4), sidebar[2] - 12, ROW_H};
+		return new int[] {sidebar[0] + 6, sidebar[1] + sidebar[3] - 10 - ROW_H - slot * (ROW_H + 4), sidebar[2] - 12, ROW_H};
 	}
 }

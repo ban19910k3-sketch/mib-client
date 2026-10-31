@@ -274,16 +274,20 @@ public final class MenuView {
 		}
 	}
 
-	/** Lewa kolumna zakładki modułów: wyszukiwarka, kategorie i „Edytuj HUD”. */
+	/**
+	 * Lewa kolumna zakładki modułów: wyszukiwarka, kategorie (wybrana podświetlona, z fioletowym paskiem przy krawędzi
+	 * panelu) i pod kreską spokojny przycisk „Edytuj HUD”.
+	 */
 	private void sidebar(Canvas c, int mx, int my) {
 		int[] s = layout.sidebar;
 		c.fill(s[0] + 1, s[1] + 1, s[0] + s[2], s[1] + s[3] - 1, Theme.SLAB);
 		c.fill(s[0] + s[2], s[1] + 1, s[0] + s[2] + 1, s[1] + s[3] - 1, Theme.EDGE);
 		int[] q = layout.search;
-		Shapes.panel(c, q[0], q[1], q[2], q[3], Theme.VOID, searching() ? Theme.AM_LO : Theme.EDGE2);
-		Shapes.icon(c, "search", q[0] + 3, q[1] + 2, Theme.MUTED);
+		boolean qHover = in(q, mx, my);
+		Shapes.panel(c, q[0], q[1], q[2], q[3], Theme.VOID, searching() ? Theme.AM : qHover ? Theme.EDGE2 : Theme.EDGE);
+		Shapes.icon(c, "search", q[0] + 4, q[1] + 3, searching() ? Theme.AM_HI : Theme.MUTED);
 		String shown = query.isEmpty() ? Lang.t("menu.search") : query + "_";
-		c.text(Shapes.ellipsize(c, shown, q[2] - 21, false), q[0] + 17, q[1] + 4, query.isEmpty() ? FAINT : Theme.TEXT, false);
+		c.text(Shapes.ellipsize(c, shown, q[2] - 20, false), q[0] + 18, q[1] + 5, query.isEmpty() ? FAINT : Theme.TEXT, false);
 		hits.add(new Hit("search", q, null));
 
 		List<Category> cats = new ArrayList<Category>();
@@ -293,11 +297,13 @@ public final class MenuView {
 			final Category k = cats.get(i);
 			int[] r = layout.category(i);
 			boolean on = searching() ? k == null : k == category, hover = in(r, mx, my);
-			if (on || hover) Shapes.pixelRect(c, r[0], r[1], r[2], r[3], Theme.SLAB2);
-			if (on) c.fill(r[0], r[1] + 2, r[0] + 2, r[1] + r[3] - 2, Theme.AM);
-			Shapes.icon(c, k == null ? "grid-3x3" : k.icon, r[0] + 5, r[1] + 2, on ? Theme.AM_HI : Theme.MUTED);
+			if (on) {
+				Shapes.pixelRect(c, r[0], r[1], r[2], r[3], Theme.mix(Theme.SLAB2, Theme.AM, 0.12));
+				c.fill(s[0] + 1, r[1] + 3, s[0] + 3, r[1] + r[3] - 3, Theme.AM);
+			} else if (hover) Shapes.pixelRect(c, r[0], r[1], r[2], r[3], Theme.mix(Theme.SLAB, Theme.SLAB2, 0.5));
+			Shapes.icon(c, k == null ? "grid-3x3" : k.icon, r[0] + 7, r[1] + (r[3] - 12) / 2, on ? Theme.AM_HI : hover ? Theme.TEXT : Theme.MUTED);
 			String label = k == null ? Lang.t("menu.all") : k.label();
-			c.text(Shapes.ellipsize(c, label, r[2] - 24, false), r[0] + 21, r[1] + 4, on ? WHITE : hover ? Theme.TEXT : Theme.MUTED, false);
+			c.text(Shapes.ellipsize(c, label, r[2] - 28, false), r[0] + 25, r[1] + (r[3] - 8) / 2, on ? WHITE : hover ? Theme.TEXT : Theme.MUTED, false);
 			hits.add(new Hit("cat:" + (k == null ? "ALL" : k.name()), r, new Runnable() {
 				@Override
 				public void run() {
@@ -310,7 +316,13 @@ public final class MenuView {
 		}
 
 		int[] e = layout.sidebarButton(0);
-		button(c, e, "move", Lang.t("menu.edit_hud"), true, in(e, mx, my));
+		boolean eh = in(e, mx, my);
+		c.fill(s[0] + 6, e[1] - 9, s[0] + s[2] - 6, e[1] - 8, Theme.EDGE);
+		Shapes.panel(c, e[0], e[1], e[2], e[3], eh ? Theme.SLAB2 : Theme.VOID, eh ? Theme.AM : Theme.EDGE2);
+		String et = Shapes.ellipsize(c, Lang.t("menu.edit_hud"), e[2] - 26, false);
+		int ex = e[0] + (e[2] - 16 - c.textWidth(et)) / 2;
+		Shapes.icon(c, "move", ex, e[1] + (e[3] - 12) / 2, Theme.AM_HI);
+		c.text(et, ex + 16, e[1] + (e[3] - 8) / 2, eh ? WHITE : Theme.TEXT, false);
 		hits.add(new Hit("edit_hud", e, new Runnable() {
 			@Override
 			public void run() {
