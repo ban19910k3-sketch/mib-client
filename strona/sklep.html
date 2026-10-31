@@ -311,7 +311,7 @@ select.inp{appearance:none;background:var(--card) url("data:image/svg+xml,%3Csvg
  <div class="grid" id="grid" aria-live="polite"></div>
 </section>
 </main>
-<footer class="foot"><div class="wrap"><div class="r1"><a class="brand" href="index.html"><img src="img/icon.png" alt="" width="34" height="34"><span>MiB Client</span></a><nav aria-label="Stopka"><a href="sklep.html" data-en="Shop">Sklep</a><a href="index.html#pobierz" data-en="Download">Pobierz</a><a href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener">Discord</a><a href="index.html#pytania" data-en="FAQ">Pytania</a><button type="button" class="motion-toggle" aria-pressed="false"><span class="mi">Ⅱ</span><span class="ml">Animacje włączone</span></button></nav></div><div class="r2"><span>© 2026 MiB Client</span><span data-en="MiB Client is not an official Minecraft product and is not affiliated with Mojang or Microsoft.">MiB Client nie jest oficjalnym produktem Minecraft i nie jest powiązany z Mojang ani Microsoft.</span><button type="button" class="to-top" aria-label="Do góry" data-en-label="Back to top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div></footer>
+<footer class="foot"><div class="wrap"><div class="r1"><a class="brand" href="index.html"><img src="img/icon.png" alt="" width="34" height="34"><span>MiB Client</span></a><nav aria-label="Stopka"><a href="sklep.html" data-en="Shop">Sklep</a><a href="index.html#pobierz" data-en="Download">Pobierz</a><a href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener">Discord</a><a href="index.html#pytania" data-en="FAQ">Pytania</a><a href="sklep.html#admin" data-admin data-en="Admin panel">Panel admina</a><button type="button" class="motion-toggle" aria-pressed="false"><span class="mi">Ⅱ</span><span class="ml">Animacje włączone</span></button></nav></div><div class="r2"><span>© 2026 MiB Client</span><span data-en="MiB Client is not an official Minecraft product and is not affiliated with Mojang or Microsoft.">MiB Client nie jest oficjalnym produktem Minecraft i nie jest powiązany z Mojang ani Microsoft.</span><button type="button" class="to-top" aria-label="Do góry" data-en-label="Back to top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div></footer>
 <div class="adm" id="adm" hidden></div>
 <script src="skinview3d.js" defer></script>
 <script>
@@ -832,7 +832,7 @@ const MibTry = (() => {
     const tb = t.closest('#tabs [data-tab]'); if (tb) { tab = tb.dataset.tab; return renderShop(); }
     if (t.closest('[data-who-change]')) { whoEdit = true; whoErr = ''; renderWho(); return $('who-q').focus(); }
     if (t.closest('[data-who-cancel]')) { whoEdit = false; whoErr = ''; return renderWho(); }
-    if (t.closest('[data-admin]')) return openAdmin();
+    if (t.closest('[data-admin]')) { e.preventDefault(); return openAdmin(); }
   });
   document.addEventListener('mib-lang', () => { renderShop(); if (!adm.hidden) renderAdmin(); });
   addEventListener('hashchange', () => { if (location.hash === '#admin') openAdmin(); });
@@ -840,11 +840,7 @@ const MibTry = (() => {
   // ===== panel admina (tylko konto z private.admins; każda funkcja sprawdza to w bazie) =====
   const adm = $('adm');
   let admTab = 'items', all = [], sel = null, form = null, texData = null, imgFile = null, admMsg = '', found = [], player = null, plog = [], shopUrl = null;
-  function footerLink() {
-    let l = $('admin-link');
-    if (session || mode === 'demo' && admReady) { if (!l) { l = document.createElement('button'); l.type = 'button'; l.id = 'admin-link'; l.className = 'adminlink'; l.dataset.admin = ''; document.querySelector('.foot nav').appendChild(l); } l.textContent = T('Panel admina', 'Admin panel'); }
-    else if (l) l.remove();
-  }
+  function footerLink() {}
   let admReady = false;
   function loginDlg() {
     const demo = mode === 'demo';
