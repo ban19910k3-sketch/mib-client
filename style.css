@@ -239,7 +239,7 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 #unlock .card2{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;animation:popin .3s steps(5) .1s both}
 #unlock i{display:grid;place-items:center;width:110px;height:110px;background:var(--slab2);border-radius:var(--r);font:normal 56px/1 sans-serif;color:var(--am-hi);box-shadow:inset 0 0 0 3px var(--am-lo)}
 #unlock i img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
-#unlock small{color:var(--am-hi);font-size:12px}#unlock b{font:400 24px Pixelify,Geist,sans-serif;font-variant-ligatures:none}
+#unlock small{color:var(--am-hi);font-size:12px}#unlock b{font:800 26px Geist,sans-serif;letter-spacing:-.02em}
 #unlock.bye{animation:fadeout .25s both}
 @keyframes ring{from{transform:scale(0);opacity:1}to{transform:scale(1.6);opacity:0}}
 @keyframes fadein{from{opacity:0}}@keyframes fadeout{to{opacity:0}}
@@ -428,7 +428,7 @@ pre.codes{background:var(--void);border:1px solid var(--edge);padding:10px;margi
 .card.offer{display:flex;flex-direction:column;gap:8px;padding:14px 16px;margin:0;border-color:var(--am-lo);background:linear-gradient(120deg,rgba(168,85,247,.16),var(--slab) 60%)}
 .offer-top{display:flex;align-items:center;gap:8px}.offer-top .gift-kicker{margin-right:2px}
 .offer-end{margin-left:auto;font-variant-numeric:tabular-nums}
-.card.offer .offer-name{font-family:Pixelify,Geist,sans-serif;font-weight:400;font-size:20px;line-height:1.1}
+.card.offer .offer-name{font-weight:800;font-size:20px;line-height:1.15;letter-spacing:-.02em}
 .offer-items{display:flex;flex-wrap:wrap;gap:6px}
 .offer-it{display:flex;flex-direction:column;align-items:center;gap:3px;width:92px;padding:6px 4px;background:var(--slab2);box-shadow:inset 0 0 0 1px var(--edge2);border-radius:var(--r-sm);cursor:pointer;text-align:center}
 .offer-it:hover{box-shadow:inset 0 0 0 1px var(--am-lo)}
@@ -476,7 +476,7 @@ pre.codes{background:var(--void);border:1px solid var(--edge);padding:10px;margi
 .adv-cal{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:12px 0 14px}
 .adv-win{position:relative;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px;cursor:default;
   background:var(--slab2);border:1px solid var(--edge2);border-radius:var(--r-sm);color:var(--m);transition:transform .15s,border-color .15s}
-.adv-win em{font:normal 400 24px/1 Pixelify,Geist,sans-serif;font-style:normal}
+.adv-win em{font:normal 800 22px/1 Geist,sans-serif;font-style:normal;letter-spacing:-.02em}
 .adv-win.big{border-color:#a16207}.adv-star{position:absolute;top:3px;right:6px;color:#facc15;font-size:13px}
 .adv-win.ready{cursor:pointer;color:var(--t);border-color:var(--am);background:linear-gradient(160deg,rgba(var(--g,168,85,247),.28),var(--slab2) 70%);animation:advglow 1.6s ease-in-out infinite}
 .adv-win.ready:hover{transform:translateY(-2px)}.adv-win.ready:focus-visible{outline:2px solid var(--am-hi);outline-offset:2px}
@@ -489,7 +489,7 @@ pre.codes{background:var(--void);border:1px solid var(--edge);padding:10px;margi
 @keyframes advopen{from{transform:rotateY(90deg)}to{transform:none}}
 .noanim .adv-win.ready,.noanim .adv-win.opening{animation:none}
 .shop-col{margin:14px 0 6px;padding:12px 14px;border:1px solid var(--am-lo);border-radius:var(--r-sm);background:linear-gradient(120deg,rgba(var(--g,168,85,247),.14),var(--slab) 55%)}
-.col-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}.col-head b{font:normal 400 20px/1.1 Pixelify,Geist,sans-serif}
+.col-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}.col-head b{font:normal 800 20px/1.1 Geist,sans-serif;letter-spacing:-.02em}
 .shop-rest{margin:18px 0 8px}
 
 /* ===== Wygląd od 0.30.0: gładkie karty, tryb ciemny / jasny / systemowy, kolor akcentu =====
@@ -665,6 +665,44 @@ label.srow{cursor:pointer}
 .ov,#upd{background:color-mix(in srgb,var(--void) 70%,transparent)}
 .toast{border-radius:var(--r-sm);box-shadow:0 10px 30px -10px rgba(0,0,0,.5)}
 
+
+/* ===== Kosmetyki i motywy od 0.32.0: postać 3D z lewej, filtr rodzajów, karty przedmiotów, karty świąt, kalendarz ===== */
+.cosw{display:grid;grid-template-columns:270px minmax(0,1fr);gap:20px;align-items:start}
+.cosl{position:sticky;top:0;display:flex;flex-direction:column;gap:14px}
+.cosprev{display:flex;flex-direction:column;align-items:center;gap:3px;padding:16px 14px 14px;margin:0;
+  background:radial-gradient(circle at 50% 42%,color-mix(in srgb,var(--am) 18%,transparent),transparent 62%),var(--cardbg)}
+.cosprev .skin3d{width:200px;height:260px;background:none;border:0}
+.cosnick{font-size:17px;font-weight:700;margin-top:4px}
+.cosrot{gap:8px;margin-top:10px}.cosrot .b{width:42px;height:36px;padding:0;font-size:18px;line-height:1}
+.cosworn{padding:14px;margin:0}.cosworn h4{font-size:15px;font-weight:700;margin-bottom:10px}
+.slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.slot{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 8px;border:1px solid var(--edge);border-radius:var(--r-sm);background:var(--slab2);text-align:center;min-width:0}
+.slot i{height:38px;display:grid;place-items:center;font:normal 22px/1 sans-serif;color:var(--faint)}.slot i>*{max-height:38px;max-width:100%;image-rendering:pixelated}
+.slot b{font-size:12px;font-weight:600}.slot small{font-size:11px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot.on{border-color:color-mix(in srgb,var(--am) 55%,var(--edge));background:color-mix(in srgb,var(--am) 9%,var(--slab2))}.slot.on i{color:var(--am-hi)}
+.cosr{min-width:0;display:flex;flex-direction:column;gap:14px}
+.cosr>.sec{padding-top:0}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 2px}
+.chip{border:1px solid var(--edge2);background:var(--slab2);color:var(--m);border-radius:999px;padding:6px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background-color .15s,color .15s,border-color .15s}
+.chip:hover{color:var(--t)}
+.chip.on{background:var(--tint);color:var(--am-hi);border-color:color-mix(in srgb,var(--am) 45%,transparent)}
+.cos-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.cosi{border-radius:var(--r);background:var(--cardbg);padding:12px;gap:5px;box-shadow:var(--shadow);transition:transform .15s,border-color .15s,box-shadow .15s}
+.cosi:hover{transform:translateY(-2px);border-color:var(--edge2)}
+.cosi i,.cosi img{height:100px;border-radius:var(--r-sm);background:radial-gradient(circle at 50% 45%,color-mix(in srgb,var(--am) 18%,var(--slab2)),var(--slab2) 72%)}
+.cosi b{font-size:15px;font-weight:700;line-height:1.2}
+.cosi.on{border-color:var(--am);box-shadow:inset 0 0 0 1px var(--am)}
+#cos-box .cosi.try{outline:2px dashed var(--am);outline-offset:-2px}
+.cosi .row{margin-top:auto;padding-top:4px}
+.offer,.shop-col{border-radius:var(--r)}
+.shop-col{padding:16px;border:1px solid color-mix(in srgb,var(--am) 40%,var(--edge));background:linear-gradient(135deg,color-mix(in srgb,var(--am) 12%,transparent),transparent 60%),var(--cardbg)}
+.card.reward{display:flex;flex-direction:column;gap:4px;padding:16px 18px;border:1px solid color-mix(in srgb,var(--am) 45%,var(--edge));
+  background:linear-gradient(110deg,color-mix(in srgb,var(--am) 18%,transparent),transparent 65%),var(--cardbg)}
+.card.reward b{font-size:18px;font-weight:800;letter-spacing:-.02em}
+.card.reward .b{align-self:flex-start;margin-top:8px}
+#hol-home{display:flex;flex-direction:column;gap:12px}
+.adv-win{border-radius:var(--r-sm)}
+
 /* ===== Motyw Halloween (od 0.22.0) =====
    Zwykły motyw (czerń i ametyst) to wszystko powyżej, bez zmian. Halloweenowy włącza klasa t-halloween na <html>
    w index.html: usunięcie tej klasy przywraca zwykły motyw. Dynia na czarnym tle, nocne fioletowe niebo, księżyc
@@ -675,7 +713,7 @@ label.srow{cursor:pointer}
   --t:#f7ede6;--m:#ad968a;
 }
 .t-halloween #app{background:
-  radial-gradient(circle at 34% 15%,rgba(254,226,190,.2) 0 38px,rgba(251,146,60,.08) 39px 72px,transparent 140px),
+  radial-gradient(circle at 92% 14%,rgba(254,226,190,.16) 0 34px,rgba(251,146,60,.07) 35px 66px,transparent 130px),
   radial-gradient(ellipse at 50% 118%,rgba(234,88,12,.22),transparent 55%),
   radial-gradient(ellipse at 70% -10%,#1f0a2e,transparent 60%),var(--void)}
 .t-halloween #app::before{background:repeating-conic-gradient(rgba(255,190,140,.02) 0 25%,transparent 0 50%) 0 0/4px 4px}

@@ -145,6 +145,7 @@ function png(w, h, px) {
       ipcMain.handle('skin:history', () => [{ id: 'a1', variant: 'classic', dataUrl: png }]);
     }, skinPng);
     await w.click('.nav[data-p="cos"]');
+    await w.click('#cos-tabs [data-t="skin"]'); // ustawienia skina w zakładce Skin (od 0.32.0)
     await w.waitForSelector('#skin-pick');
     assert.equal(await w.isDisabled('#skin-set'), true, 'bez wybranego pliku nie da się ustawić');
     await w.click('#skin-pick');

@@ -353,7 +353,7 @@
     // bez konta Microsoft: postać Steve (na niej też da się przymierzać kosmetyki), bez zmiany skina
     if (cur.error === 'skin_no_account') {
       try { if (skinViewer) await skinViewer.loadSkin(await mib.call('skin', 'MHF_Steve')); } catch {}
-      sec.append(h('div', { class: 'skinbox' }, skinCanvas, h('div', { class: 'skinside' }, h('p', { class: 'mut' }, msg('skin_no_account')))));
+      sec.append(h('div', { class: 'skinside' }, h('p', { class: 'mut' }, msg('skin_no_account'))));
       return sec;
     }
     let picked = null;
@@ -395,10 +395,10 @@
     if (cur.error) err.textContent = msg(cur.error);
     show(cur.dataUrl, variant.value);
     loadHist();
-    sec.append(h('div', { class: 'skinbox' }, skinCanvas, h('div', { class: 'skinside' },
+    sec.append(h('div', { class: 'skinside' },
       h('p', { class: 'mut' }, T('Skin Twojego konta Minecraft. Widzą go wszyscy gracze, na każdym serwerze.')),
       h('label', { class: 'sr' }, h('span', {}, T('Model postaci')), variant),
-      h('div', { class: 'row' }, pick, setBtn, reset), err, hist)));
+      h('div', { class: 'row' }, pick, setBtn, reset), err, hist));
     return sec;
   }
 
@@ -609,8 +609,32 @@
     if (r) Object.assign(skinCanvas.dataset, { back: r.back, hat: r.hat, mask: r.mask ? '1' : '', fairy: r.fairy ? '1' : '', aura: r.aura, frames: r.frames });
   }
 
-  // Kosmetyki mają trzy zakładki: Moje przedmioty, Sklep (od 0.24.0, za MiB Coins) i Historia coinsów
-  let cosTab = 'mine';
+  // Kosmetyki mają zakładki: Moje przedmioty, Sklep (od 0.24.0, za MiB Coins), Historia coinsów i Skin (od 0.32.0);
+  // z lewej postać 3D z obracaniem i założone przedmioty, nad siatką filtr rodzajów
+  let cosTab = 'mine', cosKind = 'all';
+  const KINDS = [['all', 'Wszystko'], ['cape', 'Peleryny'], ['hat', 'Czapki'], ['mask', 'Maski'], ['wings', 'Skrzydła'], ['aura', 'Aury']];
+  const ofKind = c => cosKind === 'all' || c.type === cosKind;
+  function kindChips() {
+    return h('div', { class: 'chips', id: 'cos-kinds', role: 'group' }, ...KINDS.map(([k, l]) => h('button', { type: 'button', class: 'chip' + (cosKind === k ? ' on' : ''), 'data-k': k,
+      'aria-pressed': String(cosKind === k), on: { click: () => { if (cosKind !== k) { cosKind = k; renderCos(); } } } }, T(l))));
+  }
+  function cosLeft(items) {
+    const spin = d => { if (!skinViewer) return; skinViewer.autoRotate = false; skinViewer.playerObject.rotation.y += d; };
+    const rb = (txt, title, fn) => h('button', { class: 'b ghost', type: 'button', title: T(title), 'aria-label': T(title), on: { click: fn } }, txt);
+    const slot = (t, l) => {
+      const c = items.find(x => x.equipped && x.type === t);
+      return h('div', { class: 'slot' + (c ? ' on' : ''), 'data-slot': t }, h('i', { 'aria-hidden': 'true' }, c ? itemImage(c, 2) : GLYPH[t] || '◆'),
+        h('b', {}, T(l)), h('small', { class: 'mut' }, c ? c.name : T('Brak')));
+    };
+    return h('aside', { class: 'cosl' },
+      h('div', { class: 'card cosprev' }, skinCanvas, h('b', { class: 'cosnick' }, st.nick || $('nick').textContent), h('small', { class: 'mut' }, T('Podgląd wyposażenia')),
+        h('div', { class: 'row cosrot' }, rb('‹', 'Obróć w lewo', () => spin(-0.6)),
+          rb('⟳', 'Obracaj samo', () => { if (!skinViewer) return; skinViewer.playerObject.rotation.y = 0; skinViewer.autoRotate = true; }), rb('›', 'Obróć w prawo', () => spin(0.6)))),
+      st.loggedIn ? h('div', { class: 'card cosworn' }, h('h4', {}, T('Założone')), h('div', { class: 'slots' },
+        slot('cape', 'Peleryna'), slot('hat', 'Czapka'), slot('mask', 'Maska'), slot('wings', 'Skrzydła'), slot('aura', 'Aura'))) : null);
+  }
+  const cosTitle = () => cosTab === 'shop' ? h('div', { class: 'ptitle' }, h('h1', {}, T('Sklep')), h('p', { class: 'lead' }, T('Kosmetyki za MiB Coins. Kliknij, żeby przymierzyć.')))
+    : h('div', { class: 'ptitle' }, h('h1', {}, T('Twój styl.')), h('p', { class: 'lead' }, T('Twoja postać. Twoje kosmetyki.')));
   // zaznaczona pozycja paska bocznego idzie za zakładką: Sklep albo Kosmetyki
   function cosNav() {
     if (!$('p-cos').classList.contains('on')) return;
@@ -626,25 +650,27 @@
     if (!st.loggedIn) {
       trying = {};
       dressPage([]);
-      box.replaceChildren(h('h2', {}, T('Kosmetyki')), skin, h('div', { class: 'empty-state' },
+      box.replaceChildren(h('div', { class: 'cosw' }, cosLeft([]), h('div', { class: 'cosr' }, cosTitle(), h('div', { class: 'empty-state' },
         h('p', {}, st.offline ? T('Brak połączenia z serwerem MiB. Kosmetyki pokażą się, gdy połączenie wróci.') : T('Peleryny i inne przedmioty zapisują się na profilu MiB. Załóż profil, żeby je zbierać.')),
-        st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))));
+        st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))), skin)));
       return;
     }
     const list = await mib.call('prof:cosmetics');
     const items = Array.isArray(list) ? list : [];
-    const tabs = h('div', { class: 'seg', role: 'tablist', id: 'cos-tabs' }, ...[['mine', 'Moje przedmioty'], ['shop', 'Sklep'], ['log', 'Historia']].map(([k, l]) =>
+    const tabs = h('div', { class: 'seg', role: 'tablist', id: 'cos-tabs' }, ...[['mine', 'Moje przedmioty'], ['shop', 'Sklep'], ['log', 'Historia'], ['skin', 'Skin']].map(([k, l]) =>
       h('button', { class: cosTab === k ? 'on' : '', role: 'tab', type: 'button', 'data-t': k, 'aria-selected': String(cosTab === k), on: { click: () => {
         if (cosTab === k) return;
         cosTab = k; trying = {};
         renderCos();
       } } }, T(l))));
-    const body = cosTab === 'shop' ? await shopView(items) : cosTab === 'log' ? await logView() : mineView(list, items);
+    const body = cosTab === 'shop' ? await shopView(items) : cosTab === 'log' ? await logView() : cosTab === 'skin' ? (dressPage(items), [skin]) : mineView(list, items);
     const wallet = walletCard();
     const gift = giftCount ? h('div', { class: 'card reward gift-banner', id: 'cos-gift' }, h('b', {}, T('Masz prezent do odebrania!')),
       h('button', { class: 'b', type: 'button', on: { click: () => giftsCheck(true) } }, T('Odbierz'))) : null;
+    const chips = cosTab === 'mine' || cosTab === 'shop' ? kindChips() : null;
     // bez prezentu gift to null: replaceChildren wstawiłby napis „null”
-    box.replaceChildren(...[h('h2', {}, T('Kosmetyki')), wallet, gift, skin, h('div', { class: 'sec' }, tabs, ...body.filter(Boolean))].filter(Boolean));
+    box.replaceChildren(h('div', { class: 'cosw' }, cosLeft(items), h('div', { class: 'cosr' },
+      ...[cosTitle(), wallet, gift, h('div', { class: 'sec' }, tabs, chips, ...body.filter(Boolean))].filter(Boolean))));
   }
   // Przymiarka: klik w przedmiot zakłada go na postać na górze strony (bez zakładania w grze); drugi klik zdejmuje
   function tryToggle(c, owned) {
@@ -671,8 +697,10 @@
     // przymiarka tylko przedmiotów, które gracz dalej ma i które nie są już założone
     for (const t of Object.keys(trying)) { const x = trying[t] && items.find(c => c.id === trying[t].id); if (!x || x.equipped) delete trying[t]; }
     dressPage(items);
-    const grid = Array.isArray(list) && list.length
-      ? h('div', { class: 'cos-grid' }, ...list.map(c => h('div', { class: 'cosi' + (c.equipped ? ' on' : '') + (trying[c.type] && trying[c.type].id === c.id ? ' try' : ''),
+    const shown = Array.isArray(list) ? list.filter(ofKind) : [];
+    const grid = Array.isArray(list) && list.length && !shown.length ? h('p', { class: 'empty' }, T('Nie masz przedmiotów tego rodzaju.'))
+      : Array.isArray(list) && list.length
+      ? h('div', { class: 'cos-grid' }, ...shown.map(c => h('div', { class: 'cosi' + (c.equipped ? ' on' : '') + (trying[c.type] && trying[c.type].id === c.id ? ' try' : ''),
           'data-id': c.id, title: c.texture && !c.equipped ? T('Kliknij, żeby przymierzyć') : null, on: { click: e => { if (!e.target.closest('button')) tryToggle(c, items); } } },
         h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)),
         h('b', {}, c.name), h('small', { class: 'mut' }, c.equipped ? '✓ ' + T('Założona — widać ją w grze') : T(c.source === 'shop' ? 'Kupiono' : 'Odebrano') + ' ' + fmtDate(c.acquiredAt)),
@@ -707,7 +735,7 @@
     for (const t of Object.keys(trying)) if (!trying[t] || !byId[trying[t].id]) delete trying[t];
     dressPage(owned);
     const isTry = c => trying[c.type] && trying[c.type].id === c.id ? ' try' : '';
-    const offers = (s.offers || []).map(o => {
+    const offers = (cosKind === 'all' ? s.offers || [] : []).map(o => {
       const its = (o.items || []).map(id => byId[id]).filter(Boolean), pay = o.mine == null ? o.price : o.mine;
       const pct = o.full > o.price ? Math.round((1 - o.price / o.full) * 100) : 0;
       return h('div', { class: 'card offer', 'data-offer': o.id },
@@ -724,7 +752,7 @@
             : h('span', { class: 'tag own' }, '✓ ' + T('Masz wszystko'))),
         pay > 0 && pay < o.price ? h('small', { class: 'mut' }, T('Taniej, bo masz już część tych przedmiotów.')) : null);
     });
-    const forSale = all.filter(c => c.price != null);
+    const forSale = all.filter(c => c.price != null && ofKind(c));
     const card = c => h('div', { class: 'cosi shopi' + (c.owned ? ' own' : '') + isTry(c), 'data-id': c.id,
         title: c.texture ? T('Kliknij, żeby przymierzyć') : null, on: { click: e => { if (!e.target.closest('button')) tryToggle(c, owned); } } },
       h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)),
@@ -1523,7 +1551,7 @@
   document.querySelector('.nav[data-p="prof"]').addEventListener('click', () => { render(); refresh(); });
   // Kosmetyki i Sklep w pasku bocznym to ta sama strona z inną zakładką (od 0.30.0)
   document.querySelectorAll('.nav[data-p="cos"]').forEach(n => n.addEventListener('click', () => {
-    cosTab = n.dataset.tab === 'shop' ? 'shop' : cosTab === 'shop' ? 'mine' : cosTab;
+    cosTab = n.dataset.tab === 'shop' ? 'shop' : 'mine';
     renderCos();
   }));
   document.querySelector('.nav[data-p="ideas"]').addEventListener('click', renderIdeas);
