@@ -206,7 +206,7 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 .err{min-height:18px;font-size:12.5px;color:#ff9fb0;line-height:1.4}.err:empty{min-height:0}
 .phead{display:flex;align-items:baseline;gap:12px}.phead h2{font-size:32px}
 .tag.founder{font-size:11px;padding:3px 8px;background:#3b1d63;color:#f0dcff;box-shadow:inset 0 0 0 1px #7c3aed;vertical-align:4px}
-.idrow{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--am-hi)}
+.idrow{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--am-hi)}.idrow .mono{user-select:all;-webkit-user-select:all;cursor:text}
 .codebox{font:22px/1 Consolas,"Cascadia Mono",monospace;letter-spacing:.12em;text-align:center;padding:16px 10px;background:var(--void);border:1px solid var(--am-lo);border-radius:var(--r-sm);color:#fff;user-select:all}
 .cos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding-top:6px}
 .cosi{display:flex;flex-direction:column;gap:4px;align-items:flex-start;background:var(--slab);border:1px solid var(--edge);border-radius:var(--r-sm);padding:12px}

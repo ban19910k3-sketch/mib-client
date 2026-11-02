@@ -67,7 +67,7 @@
   // Ruch cząsteczek aury: końcówka ID (launcher i mod znają tylko te)
   const MOTIONS = { souls: 'Unoszą się z ziemi (dusze, serca, bańki)', pumpkins: 'Krążą i lecą w górę, z iskrami', ghosts: 'Trzy krążą wokół (duszki, prezenty, bloki)',
     magic: 'Spirala iskier w górę', snow: 'Opadają z góry (śnieg, płatki, konfetti)', burst: 'Fajerwerki nad głową' };
-  const copy = async t => { try { await navigator.clipboard.writeText(t); toast('Skopiowano'); } catch {} };
+  const copy = async t => toast(await window.mibUI.copyText(t) ? 'Skopiowano' : 'Nie udało się skopiować');
   let tab = 'ann';
   // Jeden podgląd 3D na cały panel (każdy nowy SkinViewer zajmuje kontekst WebGL)
   let capeCanvas = null, capeViewer = null;

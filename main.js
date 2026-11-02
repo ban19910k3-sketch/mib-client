@@ -439,6 +439,8 @@ ipcMain.handle('upd:install', () => { autoUpdater.downloadUpdate(); return true;
 
 ipcMain.handle('ver', () => app.getVersion());
 // pamięć komputera w MB (suwak „Pamięć dla gry” w Ustawieniach)
+// Kopiowanie do schowka przez Electron (navigator.clipboard w oknie bez ramki potrafi po cichu odmówić, np. MiB ID w Profilu MiB)
+ipcMain.handle('clip:write', (_, t) => { if (typeof t !== 'string' || !t || t.length > 20000) return false; clipboard.writeText(t); return true; });
 ipcMain.handle('sys:mem', () => Math.round(require('os').totalmem() / 1048576));
 
 ipcMain.handle('skin', async (_, name) => {

@@ -217,7 +217,7 @@
         h('p', { class: 'mut' }, T('Grać możesz dalej, ale nie napiszesz do znajomych, nie zaprosisz nikogo i nie wyślesz pomysłu, a w grze nie widać Twojego logo MiB i kosmetyków.')))
         : st.warnings ? h('p', { class: 'warnline', id: 'pf-warn' }, T('Ostrzeżenia od twórcy MiB Client') + ': ' + st.warnings + '/4') : null,
       h('div', { class: 'idrow' }, h('span', { class: 'mono', id: 'pf-id' }, st.mibId),
-        h('button', { class: 'b ghost', on: { click: async () => { try { await navigator.clipboard.writeText(st.mibId); toast(T('Skopiowano')); } catch {} } } }, T('Kopiuj ID'))),
+        h('button', { class: 'b ghost', id: 'pf-copy', on: { click: async () => toast(T(await copyText(st.mibId) ? 'Skopiowano' : 'Nie udało się skopiować')) } }, T('Kopiuj ID'))),
       h('div', { class: 'sec' }, h('h3', {}, T('Statystyki')), h('div', { class: 'stats' },
         stat('Czas gry przez MiB', MibProfile.formatPlaytime(st.playtimeMin || 0)),
         stat('Uruchomienia gry', String(st.launches || 0)),
@@ -328,6 +328,11 @@
       box(fx, tall ? 32 : 0);
     }, () => {});
     return c;
+  }
+  // Do schowka: przez Electron (clip:write w main.js), a gdyby się nie dało — przez przeglądarkę
+  async function copyText(t) {
+    try { if (await mib.call('clip:write', String(t))) return true; } catch {}
+    try { await navigator.clipboard.writeText(String(t)); return true; } catch { return false; }
   }
   // Miniatura kosmetyku z modelem 3D (MibProfile.cosmeticModel): model z boku i z góry, ściany z pierwszej klatki tekstury
   // przyciemnione jak w grze (wierzch najjaśniejszy, boki najciemniejsze)
@@ -1642,7 +1647,7 @@
   };
   window.mibProfileUI = { modsShown, refresh, holidays: () => holidayCheck(true), get loggedIn() { return !!(st.loggedIn || st.offline); },
     openShop: () => document.querySelector('#side .nav[data-tab="shop"]').click() };
-  window.mibUI = { h, msg, fmtDate, capeThumb, itemImage };
+  window.mibUI = { h, msg, fmtDate, capeThumb, itemImage, copyText };
   sidebar();
   render();
   refresh();

@@ -77,6 +77,12 @@ function png(w, h, px) {
     assert.ok(fake.st.users[0].settings, 'ustawienia wysłane na nowy profil');
     await shot('prof-in.png');
     ok('(c) profil z ID i odznaką Założyciel, ustawienia zsynchronizowane');
+    // Kopiuj ID: przez schowek Electrona (navigator.clipboard na Windows potrafił po cichu odmówić)
+    await app.evaluate(({ clipboard }) => clipboard.writeText(''));
+    await w.click('#pf-copy');
+    await w.waitForSelector('.toast:has-text("Skopiowano")');
+    assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), 'MIB-000001', 'MiB ID w schowku');
+    ok('(as) Kopiuj ID kopiuje MiB ID do schowka');
     // Profil z konta Minecraft (0.26.0): bez połączenia podpowiedź, po połączeniu nazwa konta; komunikat z main.js
     assert.match(await w.textContent('#pf-mc'), /Zaloguj się w launcherze kontem Microsoft/);
     fake.st.users[0].mcName = 'Steve';
