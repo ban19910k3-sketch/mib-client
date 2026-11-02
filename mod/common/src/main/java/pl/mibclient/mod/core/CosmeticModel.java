@@ -22,20 +22,42 @@ public final class CosmeticModel {
 	public final int width, height;
 	public final List<Part> parts;
 
-	/** Część modelu: na tułowiu (body) albo głowie, z własnym środkiem obrotu, obrotem, kręceniem i prostopadłościanami. */
+	/** Kość części: głowa, tułów albo pet (współrzędne względem kotwicy peta, od 0.34.0). */
+	public static final int HEAD = 0, BODY = 1, PET = 2;
+	/** Widoczność części: zawsze, tylko na jawie, tylko we śnie (oczy peta). */
+	public static final int ALWAYS = 0, AWAKE = 1, SLEEP = 2;
+
+	/**
+	 * Część modelu: na tułowiu, głowie albo pecie, z własnym środkiem obrotu, obrotem, kręceniem i prostopadłościanami; od 0.34.0
+	 * ruch (Pets.pose): wave = kołysanie [ax, ay, az, hz, faza], step = łapka przy chodzie, sit = [ax, ay, az, dy] przy kucaniu.
+	 */
 	public static final class Part {
+		public final int bone;
 		public final boolean body;
 		public final float[] pivot, rot;
 		public final float spin;
 		/** Każdy: u, v, x, y, z, w, h, d, powiększenie. */
 		public final List<float[]> boxes;
+		public final float[] wave, sit;
+		public final float step;
+		public final int state;
 
-		Part(boolean body, float[] pivot, float[] rot, float spin, List<float[]> boxes) {
-			this.body = body;
+		Part(int bone, float[] pivot, float[] rot, float spin, List<float[]> boxes, float[] wave, float step, float[] sit, int state) {
+			this.bone = bone;
+			this.body = bone == BODY;
 			this.pivot = pivot;
 			this.rot = rot;
 			this.spin = spin;
 			this.boxes = Collections.unmodifiableList(boxes);
+			this.wave = wave;
+			this.step = step;
+			this.sit = sit;
+			this.state = state;
+		}
+
+		/** Czy część się rusza sama (kręci, kołysze, chodzi, kuca albo zależy od snu). */
+		public boolean moves() {
+			return spin != 0 || wave != null || step != 0 || sit != null || state != ALWAYS;
 		}
 	}
 
@@ -48,6 +70,12 @@ public final class CosmeticModel {
 	/** Czy któraś część się kręci. */
 	public boolean spins() {
 		for (Part p : parts) if (p.spin != 0) return true;
+		return false;
+	}
+
+	/** Czy któraś część się rusza (Part.moves). */
+	public boolean moves() {
+		for (Part p : parts) if (p.moves()) return true;
 		return false;
 	}
 
@@ -109,6 +137,18 @@ public final class CosmeticModel {
 		return out;
 	}
 
+	/** Dokładnie n liczb albo null. */
+	private static float[] nums(Object v, int n) {
+		if (!(v instanceof List) || ((List<?>) v).size() != n) return null;
+		float[] out = new float[n];
+		for (int i = 0; i < n; i++) {
+			Object x = ((List<?>) v).get(i);
+			if (!num(x, 1e6)) return null;
+			out[i] = ((Double) x).floatValue();
+		}
+		return out;
+	}
+
 	private static boolean whole(double d) {
 		return d == Math.rint(d);
 	}
@@ -124,7 +164,18 @@ public final class CosmeticModel {
 			Map<?, ?> p = (Map<?, ?>) po;
 			Object bone = p.containsKey("bone") ? p.get("bone") : "head", spinV = p.containsKey("spin") ? p.get("spin") : Double.valueOf(0);
 			float[] pivot = vec(p, "pivot", 64), rot = vec(p, "rot", 360);
-			if (!("head".equals(bone) || "body".equals(bone)) || pivot == null || rot == null || !num(spinV, 7200) || !(p.get("boxes") instanceof List)) return null;
+			if (!("head".equals(bone) || "body".equals(bone) || "pet".equals(bone)) || pivot == null || rot == null || !num(spinV, 7200) || !(p.get("boxes") instanceof List)) return null;
+			float[] wave = null, sit = null;
+			if (p.containsKey("wave")) {
+				wave = nums(p.get("wave"), 5);
+				if (wave == null || Math.abs(wave[0]) > 180 || Math.abs(wave[1]) > 180 || Math.abs(wave[2]) > 180 || !(wave[3] > 0 && wave[3] <= 10) || wave[4] < 0 || wave[4] > 1) return null;
+			}
+			if (p.containsKey("sit")) {
+				sit = nums(p.get("sit"), 4);
+				if (sit == null || Math.abs(sit[0]) > 180 || Math.abs(sit[1]) > 180 || Math.abs(sit[2]) > 180 || Math.abs(sit[3]) > 16) return null;
+			}
+			Object stepV = p.containsKey("step") ? p.get("step") : Double.valueOf(0), stateV = p.containsKey("state") ? p.get("state") : "";
+			if (!num(stepV, 90) || !("".equals(stateV) && !p.containsKey("state") || "awake".equals(stateV) || "sleep".equals(stateV))) return null;
 			List<float[]> boxes = new ArrayList<float[]>();
 			for (Object bo : (List<?>) p.get("boxes")) {
 				if (!(bo instanceof List)) return null;
@@ -145,7 +196,8 @@ public final class CosmeticModel {
 			}
 			count += boxes.size();
 			if (boxes.isEmpty() || count > MAX_BOXES) return null;
-			parts.add(new Part("body".equals(bone), pivot, rot, ((Double) spinV).floatValue(), boxes));
+			parts.add(new Part("body".equals(bone) ? BODY : "pet".equals(bone) ? PET : HEAD, pivot, rot, ((Double) spinV).floatValue(), boxes, wave,
+					((Double) stepV).floatValue(), sit, "awake".equals(stateV) ? AWAKE : "sleep".equals(stateV) ? SLEEP : ALWAYS));
 		}
 		return new CosmeticModel(tw, th, parts);
 	}

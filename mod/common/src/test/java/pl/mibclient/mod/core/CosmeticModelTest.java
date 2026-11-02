@@ -23,7 +23,15 @@ class CosmeticModelTest {
 			"{\"parts\":[{\"boxes\":[[0,0,0,0,0,1,1]]}]}", "{\"parts\":[{\"boxes\":[[0.5,0,0,0,0,1,1,1]]}]}", "{\"parts\":[{\"boxes\":[[40,0,0,0,0,8,1,8]]}]}",
 			"{\"parts\":[{\"boxes\":[[0,30,0,0,0,1,2,1]]}]}", "{\"parts\":[{\"boxes\":[[0,0,65,0,0,1,1,1]]}]}", "{\"parts\":[{\"pivot\":null,\"boxes\":[[0,0,0,0,0,1,1,1]]}]}",
 			"{\"parts\":[{\"rot\":[0,0],\"boxes\":[[0,0,0,0,0,1,1,1]]}]}", "{\"parts\":[{\"spin\":\"x\",\"boxes\":[[0,0,0,0,0,1,1,1]]}]}",
-			"{\"parts\":[{\"boxes\":[[0,0,0,0,0,1,1,1,9]]}]}", "{\"parts\":[{\"boxes\":[[0,0,0,0,0,-1,1,1]]}]}", "nie json"};
+			"{\"parts\":[{\"boxes\":[[0,0,0,0,0,1,1,1,9]]}]}", "{\"parts\":[{\"boxes\":[[0,0,0,0,0,-1,1,1]]}]}", "nie json",
+			// ruch części (0.34.0)
+			"{\"parts\":[{\"wave\":[1,2,3,1],\"boxes\":[[0,0,0,0,0,1,1,1]]}]}", "{\"parts\":[{\"wave\":[1,2,3,0,0],\"boxes\":[[0,0,0,0,0,1,1,1]]}]}",
+			"{\"parts\":[{\"wave\":[1,2,3,1,2],\"boxes\":[[0,0,0,0,0,1,1,1]]}]}", "{\"parts\":[{\"step\":91,\"boxes\":[[0,0,0,0,0,1,1,1]]}]}",
+			"{\"parts\":[{\"sit\":[0,0,0],\"boxes\":[[0,0,0,0,0,1,1,1]]}]}", "{\"parts\":[{\"state\":\"x\",\"boxes\":[[0,0,0,0,0,1,1,1]]}]}",
+			"{\"parts\":[{\"state\":null,\"boxes\":[[0,0,0,0,0,1,1,1]]}]}", "{\"parts\":[{\"wave\":null,\"boxes\":[[0,0,0,0,0,1,1,1]]}]}",
+			"{\"parts\":[{\"bone\":\"pet\",\"step\":null,\"boxes\":[[0,0,0,0,0,1,1,1]]}]}"};
+	/** Pet z ruchem: kołysanie, łapka, kucanie, oczy tylko we śnie (ten sam w test/profile.test.js). */
+	static final String PET = "{\"parts\":[{\"bone\":\"pet\",\"rot\":[5,0,0],\"wave\":[20,0,10,1,0.1],\"step\":30,\"sit\":[0,0,10,2],\"boxes\":[[0,0,-2,-4,-2,4,4,4]]},{\"bone\":\"pet\",\"state\":\"sleep\",\"boxes\":[[0,8,-1,-3,-2.1,2,1,0]]}]}";
 
 	/** PNG z samym nagłówkiem i kawałkiem tEXt (bez obrazka — wystarczy do odczytu modelu). */
 	static byte[] png(int w, int h, String text, String key) {
@@ -112,5 +120,46 @@ class CosmeticModelTest {
 			if (id.endsWith("kotylion")) for (CosmeticModel.Part p : cm.parts) assertTrue(p.body, "kotylion na piersi");
 			if (id.endsWith("smiglo")) assertTrue(cm.spins(), "śmigło się kręci");
 		}
+	}
+
+	/** Pozy i miejsce peta — te same liczby co partPose/petAnchor w launcherze. */
+	@Test
+	void petPoseMatchesLauncher() {
+		CosmeticModel m = CosmeticModel.parse(png(64, 32, PET));
+		assertNotNull(m);
+		CosmeticModel.Part a = m.parts.get(0), e = m.parts.get(1);
+		assertEquals(CosmeticModel.PET, a.bone);
+		assertArrayEquals(new float[] {20, 0, 10, 1, 0.1f}, a.wave);
+		assertArrayEquals(new float[] {0, 0, 10, 2}, a.sit);
+		assertEquals(30f, a.step);
+		assertEquals(CosmeticModel.SLEEP, e.state);
+		assertTrue(m.moves());
+		float[] r = new float[3];
+		assertEquals(0f, Pets.pose(a, 0.37f, false, false, false, 0, 0, r));
+		assertEquals(8.7476262917145, r[0], 1e-4);
+		assertEquals(1.8738131458572502, r[2], 1e-4);
+		Pets.pose(a, 0.37f, true, false, false, 0, 0, r);
+		assertEquals(-22.858628475476404, r[0], 1e-4);
+		assertEquals(-13.929314237738202, r[2], 1e-4);
+		Pets.pose(a, 0.37f, false, true, false, 0, 0, r);
+		assertEquals(6.12428788751435, r[0], 1e-4);
+		Pets.pose(a, 0.37f, false, false, false, 1, 1.1f, r);
+		assertEquals(35.48384709355756, r[0], 1e-4);
+		assertEquals(2f, Pets.pose(a, 0.37f, false, false, true, 0, 0, r));
+		assertEquals(11.87381314585725, r[2], 1e-4);
+		assertTrue(Float.isNaN(Pets.pose(e, 1, false, false, false, 0, 0, r)), "oczy zamknięte tylko we śnie");
+		assertFalse(Float.isNaN(Pets.pose(e, 1, false, true, false, 0, 0, r)));
+		float[] pos = new float[3];
+		assertEquals(0.8f, Pets.anchor(Pets.FLY, -1, 0.37f, false, pos));
+		assertArrayEquals(new float[] {-11, -1.8986944491792226f, 1}, pos, 1e-4f);
+		Pets.anchor(Pets.FLY, 1, 0.37f, true, pos);
+		assertArrayEquals(new float[] {11, -2, 1}, pos);
+		assertEquals(0.6f, Pets.anchor(Pets.SHOULDER, -1, 0, false, pos));
+		assertArrayEquals(new float[] {-6, 0, 0}, pos);
+		assertEquals(1f, Pets.anchor(Pets.WALK, 1, 0, false, pos));
+		assertArrayEquals(new float[] {14, 24, 3}, pos);
+		assertEquals(Pets.FLY, Pets.mode("nie_ma"));
+		assertEquals(-1, Pets.side("right"));
+		assertTrue(Pets.sleeping(30000) && !Pets.sleeping(29999));
 	}
 }

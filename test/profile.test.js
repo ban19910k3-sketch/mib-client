@@ -281,13 +281,20 @@ const MODEL_GOOD = '{"parts":[{"boxes":[[0,0,-4,-9,-4,8,1,8]]},{"bone":"body","p
 const MODEL_BAD = ['{"parts":[]}', '{"parts":[{"boxes":[]}]}', '{"parts":[{"bone":"arm","boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"boxes":[[0,0,0,0,0,1,1]]}]}',
   '{"parts":[{"boxes":[[0.5,0,0,0,0,1,1,1]]}]}', '{"parts":[{"boxes":[[40,0,0,0,0,8,1,8]]}]}', '{"parts":[{"boxes":[[0,30,0,0,0,1,2,1]]}]}', '{"parts":[{"boxes":[[0,0,65,0,0,1,1,1]]}]}',
   '{"parts":[{"pivot":null,"boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"rot":[0,0],"boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"spin":"x","boxes":[[0,0,0,0,0,1,1,1]]}]}',
-  '{"parts":[{"boxes":[[0,0,0,0,0,1,1,1,9]]}]}', '{"parts":[{"boxes":[[0,0,0,0,0,-1,1,1]]}]}', 'nie json'];
+  '{"parts":[{"boxes":[[0,0,0,0,0,1,1,1,9]]}]}', '{"parts":[{"boxes":[[0,0,0,0,0,-1,1,1]]}]}', 'nie json',
+  // ruch części (0.34.0)
+  '{"parts":[{"wave":[1,2,3,1],"boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"wave":[1,2,3,0,0],"boxes":[[0,0,0,0,0,1,1,1]]}]}',
+  '{"parts":[{"wave":[1,2,3,1,2],"boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"step":91,"boxes":[[0,0,0,0,0,1,1,1]]}]}',
+  '{"parts":[{"sit":[0,0,0],"boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"state":"x","boxes":[[0,0,0,0,0,1,1,1]]}]}',
+  '{"parts":[{"state":null,"boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"wave":null,"boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"bone":"pet","step":null,"boxes":[[0,0,0,0,0,1,1,1]]}]}'];
+// pet z ruchem: kołysanie, łapka, kucanie, oczy tylko we śnie (te same w CosmeticModelTest.java)
+const MODEL_PET = '{"parts":[{"bone":"pet","rot":[5,0,0],"wave":[20,0,10,1,0.1],"step":30,"sit":[0,0,10,2],"boxes":[[0,0,-2,-4,-2,4,4,4]]},{"bone":"pet","state":"sleep","boxes":[[0,8,-1,-3,-2.1,2,1,0]]}]}';
 
 test('cosmeticModel: model z kawałka tEXt „mib-model” w PNG, sprawdzony jak w modzie', () => {
   const m = P.cosmeticModel(pngWith(64, 32, MODEL_GOOD));
   assert.deepEqual(m, { w: 64, h: 32, parts: [
-    { bone: 'head', pivot: [0, 0, 0], rot: [0, 0, 0], spin: 0, boxes: [[0, 0, -4, -9, -4, 8, 1, 8, 0]] },
-    { bone: 'body', pivot: [2, 4, 0], rot: [0, 0, -16], spin: 90, boxes: [[0, 9, -1, 0, -3, 2, 4, 1, -0.1]] }] });
+    { bone: 'head', pivot: [0, 0, 0], rot: [0, 0, 0], spin: 0, boxes: [[0, 0, -4, -9, -4, 8, 1, 8, 0]], wave: null, step: 0, sit: null, state: null },
+    { bone: 'body', pivot: [2, 4, 0], rot: [0, 0, -16], spin: 90, boxes: [[0, 9, -1, 0, -3, 2, 4, 1, -0.1]], wave: null, step: 0, sit: null, state: null }] });
   // z data URL (tak przychodzi z bazy) to samo
   assert.deepEqual(P.cosmeticModel('data:image/png;base64,' + pngWith(64, 32, MODEL_GOOD).toString('base64')), m);
   // animacja (klatki 64×32 jedna pod drugą): model w układzie jednej klatki
@@ -340,4 +347,30 @@ test('cosmeticModel: czapki z modelem 3D w schema.sql (0.33.0) są poprawne', ()
   assert.ok(kot.parts.every(p => p.bone === 'body'), 'kotylion na piersi');
   const smiglo = P.cosmeticModel(sql.match(/\('dziendziecka_hat_smiglo', [^)]*'(data:[^']+)'\)/)[1]);
   assert.ok(smiglo.parts.some(p => p.spin), 'śmigło się kręci');
+});
+
+test('partPose i petAnchor: ruch części i miejsce peta (te same liczby w CosmeticModelTest.java)', () => {
+  const m = P.cosmeticModel(pngWith(64, 32, MODEL_PET)), a = m.parts[0], e = m.parts[1];
+  assert.deepEqual([a.bone, a.wave, a.step, a.sit, e.state], ['pet', [20, 0, 10, 1, 0.1], 30, [0, 0, 10, 2], 'sleep']);
+  const near = (x, y) => Math.abs(x - y) < 1e-9;
+  const pose = c => P.partPose(a, c);
+  let r = pose({ t: 0.37 });
+  assert.ok(near(r.rot[0], 8.7476262917145) && near(r.rot[2], 1.8738131458572502) && r.dy === 0 && r.visible);
+  r = pose({ t: 0.37, run: true });
+  assert.ok(near(r.rot[0], -22.858628475476404) && near(r.rot[2], -13.929314237738202), 'bieg: szybciej i mocniej');
+  r = pose({ t: 0.37, sleep: true });
+  assert.ok(near(r.rot[0], 6.12428788751435) && near(r.rot[2], 0.562143943757175), 'sen: słabiej');
+  r = pose({ t: 0.37, walk: 1, phase: 1.1 });
+  assert.ok(near(r.rot[0], 35.48384709355756), 'łapka przy chodzie');
+  r = pose({ t: 0.37, crouch: true });
+  assert.ok(near(r.rot[2], 11.87381314585725) && r.dy === 2, 'kucanie');
+  assert.equal(P.partPose(e, { t: 1 }).visible, false, 'oczy zamknięte tylko we śnie');
+  assert.equal(P.partPose(e, { t: 1, sleep: true }).visible, true);
+  assert.deepEqual(P.partPose({ rot: [0, 10, 0], spin: 90, wave: null, step: 0, sit: null, state: null }, { t: 5 }).rot, [0, 100, 0], 'kręcenie');
+  const fly = P.petAnchor('fly', 'right', 0.37, false);
+  assert.ok(fly.bone === 'root' && fly.pos[0] === -11 && near(fly.pos[1], -1.8986944491792226) && fly.pos[2] === 1 && fly.scale === 0.8);
+  assert.deepEqual(P.petAnchor('fly', 'left', 0.37, true), { bone: 'root', pos: [11, -2, 1], scale: 0.8 }, 'śpi: bez bujania, niżej');
+  assert.deepEqual(P.petAnchor('shoulder', 'right', 0, false), { bone: 'body', pos: [-6, 0, 0], scale: 0.6 });
+  assert.deepEqual(P.petAnchor('walk', 'left', 0, false), { bone: 'root', pos: [14, 24, 3], scale: 1 });
+  assert.deepEqual(P.petAnchor('nie_ma', 'x', 0, true).pos, [11, -2, 1], 'nieznany tryb = lata po lewej');
 });
