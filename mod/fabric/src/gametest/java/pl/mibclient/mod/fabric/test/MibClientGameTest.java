@@ -299,7 +299,8 @@ public class MibClientGameTest implements FabricClientGameTest {
 				int[] ct = s.view().layout().content, b = pl.mibclient.mod.fabric.FabricCanvas.lastPlayerBox;
 				if (b == null) return "postać w podglądzie kosmetyków się nie narysowała";
 				float f = s.menuScale() / (float) c.getWindow().getGuiScale();
-				int[] want = {Math.round((ct[0] + 2) * f), Math.round((ct[1] + 42) * f), Math.round((ct[0] + 82) * f)};
+				// nad podglądem wiersz „Pety innych graczy” (od 0.34.0, 26 pikseli menu)
+				int[] want = {Math.round((ct[0] + 2) * f), Math.round((ct[1] + 42 + 26) * f), Math.round((ct[0] + 82) * f)};
 				if (Math.abs(b[0] - want[0]) > 2 || Math.abs(b[1] - want[1]) > 2 || Math.abs(b[2] - want[2]) > 2)
 					return "postać poza ramką podglądu: " + java.util.Arrays.toString(b) + " zamiast " + java.util.Arrays.toString(want);
 				return null;
