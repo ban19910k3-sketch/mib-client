@@ -320,18 +320,23 @@ function png(w, h, px) {
     // Święta (0.25.0): maska i wysoka czapka na podglądzie, kolekcja w sklepie z datą końca, nagroda świąteczna i kalendarz
     // adwentowy na stronie głównej (dzień w atrapie: 5 grudnia), wyłączenie motywów w Ustawieniach. Tekstury z schema.sql.
     const seededP = id => new RegExp("\\('" + id + "', '[^']*', '\\w+', \\w+, '(data:image/png;base64,[^']+)'\\)").exec(fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8'))[1];
-    for (const [id, name, type, price] of [['adwent_mask_broda', 'Broda Mikołaja', 'mask', null], ['zima_hat_renifer', 'Rogi renifera', 'hat', 600], ['zima_hat_elf', 'Czapka elfa', 'hat', 500], ['adwent_hat_pompon', 'Czapka z pomponem', 'hat', null]])
+    for (const [id, name, type, price] of [['adwent_mask_broda', 'Broda Mikołaja', 'mask', null], ['zima_hat_renifer', 'Rogi renifera', 'hat', 600], ['zima_hat_elf', 'Czapka elfa', 'hat', 500], ['adwent_hat_pompon', 'Czapka z pomponem', 'hat', null], ['zima_hat_balwan', 'Bałwan', 'hat', 700]])
       fake.cosmetics[id] = { id, name, type, price, image_url: null, texture: seededP(id) };
-    fake.st.owned.push({ user: tester.id, cosmetic: 'adwent_mask_broda', at: new Date().toISOString() }, { user: tester.id, cosmetic: 'zima_hat_renifer', at: new Date().toISOString() });
+    fake.st.owned.push({ user: tester.id, cosmetic: 'adwent_mask_broda', at: new Date().toISOString() }, { user: tester.id, cosmetic: 'zima_hat_renifer', at: new Date().toISOString() },
+      { user: tester.id, cosmetic: 'zima_hat_balwan', at: new Date().toISOString() });
     await w.click('.nav[data-p="home"]');
     await w.click('.nav[data-p="cos"]');
     await w.waitForSelector('.cosi[data-id="adwent_mask_broda"] canvas.headth');
-    assert.equal(await w.$eval('.cosi[data-id="zima_hat_renifer"] canvas.headth', c => c.height), 72, 'miniatura wysokiej czapki z drugą kostką');
+    assert.equal(await w.$eval('.cosi[data-id="zima_hat_balwan"] canvas.headth', c => c.height), 72, 'miniatura wysokiej czapki z drugą kostką');
+    // rogi renifera mają model 3D w teksturze (0.33.0): miniatura modelu z boku i z góry
+    assert.ok(await w.$eval('.cosi[data-id="zima_hat_renifer"] canvas.headth', c => c.classList.contains('modelth') && c.getContext('2d').getImageData(0, 0, 128, 128).data.some((v, i) => i % 4 === 3 && v > 0)), 'miniatura czapki z modelem');
     assert.match(await w.textContent('.cosi[data-id="adwent_mask_broda"]'), /Broda Mikołaja/);
     await w.click('.cosi[data-id="adwent_mask_broda"] b');
     await w.waitForFunction(() => document.getElementById('skin3d').dataset.mask === '1');
-    await w.click('.cosi[data-id="zima_hat_renifer"] b');
+    await w.click('.cosi[data-id="zima_hat_balwan"] b');
     await w.waitForFunction(() => document.getElementById('skin3d').dataset.hat === 'tall' && document.getElementById('skin3d').dataset.mask === '1');
+    await w.click('.cosi[data-id="zima_hat_renifer"] b');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.hat === 'model' && document.getElementById('skin3d').dataset.mask === '1');
     await w.$eval('#skin3d', el => el.scrollIntoView({ block: 'start' }));
     await w.waitForTimeout(1500);
     await shot('swieta-try.png');

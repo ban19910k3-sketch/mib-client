@@ -1302,3 +1302,11 @@ reset role;
 -- ponowne uruchomienie schematu niczego nie psuje
 do $$ begin perform private.sync_admins(); assert (select count(*) from private.admins) = 1, 'jeden admin'; end $$;
 
+-- czapki z modelem 3D (0.33.0): podmienione raz w bazie sprzed 0.33.0, inne tekstury zmienione z panelu admina zostają
+do $$ begin
+  assert (select count(*) from public.cosmetics where id in ('zima_hat_mikolaj', 'zima_hat_renifer', 'zima_hat_elf', 'adwent_hat_pompon', 'sylwester_hat_cylinder',
+    'wielkanoc_hat_uszy', 'primaaprilis_hat_blazen', 'dziendziecka_hat_smiglo', 'wakacje_hat_slomkowy', 'niepodleglosc_hat_kotylion')
+    and position('mib-model'::bytea in decode(substr(texture, 23), 'base64')) > 0) = 10, 'dziesięć czapek z modelem 3D';
+  assert (select texture from public.cosmetics where id = 'zima_hat_balwan') = 'data:image/png;base64,c3RhcmE=', 'zmiana z panelu admina została';
+  assert exists (select 1 from private.migrations where id = 'czapki-0.33'), 'podmiana zapisana';
+end $$;

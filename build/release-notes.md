@@ -1,11 +1,7 @@
-<!-- 0.32.0 -->
-## Dodane
-
-- Filtr rodzajów w Kosmetykach i Sklepie: peleryny, czapki, maski, skrzydła, aury.
-- Obracanie postaci przyciskami i lista założonych przedmiotów obok podglądu.
-
+<!-- 0.33.0 -->
 ## Zmienione
 
-- Nowy wygląd Kosmetyk i Sklepu: duża postać z lewej, przedmioty z prawej, ustawienia skina w osobnej zakładce Skin.
-- Dopracowane tekstury wszystkich kosmetyków na Halloween i święta: cieniowanie, obrysy i faktura materiału, nowe uszy zajączka.
-- Ładniejsze karty nagród świątecznych, kolekcje świąteczne w Sklepie i kalendarz adwentowy.
+- Czapki świąteczne mają prawdziwe kształty 3D zamiast płaskich kostek: czapka Mikołaja i czapka elfa z opadającym czubkiem, rogi renifera z odnogami, uszy zająca, sylwestrowy cylinder z rondem, słomkowy kapelusz z szerokim rondem, czapka błazna z dzwoneczkami i czapka z pomponem MiB.
+- Czapka ze śmigiełkiem ma śmigło, które się kręci.
+- Kotylion jest przypięty na piersi.
+- Miniatury tych czapek w Kosmetykach i Sklepie pokazują je w 3D.

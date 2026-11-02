@@ -687,6 +687,8 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 				hooks.add("cos_anim");
 			}
 			if (Cosmetics.fairyWings(w)) for (MibId id : out) WIDE.add(id);
+			pl.mibclient.mod.core.CosmeticModel model = pl.mibclient.mod.core.CosmeticModel.parse(png);
+			if (model != null) for (MibId id : out) MODELS.put(id, model);
 			return out;
 		} catch (Exception e) {
 			return null;
@@ -698,6 +700,14 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	 * a jako czapka — wysoka czapka z drugą kostką (HatLayer).
 	 */
 	private static final java.util.Set<MibId> WIDE = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+	/** Modele 3D z tekstur (kawałek „mib-model” w PNG, od 0.33.0): czapka albo maska rysuje się jako model (HatLayer). */
+	private static final java.util.Map<MibId, pl.mibclient.mod.core.CosmeticModel> MODELS = new java.util.concurrent.ConcurrentHashMap<MibId, pl.mibclient.mod.core.CosmeticModel>();
+
+	/** Model 3D tej tekstury albo null. */
+	static pl.mibclient.mod.core.CosmeticModel model(MibId id) {
+		return id == null ? null : MODELS.get(id);
+	}
 
 	/** Czy tekstura jest szeroka na co najmniej 128 pikseli (skrzydła wróżki, wysoka czapka). */
 	static boolean wide(MibId id) {
@@ -722,6 +732,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	static void releaseTexture(MibId id) {
 		if (id == null) return;
 		WIDE.remove(id);
+		MODELS.remove(id);
 		Minecraft.getInstance().getTextureManager().release(id);
 	}
 

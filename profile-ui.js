@@ -312,6 +312,8 @@
   }
   // Miniatura czapki i maski: przód kostki (gdy pusty, lewy bok) z nakładką; wysoka czapka z drugą kostką nad pierwszą
   function headThumb(url, type) {
+    const model = MibProfile.cosmeticModel(url);
+    if (model) return modelThumb(url, model);
     const c = h('canvas', { width: 40, height: 40, class: 'headth' }), x = c.getContext('2d');
     loadImg(url).then(img => {
       const tall = type === 'hat' && MibProfile.hatModel(img.width) === 'tall', u = img.width / (tall ? 128 : 64);
@@ -324,6 +326,38 @@
       const box = (sx, y) => { x.drawImage(img, sx * u, 8 * u, 8 * u, 8 * u, 4, y + 4, 32, 32); x.drawImage(img, (sx + 32) * u, 8 * u, 8 * u, 8 * u, 2, y + 2, 36, 36); };
       if (tall) box(fx + 64, 0);
       box(fx, tall ? 32 : 0);
+    }, () => {});
+    return c;
+  }
+  // Miniatura kosmetyku z modelem 3D (MibProfile.cosmeticModel): model z boku i z góry, ściany z pierwszej klatki tekstury
+  // przyciemnione jak w grze (wierzch najjaśniejszy, boki najciemniejsze)
+  function modelThumb(url, model) {
+    const c = h('canvas', { width: 128, height: 128, class: 'headth modelth' }), x = c.getContext('2d');
+    loadImg(url).then(img => {
+      const faces = MibProfile.modelFaces(model, -28, 22);
+      if (!faces.length) return;
+      const shaded = new Map();
+      const tex = shade => {
+        if (!shaded.has(shade)) {
+          const t = document.createElement('canvas'); t.width = model.w; t.height = model.h;
+          const tx = t.getContext('2d');
+          tx.drawImage(img, 0, 0, model.w, model.h, 0, 0, model.w, model.h);
+          tx.globalCompositeOperation = 'source-atop'; tx.fillStyle = `rgba(0,0,0,${1 - shade})`; tx.fillRect(0, 0, model.w, model.h);
+          shaded.set(shade, t);
+        }
+        return shaded.get(shade);
+      };
+      const xs = [], ys = [];
+      for (const { p: [a, b, d] } of faces) for (const q of [a, b, d, [b[0] + d[0] - a[0], b[1] + d[1] - a[1]]]) { xs.push(q[0]); ys.push(q[1]); }
+      const x0 = Math.min(...xs), y0 = Math.min(...ys), k = Math.min(120 / (Math.max(...xs) - x0), 120 / (Math.max(...ys) - y0));
+      const ox = (128 - (Math.max(...xs) - x0) * k) / 2 - x0 * k, oy = (128 - (Math.max(...ys) - y0) * k) / 2 - y0 * k;
+      x.imageSmoothingEnabled = false;
+      for (const f of faces) {
+        const [a, b, d] = f.p.map(q => [q[0] * k + ox, q[1] * k + oy]), [u, v, w, hh] = f.uv;
+        x.setTransform((b[0] - a[0]) / w, (b[1] - a[1]) / w, (d[0] - a[0]) / hh, (d[1] - a[1]) / hh, a[0], a[1]);
+        x.drawImage(tex(f.shade), u, v, w, hh, 0, 0, w, hh);
+      }
+      x.setTransform(1, 0, 0, 1, 0, 0);
     }, () => {});
     return c;
   }
@@ -436,20 +470,21 @@
     const my = st.gen = (st.gen || 0) + 1;
     const load = u => (u ? frames(u).catch(() => null) : null);
     const [cf, wf, hf, mf, af] = await Promise.all([load(cape), load(wings), load(hat), load(mask), load(aura && aura.texture)]);
+    const hm = hf && MibProfile.cosmeticModel(hat), mm = mf && MibProfile.cosmeticModel(mask);
     if (st.gen !== my) return null;
     clearInterval(st.timer); st.timer = null;
     const fairy = wf && MibProfile.wingsModel(wf[0].width) === 'fairy' ? wf : null;
     const bf = cf || (wf && !fairy ? wf : null), kind = cf ? 'cape' : bf ? 'elytra' : '';
     try { if (bf) viewer.loadCape(bf[0], { backEquipment: kind }); else viewer.resetCape(); } catch {}
-    await putHead(viewer, st, 'hat', hf, my);
+    await putHead(viewer, st, 'hat', hf, my, hm);
     if (st.gen !== my) return null;
-    await putHead(viewer, st, 'mask', mf, my);
+    await putHead(viewer, st, 'mask', mf, my, mm);
     if (st.gen !== my) return null;
     // wysoka czapka wystaje nad głowę: kamera trochę dalej i postać niżej, żeby zmieściła się w podglądzie
     if (st.zoom0 == null) st.zoom0 = viewer.zoom;
-    const tall = !!(st.hat && st.hat.parts.length > 1);
-    viewer.zoom = tall ? st.zoom0 * 0.84 : st.zoom0;
-    if (viewer.playerWrapper) viewer.playerWrapper.position.y = tall ? -3 : 0;
+    const tall = !!(st.hat && (st.hat.model ? st.hat.top < -13 : st.hat.parts.length > 1)), taller = tall && st.hat.model && st.hat.top < -18;
+    viewer.zoom = st.zoom0 * (taller ? 0.76 : tall ? 0.84 : 1);
+    if (viewer.playerWrapper) viewer.playerWrapper.position.y = taller ? -5 : tall ? -3 : 0;
     await putWings(viewer, st, fairy, my);
     if (st.gen !== my) return null;
     const style = af && MibProfile.auraStyle(aura.id);
@@ -466,8 +501,8 @@
         if (fairy && fairy.length > 1 && st.wingTex) draw(st.wingCanvas, fairy[i % fairy.length], 0, st.wingTex);
       }, MibProfile.CAPE_FRAME_MS);
     }
-    if (st.wings || st.aura) animate(viewer, st);
-    return { back: kind, fairy: !!st.wings, hat: st.hat ? (st.hat.parts.length > 1 ? 'tall' : '1') : '', mask: !!st.mask, aura: st.aura ? style : '', frames: n };
+    if (st.wings || st.aura || spinning(st)) animate(viewer, st);
+    return { back: kind, fairy: !!st.wings, hat: st.hat ? (st.hat.model ? 'model' : st.hat.parts.length > 1 ? 'tall' : '1') : '', mask: !!st.mask, aura: st.aura ? style : '', frames: n };
   }
   function draw(canvas, frame, y, tex) {
     const x = canvas.getContext('2d');
@@ -478,12 +513,18 @@
   // Czapka i maska: kopia głowy postaci powiększona jak hełm (czapka 10 i 11 pikseli zamiast 8, maska 9,2 i 10,2 — pod czapką)
   // z teksturą w górnej połowie płótna 64×64, tak jak leżą głowa i nakładka na skinie. Wysoka czapka (tekstura szeroka
   // na 128 px, MibProfile.hatModel) ma drugą taką kostkę 10 pikseli wyżej z prawej połowy tekstury (w grze tak samo: HatLayer).
-  async function putHead(viewer, st, slot, hf, my) {
+  async function putHead(viewer, st, slot, hf, my, model) {
     const head = viewer.playerObject && viewer.playerObject.skin && viewer.playerObject.skin.head;
-    if (st[slot]) { for (const m of st[slot].meshes) { if (m.parent) m.parent.remove(m); m.material.dispose(); } for (const p of st[slot].parts) p.tex.dispose(); st[slot] = null; }
+    if (st[slot]) {
+      for (const m of st[slot].meshes) { if (m.parent) m.parent.remove(m); if (st[slot].model) m.geometry.dispose(); else m.material.dispose(); }
+      if (st[slot].model) st[slot].mat.dispose();
+      for (const p of st[slot].parts) p.tex.dispose();
+      st[slot] = null;
+    }
     if (!hf || !head || !head.innerLayer || !head.outerLayer) return;
     const Tex = await texClass(viewer, st, my);
     if (!Tex || st.gen !== my) return;
+    if (model) { putModel(viewer, st, slot, hf, model, Tex); return; }
     const tall = slot === 'hat' && MibProfile.hatModel(hf[0].width) === 'tall', k = hf[0].width / (tall ? 128 : 64);
     const sizes = slot === 'mask' ? [9.2, 10.2] : [10, 11];
     const parts = (tall ? [0, 64] : [0]).map(sx => {
@@ -505,6 +546,35 @@
     }));
     st[slot] = { parts, meshes };
   }
+  // Kosmetyk z modelem 3D (MibProfile.cosmeticModel): każdy prostopadłościan to osobna siatka na głowie albo tułowiu postaci,
+  // w układzie skinview3d (y w górę, przód w stronę +z: y i z z odwrotnym znakiem, obroty wokół y i z też). Tułów skinview3d
+  // ma środek 6 pikseli pod szyją, a w grze środek tułowia jest na szyi. Tak samo w grze: HatLayer.ModelHat.
+  function putModel(viewer, st, slot, hf, model, Tex) {
+    const skin = viewer.playerObject.skin, src = skin.head.innerLayer, Box = src.geometry.constructor, Mesh = src.constructor;
+    const cv = document.createElement('canvas');
+    cv.width = model.w; cv.height = model.h;
+    const p = { cv, sx: 0, lift: 0, tex: newTex(viewer, Tex, cv) };
+    paint(p, hf[0]);
+    const mat = skin.head.outerLayer.material.clone();
+    mat.map = p.tex; mat.transparent = false; mat.alphaTest = 0.5;
+    const rad = a => a * Math.PI / 180, meshes = [], spins = [];
+    let top = 0;
+    for (const part of model.parts) for (const [u, v, x, y, z, w, h, d, inf] of part.boxes) {
+      const g = new Box(w + 2 * inf, h + 2 * inf, d + 2 * inf);
+      g.translate(x + w / 2, -(y + h / 2), -(z + d / 2));
+      g.attributes.uv.array.set(MibProfile.boxUVs(u, v, w, h, d, model.w, model.h));
+      g.attributes.uv.needsUpdate = true;
+      const m = new Mesh(g, mat);
+      m.position.set(part.pivot[0], -part.pivot[1] + (part.bone === 'body' ? 6 : 0), -part.pivot[2]);
+      m.rotation.set(rad(part.rot[0]), -rad(part.rot[1]), -rad(part.rot[2]), 'ZYX');
+      (part.bone === 'body' ? skin.body : skin.head).add(m);
+      meshes.push(m);
+      if (part.spin) spins.push([m, part]);
+      if (part.bone === 'head') top = Math.min(top, part.pivot[1] + y - inf);
+    }
+    st[slot] = { parts: [p], meshes, spins, model: true, mat, top };
+  }
+  const spinning = st => !!((st.hat && st.hat.spins && st.hat.spins.length) || (st.mask && st.mask.spins && st.mask.spins.length));
   // Część tekstury czapki (od sx, 64×32 w skali tekstury) w górnej połowie płótna części
   function paint(p, frame) {
     const x = p.cv.getContext('2d'), w = p.cv.width;
@@ -559,7 +629,9 @@
     let q = null;
     const tick = now => {
       st.raf = 0;
-      if (!viewer.canvas || !viewer.canvas.isConnected || !(st.wings || st.aura)) return;
+      if (!viewer.canvas || !viewer.canvas.isConnected || !(st.wings || st.aura || spinning(st))) return;
+      // śmigło czapki: obrót wokół osi części (tak samo w grze: spin w HatLayer)
+      for (const slot of ['hat', 'mask']) if (st[slot] && st[slot].spins) for (const [m, part] of st[slot].spins) m.rotation.y = -(part.rot[1] + (reduceMotion.matches ? 0 : (part.spin * now / 1000) % 360)) * Math.PI / 180;
       if (st.wings) { const a = 0.8 + (reduceMotion.matches ? 0 : Math.sin(now / 1000 * 4.2) * 0.22); for (const [m, sign] of st.wings) m.rotation.y = sign * a; }
       const au = st.aura;
       if (au) {

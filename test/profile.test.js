@@ -270,3 +270,74 @@ test('mcProfileAction: profil MiB idzie za kontem Microsoft', () => {
   assert.equal(P.mcProfileAction({ needsProfile: true }, A), 'none', 'konto bez profilu: gracz wybiera nick');
   assert.equal(P.mcProfileAction(null, A), 'none');
 });
+
+// ===== Model 3D kosmetyku w PNG (od 0.33.0); te same przypadki w CosmeticModelTest.java =====
+function pngWith(w, h, text, key = 'mib-model') {
+  const chunk = (type, data) => { const b = Buffer.alloc(12 + data.length); b.writeUInt32BE(data.length, 0); b.write(type, 4, 'latin1'); data.copy(b, 8); return b; };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 6;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), ...(text == null ? [] : [chunk('tEXt', Buffer.from(key + '\0' + text, 'latin1'))]), chunk('IEND', Buffer.alloc(0))]);
+}
+const MODEL_GOOD = '{"parts":[{"boxes":[[0,0,-4,-9,-4,8,1,8]]},{"bone":"body","pivot":[2,4,0],"rot":[0,0,-16],"spin":90,"boxes":[[0,9,-1,0,-3,2,4,1,-0.1]]}]}';
+const MODEL_BAD = ['{"parts":[]}', '{"parts":[{"boxes":[]}]}', '{"parts":[{"bone":"arm","boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"boxes":[[0,0,0,0,0,1,1]]}]}',
+  '{"parts":[{"boxes":[[0.5,0,0,0,0,1,1,1]]}]}', '{"parts":[{"boxes":[[40,0,0,0,0,8,1,8]]}]}', '{"parts":[{"boxes":[[0,30,0,0,0,1,2,1]]}]}', '{"parts":[{"boxes":[[0,0,65,0,0,1,1,1]]}]}',
+  '{"parts":[{"pivot":null,"boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"rot":[0,0],"boxes":[[0,0,0,0,0,1,1,1]]}]}', '{"parts":[{"spin":"x","boxes":[[0,0,0,0,0,1,1,1]]}]}',
+  '{"parts":[{"boxes":[[0,0,0,0,0,1,1,1,9]]}]}', '{"parts":[{"boxes":[[0,0,0,0,0,-1,1,1]]}]}', 'nie json'];
+
+test('cosmeticModel: model z kawałka tEXt „mib-model” w PNG, sprawdzony jak w modzie', () => {
+  const m = P.cosmeticModel(pngWith(64, 32, MODEL_GOOD));
+  assert.deepEqual(m, { w: 64, h: 32, parts: [
+    { bone: 'head', pivot: [0, 0, 0], rot: [0, 0, 0], spin: 0, boxes: [[0, 0, -4, -9, -4, 8, 1, 8, 0]] },
+    { bone: 'body', pivot: [2, 4, 0], rot: [0, 0, -16], spin: 90, boxes: [[0, 9, -1, 0, -3, 2, 4, 1, -0.1]] }] });
+  // z data URL (tak przychodzi z bazy) to samo
+  assert.deepEqual(P.cosmeticModel('data:image/png;base64,' + pngWith(64, 32, MODEL_GOOD).toString('base64')), m);
+  // animacja (klatki 64×32 jedna pod drugą): model w układzie jednej klatki
+  assert.equal(P.cosmeticModel(pngWith(64, 96, MODEL_GOOD)).h, 32);
+  for (const bad of MODEL_BAD) assert.equal(P.cosmeticModel(pngWith(64, 32, bad)), null, bad);
+  assert.equal(P.cosmeticModel(pngWith(64, 32, null)), null, 'bez modelu');
+  assert.equal(P.cosmeticModel(pngWith(64, 32, MODEL_GOOD, 'Comment')), null, 'inny klucz');
+  assert.equal(P.cosmeticModel(pngWith(64, 33, MODEL_GOOD)), null, 'zły rozmiar tekstury');
+  assert.equal(P.cosmeticModel(Buffer.from('nie png')), null);
+  assert.equal(P.cosmeticModel('data:image/png;base64,@@@'), null);
+  // szersza tekstura mieści więcej
+  assert.ok(P.cosmeticModel(pngWith(128, 64, '{"parts":[{"boxes":[[40,0,0,0,0,8,1,8]]}]}')));
+  const many = JSON.stringify({ parts: Array.from({ length: 33 }, () => ({ boxes: [[0, 0, 0, 0, 0, 1, 1, 1]] })) });
+  assert.equal(P.cosmeticModel(pngWith(64, 32, many)), null, 'za dużo części');
+});
+
+test('boxUVs: ściany jak w skinview3d (przód: lewy górny, prawy górny, lewy dolny, prawy dolny)', () => {
+  const uv = P.boxUVs(0, 0, 8, 8, 8, 64, 64);
+  assert.equal(uv.length, 48);
+  assert.deepEqual(uv.slice(32, 40), [0.125, 0.875, 0.25, 0.875, 0.125, 0.75, 0.25, 0.75]);
+  assert.deepEqual(uv.slice(16, 24), [0.125, 1, 0.25, 1, 0.125, 0.875, 0.25, 0.875]);
+});
+
+test('modelFaces: widoczne ściany od najdalszej, z rogami na ekranie i polem tekstury', () => {
+  const m = { w: 64, h: 32, parts: [{ bone: 'head', pivot: [0, 0, 0], rot: [0, 0, 0], spin: 0, boxes: [[0, 0, -4, -8, -4, 8, 8, 8, 0]] }] };
+  const front = P.modelFaces(m, 0, 0);
+  assert.equal(front.length, 1);
+  assert.deepEqual(front[0].uv, [8, 8, 8, 8]);
+  assert.deepEqual(front[0].p.map(q => q.map(v => Math.round(v * 1000) / 1000)), [[-4, -8], [4, -8], [-4, 0]]);
+  const three = P.modelFaces(m, -28, 22);
+  assert.deepEqual(three.map(f => f.uv.join(',')).sort(), ['0,8,8,8', '8,0,8,8', '8,8,8,8']);
+  for (let i = 1; i < three.length; i++) assert.ok(three[i - 1].depth >= three[i].depth);
+  // obrót części: ta sama kostka obrócona o 90° wokół pionu pokazuje bok
+  const turned = P.modelFaces({ ...m, parts: [{ ...m.parts[0], rot: [0, 90, 0] }] }, 0, 0);
+  assert.equal(turned.length, 1);
+  assert.notDeepEqual(turned[0].uv, [8, 8, 8, 8]);
+});
+
+test('cosmeticModel: czapki z modelem 3D w schema.sql (0.33.0) są poprawne', () => {
+  const sql = require('node:fs').readFileSync(require('node:path').join(__dirname, '../supabase/schema.sql'), 'utf8');
+  const ids = ['zima_hat_mikolaj', 'zima_hat_renifer', 'zima_hat_elf', 'adwent_hat_pompon', 'sylwester_hat_cylinder', 'wielkanoc_hat_uszy', 'primaaprilis_hat_blazen', 'dziendziecka_hat_smiglo', 'wakacje_hat_slomkowy', 'niepodleglosc_hat_kotylion'];
+  for (const id of ids) {
+    const m = sql.match(new RegExp(`\\('${id}', '(?:[^']|'')*', 'hat', (?:null|\\d+), '(data:image/png;base64,[A-Za-z0-9+/=]+)'\\)`));
+    assert.ok(m, id);
+    const model = P.cosmeticModel(m[1]);
+    assert.ok(model, id + ': model');
+    assert.ok(P.modelFaces(model, -28, 22).length > 5, id + ': widać ściany');
+  }
+  const kot = P.cosmeticModel(sql.match(/\('niepodleglosc_hat_kotylion', [^)]*'(data:[^']+)'\)/)[1]);
+  assert.ok(kot.parts.every(p => p.bone === 'body'), 'kotylion na piersi');
+  const smiglo = P.cosmeticModel(sql.match(/\('dziendziecka_hat_smiglo', [^)]*'(data:[^']+)'\)/)[1]);
+  assert.ok(smiglo.parts.some(p => p.spin), 'śmigło się kręci');
+});
