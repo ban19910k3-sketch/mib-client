@@ -161,5 +161,15 @@ class CosmeticModelTest {
 		assertEquals(Pets.FLY, Pets.mode("nie_ma"));
 		assertEquals(-1, Pets.side("right"));
 		assertTrue(Pets.sleeping(30000) && !Pets.sleeping(29999));
+		// imię peta: nad najwyższym punktem modelu, obrócone z ciałem gracza (twarzą na południe lewa strona to wschód)
+		assertEquals(-4f, Pets.top(m));
+		double[] o = new double[3];
+		Pets.nameOffset(Pets.WALK, 1, 0, false, -4, 0, o);
+		assertEquals(14 * 0.9375 / 16, o[0], 1e-9);
+		assertEquals((24 - (24 - 4 - 3)) * 0.9375 / 16, o[1], 1e-9);
+		assertEquals(-3 * 0.9375 / 16, o[2], 1e-9, "z tyłu gracza patrzącego na południe = na północ");
+		Pets.nameOffset(Pets.WALK, 1, 0, false, -4, 90, o);
+		assertEquals(3 * 0.9375 / 16, o[0], 1e-9, "obrócony na zachód: tył to wschód");
+		assertEquals(14 * 0.9375 / 16, o[2], 1e-9, "lewa strona to południe");
 	}
 }

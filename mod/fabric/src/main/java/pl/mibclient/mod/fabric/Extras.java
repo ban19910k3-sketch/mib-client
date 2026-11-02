@@ -367,12 +367,37 @@ public final class Extras {
 	void render(MibGraphics g, FabricCanvas canvas, Minecraft c) {
 		int w = g.guiWidth(), h = g.guiHeight();
 		if (c.level != null && c.player != null && on("waypoints")) drawWaypoints(canvas, c, camera(c), w, h);
+		if (c.level != null && c.player != null) drawPetNames(canvas, c, camera(c), w, h);
 		if (preview != null && System.currentTimeMillis() < previewUntil) {
 			int pw = Math.max(60, w / 5), ph = pw * previewH / Math.max(1, previewW), x = w - pw - 6, y = 6;
 			canvas.fill(x - 2, y - 2, x + pw + 2, y + ph + 12, 0xC0100618);
 			FabricCanvas.blit(g, preview, x, y, 0, 0, pw, ph, pw, ph, 0xFFFFFFFF);
 			String t = Lang.t(mib.bridge != null ? "shot.copied" : "shot.saved");
 			canvas.text(t, x + (pw - canvas.textWidth(t)) / 2, y + ph + 2, Theme.AM_HI, true);
+		}
+	}
+
+	/**
+	 * Imiona petów MiB (od 0.34.0) nad petami: własny w trzeciej osobie, innych graczy w zasięgu 24 bloków i w zasięgu wzroku
+	 * (imiona innych są już po filtrze wulgaryzmów w launcherze).
+	 */
+	private void drawPetNames(FabricCanvas canvas, Minecraft c, double[] cam, int w, int h) {
+		double[] o = new double[3];
+		for (net.minecraft.client.player.AbstractClientPlayer p : c.level.players()) {
+			boolean self = p == c.player;
+			if (p.isInvisible() || (self && c.options.getCameraType().isFirstPerson())) continue;
+			String name = mib.petName(p);
+			if (name == null) continue;
+			MibId tex = mib.petFor(p);
+			pl.mibclient.mod.core.CosmeticModel cm = tex == null ? null : MibClient.model(tex);
+			if (cm == null) continue;
+			if (!self && (c.player.distanceTo(p) > 24 || !c.player.hasLineOfSight(p))) continue;
+			int[] set = mib.petSettings(p);
+			pl.mibclient.mod.core.Pets.nameOffset(set[0], set[1], p.tickCount / 20f, mib.petSleeping(p), pl.mibclient.mod.core.Pets.top(cm), p.yBodyRot, o);
+			double[] sp = Waypoints.project(p.getX() + o[0], p.getY() + o[1], p.getZ() + o[2], cam[0], cam[1], cam[2], (float) cam[3], (float) cam[4], fov, w, h);
+			if (sp == null) continue;
+			canvas.text(name, (int) sp[0] - canvas.textWidth(name) / 2, (int) sp[1] - 4, 0xFFE9D5FF, true);
+			MibClient.hooks.add("pet_name");
 		}
 	}
 

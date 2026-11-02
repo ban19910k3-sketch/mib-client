@@ -184,6 +184,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			helper.register(new HatLayer(parent));
 			helper.register(new FairyWingsLayer(parent));
 			helper.register(new AuraLayer(parent));
+			helper.register(new PetLayer(parent));
 		});
 
 		//#if MC >= 1.21.9

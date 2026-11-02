@@ -65,6 +65,26 @@ public final class Pets {
 		return 0.8f;
 	}
 
+	/** Najwyższy punkt modelu peta (piksele nad kotwicą są ujemne; bez obrotów części). */
+	public static float top(CosmeticModel cm) {
+		float top = 0;
+		for (CosmeticModel.Part p : cm.parts) for (float[] b : p.boxes) top = Math.min(top, p.pivot[1] + b[3] - b[8]);
+		return top;
+	}
+
+	/**
+	 * Gdzie w świecie wypisać imię peta: przesunięcie w blokach od stóp gracza do out[0..2] — 3 piksele nad najwyższym punktem
+	 * peta (top), przy ciele obróconym o bodyYaw (stopnie jak w grze: 0 = na południe, +z). Piksel modelu gracza to 0,9375/16 bloku.
+	 */
+	public static void nameOffset(int mode, int side, float t, boolean sleep, float top, float bodyYaw, double[] out) {
+		float[] pos = new float[3];
+		float scale = anchor(mode, side, t, sleep, pos);
+		double k = 0.9375 / 16, y = Math.toRadians(bodyYaw), ay = pos[1] + top * scale - 3;
+		out[0] = (pos[0] * Math.cos(y) + pos[2] * Math.sin(y)) * k;
+		out[1] = (24 - ay) * k;
+		out[2] = (pos[0] * Math.sin(y) - pos[2] * Math.cos(y)) * k;
+	}
+
 	/**
 	 * Poza części w chwili t (sekundy): obrót w stopniach do rot[0..2], zwraca przesunięcie w dół (kucanie) albo NaN, gdy części
 	 * teraz nie widać (oczy na jawie/we śnie). walk = siła kroku 0..1, phase = krok w radianach.
