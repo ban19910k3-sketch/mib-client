@@ -78,6 +78,14 @@ class LauncherBridgeTest {
 		assertEquals(1, b.cosmetics().gifts.size());
 		assertEquals("Korona", b.cosmetics().gifts.get(0).name);
 		assertEquals(7L, b.cosmetics().gifts.get(0).id);
+		// ustawienia peta (0.34.0) i zmiana trybu z menu w grze
+		write("cosmetics.json", "{\"loggedIn\":true,\"items\":[],\"pet\":{\"mode\":\"shoulder\",\"side\":\"right\",\"name\":\"Mruczek\"}}");
+		assertEquals(Pets.SHOULDER, b.cosmetics().petMode);
+		assertEquals(-1, b.cosmetics().petSide);
+		assertEquals("Mruczek", b.cosmetics().petName);
+		b.requestPet(Pets.WALK, 1);
+		String pet = new String(Files.readAllBytes(new File(dir, "cosmetic-request.json").toPath()), StandardCharsets.UTF_8);
+		assertTrue(pet.startsWith("{\"pet\":{\"mode\":\"walk\",\"side\":\"left\"},\"at\":"), pet);
 		b.requestClaim(7);
 		String claim = new String(Files.readAllBytes(new File(dir, "cosmetic-request.json").toPath()), StandardCharsets.UTF_8);
 		assertTrue(claim.startsWith("{\"gift\":7,\"at\":"), claim);

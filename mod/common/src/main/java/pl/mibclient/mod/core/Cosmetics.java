@@ -10,6 +10,9 @@ public final class Cosmetics {
 	public final boolean loggedIn;
 	public final List<Item> items;
 	public final List<Gift> gifts;
+	/** Ustawienia własnego peta z launchera (od 0.34.0): tryb (Pets.FLY…), strona (+1 lewa, −1 prawa), imię albo null. */
+	public int petMode = Pets.FLY, petSide = 1;
+	public String petName;
 
 	public Cosmetics(boolean loggedIn, List<Item> items) {
 		this(loggedIn, items, Collections.<Gift>emptyList());
@@ -81,7 +84,7 @@ public final class Cosmetics {
 		return equipped("cape");
 	}
 
-	/** Założony przedmiot danego typu (cape, hat, mask, wings, aura) albo null. */
+	/** Założony przedmiot danego typu (cape, hat, mask, wings, aura, pet, tail, back) albo null. */
 	public Item equipped(String type) {
 		for (Item i : items) if (type.equals(i.type) && i.equipped) return i;
 		return null;

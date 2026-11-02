@@ -849,6 +849,7 @@ public final class MenuView {
 		for (Cosmetics.Item it : cs.items) if ("cape".equals(it.type)) items.add(it);
 		for (Cosmetics.Item it : cs.items) if (!"cape".equals(it.type)) items.add(it);
 		String msg = actions.cosmeticMessage();
+		y = petRows(c, cs, ct, y, mx, my);
 		int top = y, bottom = ct[1] + ct[3] - (msg != null ? 22 : 2);
 		// podgląd postaci: obrót 50° na sekundę, więc co kilka sekund widać pelerynę i skrzydła z tyłu
 		int pw = ct[2] >= 300 ? 84 : 0, lx = ct[0] + (pw > 0 ? pw + 8 : 0), lw = ct[2] - (lx - ct[0]);
@@ -886,7 +887,7 @@ public final class MenuView {
 			boolean clickable = y >= top && y + 20 <= bottom;
 			final boolean trying = it.id.equals(actions.tryingOn(it.type));
 			box(c, lx, y, lw, 20, BOX, it.equipped ? Theme.AM_LO : trying ? Theme.AM_HI : LINE);
-			String kind = Lang.t("cos." + ("hat".equals(it.type) || "mask".equals(it.type) || "wings".equals(it.type) || "aura".equals(it.type) ? it.type : "cape"));
+			String kind = Lang.t("cos." + (java.util.Arrays.asList("hat", "mask", "wings", "aura", "pet", "tail", "back").contains(it.type) ? it.type : "cape"));
 			c.text(Shapes.ellipsize(c, it.name, lw - 150, false), lx + 8, y + 6, Theme.TEXT, false);
 			// przymiarka: cały wiersz (przycisk niżej ma pierwszeństwo, bo sprawdzany jest od końca)
 			if (clickable && it.png != null && !it.equipped) hits.add(new Hit("try:" + it.id, new int[] {lx, y, lw, 20}, new Runnable() {
@@ -919,6 +920,50 @@ public final class MenuView {
 			c.text(l, ct[0], y, msg.equals(Lang.t("cos.working")) ? Theme.AM_HI : Theme.BAD, false);
 			y += 10;
 		}
+	}
+
+	/**
+	 * Nad listą kosmetyków (od 0.34.0): przy założonym pecie jego tryb (lata, ramię, chodzi) i strona, a zawsze przełącznik
+	 * „Pety innych graczy”. Zwraca y pod tymi wierszami.
+	 */
+	private int petRows(Canvas c, Cosmetics cs, int[] ct, int y, int mx, int my) {
+		int x = ct[0], w = ct[2];
+		if (cs.equipped("pet") != null) {
+			box(c, x, y, w, 20, BOX, LINE);
+			c.text(Lang.t("cos.pet"), x + 8, y + 6, Theme.TEXT, false);
+			int bx = x + w - 4;
+			final int mode = cs.petMode, side = cs.petSide;
+			int[][] opts = {{1, -1}, {1, 1}, {0, Pets.WALK}, {0, Pets.SHOULDER}, {0, Pets.FLY}};
+			for (int[] o : opts) {
+				final boolean isSide = o[0] == 1;
+				final int v = o[1];
+				String t = Lang.t(isSide ? (v < 0 ? "cos.pet_right" : "cos.pet_left") : "cos.pet_" + Pets.modeName(v));
+				int bw = c.textWidth(t) + 12;
+				bx -= bw;
+				int[] b = {bx, y + 2, bw, 16};
+				boolean on = isSide ? side == v : mode == v;
+				button(c, b, null, t, on, in(b, mx, my));
+				hits.add(new Hit("pet:" + (isSide ? "side" : "mode") + v, b, new Runnable() {
+					@Override
+					public void run() {
+						actions.setPet(isSide ? mode : v, isSide ? v : side);
+					}
+				}));
+				bx -= isSide && v > 0 ? 10 : 3;
+			}
+			y += 24;
+		}
+		box(c, x, y, w, 20, BOX, LINE);
+		c.text(Lang.t("cos.show_pets"), x + 8, y + 6, Theme.TEXT, false);
+		final boolean show = actions.showPets();
+		toggle(c, x + w - 26, y + 5, show);
+		hits.add(new Hit("pet:show", new int[] {x, y, w, 20}, new Runnable() {
+			@Override
+			public void run() {
+				actions.setShowPets(!show);
+			}
+		}));
+		return y + 26;
 	}
 
 	/** Znajomi: lista (najpierw w grze, potem w launcherze, offline), klik otwiera rozmowę; licznik nowych wiadomości. */

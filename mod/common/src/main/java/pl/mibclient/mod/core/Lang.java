@@ -51,6 +51,15 @@ public final class Lang {
 		put("cos.wings", "Skrzydła", "Wings");
 		put("cos.aura", "Aura", "Aura");
 		put("cos.mask", "Maska", "Mask");
+		put("cos.pet", "Pet", "Pet");
+		put("cos.tail", "Ogon", "Tail");
+		put("cos.back", "Plecak", "Backpack");
+		put("cos.pet_fly", "Lata", "Flies");
+		put("cos.pet_shoulder", "Ramię", "Shoulder");
+		put("cos.pet_walk", "Chodzi", "Walks");
+		put("cos.pet_left", "Lewa", "Left");
+		put("cos.pet_right", "Prawa", "Right");
+		put("cos.show_pets", "Pety innych graczy", "Other players' pets");
 		put("cos.working", "Zmieniam…", "Changing…");
 		put("cos.gift", "Prezent: %s", "Gift: %s");
 		put("cos.claim", "Odbierz", "Claim");

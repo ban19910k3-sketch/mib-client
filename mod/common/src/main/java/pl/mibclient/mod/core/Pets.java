@@ -27,6 +27,15 @@ public final class Pets {
 		return "right".equals(s) ? -1 : 1;
 	}
 
+	/** Imię peta z pliku: do 16 znaków bez znaków sterujących, inaczej null (bez imienia). */
+	public static String name(Object v) {
+		if (!(v instanceof String)) return null;
+		String s = ((String) v).trim();
+		if (s.isEmpty() || s.length() > 16) return null;
+		for (int i = 0; i < s.length(); i++) if (Character.isISOControl(s.charAt(i))) return null;
+		return s;
+	}
+
 	public static boolean sleeping(long stillMs) {
 		return stillMs >= SLEEP_MS;
 	}

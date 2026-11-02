@@ -414,6 +414,40 @@ function png(w, h, px) {
     tester.coins = 0;
     ok('(ap) święta: maska i wysoka czapka, kolekcja w sklepie, nagroda świąteczna, kalendarz adwentowy, wyłączenie motywów');
 
+    // Pety, ogony i plecaki (0.34.0): filtr kategorii, wszystko naraz na postaci, ustawienia peta (tryb, strona, imię)
+    for (const [id, name, type, price] of [['pet_kotek', 'Kotek', 'pet', 1500], ['tail_koci', 'Koci ogon', 'tail', 800], ['back_mib', 'Plecak MiB', 'back', 1000]])
+      fake.cosmetics[id] = { id, name, type, price, image_url: null, texture: seededP(id) };
+    for (const id of ['pet_kotek', 'tail_koci', 'back_mib']) fake.st.owned.push({ user: tester.id, cosmetic: id, at: new Date().toISOString() });
+    await w.click('.nav[data-p="home"]');
+    await w.click('.nav[data-p="cos"]');
+    await w.waitForSelector('#cos-kinds [data-k="pet"]');
+    await w.click('#cos-kinds [data-k="pet"]');
+    await w.waitForFunction(() => [...document.querySelectorAll('.cosi')].every(c => c.dataset.id.startsWith('pet_')) && document.querySelector('.cosi[data-id="pet_kotek"] canvas.modelth'));
+    await w.click('#cos-kinds [data-k="all"]');
+    for (const id of ['pet_kotek', 'tail_koci', 'back_mib']) {
+      await w.click(`.cosi[data-id="${id}"] .b`);
+      await w.waitForFunction(i => /Założon/.test(document.querySelector(`.cosi[data-id="${i}"]`).textContent), id);
+    }
+    assert.deepEqual([tester.equipped.pet, tester.equipped.tail, tester.equipped.back], ['pet_kotek', 'tail_koci', 'back_mib'], 'pet, ogon i plecak naraz');
+    await w.waitForFunction(() => { const d = document.getElementById('skin3d').dataset; return d.pet === 'fly' && d.tail === '1' && d.pack === '1'; });
+    await w.waitForSelector('#pet-cfg');
+    await w.click('#pet-cfg [data-k="mode"] [data-v="walk"]');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.pet === 'walk');
+    await w.click('#pet-cfg [data-k="side"] [data-v="right"]');
+    await w.waitForFunction(() => document.querySelector('#pet-cfg [data-k="side"] [data-v="right"]').classList.contains('on'));
+    await w.fill('#pet-name', 'Mruczek');
+    await w.click('#pet-name-save');
+    await w.waitForSelector('.toast:has-text("Imię peta zapisane.")');
+    assert.deepEqual(tester.pet, { mode: 'walk', side: 'right', name: 'Mruczek' }, 'ustawienia peta w bazie');
+    await w.fill('#pet-name', 'x'.repeat(16) + 'y');
+    assert.equal(await w.inputValue('#pet-name'), 'x'.repeat(16), 'pole przyjmuje najwyżej 16 znaków');
+    await w.$eval('#skin3d', el => el.scrollIntoView({ block: 'start' }));
+    await w.waitForTimeout(800);
+    await shot('pety.png');
+    for (const id of ['pet_kotek', 'tail_koci', 'back_mib']) await w.click(`.cosi[data-id="${id}"] .b`);
+    await w.waitForFunction(() => !document.getElementById('pet-cfg'));
+    ok('(at) pety, ogony i plecaki: kategoria, wszystko naraz, tryb, strona i imię peta');
+
     // Znajomi: zaproszenie po nicku, zaproszenie od kogoś innego, znajomy w grze z serwerem
     const now = new Date().toISOString();
     const kolega = { id: 'u-kolega', email: 'k@mib.pl', password: 'x', nick: 'Kolega', num: 50, created: now };

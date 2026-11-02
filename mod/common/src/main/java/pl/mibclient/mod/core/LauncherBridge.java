@@ -102,7 +102,14 @@ public final class LauncherBridge {
 			gifts.add(new Cosmetics.Gift(((Number) x.get("id")).longValue(), (String) x.get("name"), (String) x.get("type"),
 					x.get("message") instanceof String ? (String) x.get("message") : null));
 		}
-		return new Cosmetics(true, out, gifts);
+		Cosmetics c = new Cosmetics(true, out, gifts);
+		if (m.get("pet") instanceof Map) {
+			Map<?, ?> p = (Map<?, ?>) m.get("pet");
+			c.petMode = Pets.mode(p.get("mode") instanceof String ? (String) p.get("mode") : null);
+			c.petSide = Pets.side(p.get("side") instanceof String ? (String) p.get("side") : null);
+			c.petName = Pets.name(p.get("name"));
+		}
+		return c;
 	}
 
 	private String playersAsked;
@@ -150,6 +157,17 @@ public final class LauncherBridge {
 		Map<String, Object> m = new LinkedHashMap<String, Object>();
 		m.put("type", type);
 		m.put("id", id);
+		m.put("at", System.currentTimeMillis());
+		write("cosmetic-request.json", m);
+	}
+
+	/** Prośba do launchera: tryb i strona peta (od 0.34.0; imię zmienia się w launcherze). */
+	public void requestPet(int mode, int side) {
+		Map<String, Object> pet = new LinkedHashMap<String, Object>();
+		pet.put("mode", Pets.modeName(mode));
+		pet.put("side", side < 0 ? "right" : "left");
+		Map<String, Object> m = new LinkedHashMap<String, Object>();
+		m.put("pet", pet);
 		m.put("at", System.currentTimeMillis());
 		write("cosmetic-request.json", m);
 	}

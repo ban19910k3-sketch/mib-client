@@ -57,6 +57,15 @@ public final class Config {
 		root.put("lang", "pl".equals(code) || "en".equals(code) ? code : "auto");
 	}
 
+	/** Czy widać pety innych graczy MiB (od 0.34.0; np. wyłączone na PvP). Własny pet jest zawsze widoczny. */
+	public boolean showPets() {
+		return !Boolean.FALSE.equals(root.get("showPets"));
+	}
+
+	public void setShowPets(boolean on) {
+		root.put("showPets", on);
+	}
+
 	public ModuleState module(String id) {
 		return new ModuleState(this, id);
 	}

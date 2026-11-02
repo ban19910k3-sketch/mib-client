@@ -40,6 +40,8 @@ import net.minecraft.resources.MibId;
 import pl.mibclient.mod.core.Account;
 import pl.mibclient.mod.core.Config;
 import pl.mibclient.mod.core.Cosmetics;
+import pl.mibclient.mod.core.MibPlayers;
+import pl.mibclient.mod.core.Pets;
 import pl.mibclient.mod.core.Friends;
 import pl.mibclient.mod.core.HudEditorModel;
 import pl.mibclient.mod.core.HudView;
@@ -285,6 +287,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		}
 		tickFreelook(c);
 		tickCosmetics(c);
+		tickPets(c);
 		if (!tryIds.isEmpty() && !(Input.screen(c) instanceof MenuScreen)) endTryOn();
 		while (stopwatchKey.consumeClick()) {
 			if (modules.isOn("stopwatch") && Input.screen(c) == null) pvp.meters.stopwatch.press(System.currentTimeMillis());
@@ -623,7 +626,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	/** Założone kosmetyki z launchera (peleryna, czapka, maska, skrzydła, aura) trafiają do tekstur gry (tylko gdy się zmienią). */
 	private void tickCosmetics(Minecraft c) {
 		Cosmetics cs = cosmetics();
-		for (String type : new String[] {"cape", "hat", "mask", "wings", "aura"}) {
+		for (String type : new String[] {"cape", "hat", "mask", "wings", "aura", "pet", "tail", "back"}) {
 			Cosmetics.Item it = cs == null ? null : cs.equipped(type);
 			String old = ownKeys.get(type);
 			if (it == null || it.png == null) {
@@ -831,6 +834,79 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 		bridge.requestEquip(type, id);
 		cosMessage = Lang.t("cos.working");
 		cosReadAt = 0;
+	}
+
+	// ===== Pety (od 0.34.0) =====
+
+	/** Ostatni ruch każdego widocznego gracza: x, y, z i czas — pet zasypia po Pets.SLEEP_MS bez ruchu. */
+	private final java.util.Map<java.util.UUID, double[]> stillSince = new java.util.HashMap<java.util.UUID, double[]>();
+
+	private void tickPets(Minecraft c) {
+		if (c.level == null) {
+			stillSince.clear();
+			return;
+		}
+		long now = System.currentTimeMillis();
+		java.util.Set<java.util.UUID> seen = new java.util.HashSet<java.util.UUID>();
+		for (net.minecraft.world.entity.player.Player p : c.level.players()) {
+			seen.add(p.getUUID());
+			double[] s = stillSince.get(p.getUUID());
+			if (s == null || Math.abs(s[0] - p.getX()) + Math.abs(s[1] - p.getY()) + Math.abs(s[2] - p.getZ()) > 0.05) stillSince.put(p.getUUID(), new double[] {p.getX(), p.getY(), p.getZ(), now});
+		}
+		stillSince.keySet().retainAll(seen);
+	}
+
+	/** Czy pet gracza śpi (gracz stoi bez ruchu co najmniej Pets.SLEEP_MS). */
+	public boolean petSleeping(AbstractClientPlayer p) {
+		double[] s = stillSince.get(p.getUUID());
+		return s != null && Pets.sleeping(System.currentTimeMillis() - (long) s[3]);
+	}
+
+	/** Tryb i strona peta gracza: własne z launchera, innych z players.json; {Pets.FLY…, +1/−1}. */
+	public int[] petSettings(AbstractClientPlayer p) {
+		if (p == Minecraft.getInstance().player) {
+			Cosmetics cs = cosmetics();
+			return cs == null ? new int[] {Pets.FLY, 1} : new int[] {cs.petMode, cs.petSide};
+		}
+		MibPlayers.Entry e = players.entryOf(p.getUUID(), p.getScoreboardName());
+		return e == null ? new int[] {Pets.FLY, 1} : new int[] {e.petMode, e.petSide};
+	}
+
+	/** Imię peta gracza albo null. */
+	public String petName(AbstractClientPlayer p) {
+		if (p == Minecraft.getInstance().player) {
+			Cosmetics cs = cosmetics();
+			return cs == null ? null : cs.petName;
+		}
+		MibPlayers.Entry e = players.entryOf(p.getUUID(), p.getScoreboardName());
+		return e == null ? null : e.petName;
+	}
+
+	/** Tekstura peta do narysowania: własny zawsze, innych graczy tylko przy włączonym „Pety innych graczy”. */
+	public MibId petFor(AbstractClientPlayer p) {
+		if (p != Minecraft.getInstance().player && !showPets()) return null;
+		return cosmeticFor(p, "pet");
+	}
+
+	@Override
+	public void setPet(int mode, int side) {
+		if (bridge == null) return;
+		equipAt = System.currentTimeMillis();
+		bridge.requestPet(mode, side);
+		cosMessage = Lang.t("cos.working");
+		cosReadAt = 0;
+	}
+
+	@Override
+	public boolean showPets() {
+		return config == null || config.showPets();
+	}
+
+	@Override
+	public void setShowPets(boolean on) {
+		if (config == null) return;
+		config.setShowPets(on);
+		config.save();
 	}
 
 	@Override

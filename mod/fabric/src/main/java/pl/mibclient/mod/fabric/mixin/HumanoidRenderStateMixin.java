@@ -92,6 +92,59 @@ public abstract class HumanoidRenderStateMixin implements MibSelfState {
 		mib$auraKind = style;
 		mib$auraNumber = seed;
 	}
+
+	@Unique
+	private MibId mib$petTexture, mib$tailTexture, mib$backTexture;
+	@Unique
+	private int mib$petModeValue, mib$petSideValue = 1;
+	@Unique
+	private boolean mib$petAsleep, mib$running;
+
+	@Override
+	public MibId mib$pet() {
+		return mib$petTexture;
+	}
+
+	@Override
+	public MibId mib$tail() {
+		return mib$tailTexture;
+	}
+
+	@Override
+	public MibId mib$back() {
+		return mib$backTexture;
+	}
+
+	@Override
+	public int mib$petMode() {
+		return mib$petModeValue;
+	}
+
+	@Override
+	public int mib$petSide() {
+		return mib$petSideValue;
+	}
+
+	@Override
+	public boolean mib$petSleep() {
+		return mib$petAsleep;
+	}
+
+	@Override
+	public boolean mib$run() {
+		return mib$running;
+	}
+
+	@Override
+	public void mib$extra(MibId pet, MibId tail, MibId back, int petMode, int petSide, boolean sleep, boolean run) {
+		mib$petTexture = pet;
+		mib$tailTexture = tail;
+		mib$backTexture = back;
+		mib$petModeValue = petMode;
+		mib$petSideValue = petSide;
+		mib$petAsleep = sleep;
+		mib$running = run;
+	}
 }
 //#else
 @Mixin(HumanoidModel.class)

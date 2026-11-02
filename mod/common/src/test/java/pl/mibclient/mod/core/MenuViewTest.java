@@ -22,6 +22,7 @@ class MenuViewTest {
 	List<String> calls = new ArrayList<String>();
 	String message, cosMessage;
 	Cosmetics cosmetics;
+	boolean showPets = true;
 	final java.util.Map<String, String> trying = new java.util.HashMap<String, String>();
 	String world;
 	int[] pos = {10, 64, -20};
@@ -70,6 +71,21 @@ class MenuViewTest {
 			@Override
 			public String cosmeticMessage() {
 				return cosMessage;
+			}
+
+			@Override
+			public void setPet(int mode, int side) {
+				calls.add("pet:" + mode + ":" + side);
+			}
+
+			@Override
+			public boolean showPets() {
+				return showPets;
+			}
+
+			@Override
+			public void setShowPets(boolean on) {
+				calls.add("show:" + on);
 			}
 
 			@Override
@@ -343,6 +359,23 @@ class MenuViewTest {
 		assertEquals(Arrays.asList("equip:cape:c2", "equip:cape:null", "equip:hat:h1"), calls);
 		render();
 		assertTrue(c.hasText("Zmieniam…"));
+	}
+
+	@Test
+	void cosmeticsPagePetModeSideAndOthersPets() {
+		cosmetics = new Cosmetics(true, Arrays.asList(new Cosmetics.Item("p1", "Kotek", "pet", false, null), new Cosmetics.Item("t1", "Ogon", "tail", true, null)));
+		click("cosmetics");
+		render();
+		assertTrue(c.hasText("Pety innych graczy") && c.hasText("Ogon"), "przełącznik i rodzaj ogona");
+		assertNull(v.hitRect("pet:mode0"), "bez założonego peta nie ma jego ustawień");
+		click("pet:show");
+		cosmetics = new Cosmetics(true, Arrays.asList(new Cosmetics.Item("p1", "Kotek", "pet", true, null)));
+		cosmetics.petMode = Pets.SHOULDER;
+		render();
+		assertTrue(c.hasText("Lata") && c.hasText("Ramię") && c.hasText("Chodzi") && c.hasText("Prawa"));
+		click("pet:mode" + Pets.WALK);
+		click("pet:side-1");
+		assertEquals(Arrays.asList("show:false", "pet:" + Pets.WALK + ":1", "pet:" + Pets.SHOULDER + ":-1"), calls);
 	}
 
 	@Test

@@ -29,6 +29,7 @@
     server_error: 'Serwer MiB ma chwilowy problem. Spróbuj za kilka minut.',
     code_invalid: 'Nie ma takiego kodu. Sprawdź jego pisownię.',
     not_owned: 'Nie masz tego przedmiotu.',
+    pet_name_invalid: 'Imię peta: do 16 znaków, bez brzydkich słów.',
     code_expired: 'Ten kod już wygasł.',
     code_used_up: 'Ten kod został już wykorzystany.',
     code_already_used: 'Ten kod został już odebrany na Twoim profilu.',
@@ -712,7 +713,7 @@
   // Strój do dress() z listy przedmiotów { type, id, texture } (np. założone u znajomego albo prezent)
   function outfit(list) {
     const o = {};
-    for (const c of list) if (c && c.texture && ['cape', 'wings', 'hat', 'mask', 'aura'].includes(c.type) && !o[c.type]) o[c.type] = c.type === 'aura' ? { texture: c.texture, id: c.id } : c.texture;
+    for (const c of list) if (c && c.texture && ['cape', 'wings', 'hat', 'mask', 'aura', 'pet', 'tail', 'back'].includes(c.type) && !o[c.type]) o[c.type] = c.type === 'aura' ? { texture: c.texture, id: c.id } : c.texture;
     return o;
   }
   window.mibOutfit = outfit;
@@ -720,18 +721,23 @@
   // Strona Kosmetyki: na postaci założone przedmioty, a klik w przedmiot to przymiarka (bez zakładania).
   // data-back, data-hat (1 albo tall) i data-mask na płótnie mówią, co widać.
   let trying = {};
+  // ustawienia peta gracza (tryb, strona, imię) — z bazy przy wejściu na Kosmetyki
+  let petCfg = { mode: 'fly', side: 'left', name: '' };
+  let lastItems = [];
   async function dressPage(list) {
     if (!skinViewer) return;
     const on = t => trying[t] || list.find(c => c.equipped && c.type === t && c.texture);
     const tried = trying.wings && !trying.cape ? 'wings' : null;
-    const r = await dress(skinViewer, outfit([tried ? null : on('cape'), on('wings'), on('hat'), on('mask'), on('aura')]));
-    if (r) Object.assign(skinCanvas.dataset, { back: r.back, hat: r.hat, mask: r.mask ? '1' : '', fairy: r.fairy ? '1' : '', aura: r.aura, frames: r.frames });
+    const r = await dress(skinViewer, { ...outfit([tried ? null : on('cape'), on('wings'), on('hat'), on('mask'), on('aura'), on('pet'), on('tail'), on('back')]),
+      petMode: petCfg.mode, petSide: petCfg.side });
+    if (r) Object.assign(skinCanvas.dataset, { back: r.back, hat: r.hat, mask: r.mask ? '1' : '', fairy: r.fairy ? '1' : '', aura: r.aura, frames: r.frames,
+      pet: r.pet, tail: r.tail ? '1' : '', pack: r.pack ? '1' : '' });
   }
 
   // Kosmetyki mają zakładki: Moje przedmioty, Sklep (od 0.24.0, za MiB Coins), Historia coinsów i Skin (od 0.32.0);
   // z lewej postać 3D z obracaniem i założone przedmioty, nad siatką filtr rodzajów
   let cosTab = 'mine', cosKind = 'all';
-  const KINDS = [['all', 'Wszystko'], ['cape', 'Peleryny'], ['hat', 'Czapki'], ['mask', 'Maski'], ['wings', 'Skrzydła'], ['aura', 'Aury']];
+  const KINDS = [['all', 'Wszystko'], ['cape', 'Peleryny'], ['hat', 'Czapki'], ['mask', 'Maski'], ['wings', 'Skrzydła'], ['aura', 'Aury'], ['pet', 'Pety'], ['tail', 'Ogony'], ['back', 'Plecaki']];
   const ofKind = c => cosKind === 'all' || c.type === cosKind;
   function kindChips() {
     return h('div', { class: 'chips', id: 'cos-kinds', role: 'group' }, ...KINDS.map(([k, l]) => h('button', { type: 'button', class: 'chip' + (cosKind === k ? ' on' : ''), 'data-k': k,
@@ -750,7 +756,35 @@
         h('div', { class: 'row cosrot' }, rb('‹', 'Obróć w lewo', () => spin(-0.6)),
           rb('⟳', 'Obracaj samo', () => { if (!skinViewer) return; skinViewer.playerObject.rotation.y = 0; skinViewer.autoRotate = true; }), rb('›', 'Obróć w prawo', () => spin(0.6)))),
       st.loggedIn ? h('div', { class: 'card cosworn' }, h('h4', {}, T('Założone')), h('div', { class: 'slots' },
-        slot('cape', 'Peleryna'), slot('hat', 'Czapka'), slot('mask', 'Maska'), slot('wings', 'Skrzydła'), slot('aura', 'Aura'))) : null);
+        slot('cape', 'Peleryna'), slot('hat', 'Czapka'), slot('mask', 'Maska'), slot('wings', 'Skrzydła'), slot('aura', 'Aura'),
+        slot('pet', 'Pet'), slot('tail', 'Ogon'), slot('back', 'Plecak'))) : null,
+      st.loggedIn && items.some(x => x.equipped && x.type === 'pet') ? petPanel(items) : null);
+  }
+  // Ustawienia założonego peta (od 0.34.0): jak się zachowuje (lata, na ramieniu, chodzi), po której stronie i jak ma na imię.
+  // Inni gracze MiB widzą go tak samo; tryb i stronę można też zmienić w menu Kosmetyki w grze.
+  function petPanel() {
+    const err = errBox();
+    const save = async cfg => {
+      err.textContent = '';
+      const r = await mib.call('prof:setPet', cfg);
+      if (!r || r.error) { err.textContent = msg((r && r.error) || 'unknown'); return false; }
+      petCfg = r;
+      dressPage(lastItems);
+      return true;
+    };
+    const seg = (key, opts) => h('div', { class: 'seg petseg', role: 'group', 'data-k': key }, ...opts.map(([v, l]) => h('button', {
+      type: 'button', class: petCfg[key] === v ? 'on' : '', 'data-v': v, 'aria-pressed': String(petCfg[key] === v),
+      on: { click: async e => {
+        const group = e.currentTarget.parentNode; // po await currentTarget jest już pusty
+        if (await save({ ...petCfg, [key]: v })) group.querySelectorAll('button').forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+      } } }, T(l))));
+    const name = h('input', { id: 'pet-name', maxlength: 16, placeholder: T('Imię peta'), value: petCfg.name || '' });
+    const ok = h('button', { class: 'b ghost', type: 'button', id: 'pet-name-save', on: { click: async () => { if (await save({ ...petCfg, name: name.value })) toast(T('Imię peta zapisane.')); } } }, T('Zapisz'));
+    name.onkeydown = e => { if (e.key === 'Enter') ok.click(); };
+    return h('div', { class: 'card petcfg', id: 'pet-cfg' }, h('h4', {}, T('Twój pet')),
+      seg('mode', [['fly', 'Lata'], ['shoulder', 'Na ramieniu'], ['walk', 'Chodzi']]),
+      seg('side', [['left', 'Lewa strona'], ['right', 'Prawa strona']]),
+      h('div', { class: 'row petname' }, name, ok), err);
   }
   const cosTitle = () => cosTab === 'shop' ? h('div', { class: 'ptitle' }, h('h1', {}, T('Sklep')), h('p', { class: 'lead' }, T('Kosmetyki za MiB Coins. Kliknij, żeby przymierzyć.')))
     : h('div', { class: 'ptitle' }, h('h1', {}, T('Twój styl.')), h('p', { class: 'lead' }, T('Twoja postać. Twoje kosmetyki.')));
@@ -774,8 +808,10 @@
         st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))), skin)));
       return;
     }
-    const list = await mib.call('prof:cosmetics');
+    const [list, pc] = await Promise.all([mib.call('prof:cosmetics'), mib.call('prof:pet')]);
     const items = Array.isArray(list) ? list : [];
+    if (pc && !pc.error) petCfg = pc;
+    lastItems = items;
     const tabs = h('div', { class: 'seg', role: 'tablist', id: 'cos-tabs' }, ...[['mine', 'Moje przedmioty'], ['shop', 'Sklep'], ['log', 'Historia'], ['skin', 'Skin']].map(([k, l]) =>
       h('button', { class: cosTab === k ? 'on' : '', role: 'tab', type: 'button', 'data-t': k, 'aria-selected': String(cosTab === k), on: { click: () => {
         if (cosTab === k) return;
@@ -1052,7 +1088,7 @@
 
   // ===== Prezenty od MiB: okno „Masz prezent!” z podglądem na postaci, Odbierz i Załóż od razu =====
   let giftOpen = false, giftCount = 0;
-  const KIND = { cape: 'Peleryna', hat: 'Czapka', mask: 'Maska', wings: 'Skrzydła', aura: 'Aura' };
+  const KIND = { cape: 'Peleryna', hat: 'Czapka', mask: 'Maska', wings: 'Skrzydła', aura: 'Aura', pet: 'Pet', tail: 'Ogon', back: 'Plecak' };
   // licznik przy pozycji paska bocznego (Kosmetyki: prezenty, Pomysły: odpowiedzi)
   function navCount(page, n) {
     const nav = document.querySelector(`.nav[data-p="${page}"]`);

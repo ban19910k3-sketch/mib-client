@@ -33,6 +33,21 @@ class MibPlayersTest {
 		assertNull(q.find(PREMIUM, "Gracz").cosmetic("wings"), "zła nazwa skrzydeł odrzucona");
 		assertNull(q.find(PREMIUM, "Gracz").cosmetic("cape"));
 		assertEquals("halloween_aura_magic", q.find(PREMIUM, "Gracz").cosmetic("aura"));
+		// pet, ogon, plecak i ustawienia peta (0.34.0); stary plik bez nich = domyślne
+		MibPlayers r = MibPlayers.parse("{\"players\":[{\"uuid\":\"33333333-3333-4333-8333-333333333333\",\"name\":\"Gracz\",\"pet\":\"pet_kotek\",\"tail\":\"tail_koci\","
+				+ "\"back\":\"../x\",\"petMode\":\"walk\",\"petSide\":\"right\",\"petName\":\"Mruczek\"}]}");
+		MibPlayers.Entry e = r.find(PREMIUM, "Gracz");
+		assertEquals("pet_kotek", e.cosmetic("pet"));
+		assertEquals("tail_koci", e.cosmetic("tail"));
+		assertNull(e.cosmetic("back"), "zła nazwa plecaka odrzucona");
+		assertEquals(Pets.WALK, e.petMode);
+		assertEquals(-1, e.petSide);
+		assertEquals("Mruczek", e.petName);
+		MibPlayers.Entry old = q.find(PREMIUM, "Gracz");
+		assertEquals(Pets.FLY, old.petMode);
+		assertEquals(1, old.petSide);
+		assertNull(old.petName);
+		assertNull(old.cosmetic("pet"));
 		assertEquals(0, MibPlayers.parse("zepsuty").size());
 		assertEquals(0, MibPlayers.parse("[1]").size());
 	}

@@ -679,6 +679,7 @@ label.srow{cursor:pointer}
 .slot{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 8px;border:1px solid var(--edge);border-radius:var(--r-sm);background:var(--slab2);text-align:center;min-width:0}
 .slot i{height:38px;display:grid;place-items:center;font:normal 22px/1 sans-serif;color:var(--faint)}.slot i>*{max-height:38px;max-width:100%;image-rendering:pixelated}
 .slot b{font-size:12px;font-weight:600}.slot small{font-size:11px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.petcfg{display:flex;flex-direction:column;gap:8px}.petseg{display:flex;width:100%}.petseg button{flex:1;min-width:0}.petname{gap:6px;flex-wrap:nowrap}.petname input{flex:1;min-width:0}
 .slot.on{border-color:color-mix(in srgb,var(--am) 55%,var(--edge));background:color-mix(in srgb,var(--am) 9%,var(--slab2))}.slot.on i{color:var(--am-hi)}
 .cosr{min-width:0;display:flex;flex-direction:column;gap:14px}
 .cosr>.sec{padding-top:0}

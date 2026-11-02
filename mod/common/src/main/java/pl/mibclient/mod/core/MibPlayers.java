@@ -19,9 +19,14 @@ import java.util.UUID;
 public final class MibPlayers {
 	public static final MibPlayers NONE = new MibPlayers(Collections.<Entry>emptyList());
 
-	/** Gracz MiB: UUID konta, nick i założone kosmetyki (id albo null): peleryna, czapka, skrzydła, aura, maska. */
+	/**
+	 * Gracz MiB: UUID konta, nick i założone kosmetyki (id albo null): peleryna, czapka, skrzydła, aura, maska; od 0.34.0 pet, ogon,
+	 * plecak i ustawienia peta (Pets.FLY…, strona +1/−1, imię albo null).
+	 */
 	public static final class Entry {
 		public final String uuid, name, cape, hat, wings, aura, mask;
+		public String pet, tail, back, petName;
+		public int petMode = Pets.FLY, petSide = 1;
 
 		public Entry(String uuid, String name, String cape) {
 			this(uuid, name, cape, null, null, null, null);
@@ -43,7 +48,8 @@ public final class MibPlayers {
 
 		/** Id założonego kosmetyku danego typu (cape, hat, mask, wings, aura) albo null. */
 		public String cosmetic(String type) {
-			return "cape".equals(type) ? cape : "hat".equals(type) ? hat : "wings".equals(type) ? wings : "aura".equals(type) ? aura : "mask".equals(type) ? mask : null;
+			return "cape".equals(type) ? cape : "hat".equals(type) ? hat : "wings".equals(type) ? wings : "aura".equals(type) ? aura : "mask".equals(type) ? mask
+					: "pet".equals(type) ? pet : "tail".equals(type) ? tail : "back".equals(type) ? back : null;
 		}
 	}
 
@@ -66,7 +72,7 @@ public final class MibPlayers {
 		return name == null ? null : byName.get(name.toLowerCase(Locale.ROOT));
 	}
 
-	/** players.json: {"players":[{"uuid","name","cape","hat","mask","wings","aura"}]}; zły plik = brak graczy. */
+	/** players.json: {"players":[{"uuid","name","cape","hat","mask","wings","aura","pet","tail","back","petMode","petSide","petName"}]}; zły plik = brak graczy. */
 	public static MibPlayers parse(String json) {
 		Object v;
 		try {
@@ -80,7 +86,14 @@ public final class MibPlayers {
 			if (!(o instanceof Map)) continue;
 			Map<?, ?> m = (Map<?, ?>) o;
 			if (!(m.get("uuid") instanceof String) || !(m.get("name") instanceof String)) continue;
-			out.add(new Entry((String) m.get("uuid"), (String) m.get("name"), id(m.get("cape")), id(m.get("hat")), id(m.get("wings")), id(m.get("aura")), id(m.get("mask"))));
+			Entry e = new Entry((String) m.get("uuid"), (String) m.get("name"), id(m.get("cape")), id(m.get("hat")), id(m.get("wings")), id(m.get("aura")), id(m.get("mask")));
+			e.pet = id(m.get("pet"));
+			e.tail = id(m.get("tail"));
+			e.back = id(m.get("back"));
+			e.petMode = Pets.mode(m.get("petMode") instanceof String ? (String) m.get("petMode") : null);
+			e.petSide = Pets.side(m.get("petSide") instanceof String ? (String) m.get("petSide") : null);
+			e.petName = Pets.name(m.get("petName"));
+			out.add(e);
 		}
 		return new MibPlayers(out);
 	}

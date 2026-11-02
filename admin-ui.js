@@ -61,7 +61,7 @@
   const err = r => (r && ERR[r.error]) || msg(r && r.error || 'unknown', r && r.detail);
   const call = (fn, args) => mib.call('prof:admin', { fn, args });
   const failed = r => r && !Array.isArray(r) && r.error;
-  const TYPES = { cape: 'Peleryna', hat: 'Czapka', mask: 'Maska', wings: 'Skrzydła', aura: 'Aura' };
+  const TYPES = { cape: 'Peleryna', hat: 'Czapka', mask: 'Maska', wings: 'Skrzydła', aura: 'Aura', pet: 'Pet', tail: 'Ogon', back: 'Plecak' };
   const SOURCES = { code: 'kod', admin: 'od admina', gift: 'prezent', shop: 'sklep', theme: 'nagroda świąteczna', advent: 'kalendarz adwentowy' };
   const coins = n => Number(n || 0).toLocaleString('pl-PL');
   // Ruch cząsteczek aury: końcówka ID (launcher i mod znają tylko te)

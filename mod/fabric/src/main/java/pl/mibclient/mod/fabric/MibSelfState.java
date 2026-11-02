@@ -36,4 +36,21 @@ public interface MibSelfState {
 	int mib$auraSeed();
 
 	void mib$aura(MibId aura, int style, int seed);
+
+	/** Pet, ogon i plecak MiB (od 0.34.0): tekstury albo null, tryb i strona peta, czy śpi, czy gracz biegnie. */
+	MibId mib$pet();
+
+	MibId mib$tail();
+
+	MibId mib$back();
+
+	int mib$petMode();
+
+	int mib$petSide();
+
+	boolean mib$petSleep();
+
+	boolean mib$run();
+
+	void mib$extra(MibId pet, MibId tail, MibId back, int petMode, int petSide, boolean sleep, boolean run);
 }

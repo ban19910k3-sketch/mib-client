@@ -161,6 +161,11 @@ public final class Players {
 		return out;
 	}
 
+	/** Wpis gracza MiB z players.json albo null. */
+	MibPlayers.Entry entryOf(UUID id, String name) {
+		return list.find(id, name);
+	}
+
 	/** Id kosmetyku innego gracza MiB danego typu albo null. */
 	String cosmeticIdOf(UUID id, String name, String type) {
 		MibPlayers.Entry e = list.find(id, name);

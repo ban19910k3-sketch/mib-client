@@ -24,6 +24,18 @@ public interface MenuActions {
 	default void equip(String type, String id) {
 	}
 
+	/** Tryb i strona peta (od 0.34.0, przez launcher). */
+	default void setPet(int mode, int side) {
+	}
+
+	/** Czy pokazywać pety innych graczy (ustawienie moda). */
+	default boolean showPets() {
+		return true;
+	}
+
+	default void setShowPets(boolean on) {
+	}
+
 	/** Odbiera prezent od MiB (przez launcher); komunikat jak przy zmianie kosmetyku. */
 	default void claimGift(long id) {
 	}

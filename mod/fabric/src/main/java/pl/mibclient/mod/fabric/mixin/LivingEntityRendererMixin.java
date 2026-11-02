@@ -51,6 +51,9 @@ public abstract class LivingEntityRendererMixin {
 		MibId aura = p == null ? null : m.cosmeticFor(p, "aura");
 		int style = aura == null ? 0 : m.auraStyleFor(p);
 		s.mib$aura(style == 0 ? null : aura, style, p == null ? 0 : p.getUUID().hashCode());
+		int[] pet = p == null ? null : m.petSettings(p);
+		s.mib$extra(p == null ? null : m.petFor(p), p == null ? null : m.cosmeticFor(p, "tail"), p == null ? null : m.cosmeticFor(p, "back"),
+				pet == null ? 0 : pet[0], pet == null ? 1 : pet[1], p != null && m.petSleeping(p), p != null && p.isSprinting());
 	}
 	//#endif
 }
