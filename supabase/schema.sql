@@ -328,6 +328,8 @@ alter table public.ideas add column if not exists rewarded boolean not null defa
 -- Założone kosmetyki (od 0.13.0): {"cape": "<id>"}; zmienia je tylko equip_cosmetic, który sprawdza, czy gracz ma ten przedmiot.
 -- Od 0.22.0 także aura (efekt wokół postaci)
 alter table public.profiles add column if not exists equipped jsonb not null default '{}'::jsonb;
+-- Ustawienia peta (od 0.34.0): tryb fly|shoulder|walk, strona left|right, imię do 16 znaków (widać je nad petem w grze)
+alter table public.profiles add column if not exists pet jsonb not null default '{"mode": "fly", "side": "left", "name": ""}'::jsonb;
 create or replace function public.equip_cosmetic(p_type text, p_id text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -335,7 +337,7 @@ declare
   v jsonb;
 begin
   if v_uid is null then raise exception 'not_logged_in'; end if;
-  if p_type is null or p_type not in ('cape', 'hat', 'wings', 'aura', 'mask') then raise exception 'cosmetic_type_invalid'; end if;
+  if p_type is null or p_type not in ('cape', 'hat', 'wings', 'aura', 'mask', 'pet', 'tail', 'back') then raise exception 'cosmetic_type_invalid'; end if;
   if p_id is not null and not exists (
     select 1 from public.owned_cosmetics o join public.cosmetics c on c.id = o.cosmetic_id
     where o.user_id = v_uid and o.cosmetic_id = p_id and c.type = p_type) then
@@ -344,6 +346,23 @@ begin
   update public.profiles
     set equipped = case when p_id is null then equipped - p_type else jsonb_set(equipped, array[p_type], to_jsonb(p_id)) end
     where id = v_uid returning equipped into v;
+  if v is null then raise exception 'no_profile'; end if;
+  return v;
+end $$;
+
+create or replace function public.set_pet(p_mode text, p_side text, p_name text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_name text := btrim(coalesce(p_name, ''));
+  v jsonb;
+begin
+  if v_uid is null then raise exception 'not_logged_in'; end if;
+  if p_mode is null or p_mode not in ('fly', 'shoulder', 'walk') then raise exception 'pet_mode_invalid'; end if;
+  if p_side is null or p_side not in ('left', 'right') then raise exception 'pet_side_invalid'; end if;
+  if char_length(v_name) > 16 or v_name ~ '[[:cntrl:]]' then raise exception 'pet_name_invalid'; end if;
+  update public.profiles set pet = jsonb_build_object('mode', p_mode, 'side', p_side, 'name', v_name)
+    where id = v_uid returning pet into v;
   if v is null then raise exception 'no_profile'; end if;
   return v;
 end $$;
@@ -519,14 +538,20 @@ end $$;
 -- Zbanowanych (od 0.20.0) nie ma na liście: bez logo MiB i kosmetyków w grze.
 -- Od 0.15.0 także czapka i skrzydła, od 0.22.0 aura: inny wynik funkcji, więc najpierw stara wersja znika.
 drop function if exists public.mib_who(uuid[], text[]);
-create or replace function public.mib_who(p_ids uuid[], p_names text[]) returns table (uuid uuid, name text, cape text, hat text, wings text, aura text, mask text)
+-- Od 0.34.0 także pet, ogon, plecak i ustawienia peta (tryb, strona, imię) — gracz widzi peta innych tak, jak go ustawili
+create or replace function public.mib_who(p_ids uuid[], p_names text[])
+returns table (uuid uuid, name text, cape text, hat text, wings text, aura text, mask text, pet text, tail text, back text, pet_mode text, pet_side text, pet_name text)
 language sql stable security definer set search_path = '' as $$
   select m.uuid, m.name,
     (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'cape')),
     (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'hat')),
     (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'wings')),
     (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'aura')),
-    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'mask'))
+    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'mask')),
+    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'pet')),
+    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'tail')),
+    (select o.cosmetic_id from public.owned_cosmetics o where o.user_id = m.user_id and o.cosmetic_id = (p.equipped ->> 'back')),
+    p.pet ->> 'mode', p.pet ->> 'side', nullif(p.pet ->> 'name', '')
   from private.mib_players m left join public.profiles p on p.id = m.user_id
   where m.seen_at > now() - interval '10 minutes' and p.banned_at is null
     and (m.uuid = any ((coalesce(p_ids, '{}'::uuid[]))[1:200])
@@ -1237,7 +1262,8 @@ begin
   perform private.need_admin();
   if p_id !~ '^[a-z0-9_]{2,32}$' then raise exception 'cosmetic_id_invalid'; end if;
   if length(trim(coalesce(p_name, ''))) not between 1 and 40 then raise exception 'cosmetic_name_invalid'; end if;
-  if p_type not in ('cape', 'hat', 'wings', 'aura', 'mask') then raise exception 'cosmetic_type_invalid'; end if;
+  -- pet, ogon i plecak (od 0.34.0): model 3D w teksturze PNG (kawałek „mib-model”), bez niego nic nie widać
+  if p_type not in ('cape', 'hat', 'wings', 'aura', 'mask', 'pet', 'tail', 'back') then raise exception 'cosmetic_type_invalid'; end if;
   -- aura (od 0.22.0): końcówka id mówi, jak poruszają się cząsteczki (launcher i mod znają te ruchy; snow i burst od 0.25.0)
   if p_type = 'aura' and p_id !~ '_(souls|pumpkins|ghosts|magic|snow|burst)$' then raise exception 'aura_id_invalid'; end if;
   insert into public.cosmetics (id, name, type, texture) values (p_id, trim(p_name), p_type, p_texture)
@@ -2203,6 +2229,7 @@ revoke all on function public.delete_my_profile() from public, anon, authenticat
 revoke all on function public.create_my_profile(text) from public, anon, authenticated;
 revoke all on function public.submit_idea(text, text) from public, anon, authenticated;
 revoke all on function public.equip_cosmetic(text, text) from public, anon, authenticated;
+revoke all on function public.set_pet(text, text, text) from public, anon, authenticated;
 revoke all on function public.mib_hello(text, text) from public, anon, authenticated;
 revoke all on function private.mojang_verify(text, text) from public, anon, authenticated;
 revoke all on function private.mc_make_profile(uuid, uuid, text) from public, anon, authenticated;
@@ -2228,6 +2255,7 @@ grant execute on function public.delete_my_profile() to authenticated;
 grant execute on function public.create_my_profile(text) to authenticated;
 grant execute on function public.submit_idea(text, text) to authenticated;
 grant execute on function public.equip_cosmetic(text, text) to authenticated;
+grant execute on function public.set_pet(text, text, text) to authenticated;
 grant execute on function public.mib_hello(text, text) to anon, authenticated;
 grant execute on function public.link_minecraft(text, text) to authenticated;
 -- mc_account wywołuje tylko funkcja mc-login kluczem serwisowym

@@ -456,6 +456,31 @@ delete from public.owned_cosmetics where user_id = '22222222-2222-2222-2222-2222
 do $$ begin
   assert (select cape from public.mib_who(null, array['Gracz'])) is null, 'zabrana peleryna znika';
 end $$;
+-- Pety, ogony i plecaki (0.34.0): osobne miejsca naraz, ustawienia peta widzą inni gracze MiB
+insert into public.cosmetics (id, name, type) values ('pet_t', 'Pet', 'pet'), ('tail_t', 'Ogon', 'tail'), ('back_t', 'Plecak', 'back') on conflict do nothing;
+insert into public.owned_cosmetics (user_id, cosmetic_id) values ('22222222-2222-2222-2222-222222222222', 'pet_t'),
+  ('22222222-2222-2222-2222-222222222222', 'tail_t'), ('22222222-2222-2222-2222-222222222222', 'back_t') on conflict do nothing;
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ declare e jsonb; begin
+  perform public.equip_cosmetic('pet', 'pet_t');
+  perform public.equip_cosmetic('tail', 'tail_t');
+  e := public.equip_cosmetic('back', 'back_t');
+  assert e ->> 'pet' = 'pet_t' and e ->> 'tail' = 'tail_t' and e ->> 'back' = 'back_t' and e ->> 'hat' = 'hat_one', 'pet, ogon i plecak razem z czapką';
+  assert (select pet from public.profiles) = '{"mode": "fly", "side": "left", "name": ""}'::jsonb, 'domyślnie lata po lewej, bez imienia';
+  assert (select pet_mode from public.mib_who(null, array['Gracz'])) = 'fly' and (select pet_name from public.mib_who(null, array['Gracz'])) is null, 'domyślne ustawienia peta';
+  assert public.set_pet('walk', 'right', '  Mruczek ') = '{"mode": "walk", "side": "right", "name": "Mruczek"}'::jsonb, 'zapis ustawień peta';
+  assert (select row(pet, tail, back, pet_mode, pet_side, pet_name)::text from public.mib_who(null, array['Gracz'])) = '(pet_t,tail_t,back_t,walk,right,Mruczek)', 'inni widzą peta, ogon, plecak i ustawienia';
+  assert public.set_pet('shoulder', 'left', null) ->> 'name' = '', 'bez imienia';
+end $$;
+select pg_temp.expect_error($q$select public.equip_cosmetic('pet', 'tail_t')$q$, 'not_owned');
+select pg_temp.expect_error($q$select public.set_pet('swim', 'left', '')$q$, 'pet_mode_invalid');
+select pg_temp.expect_error($q$select public.set_pet('fly', 'up', '')$q$, 'pet_side_invalid');
+select pg_temp.expect_error($q$select public.set_pet('fly', 'left', 'Bardzo długie imię peta')$q$, 'pet_name_invalid');
+select pg_temp.expect_error($q$select public.set_pet('fly', 'left', E'Ala\nkot')$q$, 'pet_name_invalid');
+select pg_temp.expect_error($q$update public.profiles set pet = '{"mode":"walk"}'$q$, 'permission denied');
+reset role;
+select pg_temp.expect_error($q$select public.set_pet('fly', 'left', '')$q$, 'not_logged_in');
 do $$ begin
   assert (select count(*) from private.hello_log) = 3, 'nieudane próby też liczą się do limitu';
 end $$;
