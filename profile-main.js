@@ -264,6 +264,16 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     claimThemeGift: ({ id }) => authed(t => supa.rpc('claim_theme_gift', { p_theme: id }, t)),
     advent: () => authed(t => supa.rpc('advent', {}, t)).catch(e => (e.code === 'schema_outdated' ? { open: false, days: [] } : Promise.reject(e))),
     claimAdvent: ({ day }) => authed(t => supa.rpc('claim_advent', { p_day: day }, t)),
+    // Ustawienia peta (od 0.34.0): tryb fly|shoulder|walk, strona left|right, imię; stara baza = domyślne
+    async pet() {
+      const [p] = await authed(t => supa.select('profiles', 'select=pet&id=eq.' + sess.userId, t)).catch(e => (e.code === 'schema_outdated' ? [null] : Promise.reject(e)));
+      return P.petSettings(p && p.pet);
+    },
+    async setPet({ mode, side, name }) {
+      const nm = String(name == null ? '' : name).trim();
+      if (nm && P.cleanText(nm) !== nm) return { error: 'pet_name_invalid' };
+      return P.petSettings(await authed(t => supa.rpc('set_pet', { p_mode: mode, p_side: side, p_name: nm }, t)));
+    },
     // Założenie (id) albo zdjęcie (id = null) kosmetyku danego typu; baza sprawdza, czy gracz go ma
     async equip({ type, id }) {
       const equipped = await authed(t => supa.rpc('equip_cosmetic', { p_type: type, p_id: id || null }, t));
@@ -435,7 +445,8 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   block: 'prof:block', unblock: 'prof:unblock', blocked: 'prof:blocked', report: 'prof:report', warnings: 'prof:warnings', warningsSeen: 'prof:warningsSeen',
   card: 'prof:card', ideasPublic: 'prof:ideasPublic', ideaVote: 'prof:ideaVote', wallet: 'prof:wallet', shopOpen: 'prof:shopOpen',
   shop: 'prof:shop', buy: 'prof:buy', buyOffer: 'prof:buyOffer', coinLog: 'prof:coinLog', daily: 'prof:daily',
-  themes: 'prof:themes', themeGifts: 'prof:themeGifts', claimThemeGift: 'prof:claimThemeGift', advent: 'prof:advent', claimAdvent: 'prof:claimAdvent' };
+  themes: 'prof:themes', themeGifts: 'prof:themeGifts', claimThemeGift: 'prof:claimThemeGift', advent: 'prof:advent', claimAdvent: 'prof:claimAdvent',
+  pet: 'prof:pet', setPet: 'prof:setPet' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

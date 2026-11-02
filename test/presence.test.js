@@ -75,7 +75,14 @@ test('most: żądanie graczy z gry -> players.json, tylko poprawne dane', async 
   assert.strictEqual(m.readPlayersRequest('[1]'), null);
   assert.strictEqual(m.readPlayersRequest('zepsuty'), null);
   assert.deepStrictEqual(JSON.parse(m.playersPayload([{ uuid: '33333333-3333-4333-8333-333333333333', name: 'Gracz', cape: '../x', mask: 'adwent_mask_broda', aura: 'halloween_aura_magic' }, { uuid: 'zly', name: 'A' }])),
-    { players: [{ uuid: '33333333-3333-4333-8333-333333333333', name: 'Gracz', cape: null, hat: null, mask: 'adwent_mask_broda', wings: null, aura: 'halloween_aura_magic' }] });
+    { players: [{ uuid: '33333333-3333-4333-8333-333333333333', name: 'Gracz', cape: null, hat: null, mask: 'adwent_mask_broda', wings: null, aura: 'halloween_aura_magic',
+      pet: null, tail: null, back: null, petMode: 'fly', petSide: 'left', petName: null }] });
+  // pet, ogon i plecak (0.34.0): ustawienia peta tylko znane wartości, imię przez filtr (clean)
+  assert.deepStrictEqual(JSON.parse(m.playersPayload([{ uuid: '33333333-3333-4333-8333-333333333333', name: 'Gracz', pet: 'pet_kotek', tail: 'tail_koci', back: '../x',
+    pet_mode: 'walk', pet_side: 'right', pet_name: 'Mruczek' }], n => n.toUpperCase())).players[0],
+    { uuid: '33333333-3333-4333-8333-333333333333', name: 'Gracz', cape: null, hat: null, mask: null, wings: null, aura: null, pet: 'pet_kotek', tail: 'tail_koci', back: null,
+      petMode: 'walk', petSide: 'right', petName: 'MRUCZEK' });
+  assert.deepStrictEqual(JSON.parse(m.playersPayload([{ uuid: '33333333-3333-4333-8333-333333333333', name: 'Gracz', pet_mode: 'swim', pet_side: 'up', pet_name: 'x'.repeat(17) }])).players[0].petMode, 'fly');
 
   const dir = tmp();
   const asked = [];

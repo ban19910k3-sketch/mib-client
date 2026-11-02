@@ -122,6 +122,15 @@ test('readEquip: tylko przedmioty gracza i pasujący typ', () => {
   assert.strictEqual(m.readEquip('{"type":"buty","id":null}', COS), null);
   assert.deepStrictEqual(m.readEquip('{"type":"aura","id":null}', COS), { type: 'aura', id: null });
   assert.strictEqual(m.readEquip('zly', COS), null);
+  // pet, ogon i plecak (0.34.0) to nowe rodzaje
+  assert.deepStrictEqual(['pet', 'tail', 'back'].map(t => m.readEquip(`{"type":"${t}","id":null}`, COS)), [{ type: 'pet', id: null }, { type: 'tail', id: null }, { type: 'back', id: null }]);
+});
+
+test('readPet i cosmeticsPayload: tryb i strona peta z gry, ustawienia peta dla moda', () => {
+  assert.deepStrictEqual(m.readPet('{"pet":{"mode":"walk","side":"right"}}'), { mode: 'walk', side: 'right' });
+  for (const bad of ['{"pet":{"mode":"swim","side":"left"}}', '{"pet":{"mode":"fly","side":"up"}}', '{"pet":"fly"}', '{"type":"pet","id":null}', 'zly']) assert.strictEqual(m.readPet(bad), null, bad);
+  assert.deepStrictEqual(JSON.parse(m.cosmeticsPayload({ ...COS, pet: { mode: 'shoulder', side: 'right', name: 'Mruczek' } })).pet, { mode: 'shoulder', side: 'right', name: 'Mruczek' });
+  assert.deepStrictEqual(JSON.parse(m.cosmeticsPayload(COS)).pet, { mode: 'fly', side: 'left', name: '' }, 'bez ustawień: domyślne');
 });
 
 test('bridge: kosmetyki do gry i zakładanie z menu w grze', async () => {
@@ -425,4 +434,19 @@ test('prezenty w menu gry: lista w cosmetics.json i odbieranie (cosmetic-request
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'cosmetic-result.json'), 'utf8')).ok, false, 'drugi raz: błąd w grze');
   b.notice({ type: 'news', nick: 'MiB', text: 'Turniej za godzinę' });
   assert.deepStrictEqual((({ type, text }) => ({ type, text }))(JSON.parse(fs.readFileSync(path.join(dir, 'notice.json'), 'utf8'))), { type: 'news', text: 'Turniej za godzinę' });
+});
+
+test('bridge: tryb i strona peta z menu w grze (cosmetic-request.json z polem pet)', async () => {
+  const dir = path.join(tmp(), 'mib'), pets = [];
+  const b = m.createBridge({ dir, accounts: () => ACC, onSwitch: async () => {}, cosmetics: async () => COS, intervalMs: 60000, now: () => 99,
+    onPet: async p => { pets.push(p); } });
+  b.start(); b.stop();
+  await b.pollOnce();
+  fs.writeFileSync(path.join(dir, 'cosmetic-request.json'), '{"pet":{"mode":"shoulder","side":"left"}}');
+  await b.pollOnce();
+  assert.deepStrictEqual(pets, [{ mode: 'shoulder', side: 'left' }]);
+  fs.writeFileSync(path.join(dir, 'cosmetic-request.json'), '{"pet":{"mode":"nie","side":"left"}}');
+  await b.pollOnce();
+  assert.strictEqual(pets.length, 1, 'złe dane: nic');
+  assert.ok(fs.existsSync(path.join(dir, 'cosmetic-result.json')), 'błąd dla gry');
 });

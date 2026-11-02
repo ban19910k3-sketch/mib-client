@@ -715,12 +715,16 @@ function startHud(pid, mibDir, gameAcc) {
           const st = await prof.state();
           if (!st || st.offline) return null; // bez sieci: zostaje poprzednia lista
           if (!st.loggedIn) return { loggedIn: false, items: [] };
-          const [l, g] = await Promise.all([prof.cosmetics(), prof.gifts()]);
-          return Array.isArray(l) ? { loggedIn: true, items: l, gifts: Array.isArray(g) ? g : [] } : null;
+          const [l, g, pt] = await Promise.all([prof.cosmetics(), prof.gifts(), prof.pet()]);
+          return Array.isArray(l) ? { loggedIn: true, items: l, gifts: Array.isArray(g) ? g : [], pet: pt && !pt.error ? pt : null } : null;
         },
         // „Odbierz” prezent w menu gry
         onClaim: async id => { const r = await prof.claimGift({ id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się odebrać prezentu.'); watchGifts().catch(() => {}); },
         onEquip: async (type, id) => { const r = await prof.equip({ type, id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się zmienić kosmetyku.'); },
+        // tryb i strona peta z menu w grze (imię zostaje to z launchera)
+        onPet: async ({ mode, side }) => { const cur = await prof.pet(); const r = await prof.setPet({ mode, side, name: cur && !cur.error ? cur.name : '' }); if (r && r.error) throw new Error('Nie udało się zmienić ustawień peta.'); },
+        // imiona petów innych graczy przez filtr wulgaryzmów, gdy jest włączony
+        petName: n => clean(n),
         // gracze MiB z listy Tab (logo przed nickiem) i tekstury ich peleryn w <gra>/mib/capes
         players: req => mibPresence.players(req, path.join(mibDir, 'capes')),
         // moduł Screenshot: zrzut ekranu z gry od razu w schowku
