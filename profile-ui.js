@@ -272,7 +272,7 @@
   }
 
   // ===== Strona Kosmetyki =====
-  const GLYPH = { cape: '▚', hat: '▀', mask: '▄', wings: '▞', aura: '✺' };
+  const GLYPH = { cape: '▚', hat: '▀', mask: '▄', wings: '▞', aura: '✺', pet: '🐾', tail: '〰', back: '▣' };
   // Miniatura peleryny: zewnętrzna strona z tekstury Minecrafta (pole 10×16 od piksela 1,1), powiększona k razy
   // (animowana tekstura: klatki jedna pod drugą przewijane animacją capeanim ze style.css)
   function capeThumb(url, k) {
@@ -336,10 +336,11 @@
   }
   // Miniatura kosmetyku z modelem 3D (MibProfile.cosmeticModel): model z boku i z góry, ściany z pierwszej klatki tekstury
   // przyciemnione jak w grze (wierzch najjaśniejszy, boki najciemniejsze)
-  function modelThumb(url, model) {
+  function modelThumb(url, model, type) {
     const c = h('canvas', { width: 128, height: 128, class: 'headth modelth' }), x = c.getContext('2d');
     loadImg(url).then(img => {
-      const faces = MibProfile.modelFaces(model, -28, 22);
+      // ogon i plecak widać od tyłu, resztę od przodu
+      const faces = MibProfile.modelFaces(model, type === 'tail' || type === 'back' ? 152 : -28, 22);
       if (!faces.length) return;
       const shaded = new Map();
       const tex = shade => {
@@ -370,6 +371,8 @@
     const png = c.imageUrl && c.imageUrl.startsWith('data:image/png');
     if (png && c.type === 'cape') return capeThumb(c.imageUrl, k);
     if (png && (c.type === 'hat' || c.type === 'mask')) return headThumb(c.imageUrl, c.type);
+    // pet, ogon i plecak (od 0.34.0) są tylko z modelem 3D; bez modelu znaczek rodzaju
+    if (png && ['pet', 'tail', 'back'].includes(c.type)) { const m = MibProfile.cosmeticModel(c.imageUrl); return m ? modelThumb(c.imageUrl, m, c.type) : GLYPH[c.type]; }
     if (png && c.type === 'aura') return auraThumb(c.imageUrl, k);
     if (png && c.type === 'wings') return wingsThumb(c.imageUrl);
     return c.imageUrl ? h('img', { src: c.imageUrl, alt: '' }) : GLYPH[c.type] || '◆';
@@ -469,13 +472,15 @@
   }
   // cape, wings, hat: tekstury albo null; aura: { texture, id } albo null. Skrzydła jak elytra zastępują pelerynę,
   // skrzydła wróżki są razem z nią. Zwraca, co widać.
-  async function dress(viewer, { cape = null, wings = null, hat = null, mask = null, aura = null } = {}) {
+  async function dress(viewer, { cape = null, wings = null, hat = null, mask = null, aura = null, pet = null, tail = null, back = null, petMode = 'fly', petSide = 'left' } = {}) {
     const st = dressed.get(viewer) || {};
     dressed.set(viewer, st);
     const my = st.gen = (st.gen || 0) + 1;
     const load = u => (u ? frames(u).catch(() => null) : null);
-    const [cf, wf, hf, mf, af] = await Promise.all([load(cape), load(wings), load(hat), load(mask), load(aura && aura.texture)]);
+    const [cf, wf, hf, mf, af, pf, tf, kf] = await Promise.all([load(cape), load(wings), load(hat), load(mask), load(aura && aura.texture), load(pet), load(tail), load(back)]);
     const hm = hf && MibProfile.cosmeticModel(hat), mm = mf && MibProfile.cosmeticModel(mask);
+    // pet, ogon i plecak (od 0.34.0) są tylko z modelem 3D w teksturze; bez modelu nic nie widać
+    const pm = pf && MibProfile.cosmeticModel(pet), tm = tf && MibProfile.cosmeticModel(tail), km = kf && MibProfile.cosmeticModel(back);
     if (st.gen !== my) return null;
     clearInterval(st.timer); st.timer = null;
     const fairy = wf && MibProfile.wingsModel(wf[0].width) === 'fairy' ? wf : null;
@@ -485,29 +490,37 @@
     if (st.gen !== my) return null;
     await putHead(viewer, st, 'mask', mf, my, mm);
     if (st.gen !== my) return null;
+    for (const [slot, f, m] of [['tail', tf, tm], ['back', kf, km], ['pet', pf, pm]]) {
+      await putHead(viewer, st, slot, m ? f : null, my, m, slot === 'pet' ? { mode: petMode, side: petSide } : null);
+      if (st.gen !== my) return null;
+    }
+    // peleryna przy plecaku wisi dalej od pleców, za plecakiem (w grze tak samo: CapeLayerMixin)
+    const capeObj = viewer.playerObject && viewer.playerObject.cape;
+    if (capeObj) { if (st.capeZ0 == null) st.capeZ0 = capeObj.position.z; capeObj.position.z = st.capeZ0 - (st.back ? 4 : 0); }
     // wysoka czapka wystaje nad głowę: kamera trochę dalej i postać niżej, żeby zmieściła się w podglądzie
     if (st.zoom0 == null) st.zoom0 = viewer.zoom;
     const tall = !!(st.hat && (st.hat.model ? st.hat.top < -13 : st.hat.parts.length > 1)), taller = tall && st.hat.model && st.hat.top < -18;
-    viewer.zoom = st.zoom0 * (taller ? 0.76 : tall ? 0.84 : 1);
+    viewer.zoom = st.zoom0 * (taller ? 0.76 : tall ? 0.84 : 1) * (st.pet && st.pet.pet.mode !== 'shoulder' ? 0.9 : 1);
     if (viewer.playerWrapper) viewer.playerWrapper.position.y = taller ? -5 : tall ? -3 : 0;
     await putWings(viewer, st, fairy, my);
     if (st.gen !== my) return null;
     const style = af && MibProfile.auraStyle(aura.id);
     await putAura(viewer, st, style ? af : null, style, my);
     if (st.gen !== my) return null;
-    const n = Math.max(bf ? bf.length : 1, hf ? hf.length : 1, mf ? mf.length : 1, fairy ? fairy.length : 1);
+    const n = Math.max(bf ? bf.length : 1, hf ? hf.length : 1, mf ? mf.length : 1, fairy ? fairy.length : 1, ...[pf, tf, kf].map(f => (f ? f.length : 1)));
     if (n > 1) {
       let i = 0;
       st.timer = setInterval(() => {
         if (!viewer.canvas || !viewer.canvas.isConnected) { clearInterval(st.timer); st.timer = null; return; }
         i++;
         if (bf && bf.length > 1 && viewer.capeTexture) draw(viewer.capeCanvas, bf[i % bf.length], 0, viewer.capeTexture);
-        for (const [slot, f] of [['hat', hf], ['mask', mf]]) if (f && f.length > 1 && st[slot]) for (const p of st[slot].parts) paint(p, f[i % f.length]);
+        for (const [slot, f] of [['hat', hf], ['mask', mf], ['pet', pf], ['tail', tf], ['back', kf]]) if (f && f.length > 1 && st[slot]) for (const p of st[slot].parts) paint(p, f[i % f.length]);
         if (fairy && fairy.length > 1 && st.wingTex) draw(st.wingCanvas, fairy[i % fairy.length], 0, st.wingTex);
       }, MibProfile.CAPE_FRAME_MS);
     }
-    if (st.wings || st.aura || spinning(st)) animate(viewer, st);
-    return { back: kind, fairy: !!st.wings, hat: st.hat ? (st.hat.model ? 'model' : st.hat.parts.length > 1 ? 'tall' : '1') : '', mask: !!st.mask, aura: st.aura ? style : '', frames: n };
+    if (st.wings || st.aura || moving(st)) animate(viewer, st);
+    return { back: kind, fairy: !!st.wings, hat: st.hat ? (st.hat.model ? 'model' : st.hat.parts.length > 1 ? 'tall' : '1') : '', mask: !!st.mask, aura: st.aura ? style : '', frames: n,
+      pet: st.pet ? st.pet.pet.mode : '', tail: !!st.tail, pack: !!st.back };
   }
   function draw(canvas, frame, y, tex) {
     const x = canvas.getContext('2d');
@@ -518,9 +531,10 @@
   // Czapka i maska: kopia głowy postaci powiększona jak hełm (czapka 10 i 11 pikseli zamiast 8, maska 9,2 i 10,2 — pod czapką)
   // z teksturą w górnej połowie płótna 64×64, tak jak leżą głowa i nakładka na skinie. Wysoka czapka (tekstura szeroka
   // na 128 px, MibProfile.hatModel) ma drugą taką kostkę 10 pikseli wyżej z prawej połowy tekstury (w grze tak samo: HatLayer).
-  async function putHead(viewer, st, slot, hf, my, model) {
+  async function putHead(viewer, st, slot, hf, my, model, pet) {
     const head = viewer.playerObject && viewer.playerObject.skin && viewer.playerObject.skin.head;
     if (st[slot]) {
+      if (st[slot].group && st[slot].group.parent) st[slot].group.parent.remove(st[slot].group);
       for (const m of st[slot].meshes) { if (m.parent) m.parent.remove(m); if (st[slot].model) m.geometry.dispose(); else m.material.dispose(); }
       if (st[slot].model) st[slot].mat.dispose();
       for (const p of st[slot].parts) p.tex.dispose();
@@ -529,7 +543,8 @@
     if (!hf || !head || !head.innerLayer || !head.outerLayer) return;
     const Tex = await texClass(viewer, st, my);
     if (!Tex || st.gen !== my) return;
-    if (model) { putModel(viewer, st, slot, hf, model, Tex); return; }
+    if (model) { putModel(viewer, st, slot, hf, model, Tex, pet); return; }
+    if (slot !== 'hat' && slot !== 'mask') return;
     const tall = slot === 'hat' && MibProfile.hatModel(hf[0].width) === 'tall', k = hf[0].width / (tall ? 128 : 64);
     const sizes = slot === 'mask' ? [9.2, 10.2] : [10, 11];
     const parts = (tall ? [0, 64] : [0]).map(sx => {
@@ -553,8 +568,10 @@
   }
   // Kosmetyk z modelem 3D (MibProfile.cosmeticModel): każdy prostopadłościan to osobna siatka na głowie albo tułowiu postaci,
   // w układzie skinview3d (y w górę, przód w stronę +z: y i z z odwrotnym znakiem, obroty wokół y i z też). Tułów skinview3d
-  // ma środek 6 pikseli pod szyją, a w grze środek tułowia jest na szyi. Tak samo w grze: HatLayer.ModelHat.
-  function putModel(viewer, st, slot, hf, model, Tex) {
+  // ma środek 6 pikseli pod szyją, a w grze środek tułowia jest na szyi. Pet (od 0.34.0) to grupa w miejscu z petAnchor
+  // (tryb i strona z ustawień gracza), a części z ruchem (kręcenie, kołysanie, łapki, sen) ustawia animate. Tak samo w grze:
+  // HatLayer.ModelHat i PetLayer.
+  function putModel(viewer, st, slot, hf, model, Tex, pet) {
     const skin = viewer.playerObject.skin, src = skin.head.innerLayer, Box = src.geometry.constructor, Mesh = src.constructor;
     const cv = document.createElement('canvas');
     cv.width = model.w; cv.height = model.h;
@@ -562,24 +579,34 @@
     paint(p, hf[0]);
     const mat = skin.head.outerLayer.material.clone();
     mat.map = p.tex; mat.transparent = false; mat.alphaTest = 0.5;
-    const rad = a => a * Math.PI / 180, meshes = [], spins = [];
-    let top = 0;
+    const meshes = [], movers = [];
+    let group = null, top = 0;
+    if (pet) {
+      group = new Mesh();
+      const a = MibProfile.petAnchor(pet.mode, pet.side, 0, false);
+      (a.bone === 'body' ? skin.body : skin).add(group);
+      group.scale.setScalar(a.scale);
+      group.position.set(a.pos[0], -a.pos[1] + (a.bone === 'body' ? 6 : 0), -a.pos[2]);
+    }
     for (const part of model.parts) for (const [u, v, x, y, z, w, h, d, inf] of part.boxes) {
       const g = new Box(w + 2 * inf, h + 2 * inf, d + 2 * inf);
       g.translate(x + w / 2, -(y + h / 2), -(z + d / 2));
       g.attributes.uv.array.set(MibProfile.boxUVs(u, v, w, h, d, model.w, model.h));
       g.attributes.uv.needsUpdate = true;
-      const m = new Mesh(g, mat);
-      m.position.set(part.pivot[0], -part.pivot[1] + (part.bone === 'body' ? 6 : 0), -part.pivot[2]);
-      m.rotation.set(rad(part.rot[0]), -rad(part.rot[1]), -rad(part.rot[2]), 'ZYX');
-      (part.bone === 'body' ? skin.body : skin.head).add(m);
+      const m = new Mesh(g, mat), onBody = !pet && part.bone === 'body';
+      m.position.set(part.pivot[0], -part.pivot[1] + (onBody ? 6 : 0), -part.pivot[2]);
+      setRot(m, part.rot);
+      (group || (onBody ? skin.body : skin.head)).add(m);
       meshes.push(m);
-      if (part.spin) spins.push([m, part]);
+      if (part.spin || part.wave || part.step || part.sit || part.state) movers.push([m, part, m.position.y]);
+      if (part.state === 'sleep') m.visible = false;
       if (part.bone === 'head') top = Math.min(top, part.pivot[1] + y - inf);
     }
-    st[slot] = { parts: [p], meshes, spins, model: true, mat, top };
+    st[slot] = { parts: [p], meshes, movers, model: true, mat, top, group, pet };
   }
-  const spinning = st => !!((st.hat && st.hat.spins && st.hat.spins.length) || (st.mask && st.mask.spins && st.mask.spins.length));
+  const setRot = (m, r) => m.rotation.set(r[0] * Math.PI / 180, -r[1] * Math.PI / 180, -r[2] * Math.PI / 180, 'ZYX');
+  const MODEL_SLOTS = ['hat', 'mask', 'tail', 'back', 'pet'];
+  const moving = st => MODEL_SLOTS.some(k => st[k] && (st[k].group || (st[k].movers && st[k].movers.length)));
   // Część tekstury czapki (od sx, 64×32 w skali tekstury) w górnej połowie płótna części
   function paint(p, frame) {
     const x = p.cv.getContext('2d'), w = p.cv.width;
@@ -634,9 +661,24 @@
     let q = null;
     const tick = now => {
       st.raf = 0;
-      if (!viewer.canvas || !viewer.canvas.isConnected || !(st.wings || st.aura || spinning(st))) return;
-      // śmigło czapki: obrót wokół osi części (tak samo w grze: spin w HatLayer)
-      for (const slot of ['hat', 'mask']) if (st[slot] && st[slot].spins) for (const [m, part] of st[slot].spins) m.rotation.y = -(part.rot[1] + (reduceMotion.matches ? 0 : (part.spin * now / 1000) % 360)) * Math.PI / 180;
+      if (!viewer.canvas || !viewer.canvas.isConnected || !(st.wings || st.aura || moving(st))) return;
+      // części z ruchem (śmigło, kołysanie, łapki, oczy) i miejsce peta — MibProfile.partPose/petAnchor, w grze tak samo (Pets)
+      const t = reduceMotion.matches ? 0 : (now / 1000) % 3600;
+      for (const slot of MODEL_SLOTS) {
+        const o = st[slot];
+        if (!o || !o.model) continue;
+        const walking = o.pet && o.pet.mode === 'walk', ctx = { t, walk: walking && !reduceMotion.matches ? 0.5 : 0, phase: t * 2 * Math.PI * 1.2 };
+        if (o.group) {
+          const a = MibProfile.petAnchor(o.pet.mode, o.pet.side, t, false);
+          o.group.position.set(a.pos[0], -a.pos[1] + (a.bone === 'body' ? 6 : 0), -a.pos[2]);
+        }
+        for (const [m, part, y0] of o.movers) {
+          const ps = MibProfile.partPose(part, ctx);
+          setRot(m, ps.rot);
+          m.position.y = y0 - ps.dy;
+          m.visible = ps.visible;
+        }
+      }
       if (st.wings) { const a = 0.8 + (reduceMotion.matches ? 0 : Math.sin(now / 1000 * 4.2) * 0.22); for (const [m, sign] of st.wings) m.rotation.y = sign * a; }
       const au = st.aura;
       if (au) {
