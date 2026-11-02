@@ -172,4 +172,22 @@ class CosmeticModelTest {
 		assertEquals(3 * 0.9375 / 16, o[0], 1e-9, "obrócony na zachód: tył to wschód");
 		assertEquals(14 * 0.9375 / 16, o[2], 1e-9, "lewa strona to południe");
 	}
+
+	/** Pety, ogony i plecaki z bazy (0.34.0) czyta też mod — te same 114 co w launcherze. */
+	@Test
+	void petsFromSchemaParse() throws Exception {
+		File sql = null;
+		for (String p : new String[] {"../../supabase/schema.sql", "../supabase/schema.sql"}) if (new File(p).isFile()) sql = new File(p);
+		assertNotNull(sql, "brak supabase/schema.sql");
+		String s = new String(Files.readAllBytes(sql.toPath()), StandardCharsets.UTF_8);
+		Matcher m = Pattern.compile("\\('([a-z0-9_]+)', '(?:[^']|'')*', '(pet|tail|back)', (?:null|\\d+), 'data:image/png;base64,([A-Za-z0-9+/=]+)'\\)").matcher(s);
+		int n = 0;
+		while (m.find()) {
+			CosmeticModel cm = CosmeticModel.parse(Base64.getDecoder().decode(m.group(3)));
+			assertNotNull(cm, m.group(1));
+			for (CosmeticModel.Part p : cm.parts) assertEquals("pet".equals(m.group(2)) ? CosmeticModel.PET : CosmeticModel.BODY, p.bone, m.group(1));
+			n++;
+		}
+		assertEquals(114, n);
+	}
 }

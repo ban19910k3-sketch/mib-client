@@ -1,7 +1,14 @@
-<!-- 0.33.0 -->
+<!-- 0.34.0 -->
+## Dodane
+
+- Pety, ogony i plecaki: nowe kosmetyki w Sklepie i w Kosmetykach, wszystkie w 3D, z ruchem (machają skrzydłami, ogonami i łapkami).
+- Pet może latać obok głowy, siedzieć na ramieniu albo chodzić przy nodze, po lewej albo po prawej stronie. Możesz dać mu imię, które widać nad nim w grze.
+- Pet reaguje na Ciebie: przykuca, gdy kucasz, zasypia, gdy długo stoisz, i szybciej macha przy bieganiu.
+- Na każde święto po 3 pety, 3 ogony i 3 plecaki w świątecznej kolekcji Sklepu, a w kalendarzu adwentowym 4 bożonarodzeniowe niespodzianki.
+- Nowe kategorie w Kosmetykach: Pety, Ogony i Plecaki.
+- W grze przełącznik „Pety innych graczy” w menu Kosmetyki, a także zmiana trybu i strony peta.
+
 ## Zmienione
 
-- Czapki świąteczne mają prawdziwe kształty 3D zamiast płaskich kostek: czapka Mikołaja i czapka elfa z opadającym czubkiem, rogi renifera z odnogami, uszy zająca, sylwestrowy cylinder z rondem, słomkowy kapelusz z szerokim rondem, czapka błazna z dzwoneczkami i czapka z pomponem MiB.
-- Czapka ze śmigiełkiem ma śmigło, które się kręci.
-- Kotylion jest przypięty na piersi.
-- Miniatury tych czapek w Kosmetykach i Sklepie pokazują je w 3D.
+- Peleryna przy plecaku wisi za plecakiem.
+- Kopiowanie MiB ID w Profilu MiB znowu działa.

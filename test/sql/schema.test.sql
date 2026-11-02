@@ -887,8 +887,8 @@ reset role;
 
 -- Kosmetyki na Halloween (od 0.22.0): 3 peleryny, 5 czapek, 2 skrzydła, 4 aury z ruchem w id; tekstury PNG
 do $$ begin
-  assert (select count(*) from public.cosmetics where id like 'halloween\_%') = 14, 'kosmetyki na Halloween';
-  assert (select string_agg(type || ':' || n, ',' order by type) from (select type, count(*) n from public.cosmetics where id like 'halloween\_%' group by type) x)
+  assert (select count(*) from public.cosmetics where id like 'halloween\_%' and type not in ('pet', 'tail', 'back')) = 14, 'kosmetyki na Halloween';
+  assert (select string_agg(type || ':' || n, ',' order by type) from (select type, count(*) n from public.cosmetics where id like 'halloween\_%' and type not in ('pet', 'tail', 'back') group by type) x)
     = 'aura:4,cape:3,hat:5,wings:2', 'rodzaje kosmetyków na Halloween';
   assert not exists (select 1 from public.cosmetics where id like 'halloween\_%' and (texture not like 'data:image/png;base64,iVBORw0KGgo%'
     or (type = 'aura' and id !~ '_(souls|pumpkins|ghosts|magic)$'))), 'tekstury PNG i ruch aur';
@@ -1112,9 +1112,9 @@ do $$ begin
   assert (select private.theme_until(t, '2026-11-20') from public.themes t where id = 'boze') is null, 'przed świętem bez końca';
   assert not private.on_sale('zima_cape_sweter', '2026-10-27') and private.on_sale('zima_cape_sweter', '2026-12-10'), 'kolekcja tylko w czasie święta';
   assert private.on_sale('shop_test_nie_ma', '2026-10-27') and private.on_sale('cape_start', '2026-10-27'), 'spoza kolekcji zawsze';
-  assert (select count(*) from public.cosmetics where id ~ '^(niepodleglosc|zima|adwent|sylwester|walentynki|wielkanoc|primaaprilis|urodzinymc|dziendziecka|wakacje|urodzinymib)_') = 43, '43 kosmetyki na święta';
+  assert (select count(*) from public.cosmetics where id ~ '^(niepodleglosc|zima|adwent|sylwester|walentynki|wielkanoc|primaaprilis|urodzinymc|dziendziecka|wakacje|urodzinymib)_' and type not in ('pet', 'tail', 'back')) = 43, '43 kosmetyki na święta';
   assert (select count(*) from public.cosmetics where type = 'mask') = 2, 'dwie maski';
-  assert (select count(*) from public.cosmetics where id like 'adwent\_%' and price is null) = 5, 'kalendarz: bez ceny';
+  assert (select count(*) from public.cosmetics where id like 'adwent\_%' and type not in ('pet', 'tail', 'back') and price is null) = 5, 'kalendarz: bez ceny';
   assert not exists (select 1 from public.cosmetics where type = 'aura' and id !~ '_(souls|pumpkins|ghosts|magic|snow|burst)$'), 'ruch aur';
   assert (select count(*) from public.themes) = 11, '11 motywów';
 end $$;
@@ -1334,4 +1334,19 @@ do $$ begin
     and position('mib-model'::bytea in decode(substr(texture, 23), 'base64')) > 0) = 10, 'dziesięć czapek z modelem 3D';
   assert (select texture from public.cosmetics where id = 'zima_hat_balwan') = 'data:image/png;base64,c3RhcmE=', 'zmiana z panelu admina została';
   assert exists (select 1 from private.migrations where id = 'czapki-0.33'), 'podmiana zapisana';
+end $$;
+-- pety, ogony i plecaki (0.34.0): 114 nowych, po 9 w kolekcji każdego święta (bez powtórzeń po drugim uruchomieniu),
+-- 4 tylko z kalendarza adwentowego (bez ceny), ceny całorocznych
+do $$ begin
+  assert (select count(*) from public.cosmetics where type in ('pet', 'tail', 'back') and id not in ('pet_t', 'tail_t', 'back_t')) = 114, '114 petów, ogonów i plecaków';
+  -- (testy wyżej zmieniły kolekcje Halloween i Niepodległości)
+  assert (select bool_and((select count(*) from unnest(t.items) x where x ~ '_(pet|tail|back)_') = 9) from public.themes t where t.id not in ('halloween', 'niepodleglosc')), 'po 9 w każdym święcie';
+  assert (select bool_and(array_length(t.items, 1) = (select count(distinct x) from unnest(t.items) x)) from public.themes t), 'bez powtórzeń';
+  assert (select array_agg(cosmetic_id order by day) from private.advent_days where day in (8, 12, 16, 18))
+    = array['adwent_pet_pierniczek', 'adwent_tail_sople', 'adwent_back_prezenty', 'adwent_pet_sowa'], 'okienka kalendarza';
+  assert (select bool_and(price is null) from public.cosmetics where id like 'adwent\_%' and type in ('pet', 'tail', 'back')), 'adwentowe nie na sprzedaż';
+  assert (select price from public.cosmetics where id = 'pet_smok') = 1500 and (select price from public.cosmetics where id = 'tail_koci') = 800
+    and (select price from public.cosmetics where id = 'back_mib') = 1000, 'ceny';
+  assert not private.on_sale('zima_pet_pingwin', '2027-07-01') and private.on_sale('zima_pet_pingwin', '2026-12-20') and private.on_sale('pet_kotek', '2027-07-01'),
+    'świąteczne tylko w czasie święta, całoroczne zawsze';
 end $$;
