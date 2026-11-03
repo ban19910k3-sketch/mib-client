@@ -405,3 +405,26 @@ test('browseCatalog: shop without login shows priced items, holiday collections 
   assert.deepEqual(P.browseCatalog(list, null, new Date(2026, 6, 1)).map(c => c.id), ['pet_kotek', 'zima_pet', 'zajac', 'dynia'], 'stara baza bez motywów');
   assert.deepEqual(P.browseCatalog(null, themes), []);
 });
+
+test('launcher style (0.36.0): presets, own colors, palette, game colors and share code', () => {
+  assert.equal(P.styleOf(null), null);
+  assert.equal(P.styleOf({ p: 'mib' }), null, 'MiB = zwykły wygląd');
+  assert.deepEqual(P.styleOf({ p: 'ocean', a: '#000000' }), { p: 'ocean', ...P.STYLES.ocean }, 'gotowa paleta ma swoje kolory');
+  assert.deepEqual(P.styleOf({ p: 'custom', a: '#FF0000', b: '#000000', c: '#111111', x: '#ffffff' }), { p: 'custom', a: '#ff0000', b: '#000000', c: '#111111', x: '#ffffff' });
+  assert.equal(P.styleOf({ p: 'custom', a: 'red', b: '#000000', c: '#111111', x: '#ffffff' }), null, 'tylko kolory #rrggbb');
+  assert.equal(P.styleOf({ p: 'hack' }), null);
+  assert.equal(P.stylePalette(P.styleOf({ p: 'snieg' })).light, true, 'Śnieg jest jasny');
+  assert.equal(P.stylePalette(P.styleOf({ p: 'neon' })).light, false);
+  const css = P.styleCss(P.styleOf({ p: 'snieg' }));
+  assert.match(css, /^:root\[data-style\]\[data-mode\]:not\(\.t-halloween\):not\(\.themed\)\{color-scheme:light;--void:#eef3fa;--slab:#ffffff;/, 'ustępuje motywom świątecznym');
+  // te same liczby w ThemeTest w modzie
+  assert.equal(P.styleGame(P.styleOf({ p: 'ocean' })), '020814,0a1628,162132,212b3d,315069,38bdf8,a5e1fc,2681a9,e6e9f8,868b98,60caf9,1f6888,31a6da');
+  assert.equal(P.styleGame(null), '');
+  assert.equal(P.styleCode(P.styleOf({ p: 'ocean' })), 'MIBT-38bdf8-020814-0a1628-7dd3fc');
+  assert.deepEqual(P.parseStyleCode(' mibt-38BDF8-020814-0a1628-7dd3fc '), { p: 'ocean', ...P.STYLES.ocean }, 'kod gotowej palety to ta paleta');
+  assert.deepEqual(P.parseStyleCode('MIBT-ff0000-000000-111111-ffffff'), { p: 'custom', a: '#ff0000', b: '#000000', c: '#111111', x: '#ffffff' });
+  for (const bad of ['', 'MIBT-ff0000-000000-111111', 'MIBT-gg0000-000000-111111-ffffff', 'x MIBT-ff0000-000000-111111-ffffff']) assert.equal(P.parseStyleCode(bad), null, bad);
+  assert.deepEqual(P.sanitizeSynced({ style: { p: 'mib' } }), { style: { p: 'mib' } }, 'powrót do MiB idzie na inne komputery');
+  assert.deepEqual(P.sanitizeSynced({ style: { p: 'custom', a: 'zly' } }), {}, 'zły motyw z profilu odrzucony');
+  assert.ok(P.SYNCED_KEYS.includes('style'));
+});

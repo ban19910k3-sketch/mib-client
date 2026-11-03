@@ -43,6 +43,11 @@ public final class Theme {
 			case "wakacje": b = new int[] {0x03090C, 0x071419, 0x0C1F26, 0x123440, 0x1B4A59, 0x06B6D4, 0xA5F3FC, 0x0E7490, 0xECFBFF, 0x8FB0BA, 0x22D3EE, 0x164E63, 0x0891B2}; break;
 			default: return NORMAL; // zwykły motyw, urodziny MiB (ametyst MiB, inne są tylko ozdoby)
 		}
+		return derive(b);
+	}
+
+	/** 13 kolorów bazowych (VOID … MUTED, BTN_HI, BTN_LO, BTN) → pełna paleta. */
+	static int[] derive(int[] b) {
 		int[] p = new int[20];
 		for (int i = 0; i < 10; i++) p[i] = 0xFF000000 | b[i];
 		p[10] = mix(p[9], p[0], 0.35);
@@ -72,7 +77,25 @@ public final class Theme {
 		return out;
 	}
 
-	private static final int[] P = palette(ID);
+	/**
+	 * Motyw launchera (od 0.36.0): -Dmib.colors z 13 kolorami rrggbb po przecinku (kolejność jak w {@link #derive}, liczy je
+	 * styleGame w lib/profile.js); null, gdy ich nie ma albo są złe.
+	 */
+	static int[] custom(String colors) {
+		if (colors == null || !colors.matches("[0-9a-fA-F]{6}(,[0-9a-fA-F]{6}){12}")) return null;
+		String[] s = colors.split(",");
+		int[] b = new int[13];
+		for (int i = 0; i < 13; i++) b[i] = Integer.parseInt(s[i], 16);
+		return derive(b);
+	}
+
+	/** Paleta menu: w święta kolory święta (zawsze wygrywają), poza nimi motyw z launchera, a bez niego zwykły MiB. */
+	static int[] pick(String id, String colors) {
+		int[] c = id == null || id.isEmpty() ? custom(colors) : null;
+		return c != null ? c : palette(id == null ? "" : id);
+	}
+
+	private static final int[] P = pick(ID, System.getProperty("mib.colors"));
 
 	public static final int VOID = P[0];
 	public static final int SLAB = P[1];

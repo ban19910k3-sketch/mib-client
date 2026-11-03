@@ -235,6 +235,9 @@ ipcMain.handle('settings:get', () => ({ ...defaults(), ...rd('settings.json', {}
 // Motyw świąteczny z launchera (themes.js) dla moda MiB: -Dmib.theme=<id>, „none” = bez motywu (wyłączone albo poza świętami)
 let theme = '';
 ipcMain.handle('theme:set', (_, id) => { theme = THEME_IDS.includes(id) ? id : ''; });
+// Motyw launchera (od 0.36.0, Ustawienia → Wygląd) dla menu w grze: -Dmib.colors z 13 kolorami (styleGame w lib/profile.js), tylko poza świętami
+let styleColors = '';
+ipcMain.handle('style:set', (_, c) => { styleColors = /^[0-9a-f]{6}(,[0-9a-f]{6}){12}$/.test(String(c || '')) ? c : ''; });
 ipcMain.handle('settings:set', (_, s) => {
   const was = ({ ...defaults(), ...rd('settings.json', {}) }).invisible === true;
   wr('settings.json', s); setPresence(gameInfo);
@@ -415,7 +418,7 @@ async function doLaunch(version, server) {
     try {
       const dirMib = path.join(s.root, 'mib');
       const m = await mibmod.prepareMibMod({ gv: version, inst: instGet(version), settings: s, modsDir: modsDir(version), resDir: modResDir(), mibDir: dirMib, ensureDep, setInst: o => instSet(version, o), log: t => send('log', t) });
-      if (m.active) { opts.customArgs.push(...m.jvmArgs, '-Dmib.theme=' + (theme || 'none')); mibDir = dirMib; }
+      if (m.active) { opts.customArgs.push(...m.jvmArgs, '-Dmib.theme=' + (theme || 'none'), ...(!theme && styleColors ? ['-Dmib.colors=' + styleColors] : [])); mibDir = dirMib; }
     } catch (e) { send('log', 'Mod MiB pominięty: ' + e.message); }
     const loader = instGet(version).loader;
     if (loader === 'fabric') {

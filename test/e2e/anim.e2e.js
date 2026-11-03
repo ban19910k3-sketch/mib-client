@@ -23,7 +23,8 @@ const ok = m => console.log('PASS', m);
     await w.waitForSelector('#app.on');
     await w.waitForTimeout(900);
     assert.equal(await w.$('#flylogo'), null, 'klon logo usunięty');
-    assert.equal(await w.evaluate(() => getComputedStyle(document.querySelector('.brand svg')).visibility), 'visible');
+    // (okno logowania przy starcie zasłania launcher, więc sprawdzamy samo logo: animacja nie zostawiła go ukrytego)
+    assert.notEqual(await w.evaluate(() => document.querySelector('.brand svg').style.visibility), 'hidden');
     ok('1 logo przeleciało i zostało na miejscu');
 
     await w.click('#w-go', { timeout: 3000 }).catch(() => {});

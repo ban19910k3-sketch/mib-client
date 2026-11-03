@@ -1,13 +1,11 @@
-<!-- 0.35.0 -->
+<!-- 0.36.0 -->
 ## Dodane
 
-- Okno logowania przy starcie: logo MiB Client, logowanie kontem Microsoft i wybór języka.
-- „Nie zapamiętuj mnie na tym komputerze” przy logowaniu: na szkolnym albo cudzym komputerze Twoje konto znika po zamknięciu launchera.
-- Bez logowania możesz oglądać Stronę główną, Aktualności i Sklep, a przedmioty przymierzać na postaci. Reszta launchera działa po zalogowaniu.
-- Profil MiB wylogowuje się sam, gdy w launcherze nie ma aktywnego konta Microsoft, więc nie zostaje zalogowany na cudzym albo szkolnym komputerze. Wraca sam po zalogowaniu kontem.
+- Motywy launchera w Ustawieniach, w zakładce Wygląd: gotowe Ocean, Las, Lawa, Śnieg i Neon albo Własny z wybranym kolorem akcentu, tła, kart i latających cząsteczek. Do tego możesz ustawić własny obrazek tła.
+- Kod motywu: skopiuj go i wyślij znajomemu, a on wklei go u siebie i dostanie ten sam wygląd.
+- Motyw zapisuje się na profilu MiB, więc masz go na każdym komputerze.
+- Menu w grze (pod prawym Shiftem) ma kolory Twojego motywu.
 
 ## Zmienione
 
-- Nowy wygląd plecaków Plecak-miś i Domek z piernika.
-- Ładniejszy wybór rodzaju w Kosmetykach i Sklepie: jeden pasek z ikonami i liczbą przedmiotów.
-- Lepsze zabezpieczenie kont MiB.
+- W święta launcher i gra dalej mają świąteczny wygląd, a Twój motyw wraca po święcie.

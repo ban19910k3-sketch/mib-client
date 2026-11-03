@@ -91,4 +91,22 @@ class HolidaysTest {
 		Holidays.menu("", none, 640, 360, 0);
 		assertEquals(0, none.fills.size(), "zwykły motyw bez ozdób");
 	}
+
+	/** Motyw launchera (od 0.36.0): -Dmib.colors z styleGame w lib/profile.js (te same liczby w test/profile.test.js), święta wygrywają. */
+	@Test
+	void launcherStyleColors() {
+		String ocean = "020814,0a1628,162132,212b3d,315069,38bdf8,a5e1fc,2681a9,e6e9f8,868b98,60caf9,1f6888,31a6da";
+		int[] p = Theme.pick("", ocean);
+		assertEquals(0xFF020814, p[0]);
+		assertEquals(0xFF0A1628, p[1]);
+		assertEquals(0xFF38BDF8, p[5]);
+		assertEquals(0xFFE6E9F8, p[8]);
+		assertEquals(0xFF60CAF9, p[13]);
+		assertEquals(0xFF31A6DA, p[15]);
+		assertEquals(0xFFF97316, Theme.pick("halloween", ocean)[5], "święto wygrywa");
+		assertEquals(0xFFA855F7, Theme.pick("urodzinymib", ocean)[5], "urodziny MiB też");
+		assertEquals(0xFFA855F7, Theme.pick("", null)[5], "bez motywu zwykły MiB");
+		assertEquals(0xFFA855F7, Theme.pick("", "38bdf8,zle")[5], "złe kolory = zwykły MiB");
+		assertEquals(0xFFA855F7, Theme.pick("", ocean + ",ffffff")[5]);
+	}
 }
