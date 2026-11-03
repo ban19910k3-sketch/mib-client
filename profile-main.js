@@ -5,7 +5,7 @@ const P = require('./lib/profile');
 const SESSION = 'mib-session.json', QUEUE = 'mib-stats-queue.json', REVIEW = 'mib-mod-review.json';
 const QUEUE_MAX = 200;
 // Funkcje panelu admina; baza i tak sprawdza, czy wywołuje je admin
-const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_cosmetics', 'admin_grant', 'admin_revoke', 'admin_delete_player',
+const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_cosmetics', 'admin_grant', 'admin_revoke', 'admin_grant_all', 'admin_revoke_all', 'admin_delete_player',
   'admin_save_cosmetic', 'admin_delete_cosmetic', 'admin_create_codes', 'admin_list_codes', 'admin_delete_code',
   'admin_list_announcements', 'admin_save_announcement', 'admin_delete_announcement',
   'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea', 'admin_answer_idea', 'admin_gift', 'admin_gift_all',
@@ -14,9 +14,11 @@ const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_co
   'admin_list_themes', 'admin_save_theme', 'admin_advent', 'admin_set_advent_day']);
 const CRASH_MAX = 20000;
 
-// hidden(): tryb niewidoczny (znajomi widzą offline); openExternal(url): strona w przeglądarce (sklep)
-function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods, hidden = () => false, openExternal = async () => {} }) {
+// hidden(): tryb niewidoczny (znajomi widzą offline); openExternal(url): strona w przeglądarce (sklep);
+// mcProof(): {name, serverId} po zgłoszeniu aktywnego konta Minecraft w sesji Mojanga (main.js) albo null bez konta
+function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods, hidden = () => false, openExternal = async () => {}, mcProof = async () => null }) {
   let sess = null, restored = false, game = null, flushing = null, seq = 0, server = null, shareServer = true, lastPing = 0;
+  let loggedInNow = false; // zalogowany w tym uruchomieniu launchera (a nie sesją zapisaną na dysku)
   const modLocks = {};
 
   function saveSession(s) {
@@ -85,6 +87,26 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     return flushing;
   }
 
+  // Panel admina (od 0.35.0): baza otwiera go tylko w sesji potwierdzonej kontem Minecraft właściciela (admin_unlock,
+  // Mojang; token Minecrafta tylko do Mojanga). Sama sesja profilu admina, np. pozostawiona na cudzym komputerze, nie wystarcza.
+  let unlocking = null;
+  function adminUnlock() {
+    if (!unlocking) unlocking = (async () => {
+      const p = await mcProof().catch(() => null);
+      if (!p) return false;
+      const r = await authed(t => supa.rpc('admin_unlock', { p_name: p.name, p_server_id: p.serverId }, t)).catch(() => null);
+      return !!(r && r.ok);
+    })().finally(() => { unlocking = null; });
+    return unlocking;
+  }
+  async function adminCheck() {
+    const s = await authed(t => supa.rpc('admin_status', {}, t)).catch(e => (e.code === 'schema_outdated' ? 'old' : null));
+    // baza bez schema.sql z 0.35.0
+    if (s === 'old') return authed(t => supa.rpc('is_admin', {}, t)).then(Boolean, () => false);
+    if (!s || !s.admin) return false;
+    return !!s.unlocked || adminUnlock();
+  }
+
   async function state() {
     let t;
     try { t = await token(); } catch { return { offline: true }; }
@@ -97,7 +119,7 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
         .catch(e => (e.code === 'schema_outdated' ? sel(base + ',warnings,banned_at,ban_reason') : Promise.reject(e)))
         .catch(e => (e.code === 'schema_outdated' ? sel(base) : Promise.reject(e)));
       if (!p) return { needsProfile: true }; // konto bez profilu: gracz wybiera nick i dokańcza profil
-      const admin = await authed(t2 => supa.rpc('is_admin', {}, t2)).then(Boolean, () => false);
+      const admin = await adminCheck();
       safe.presence({ soft: true }); // znajomi od razu widzą, że launcher działa (nie częściej niż co minutę)
       return {
         admin,
@@ -159,19 +181,31 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       if (bad) return { error: bad };
       if (String(password || '').length < 8) return { error: 'weak_password' };
       saveSession(await supa.signUp(String(email).trim(), password, nick));
+      loggedInNow = true;
       const st = await state();
       // Gdy baza nie utworzyła profilu sama (np. brak triggera), dokańczamy go tym samym nickiem
       return st.needsProfile ? api.createProfile({ nick }) : st;
     },
     async login({ email, password }) {
       saveSession(await supa.signIn(String(email).trim(), password));
+      loggedInNow = true;
       return state();
     },
     // Wylogowanie z profilu (od 0.27.0 bez przycisku: razem z kontem Microsoft albo przy zmianie konta, main.js)
     async logout() {
       try { const t = await token(); if (t) await supa.signOut(t); } catch {}
       saveSession(null);
+      loggedInNow = false;
       return { loggedIn: false };
+    },
+    // Start launchera bez aktywnego konta Microsoft (od 0.35.0, main.js): profil idzie za kontem Microsoft, więc sesja
+    // zapisana przy poprzednim uruchomieniu się wylogowuje (nie zostaje np. na szkolnym komputerze). Logowania e-mailem
+    // w tym uruchomieniu to nie dotyczy.
+    async dropSaved() {
+      restore();
+      if (!sess || loggedInNow) return { was: false };
+      await api.logout();
+      return { was: true };
     },
     // ===== Profil MiB z konta Minecraft (od 0.26.0) =====
     // Launcher potwierdza konto u Mojanga (main.js: join z losowym serverId), a funkcja mc-login w Supabase loguje do
@@ -183,6 +217,7 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       const old = sess && sess.accessToken;
       if (old) { try { await supa.signOut(old); } catch {} }
       saveSession(s);
+      loggedInNow = true;
       return { ...(await state()), created: s.created };
     },
     mcLink: ({ name, serverId }) => authed(t => supa.rpc('link_minecraft', { p_name: name, p_server_id: serverId }, t)),
@@ -210,7 +245,12 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     },
     async admin({ fn, args }) {
       if (!ADMIN_FNS.has(fn)) return { error: 'not_admin_fn' };
-      return authed(t => supa.rpc(fn, args || {}, t));
+      const call = () => authed(t => supa.rpc(fn, args || {}, t));
+      // potwierdzenie sesji wygasło (12 godzin): potwierdzamy jeszcze raz i ponawiamy
+      try { return await call(); } catch (e) {
+        if (e.code !== 'admin_locked' || !(await adminUnlock())) throw e;
+        return call();
+      }
     },
     async nickFree({ nick }) {
       const bad = P.validateNick(nick);

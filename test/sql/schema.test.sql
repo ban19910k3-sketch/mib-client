@@ -204,6 +204,9 @@ select pg_temp.expect_error($q$select public.admin_stats()$q$, 'not_admin');
 select pg_temp.expect_error($q$select public.admin_save_announcement(null, 'x', '', false, null)$q$, 'not_admin');
 select pg_temp.expect_error($q$select public.admin_create_codes('cape_start', 1, 1, null)$q$, 'not_admin');
 select pg_temp.expect_error($q$select * from public.admin_find_players('')$q$, 'not_admin');
+select pg_temp.expect_error($q$select public.admin_grant_all(auth.uid())$q$, 'not_admin');
+select pg_temp.expect_error($q$select public.admin_revoke_all(auth.uid())$q$, 'not_admin');
+select pg_temp.expect_error($q$select public.admin_unlock('Gracz_1', 'dddddddddddddddddddddddddddddddd')$q$, 'not_admin');
 
 -- Pomysły graczy
 select public.submit_idea('feature', '  Tryb ciemny w konsoli launchera  ');
@@ -229,12 +232,34 @@ set role anon;
 select pg_temp.expect_error($q$select public.submit_idea('feature', 'Pomysł bez profilu MiB')$q$, 'permission denied');
 select pg_temp.expect_error($q$select count(*) from public.ideas$q$, 'permission denied');
 reset role;
+-- panel admina tylko w sesji potwierdzonej przez Mojanga (0.35.0)
+insert into extensions.fake_mojang values ('Drugi', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 'aaaabbbbccccddddeeeeffff00001111');
 set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+select pg_temp.expect_error($q$select public.admin_unlock('Drugi', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee')$q$, 'no_session');
+set request.jwt.claim.session_id = '5e550000-0000-0000-0000-000000000002';
+do $$ begin
+  assert not public.is_admin(), 'sesja admina bez potwierdzenia Mojanga nie ma panelu';
+  assert (public.admin_status() ->> 'admin')::boolean and not (public.admin_status() ->> 'unlocked')::boolean, 'status: konto admina, sesja zablokowana';
+  assert public.admin_unlock('Drugi', 'dddddddddddddddddddddddddddddddd') ->> 'error' = 'not_verified', 'bez Mojanga nie odblokuje';
+  assert public.admin_unlock('Drugi', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') ->> 'error' = 'not_admin_account', 'konto Minecraft musi być kontem profilu admina';
+  assert not public.is_admin(), 'nic nie odblokowane';
+end $$;
+select pg_temp.expect_error($q$select count(*) from private.admin_unlocks$q$, 'permission denied');
+select pg_temp.expect_error($q$select public.admin_stats()$q$, 'admin_locked');
+reset role;
+-- (profil Drugi nie ma konta Minecraft: odblokowanie wpisane ręcznie; prawdziwe odblokowanie niżej, przy koncie ban19910k)
+delete from private.hello_log; -- (pytania do Mojanga wyżej nie mieszają w teście limitu)
+insert into private.admin_unlocks (session_id, user_id, until) values ('5e550000-0000-0000-0000-000000000002', :'u2', now() + interval '1 day');
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+do $$ begin assert not public.is_admin() and not (public.admin_status() ->> 'admin')::boolean, 'ta sama sesja innego gracza nie jest adminem'; end $$;
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 do $$
 declare v bigint; codes text[];
 begin
   assert public.is_admin(), 'admin';
+  assert (public.admin_status() ->> 'unlocked')::boolean, 'status: odblokowany';
   -- ogłoszenia
   v := public.admin_save_announcement(null, ' Turniej w sobotę ', 'Start 18:00', true, null);
   perform public.admin_save_announcement(null, 'Stare', '', false, now() - interval '1 day');
@@ -1317,8 +1342,28 @@ insert into auth.users (id, email, raw_app_meta_data) values ('aaaaaaaa-0000-000
 do $$ begin
   assert (select array_agg(user_id) from private.admins) = array['aaaaaaaa-0000-0000-0000-0000000ad001']::uuid[], 'adminem tylko profil z kontem ban19910k';
 end $$;
+insert into extensions.fake_mojang values ('ban19910k', 'abababababababababababababababab', 'd9b57e25d63d46c8ace393815017fc83');
 set role authenticated;
 set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-0000000ad001';
+set request.jwt.claim.session_id = '5e550000-0000-0000-0000-0000000000ad';
+do $$ begin
+  assert not public.is_admin(), 'bez potwierdzenia Mojanga nie';
+  assert (public.admin_unlock('ban19910k', 'abababababababababababababababab') ->> 'ok')::boolean, 'konto ban19910k potwierdzone przez Mojanga odblokowuje panel';
+  assert public.is_admin(), 'ban19910k widzi panel admina';
+end $$;
+-- inna sesja tego samego profilu (np. na innym komputerze) musi się potwierdzić sama
+set request.jwt.claim.session_id = '5e550000-0000-0000-0000-00000000000b';
+do $$ begin assert not public.is_admin(), 'inna sesja bez potwierdzenia'; end $$;
+select pg_temp.expect_error($q$select public.admin_stats()$q$, 'admin_locked');
+set request.jwt.claim.session_id = '5e550000-0000-0000-0000-0000000000ad';
+-- po 12 godzinach trzeba potwierdzić jeszcze raz
+reset role;
+update private.admin_unlocks set until = now() - interval '1 minute' where session_id = '5e550000-0000-0000-0000-0000000000ad';
+set role authenticated;
+do $$ begin assert not public.is_admin(), 'odblokowanie wygasa'; end $$;
+reset role;
+update private.admin_unlocks set until = now() + interval '1 hour' where session_id = '5e550000-0000-0000-0000-0000000000ad';
+set role authenticated;
 do $$ begin assert public.is_admin(), 'ban19910k widzi panel admina'; end $$;
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 do $$ begin assert not public.is_admin(), 'stary profil admina już nie'; end $$;
@@ -1335,6 +1380,12 @@ do $$ begin
   assert (select texture from public.cosmetics where id = 'zima_hat_balwan') = 'data:image/png;base64,c3RhcmE=', 'zmiana z panelu admina została';
   assert exists (select 1 from private.migrations where id = 'czapki-0.33'), 'podmiana zapisana';
 end $$;
+-- nowe modele Plecaka-misia i Domku z piernika (0.35.0): podmienione raz, inne zmiany zostają
+do $$ begin
+  assert (select count(*) from public.cosmetics where id in ('back_mis', 'zima_back_piernik') and position('mib-model'::bytea in decode(substr(texture, 23), 'base64')) > 0) = 2, 'dwa nowe modele';
+  assert (select texture from public.cosmetics where id = 'back_mib') = 'data:image/png;base64,c3RhcmE=', 'inny plecak bez zmian';
+  assert exists (select 1 from private.migrations where id = 'tekstury-0.35'), 'podmiana zapisana';
+end $$;
 -- pety, ogony i plecaki (0.34.0): 114 nowych, po 9 w kolekcji każdego święta (bez powtórzeń po drugim uruchomieniu),
 -- 4 tylko z kalendarza adwentowego (bez ceny), ceny całorocznych
 do $$ begin
@@ -1350,3 +1401,41 @@ do $$ begin
   assert not private.on_sale('zima_pet_pingwin', '2027-07-01') and private.on_sale('zima_pet_pingwin', '2026-12-20') and private.on_sale('pet_kotek', '2027-07-01'),
     'świąteczne tylko w czasie święta, całoroczne zawsze';
 end $$;
+
+-- wszystkie kosmetyki naraz (0.35.0)
+insert into auth.users (id, email, raw_user_meta_data) values ('abcdef00-0000-0000-0000-000000000035', 'all@test.pl', '{"nick":"Wszystko"}');
+set role authenticated;
+set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-0000000ad001';
+set request.jwt.claim.session_id = '5e550000-0000-0000-0000-0000000000ad';
+do $$
+declare n integer; u uuid := 'abcdef00-0000-0000-0000-000000000035';
+begin
+  perform public.admin_grant(u, 'cape_mib');
+  n := public.admin_grant_all(u);
+  assert n = (select count(*) from public.cosmetics) - 1, 'dane tylko brakujące';
+  assert json_array_length(public.admin_player_cosmetics(u)) = (select count(*) from public.cosmetics), 'ma wszystkie';
+  assert public.admin_grant_all(u) = 0, 'drugi raz nic';
+end $$;
+reset role;
+update public.profiles set equipped = '{"cape": "cape_mib", "pet": "pet_t"}' where id = 'abcdef00-0000-0000-0000-000000000035';
+set role authenticated;
+do $$ begin
+  assert public.admin_revoke_all('abcdef00-0000-0000-0000-000000000035') = (select count(*) from public.cosmetics), 'zabrane wszystkie';
+  assert json_array_length(public.admin_player_cosmetics('abcdef00-0000-0000-0000-000000000035')) = 0, 'nic nie ma';
+end $$;
+select pg_temp.expect_error($q$select public.admin_grant_all('abcdef00-0000-0000-0000-0000000000ff')$q$, 'player_missing');
+reset role;
+do $$ begin assert (select equipped from public.profiles where id = 'abcdef00-0000-0000-0000-000000000035') = '{}', 'nic nie założone'; end $$;
+
+-- wylogowanie wszystkich sesji admina raz (0.35.0): sesje innych graczy zostają
+insert into auth.sessions (user_id) values ('aaaaaaaa-0000-0000-0000-0000000ad001'), ('aaaaaaaa-0000-0000-0000-0000000ad001'), (:'u2');
+delete from private.migrations where id = 'sesje-admina-0.35';
+\i ../../supabase/schema.sql
+do $$ begin
+  assert not exists (select 1 from auth.sessions where user_id = 'aaaaaaaa-0000-0000-0000-0000000ad001'), 'sesje admina usunięte';
+  assert exists (select 1 from auth.sessions where user_id = '22222222-2222-2222-2222-222222222222'), 'sesje innych zostają';
+  assert not exists (select 1 from private.admin_unlocks), 'odblokowania usunięte';
+end $$;
+insert into auth.sessions (user_id) values ('aaaaaaaa-0000-0000-0000-0000000ad001');
+\i ../../supabase/schema.sql
+do $$ begin assert exists (select 1 from auth.sessions where user_id = 'aaaaaaaa-0000-0000-0000-0000000ad001'), 'tylko raz'; end $$;

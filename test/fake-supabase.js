@@ -239,6 +239,8 @@ function createFake() {
             admin_player_cosmetics: () => st.owned.filter(o => o.user === body.p_user).map(o => ({ id: o.cosmetic, name: cosmetics[o.cosmetic].name, source: o.source || 'code', acquired_at: o.at })),
             admin_grant: () => { st.owned.push({ user: body.p_user, cosmetic: body.p_cosmetic, at: new Date().toISOString() }); return null; },
             admin_revoke: () => { st.owned = st.owned.filter(o => !(o.user === body.p_user && o.cosmetic === body.p_cosmetic)); return null; },
+            admin_grant_all: () => { let n = 0; for (const id of Object.keys(cosmetics)) if (!st.owned.some(o => o.user === body.p_user && o.cosmetic === id)) { st.owned.push({ user: body.p_user, cosmetic: id, source: 'admin', at: new Date().toISOString() }); n++; } return n; },
+            admin_revoke_all: () => { const n = st.owned.filter(o => o.user === body.p_user).length; st.owned = st.owned.filter(o => o.user !== body.p_user); const u = st.users.find(x => x.id === body.p_user); if (u) u.equipped = {}; return n; },
             admin_delete_player: () => { if (st.users.find(u => u.id === body.p_user)?.num === 2) throw Object.assign(new Error('cannot_delete_admin'), { pg: true }); st.users = st.users.filter(u => u.id !== body.p_user); return null; },
             admin_save_cosmetic: () => { cosmetics[body.p_id] = { id: body.p_id, name: body.p_name, type: body.p_type, image_url: null, texture: body.p_texture || (cosmetics[body.p_id] || {}).texture || null }; return null; },
             admin_delete_cosmetic: () => { delete cosmetics[body.p_id]; return null; },

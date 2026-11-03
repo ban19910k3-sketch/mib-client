@@ -53,6 +53,13 @@ W panelu: ogłoszenia, pomysły graczy, kosmetyki (z teksturą peleryny PNG 64×
 - **Pomysły** (od 0.10.0): gracze z profilem MiB wysyłają je z zakładki **Pomysły** (najwyżej 5 na dobę). Liczba nowych pomysłów świeci się przy „Panel admina”. Ustaw status (Przeczytany, W planach, Zrobione, Odrzucony), a gracz zobaczy go przy swoim pomyśle. Po usunięciu konta pomysł zostaje, ale bez nicku.
 - Konta admina nie da się usunąć z launchera (ani własnym „Usuń profil”, ani z panelu) — tylko ręcznie w **Authentication → Users**, żeby nie stracić panelu przez przypadek.
 - Po uruchomieniu `schema.sql` sprawdź zapytaniem wyżej, czy adminem jest Twoje konto. Jeśli pod `MIB-000002` jest ktoś inny, napisz do Claude, zanim wydasz launcher.
+- Od 0.35.0 panel działa tylko wtedy, gdy w launcherze jest aktywne Twoje konto Microsoft z Minecraftem `ban19910k` — launcher potwierdza je u Mojanga co 12 godzin. Sama sesja profilu (np. pozostawiona na szkolnym komputerze) nie otwiera panelu. Profil MiB wylogowuje się też sam, gdy w launcherze nie ma aktywnego konta Microsoft.
+- Wylogowanie Twojego profilu na wszystkich komputerach (SQL Editor; launcher zaloguje Cię od nowa kontem Minecraft):
+
+```sql
+delete from auth.refresh_tokens where user_id in (select user_id::text from private.admins);
+delete from auth.sessions where user_id in (select user_id from private.admins);
+```
 
 ## Status na Discordzie
 

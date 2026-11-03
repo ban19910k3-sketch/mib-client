@@ -62,6 +62,7 @@
   const call = (fn, args) => mib.call('prof:admin', { fn, args });
   const failed = r => r && !Array.isArray(r) && r.error;
   const TYPES = { cape: 'Peleryna', hat: 'Czapka', mask: 'Maska', wings: 'Skrzydła', aura: 'Aura', pet: 'Pet', tail: 'Ogon', back: 'Plecak' };
+  const TYPES_MANY = { cape: 'Peleryny', hat: 'Czapki', mask: 'Maski', wings: 'Skrzydła', aura: 'Aury', pet: 'Pety', tail: 'Ogony', back: 'Plecaki' };
   const SOURCES = { code: 'kod', admin: 'od admina', gift: 'prezent', shop: 'sklep', theme: 'nagroda świąteczna', advent: 'kalendarz adwentowy' };
   const coins = n => Number(n || 0).toLocaleString('pl-PL');
   // Ruch cząsteczek aury: końcówka ID (launcher i mod znają tylko te)
@@ -330,7 +331,10 @@
       if (r.error) { e.textContent = err(r) + (r.width ? ' Ten plik ma ' + r.width + '×' + r.height + '.' : ''); return; }
       e.textContent = ''; texture = r.dataUrl; preview(texture);
     } } }, 'Wybierz teksturę PNG…');
-    const list = h('div', { class: 'cos-grid', id: 'ac-list' });
+    const list = h('div', { id: 'ac-list' });
+    // katalog jest długi (od 0.34.0 ponad 200 przedmiotów): grupy według rodzaju, zwinięte, gdy są duże, i szukanie po nazwie albo ID
+    const q = h('input', { id: 'ac-q', type: 'search', placeholder: 'Szukaj w katalogu (nazwa albo ID)…' });
+    let catalog = [];
     // Link do sklepu MiB Coins: przycisk „Kup MiB Coins” w Kosmetykach u graczy (pusty = bez przycisku)
     const shop = h('input', { id: 'ac-shop', maxlength: 300, placeholder: 'https://… (strona, na której gracze kupują MiB Coins)' });
     mib.call('prof:wallet').then(w => { if (w && w.shopUrl && !shop.value) shop.value = w.shopUrl; });
@@ -350,7 +354,13 @@
       const l = await mib.call('prof:allCosmetics');
       if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
       known = new Set(l.map(c => c.id));
-      list.replaceChildren(...(l.length ? l.map(c => h('div', { class: 'cosi' },
+      catalog = l;
+      draw();
+    }
+    function draw() {
+      const l = catalog, needle = q.value.trim().toLowerCase();
+      const shown = needle ? l.filter(c => (c.name + ' ' + c.id).toLowerCase().includes(needle)) : l;
+      const card = c => h('div', { class: 'cosi' },
         h('i', {}, c.texture ? itemImage({ type: c.type, imageUrl: c.texture }, 5) : '◆'),
         h('b', {}, c.name), h('small', { class: 'mut' }, c.id + ', ' + (TYPES[c.type] || c.type)),
         c.price != null ? h('small', { class: 'price' }, coins(c.price) + ' coinsów') : h('small', { class: 'mut' }, 'nie na sprzedaż'),
@@ -361,8 +371,30 @@
             const r = await call('admin_delete_cosmetic', { p_id: c.id });
             if (failed(r)) return toast(err(r), 1);
             load();
-          } } }, 'Usuń')))) : [h('p', { class: 'empty' }, 'Katalog jest pusty. Dodaj pierwszy przedmiot powyżej.')]));
+          } } }, 'Usuń')));
+      if (!l.length) return list.replaceChildren(h('p', { class: 'empty' }, 'Katalog jest pusty. Dodaj pierwszy przedmiot powyżej.'));
+      if (!shown.length) return list.replaceChildren(h('p', { class: 'empty' }, 'Nic nie pasuje do „' + q.value.trim() + '”.'));
+      // karty grupy powstają dopiero przy rozwinięciu (setki miniatur naraz spowalniały panel)
+      list.replaceChildren(...Object.keys(TYPES).concat([...new Set(shown.map(c => c.type))].filter(t => !TYPES[t])).map(t => {
+        const g = shown.filter(c => c.type === t);
+        if (!g.length) return null;
+        const grid = h('div', { class: 'cos-grid' });
+        const fill = () => { if (!grid.childElementCount) grid.append(...g.map(card)); };
+        const open = needle ? true : t in opened ? opened[t] : g.length <= 12;
+        if (open) fill();
+        return h('details', { class: 'cat-group', 'data-type': t, open, on: { toggle: ev => {
+          if (ev.currentTarget.open) fill();
+          if (!q.value.trim()) opened[t] = ev.currentTarget.open;
+        } } }, h('summary', {}, h('b', {}, TYPES_MANY[t] || TYPES[t] || t), h('span', { class: 'n' }, g.length)), grid);
+      }).filter(Boolean));
     }
+    // zwinięte i rozwinięte grupy zostają po zapisaniu albo usunięciu przedmiotu
+    const opened = {};
+    q.oninput = draw;
+    const fold = h('button', { class: 'b ghost', id: 'ac-fold', type: 'button', on: { click: () => {
+      const groups = [...list.querySelectorAll('details.cat-group')], close = groups.some(d => d.open);
+      groups.forEach(d => { d.open = !close; });
+    } } }, 'Zwiń / rozwiń wszystko');
     const form = h('form', { class: 'pform', on: { submit: async ev => {
       ev.preventDefault();
       if (!editing && known.has(id.value.trim())) { e.textContent = 'Przedmiot o takim ID już istnieje. Kliknij „Edytuj” przy nim, żeby go zmienić.'; return; }
@@ -386,7 +418,7 @@
         'Aura: obrazki cząsteczek 8×8 w pierwszym rzędzie tekstury 64×32.'))),
     cv, e, h('div', { class: 'row' }, save));
     const offers = await offersBox();
-    box.append(shopBox, offers, form, h('div', { class: 'sec' }, h('h3', {}, 'Katalog'), list));
+    box.append(shopBox, offers, form, h('div', { class: 'sec' }, h('h3', {}, 'Katalog'), h('div', { class: 'row cat-tools' }, q, fold), list));
     load();
   }
 
@@ -523,9 +555,7 @@
         h('h3', {}, p.nick + ' (' + window.MibProfile.formatMibId(p.num) + ')'),
         h('div', { class: 'sr' }, h('span', {}, 'E-mail'), h('b', {}, p.email)),
         h('div', { class: 'sr' }, h('span', {}, 'Czas gry'), h('b', {}, window.MibProfile.formatPlaytime(p.playtime_min || 0) + ', uruchomień: ' + (p.launches || 0))),
-        h('div', { class: 'sr' }, h('span', {}, 'Przedmioty'), h('span', { class: 'fld' }, ...(owned.length ? owned.map(o => h('span', { class: 'row', style: 'align-items:center' }, h('span', {}, o.name + ' (' + (SOURCES[o.source] || o.source) + ')'),
-          h('button', { class: 'b ghost', on: { click: async () => { const r = await call('admin_revoke', { p_user: p.id, p_cosmetic: o.id }); if (failed(r)) return toast(err(r), 1); show(p); } } }, 'Zabierz')))
-          : [h('span', { class: 'mut' }, 'brak')]))),
+        h('div', { class: 'sr' }, h('span', {}, 'Przedmioty'), ownedBox(p, owned, cos)),
         h('div', { class: 'sr' }, h('span', {}, 'Daj przedmiot'), h('span', { class: 'row' }, pick,
           h('button', { class: 'b', on: { click: async () => { if (!pick.value) return; const r = await call('admin_grant', { p_user: p.id, p_cosmetic: pick.value }); if (failed(r)) return toast(err(r), 1); toast('Przedmiot dodany.'); show(p); } } }, 'Daj'), pickPreview(pick, cos))),
         coinsRow(p),
@@ -533,6 +563,30 @@
         h('div', { class: 'sr' }, h('span', {}, p.banned ? 'Ban' + (p.ban_reason ? ': ' + p.ban_reason : '') : 'Ostrzeżenia i ban'),
           moderation(p, null, async () => { await search(); const x = (await call('admin_find_players', { p_q: window.MibProfile.formatMibId(p.num) }))[0]; if (x) show(x); })),
         delBox(p)));
+    }
+    // Przedmioty gracza (od 0.34.0): zwijana lista (zwinięta, gdy jest ich dużo), Zabierz przy każdym, a dla całego
+    // katalogu „Daj wszystkie” (brakujące) i „Zabierz wszystkie” (też zdejmuje założone)
+    function ownedBox(p, owned, cos) {
+      const missing = cos.filter(c => !owned.some(o => o.id === c.id)).length;
+      const all = async (fn, ask, done) => {
+        if (!confirm(ask)) return;
+        const r = await call(fn, { p_user: p.id });
+        if (failed(r)) return toast(err(r), 1);
+        toast(done.replace('%d', r));
+        show(p);
+      };
+      const giveAll = h('button', { class: 'b', id: 'ap-grant-all', type: 'button', disabled: !missing,
+        on: { click: () => all('admin_grant_all', 'Dać graczowi ' + p.nick + ' wszystkie brakujące przedmioty (' + missing + ')?', 'Dodano przedmiotów: %d.') } }, 'Daj wszystkie' + (missing ? ' (' + missing + ')' : ''));
+      const takeAll = h('button', { class: 'b danger', id: 'ap-revoke-all', type: 'button', disabled: !owned.length,
+        on: { click: () => all('admin_revoke_all', 'Zabrać graczowi ' + p.nick + ' wszystkie przedmioty (' + owned.length + ')? Tego nie da się cofnąć.', 'Zabrano przedmiotów: %d.') } }, 'Zabierz wszystkie');
+      const chips = owned.map(o => h('span', { class: 'own-chip', title: (SOURCES[o.source] || o.source) },
+        h('span', {}, o.name), h('button', { class: 'x', type: 'button', title: 'Zabierz', 'aria-label': 'Zabierz ' + o.name,
+          on: { click: async () => { const r = await call('admin_revoke', { p_user: p.id, p_cosmetic: o.id }); if (failed(r)) return toast(err(r), 1); show(p); } } }, '✕')));
+      return h('span', { class: 'fld' },
+        h('span', { class: 'row' }, giveAll, takeAll),
+        owned.length ? h('details', { class: 'own-box', id: 'ap-owned', open: owned.length <= 8 },
+          h('summary', {}, h('b', {}, 'Ma ' + owned.length + ' ' + (owned.length === 1 ? 'przedmiot' : owned.length % 10 >= 2 && owned.length % 10 <= 4 && (owned.length % 100 < 10 || owned.length % 100 >= 20) ? 'przedmioty' : 'przedmiotów'))),
+          h('div', { class: 'own-chips' }, ...chips)) : h('span', { class: 'mut' }, 'brak'));
     }
     // MiB Coins gracza: dodanie albo zabranie (minus) z powodem, np. „zakup na stronie”
     function coinsRow(p) {

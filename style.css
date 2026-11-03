@@ -266,6 +266,22 @@ input[type=checkbox]:checked{background:var(--am);border-color:var(--am);box-sha
 .cape3d{align-self:flex-start;margin:4px 0 4px 236px}
 pre.codes{background:var(--void);border:1px solid var(--edge);padding:10px;margin:6px 0 10px;font-size:14px;line-height:1.6;user-select:text}
 #admin-tab{display:flex;flex-direction:column;gap:10px;padding-top:8px}
+/* Katalog i przedmioty gracza (od 0.35.0): zwijane grupy, żeby długie listy nie zalewały panelu */
+.cat-tools{flex-wrap:wrap}.cat-tools #ac-q{flex:1;min-width:220px}
+#ac-list{display:flex;flex-direction:column;gap:8px}
+.cat-group,.own-box{border:1px solid var(--edge);border-radius:var(--r-sm);background:var(--slab)}
+.cat-group>summary,.own-box>summary{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;list-style:none;user-select:none;border-radius:var(--r-sm)}
+.cat-group>summary::-webkit-details-marker,.own-box>summary::-webkit-details-marker{display:none}
+.cat-group>summary::before,.own-box>summary::before{content:'';width:7px;height:7px;flex:none;border-right:2px solid var(--m);border-bottom:2px solid var(--m);transform:rotate(-45deg);transition:transform .15s}
+.cat-group[open]>summary::before,.own-box[open]>summary::before{transform:rotate(45deg)}
+.cat-group>summary:hover,.own-box>summary:hover{background:var(--slab2)}
+.cat-group>summary .n{margin-left:auto;font-size:12px;font-variant-numeric:tabular-nums;color:var(--m);background:var(--slab2);padding:2px 9px;border-radius:999px}
+.cat-group>.cos-grid{padding:4px 12px 12px}
+.own-box{margin-top:8px}
+.own-chips{display:flex;flex-wrap:wrap;gap:6px;padding:4px 12px 12px;max-height:260px;overflow:auto}
+.own-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 10px;font-size:12px;background:var(--slab2);border:1px solid var(--edge);border-radius:999px}
+.own-chip .x{width:20px;height:20px;padding:0;border:0;border-radius:50%;background:none;color:var(--m);cursor:pointer;font-size:11px;line-height:20px}
+.own-chip .x:hover{background:#7f1d1d;color:#fff}
 
 /* Pomysły graczy */
 .nav .cnt{margin-left:auto;font-style:normal;font-size:10px;line-height:1;color:#fff;background:var(--am);padding:3px 6px;border-radius:var(--r-sm)}
@@ -687,6 +703,19 @@ label.srow{cursor:pointer}
 .chip{border:1px solid var(--edge2);background:var(--slab2);color:var(--m);border-radius:999px;padding:6px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background-color .15s,color .15s,border-color .15s}
 .chip:hover{color:var(--t)}
 .chip.on{background:var(--tint);color:var(--am-hi);border-color:color-mix(in srgb,var(--am) 45%,transparent)}
+/* Rodzaje kosmetyków (od 0.35.0): jeden pasek kafelków z ikoną, nazwą i liczbą; przy wąskim oknie przewija się w bok */
+.kinds{display:grid;grid-template-columns:minmax(58px,1.3fr) repeat(8,minmax(46px,1fr));gap:2px;padding:4px;margin:2px 0 12px;background:var(--slab2);border:1px solid var(--edge);border-radius:var(--r);overflow-x:auto;scrollbar-width:none}
+.kinds::-webkit-scrollbar{display:none}
+.kind{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;padding:9px 2px 7px;border:0;border-radius:var(--r-sm);background:none;color:var(--m);font:inherit;font-size:11px;font-weight:600;letter-spacing:-.01em;cursor:pointer;transition:background-color .15s,color .15s}
+.kind .ki{position:relative;display:block;width:24px;height:24px}
+.kind svg{display:block;width:24px;height:24px}
+.kind .kl{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kind .kn{position:absolute;top:-6px;left:17px;min-width:15px;padding:0 4px;border-radius:999px;font-size:9.5px;line-height:14px;text-align:center;font-variant-numeric:tabular-nums;background:var(--edge2);color:var(--t);box-shadow:0 0 0 2px var(--slab2)}
+.kind:hover{color:var(--t);background:color-mix(in srgb,var(--t) 6%,transparent)}
+.kind.none{opacity:.45}.kind.none .kn{display:none}
+.kind.on{background:var(--tint);color:var(--am-hi);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--am) 45%,transparent);opacity:1}
+.kind.on .kn{background:var(--am);color:#fff;box-shadow:0 0 0 2px var(--slab2)}
+.kind:focus-visible{outline:2px solid var(--am);outline-offset:-2px}
 .cos-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
 .cosi{border-radius:var(--r);background:var(--cardbg);padding:12px;gap:5px;box-shadow:var(--shadow);transition:transform .15s,border-color .15s,box-shadow .15s}
 .cosi:hover{transform:translateY(-2px);border-color:var(--edge2)}

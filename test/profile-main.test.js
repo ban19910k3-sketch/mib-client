@@ -42,7 +42,7 @@ function fakeSupa(over = {}) {
 const mk = (o = {}) => {
   const store = o.store || memStore(), supa = o.supa || fakeSupa();
   let t = 1_000_000;
-  const p = createProfile({ supa, store, safeStorage: o.safe || safe(), randomBytes: n => Buffer.alloc(n, 7), now: () => t });
+  const p = createProfile({ supa, store, safeStorage: o.safe || safe(), randomBytes: n => Buffer.alloc(n, 7), now: () => t, mcProof: o.mcProof });
   return { p, store, supa, tick: ms => { t += ms; } };
 };
 
@@ -158,6 +158,21 @@ test('logout and delete clear the session file', async () => {
   await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
   assert.deepEqual(await p.remove(), { loggedIn: false });
   assert.equal(store.files['mib-session.json'], undefined);
+});
+
+test('start without a Microsoft account drops only the session saved by a previous run (0.35.0)', async () => {
+  const store = memStore();
+  const { p } = mk({ store });
+  await p.mcLogin({ name: 'ban19910k', serverId: 'ab'.repeat(16) });
+  assert.deepEqual(await p.dropSaved(), { was: false }, 'logowanie w tym uruchomieniu zostaje');
+  assert.ok(store.files['mib-session.json']);
+  // następne uruchomienie launchera (np. na szkolnym komputerze) bez konta Microsoft
+  const { p: next, supa } = mk({ store });
+  assert.deepEqual(await next.dropSaved(), { was: true });
+  assert.equal(store.files['mib-session.json'], undefined, 'sesja usunięta z dysku');
+  assert.ok(supa.calls.some(c => c[0] === 'signOut'), 'i wylogowana na serwerze');
+  assert.equal((await next.state()).loggedIn, false);
+  assert.deepEqual(await next.dropSaved(), { was: false });
 });
 
 // ===== Kopia modów =====
@@ -349,12 +364,57 @@ test('signup finishes the profile itself when the database trigger did not', asy
 });
 
 // ===== Panel admina i ogłoszenia =====
-test('state tells the UI whether the player is the admin', async () => {
-  const supa = fakeSupa({ rpc: async n => (n === 'is_admin' ? true : null) });
+test('state tells the UI whether the player is the admin (old database without admin_status)', async () => {
+  const old = n => (n === 'admin_status' ? Promise.reject(new SupaError(404, 'schema_outdated')) : null);
+  const supa = fakeSupa({ rpc: async n => (n === 'is_admin' ? true : old(n)) });
   const { p } = mk({ supa });
   assert.equal((await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' })).admin, true);
-  const { p: p2 } = mk();
+  const { p: p2 } = mk({ supa: fakeSupa({ rpc: async n => (n === 'is_admin' ? false : old(n)) }) });
   assert.equal((await p2.login({ email: 'a@b.pl', password: 'tajnehaslo1' })).admin, false);
+});
+
+test('admin panel opens only after Mojang confirms the owner account in this session (0.35.0)', async () => {
+  const proof = { name: 'ban19910k', serverId: 'ab'.repeat(16) };
+  const admin = (status, unlock) => fakeSupa({ rpc: async n => (n === 'admin_status' ? status : n === 'admin_unlock' ? unlock : null) });
+  // sesja bez potwierdzenia + aktywne konto Minecraft właściciela: launcher potwierdza ją u Mojanga
+  let supa = admin({ admin: true, unlocked: false }, { ok: true });
+  let { p } = mk({ supa, mcProof: async () => proof });
+  assert.equal((await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' })).admin, true);
+  assert.deepEqual(supa.calls.find(c => c[1] === 'admin_unlock')[2], { p_name: 'ban19910k', p_server_id: proof.serverId });
+  // bez konta Microsoft w launcherze (np. sesja została na cudzym komputerze): panelu nie ma
+  supa = admin({ admin: true, unlocked: false }, { ok: true });
+  ({ p } = mk({ supa }));
+  assert.equal((await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' })).admin, false);
+  assert.ok(!supa.calls.some(c => c[1] === 'admin_unlock'), 'bez konta nie ma czego potwierdzać');
+  // inne konto Minecraft: baza odmawia
+  ({ p } = mk({ supa: admin({ admin: true, unlocked: false }, { error: 'not_admin_account' }), mcProof: async () => proof }));
+  assert.equal((await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' })).admin, false);
+  // już potwierdzona: bez Mojanga
+  supa = admin({ admin: true, unlocked: true }, null);
+  ({ p } = mk({ supa, mcProof: async () => { throw new Error('nie powinno pytać Mojanga'); } }));
+  assert.equal((await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' })).admin, true);
+  // zwykły gracz: nie pyta Mojanga
+  supa = admin({ admin: false, unlocked: false }, null);
+  ({ p } = mk({ supa, mcProof: async () => { throw new Error('nie powinno pytać Mojanga'); } }));
+  assert.equal((await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' })).admin, false);
+});
+
+test('admin call confirms the session again when the 12-hour unlock expired', async () => {
+  let locked = true, proofs = 0;
+  const supa = fakeSupa({ rpc: async n => {
+    if (n === 'admin_unlock') { locked = false; return { ok: true }; }
+    if (n === 'admin_stats') { if (locked) throw new SupaError(400, 'admin_locked'); return { profiles: 3 }; }
+    return null;
+  } });
+  const { p } = mk({ supa, mcProof: async () => { proofs++; return { name: 'ban19910k', serverId: 'cd'.repeat(16) }; } });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.admin({ fn: 'admin_stats', args: {} }), { profiles: 3 });
+  assert.equal(proofs, 1);
+  // bez konta Minecraft: błąd zostaje
+  locked = true;
+  const { p: p2 } = mk({ supa });
+  await p2.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.equal((await p2.admin({ fn: 'admin_stats', args: {} })).error, 'admin_locked');
 });
 
 test('announcements are public and do not need a profile', async () => {

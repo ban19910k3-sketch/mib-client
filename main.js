@@ -31,6 +31,13 @@ const prof = profileMain.createProfile({
   hidden: () => ({ ...defaults(), ...rd('settings.json', {}) }).invisible === true,
   // sklep MiB Coins: tylko link https z bazy (sprawdza profile-main)
   openExternal: url => shell.openExternal(url),
+  // panel admina (od 0.35.0): aktywne konto Minecraft zgłoszone w sesji Mojanga (token tylko do Mojanga), baza sprawdza je w admin_unlock
+  mcProof: async () => {
+    if (!auth) return null;
+    const mc = auth.mclc(), serverId = crypto.randomBytes(16).toString('hex');
+    await joinMojang({ fetch: (...a) => fetch(...a), mc, serverId });
+    return { name: mc.name, serverId };
+  },
   // Kopia modów: dostęp do plików instancji (funkcje niżej w pliku, wołane dopiero po starcie)
   mods: {
     scan: gv => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f) && !mibmod.isMibFile(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), sha1: crypto.createHash('sha1').update(fs.readFileSync(path.join(modsDir(gv), f))).digest('hex') })); } catch { return []; } },
@@ -269,9 +276,12 @@ function mibFromMinecraft() {
       if (!r || r.error !== 'mc_taken') { if (r && r.error) send('log', 'Połączenie profilu MiB z kontem Minecraft: ' + mcErr(r)); return; }
     }
     const was = st.loggedIn;
-    const r = await prof.mcLogin({ name: mc.name, serverId: await verified() });
-    if (r && r.loggedIn) send('profile:changed', { created: !!r.created, nick: r.nick, switched: was });
-    else if (r && r.error) send('log', 'Profil MiB z konta Minecraft: ' + mcErr(r));
+    let r;
+    try { r = await prof.mcLogin({ name: mc.name, serverId: await verified() }); } catch (e) { r = { error: 'unknown', detail: e.message }; }
+    if (r && r.loggedIn) return send('profile:changed', { created: !!r.created, nick: r.nick, switched: was });
+    if (r && r.error) send('log', 'Profil MiB z konta Minecraft: ' + mcErr(r));
+    // profil innego konta nie zostaje zalogowany przy tym koncie Microsoft (od 0.35.0)
+    if (was) { await prof.logout(); send('profile:changed', { loggedOut: true }); }
   })().catch(e => send('log', 'Profil MiB z konta Minecraft: ' + e.message)).finally(() => {
     mibLinking = null;
     if (mibAgain) { mibAgain = false; mibFromMinecraft(); }
@@ -307,11 +317,15 @@ ipcMain.handle('login', async () => {
   return profile(await mgr.launch('electron', { width: 500, height: 650, resizable: false, title: 'Sign in to Minecraft', webPreferences: { partition: MS_LOGIN } }));
 });
 ipcMain.handle('restore', async () => {
+  let r = null;
   try {
     const a = accLoad(), old = rd('account.json', null);
-    if (!a.list.length && old) { const r = await profile(await new Auth('select_account').refresh(safeStorage.decryptString(Buffer.from(old.t, 'base64')))); try { fs.unlinkSync(jf('account.json')); } catch {} return r; }
-    return a.active ? await switchAccount(a.active) : null;
-  } catch { return null; }
+    if (!a.list.length && old) { r = await profile(await new Auth('select_account').refresh(safeStorage.decryptString(Buffer.from(old.t, 'base64')))); try { fs.unlinkSync(jf('account.json')); } catch {} }
+    else if (a.active) r = await switchAccount(a.active);
+  } catch { r = null; }
+  // bez aktywnego konta Microsoft profil MiB z poprzedniego uruchomienia się wylogowuje (od 0.35.0); wróci sam po zalogowaniu kontem
+  if (!r) { const d = await prof.dropSaved(); if (d && d.was) send('profile:changed', { loggedOut: true }); }
+  return r;
 });
 ipcMain.handle('logout', () => { auth = null; return true; });
 ipcMain.handle('accounts:list', () => { const a = accLoad(); return a.list.map(x => ({ id: x.id, name: x.name, active: x.id === a.active })); });

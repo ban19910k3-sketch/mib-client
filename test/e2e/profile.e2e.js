@@ -421,6 +421,12 @@ function png(w, h, px) {
     await w.click('.nav[data-p="home"]');
     await w.click('.nav[data-p="cos"]');
     await w.waitForSelector('#cos-kinds [data-k="pet"]');
+    // pasek rodzajów (0.35.0): jedna linia, ikona i liczba moich przedmiotów danego rodzaju
+    assert.equal(await w.textContent('#cos-kinds [data-k="pet"] .kn'), '1', 'jeden pet');
+    assert.equal(await w.textContent('#cos-kinds [data-k="all"] .kn'), String(fake.st.owned.filter(o => o.user === tester.id).length), 'wszystkie moje');
+    assert.equal(new Set(await w.$$eval('#cos-kinds .kind', l => l.map(b => Math.round(b.getBoundingClientRect().top)))).size, 1, 'rodzaje w jednej linii');
+    assert.equal(await w.$$eval('#cos-kinds .kind svg', l => l.length), 9, 'ikony');
+    await w.locator('#cos-kinds').screenshot({ path: path.join(OUT, 'cos-kinds.png') });
     await w.click('#cos-kinds [data-k="pet"]');
     await w.waitForFunction(() => [...document.querySelectorAll('.cosi')].every(c => c.dataset.id.startsWith('pet_')) && document.querySelector('.cosi[data-id="pet_kotek"] canvas.modelth'));
     await w.click('#cos-kinds [data-k="all"]');
@@ -765,6 +771,23 @@ function png(w, h, px) {
     assert.equal(fake.st.users.find(u => u.nick === 'Tester_1').coins, 1500, 'saldo po zmianach w panelu');
     await w.click('#ap-coins-hist');
     await w.waitForFunction(() => /Od admina: zakup na stronie.*\+1500/s.test(document.getElementById('ap-coins-log').textContent) && /Pakiet: Pakiet testowy/.test(document.getElementById('ap-coins-log').textContent));
+    // przedmioty gracza (0.35.0): daj wszystkie, lista zwijana, zabierz wszystkie
+    const tid = fake.st.users.find(u => u.nick === 'Tester_1').id, all = Object.keys(fake.cosmetics).length;
+    w.once('dialog', d => d.accept());
+    await w.click('#ap-grant-all');
+    await until(() => fake.st.owned.filter(o => o.user === tid).length === all);
+    await w.waitForFunction(n => document.querySelectorAll('#ap-owned .own-chip').length === n && /^Ma \d+ przedmiot/.test(document.querySelector('#ap-owned summary').textContent), all);
+    assert.equal(await w.isDisabled('#ap-grant-all'), true, 'nie ma już czego dawać');
+    const wasOpen = await w.$eval('#ap-owned', d => d.open);
+    await w.click('#ap-owned summary');
+    assert.equal(await w.$eval('#ap-owned', d => d.open), !wasOpen, 'lista się zwija i rozwija');
+    await w.locator('#ap-owned').scrollIntoViewIfNeeded();
+    await shot('admin-items.png');
+    w.once('dialog', d => d.accept());
+    await w.click('#ap-revoke-all');
+    await until(() => !fake.st.owned.some(o => o.user === tid));
+    await w.waitForFunction(() => !document.querySelector('#ap-owned') && !document.querySelector('#ap-grant-all').disabled);
+    ok('(ap) gracze: daj wszystkie i zabierz wszystkie przedmioty, zwijana lista');
     assert.equal(await w.isDisabled('#ap-del'), true, 'najpierw trzeba wpisać nick');
     await w.fill('#ap-del-nick', 'Tester_1');
     await w.click('#ap-del');
@@ -785,6 +808,18 @@ function png(w, h, px) {
     ok('(ag) gracze: ban od razu i zdjęcie bana (ostrzeżenia od zera)');
     await w.click('[data-tab="cos"]');
     await w.waitForSelector('#ac-list .cosi');
+    // katalog w zwijanych grupach według rodzaju, z szukaniem
+    const groups = await w.$$eval('#ac-list details.cat-group', l => l.map(d => d.dataset.type));
+    assert.ok(groups.includes('cape') && groups.length >= 2, 'grupy rodzajów: ' + groups);
+    await w.click('#ac-fold');
+    await w.waitForFunction(() => [...document.querySelectorAll('#ac-list details.cat-group')].every(d => !d.open));
+    await w.fill('#ac-q', 'Start');
+    await w.waitForFunction(() => document.querySelectorAll('#ac-list details.cat-group[open] .cosi').length >= 1 && [...document.querySelectorAll('#ac-list .cosi b')].every(b => /Start/.test(b.textContent)));
+    await w.fill('#ac-q', '');
+    await w.waitForFunction(() => [...document.querySelectorAll('#ac-list details.cat-group')].every(d => !d.open), null, { timeout: 3000 });
+    await w.click('#ac-fold');
+    await w.waitForSelector('#ac-list details.cat-group[open] .cosi');
+    ok('(ap) katalog: grupy rodzajów, zwiń/rozwiń wszystko, szukanie');
     await w.fill('#ac-shop', 'http://zly-link.pl');
     await w.click('#ac-shop-save');
     await w.waitForSelector('.toast:has-text("https://")');

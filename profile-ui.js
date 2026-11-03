@@ -739,16 +739,41 @@
   let cosTab = 'mine', cosKind = 'all';
   const KINDS = [['all', 'Wszystko'], ['cape', 'Peleryny'], ['hat', 'Czapki'], ['mask', 'Maski'], ['wings', 'Skrzydła'], ['aura', 'Aury'], ['pet', 'Pety'], ['tail', 'Ogony'], ['back', 'Plecaki']];
   const ofKind = c => cosKind === 'all' || c.type === cosKind;
+  // Pasek rodzajów (od 0.35.0): jedna linia kafelków z pikselową ikoną, nazwą i liczbą przedmiotów (moich albo w sklepie).
+  // Ikony z prostokątów na siatce 12×12 (1 = 2 px), w stylu pixelarticons z menu, zawsze 24 px.
+  const KIND_ICON = {
+    all: [[1, 1, 4, 4], [7, 1, 4, 4], [1, 7, 4, 4], [7, 7, 4, 4]],
+    cape: [[2, 1, 8, 1], [2, 2, 1, 8], [9, 2, 1, 8], [3, 10, 2, 1], [7, 10, 2, 1], [5, 9, 2, 1], [4, 3, 4, 1]],
+    hat: [[3, 2, 6, 1], [3, 3, 1, 5], [8, 3, 1, 5], [4, 6, 4, 1], [1, 8, 10, 1], [2, 9, 8, 1]],
+    mask: [[1, 4, 10, 1], [1, 5, 2, 2], [5, 5, 2, 2], [9, 5, 2, 2], [1, 7, 4, 1], [7, 7, 4, 1], [2, 8, 2, 1], [8, 8, 2, 1]],
+    wings: [[1, 2, 1, 7], [2, 3, 1, 6], [3, 4, 1, 5], [4, 5, 1, 3], [10, 2, 1, 7], [9, 3, 1, 6], [8, 4, 1, 5], [7, 5, 1, 3], [5, 6, 2, 1]],
+    aura: [[5, 1, 2, 3], [5, 8, 2, 3], [1, 5, 3, 2], [8, 5, 3, 2], [5, 5, 2, 2], [2, 2, 1, 1], [9, 2, 1, 1], [2, 9, 1, 1], [9, 9, 1, 1]],
+    pet: [[1, 4, 2, 2], [4, 1, 2, 2], [7, 1, 2, 2], [10, 4, 1, 2], [4, 6, 4, 1], [3, 7, 6, 2], [4, 9, 4, 1]],
+    tail: [[1, 9, 4, 1], [5, 8, 2, 1], [7, 6, 1, 2], [8, 3, 1, 3], [7, 2, 1, 1], [5, 1, 2, 1], [9, 4, 2, 1]],
+    back: [[4, 1, 4, 1], [3, 2, 1, 1], [8, 2, 1, 1], [2, 3, 8, 1], [2, 4, 1, 7], [9, 4, 1, 7], [3, 10, 6, 1], [4, 6, 4, 1], [4, 7, 1, 2], [7, 7, 1, 2]],
+  };
+  const kindIcon = k => {
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('width', '24'); s.setAttribute('height', '24'); s.setAttribute('aria-hidden', 'true');
+    s.innerHTML = '<path fill="currentColor" d="' + KIND_ICON[k].map(([x, y, w, hh]) => `M${x * 2} ${y * 2}h${w * 2}v${hh * 2}h-${w * 2}z`).join('') + '"/>';
+    return s;
+  };
+  let kindSrc = []; // przedmioty, z których liczymy liczby przy rodzajach (moje albo sklep)
   function kindChips() {
-    return h('div', { class: 'chips', id: 'cos-kinds', role: 'group' }, ...KINDS.map(([k, l]) => h('button', { type: 'button', class: 'chip' + (cosKind === k ? ' on' : ''), 'data-k': k,
-      'aria-pressed': String(cosKind === k), on: { click: () => { if (cosKind !== k) { cosKind = k; renderCos(); } } } }, T(l))));
+    const n = k => (k === 'all' ? kindSrc.length : kindSrc.filter(c => c.type === k).length);
+    return h('div', { class: 'kinds', id: 'cos-kinds', role: 'group', 'aria-label': T('Rodzaj') }, ...KINDS.map(([k, l]) => {
+      const c = n(k);
+      return h('button', { type: 'button', class: 'kind' + (cosKind === k ? ' on' : '') + (c ? '' : ' none'), 'data-k': k, title: T(l) + ': ' + c,
+        'aria-pressed': String(cosKind === k), on: { click: () => { if (cosKind !== k) { cosKind = k; renderCos(); } } } },
+      h('span', { class: 'ki' }, kindIcon(k), h('span', { class: 'kn' }, String(c))), h('span', { class: 'kl' }, T(l)));
+    }));
   }
   function cosLeft(items) {
     const spin = d => { if (!skinViewer) return; skinViewer.autoRotate = false; skinViewer.playerObject.rotation.y += d; };
     const rb = (txt, title, fn) => h('button', { class: 'b ghost', type: 'button', title: T(title), 'aria-label': T(title), on: { click: fn } }, txt);
     const slot = (t, l) => {
       const c = items.find(x => x.equipped && x.type === t);
-      return h('div', { class: 'slot' + (c ? ' on' : ''), 'data-slot': t }, h('i', { 'aria-hidden': 'true' }, c ? itemImage(c, 2) : GLYPH[t] || '◆'),
+      return h('div', { class: 'slot' + (c ? ' on' : ''), 'data-slot': t }, h('i', { 'aria-hidden': 'true' }, c ? itemImage(c, 2) : KIND_ICON[t] ? kindIcon(t) : GLYPH[t] || '◆'),
         h('b', {}, T(l)), h('small', { class: 'mut' }, c ? c.name : T('Brak')));
     };
     return h('aside', { class: 'cosl' },
@@ -852,6 +877,7 @@
     // przymiarka tylko przedmiotów, które gracz dalej ma i które nie są już założone
     for (const t of Object.keys(trying)) { const x = trying[t] && items.find(c => c.id === trying[t].id); if (!x || x.equipped) delete trying[t]; }
     dressPage(items);
+    kindSrc = Array.isArray(list) ? list : [];
     const shown = Array.isArray(list) ? list.filter(ofKind) : [];
     const grid = Array.isArray(list) && list.length && !shown.length ? h('p', { class: 'empty' }, T('Nie masz przedmiotów tego rodzaju.'))
       : Array.isArray(list) && list.length
@@ -886,6 +912,7 @@
     if (!s || s.error || !Array.isArray(s.items)) return [h('p', { class: 'empty' }, msg(s && s.error ? s.error : 'unknown', s && s.detail))];
     shopCoins = s.coins;
     const all = s.items.map(c => ({ ...c, imageUrl: c.texture }));
+    kindSrc = all.filter(c => c.price != null);
     const byId = Object.fromEntries(all.map(c => [c.id, c]));
     for (const t of Object.keys(trying)) if (!trying[t] || !byId[trying[t].id]) delete trying[t];
     dressPage(owned);
@@ -1698,7 +1725,8 @@
   // Profil z konta Minecraft (od 0.26.0, main.js): założony, zalogowany albo połączony z profilem e-mail
   mib.on('profile:changed', async x => {
     await refresh();
-    if (x && x.created) toast(T('Utworzyliśmy Twój profil MiB') + ': ' + x.nick + '. ' + T('Logujesz się do niego kontem Minecraft.'));
+    if (x && x.loggedOut) toast(T('Wylogowano z profilu MiB: profil loguje się razem z kontem Microsoft.'));
+    else if (x && x.created) toast(T('Utworzyliśmy Twój profil MiB') + ': ' + x.nick + '. ' + T('Logujesz się do niego kontem Minecraft.'));
     else if (x && x.linked) toast(T('Profil MiB połączony z kontem Minecraft') + ' ' + x.linked + '.');
     else if (x && x.switched) toast(T('Przełączono profil MiB na') + ' ' + x.nick + '.');
     else toast(T('Zalogowano do profilu MiB kontem Minecraft.'));
