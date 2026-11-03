@@ -859,3 +859,53 @@ label.srow{cursor:pointer}
 .noanim #hw .deco.blink{animation:none}
 /* Prima aprilis: postać na stronie głównej do góry nogami (jak moby z imieniem Dinnerbone) */
 .t-primaaprilis #skinw>canvas,.t-primaaprilis #skinw>img{rotate:180deg}
+
+/* ===== Okno logowania przy starcie (od 0.35.0): bez aktywnego konta Microsoft; w motywach świątecznych baner przebarwiony jak splash ===== */
+#gate{position:fixed;inset:0;z-index:15;display:grid;place-items:center;padding:28px 16px;overflow:auto;background:rgba(5,0,9,.62);opacity:0;transition:opacity .35s}
+#gate[hidden]{display:none}#gate.on{opacity:1}
+.gating #app>:not(#fx){visibility:hidden}
+.g-art{position:fixed;inset:0;z-index:-1;pointer-events:none}
+.g-art img{width:100%;height:100%;object-fit:cover;object-position:70% 50%;opacity:.32;filter:blur(2px) saturate(1.1)}
+.t-halloween .g-art img{filter:blur(2px) hue-rotate(95deg) saturate(1.15)}.themed .g-art img{filter:blur(2px) var(--sbg,none)}
+.g-art::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 42%,rgba(5,0,9,.2),rgba(5,0,9,.88) 72%)}
+.g-lang{position:fixed;top:14px;right:16px;display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(20,10,32,.7);border:1px solid var(--edge2)}
+.g-lang button{border:0;background:none;color:var(--m);font:inherit;font-size:12px;font-weight:700;letter-spacing:.06em;padding:5px 11px;border-radius:999px;cursor:pointer}
+.g-lang button:hover{color:var(--t)}.g-lang button.on{background:var(--am);color:#fff}
+.g-box{position:relative;width:min(420px,100%);display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.g-logo{display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:6px;animation:g-in .7s cubic-bezier(.2,.8,.2,1) both}
+.g-logo svg{width:112px;fill:rgba(0,0,0,.6);stroke:var(--am-hi);stroke-width:3.5;filter:drop-shadow(0 0 18px color-mix(in srgb,var(--am) 70%,transparent))}
+.g-logo span{font-family:Pixelify,Geist,sans-serif;font-size:34px;letter-spacing:.12em;color:#fff;font-variant-ligatures:none;text-shadow:0 0 16px color-mix(in srgb,var(--am) 85%,transparent)}
+.t-halloween .g-logo span{text-shadow:0 0 16px rgba(249,115,22,.8)}.themed .g-logo span{text-shadow:0 0 16px rgba(var(--g),.8)}
+#g-t{font-size:24px;line-height:1.2;color:var(--hi);text-wrap:balance;animation:g-in .7s .08s cubic-bezier(.2,.8,.2,1) both}
+.g-lead{font-size:14px;line-height:1.55;color:var(--t2);max-width:36ch;text-wrap:pretty;animation:g-in .7s .14s cubic-bezier(.2,.8,.2,1) both}
+.g-go{width:100%;height:50px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:15px;border-radius:var(--r-sm);animation:g-in .7s .2s cubic-bezier(.2,.8,.2,1) both}
+.g-go .ms{display:grid;grid-template-columns:repeat(2,9px);gap:2px;flex:none}.g-go .ms i{width:9px;height:9px;background:#f25022}
+.g-go .ms i:nth-child(2){background:#7fba00}.g-go .ms i:nth-child(3){background:#00a4ef}.g-go .ms i:nth-child(4){background:#ffb900}
+.g-st{min-height:22px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;color:var(--m)}
+.g-st.err{color:var(--bad)}.g-st.ok{color:var(--hi);font-size:16px;font-weight:700}
+.g-st.ok img{width:32px;height:32px;image-rendering:pixelated;border-radius:6px;box-shadow:0 0 0 2px var(--am);animation:g-pop .4s cubic-bezier(.2,1.4,.4,1) both}
+.g-st .spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--edge2);border-top-color:var(--am);animation:g-spin .8s linear infinite}
+.g-rem{width:100%;display:flex;align-items:flex-start;gap:12px;text-align:left;padding:12px 14px;border-radius:var(--r-sm);background:rgba(20,10,32,.72);border:1px solid var(--edge);cursor:pointer;animation:g-in .7s .26s cubic-bezier(.2,.8,.2,1) both}
+.g-rem input{margin-top:1px}.g-rem span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.g-rem b{font-size:13px;color:var(--t)}.g-rem small{font-size:12px;line-height:1.45;color:var(--m)}
+.g-safe{display:flex;align-items:center;gap:8px;font-size:12px;line-height:1.4;color:var(--m);text-align:left;animation:g-in .7s .32s cubic-bezier(.2,.8,.2,1) both}
+.g-safe svg{width:24px;height:24px;flex:none;color:#4ade80}
+.g-later{border:0;background:none;color:var(--m);font:inherit;font-size:13px;padding:6px 12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.g-later:hover{color:var(--t)}
+@keyframes g-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes g-pop{from{transform:scale(.4)}to{transform:none}}
+@keyframes g-spin{to{transform:rotate(360deg)}}
+.noanim .g-box *{animation:none!important}.nomotion .g-box *{animation:none!important}
+/* bez konta: zablokowane strony (karta z logowaniem) i kłódki przy nich w pasku bocznym */
+.lockcard{display:none}
+.nolog .page.lockable>:not(.lockcard){display:none!important}
+.nolog .page.lockable>.lockcard{display:flex}
+.lockcard{flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:62vh;max-width:440px;margin:0 auto;padding:32px 16px;text-align:center}
+.lockcard>svg{width:48px;height:48px;color:var(--am-hi);padding:14px;box-sizing:content-box;border-radius:50%;background:var(--tint)}
+.lockcard small{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--am-hi)}
+.lockcard h2{font-size:22px;color:var(--hi);text-wrap:balance}.lockcard p{font-size:13px;line-height:1.55;color:var(--m);text-wrap:pretty}
+.nav .lki{display:none;width:16px;height:16px;margin-left:auto;flex:none;opacity:.75}
+.nolog .nav.lk .lki{display:block}.nolog .nav.lk{color:var(--faint)}.nolog .nav.lk:hover{color:var(--m)}
+/* Sklep do oglądania bez profilu MiB (od 0.35.0) */
+.browse-cta{display:flex;align-items:center;gap:14px;padding:14px 16px;margin:4px 0 14px;border-color:color-mix(in srgb,var(--am) 45%,var(--edge))}
+.browse-cta>div{flex:1;min-width:0}.browse-cta b{font-size:14px;color:var(--hi)}.browse-cta p{font-size:12.5px;line-height:1.45;margin-top:3px}

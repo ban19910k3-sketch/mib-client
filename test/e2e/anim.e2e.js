@@ -27,6 +27,7 @@ const ok = m => console.log('PASS', m);
     ok('1 logo przeleciało i zostało na miejscu');
 
     await w.click('#w-go', { timeout: 3000 }).catch(() => {});
+    await w.click('#g-later', { timeout: 8000 }); // okno logowania przy starcie (bez konta)
     await w.click('.nav[data-p="set"]');
     await w.waitForTimeout(400);
     const ind = await w.evaluate(() => {

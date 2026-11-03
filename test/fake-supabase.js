@@ -516,7 +516,7 @@ function createFake() {
       }
       if (p === '/rest/v1/announcements') return json(res, 200, st.ann.filter(a => !a.visible_until || new Date(a.visible_until) > new Date()).sort((a, b) => b.pinned - a.pinned || b.id - a.id));
       if (p === '/rest/v1/cosmetics') return json(res, 200, Object.values(cosmetics));
-      if (p === '/rest/v1/themes') return json(res, 200, st.themes.map(({ id, starts, ends, enabled, forced, sort }) => ({ id, starts, ends, enabled, forced, sort })));
+      if (p === '/rest/v1/themes') return json(res, 200, st.themes.map(({ id, starts, ends, enabled, forced, sort, items }) => ({ id, starts, ends, enabled, forced, sort, ...(/items/.test(url.search) ? { items: items || [] } : {}) })));
       if (p === '/rest/v1/app_config') return json(res, 200, st.config.shop_url ? [{ key: 'shop_url', value: st.config.shop_url }] : []);
       if (!user) return json(res, 401, { code: '42501', message: 'permission denied' });
       if (p === '/rest/v1/profiles') {

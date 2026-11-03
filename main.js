@@ -211,6 +211,15 @@ function setPresence(game) {
 }
 ipcMain.handle('discord:enabled', () => presence.enabled);
 app.on('before-quit', () => presence.stop());
+// konto „nie zapamiętuj mnie”: przy zamknięciu launchera profil MiB wylogowany także na serwerze (najwyżej 3 s czekania)
+let tempQuit = false;
+app.on('before-quit', e => {
+  if (!tempAcc || tempQuit) return;
+  e.preventDefault(); tempQuit = true; tempAcc = null; auth = null;
+  Promise.race([prof.logout().catch(() => {}), new Promise(r => setTimeout(r, 3000))])
+    .then(() => session.fromPartition(MS_TEMP).clearStorageData().catch(() => {}))
+    .finally(() => app.quit());
+});
 
 app.whenReady().then(() => {
   setPresence(null);
@@ -242,15 +251,29 @@ ipcMain.handle('versions', async () => {
 // Logowanie przez oficjalny mechanizm Microsoft (okno logowania Microsoftu, bez własnego formularza haseł)
 const accLoad = () => rd('accounts.json', { active: null, list: [] });
 const accSave = a => wr('accounts.json', a);
-async function profile(xbox) {
+// „Nie zapamiętuj mnie na tym komputerze” (od 0.35.0, okno logowania przy starcie): konto tylko w pamięci (tempAcc, bez
+// accounts.json), okno logowania Microsoftu w sesji bez zapisu na dysk, profil MiB bez pliku sesji; po zamknięciu launchera
+// profil MiB jest wylogowywany także na serwerze (before-quit niżej)
+const MS_TEMP = 'mslogin-temp';
+let tempAcc = null;
+async function profile(xbox, o = {}) {
   const mc = await xbox.getMinecraft();
-  auth = mc; const p = mc.profile || {}, id = String(p.id || p.name || 'unknown');
-  if (safeStorage.isEncryptionAvailable()) {
-    const a = accLoad(), rec = { id, name: p.name || 'Gracz', t: safeStorage.encryptString(xbox.save()).toString('base64') }, i = a.list.findIndex(x => x.id === id);
-    if (i >= 0) a.list[i] = rec; else a.list.push(rec); a.active = id; accSave(a);
+  auth = mc; const p = mc.profile || {}, id = String(p.id || p.name || 'unknown'), name = p.name || 'Gracz';
+  const a = accLoad();
+  if (o.temp) {
+    tempAcc = { id, name, t: xbox.save() };
+    // to konto mogło być wcześniej zapamiętane: na tym komputerze już go nie ma
+    a.list = a.list.filter(x => x.id !== id); a.active = null; accSave(a);
+  } else {
+    tempAcc = null;
+    if (safeStorage.isEncryptionAvailable()) {
+      const rec = { id, name, t: safeStorage.encryptString(xbox.save()).toString('base64') }, i = a.list.findIndex(x => x.id === id);
+      if (i >= 0) a.list[i] = rec; else a.list.push(rec); a.active = id; accSave(a);
+    }
   }
+  prof.setRemember({ on: !o.temp });
   setTimeout(() => mibFromMinecraft(), 0);
-  return { name: p.name || 'Gracz', id };
+  return { name, id, temp: !!o.temp };
 }
 // Profil MiB z konta Minecraft (od 0.26.0): po zalogowaniu kontem Microsoft (także przy starcie z zapisanym kontem)
 // launcher potwierdza konto u Mojanga (token tylko do Mojanga) i loguje do profilu MiB połączonego z tym kontem albo
@@ -291,6 +314,7 @@ function mibFromMinecraft() {
 // po zalogowaniu e-mailem: połączenie profilu z kontem Minecraft
 ipcMain.handle('profile:mc', () => mibFromMinecraft());
 async function switchAccount(id) {
+  if (tempAcc && tempAcc.id === id) return profile(await new Auth('select_account').refresh(tempAcc.t), { temp: true });
   const rec = accLoad().list.find(x => x.id === id); if (!rec) throw new Error('brak konta');
   return profile(await new Auth('select_account').refresh(safeStorage.decryptString(Buffer.from(rec.t, 'base64'))));
 }
@@ -312,9 +336,10 @@ async function clearMsLogin() {
     try { await def.clearStorageData({ origin, storages: ['localstorage', 'indexdb', 'serviceworkers', 'cachestorage'] }); } catch {}
   }
 }
-ipcMain.handle('login', async () => {
-  const mgr = new Auth('select_account');
-  return profile(await mgr.launch('electron', { width: 500, height: 650, resizable: false, title: 'Sign in to Minecraft', webPreferences: { partition: MS_LOGIN } }));
+ipcMain.handle('login', async (_, o) => {
+  const temp = !!(o && o.remember === false), mgr = new Auth('select_account');
+  if (temp) { try { await session.fromPartition(MS_TEMP).clearStorageData(); } catch {} }
+  return profile(await mgr.launch('electron', { width: 500, height: 650, resizable: false, title: 'Sign in to Minecraft', webPreferences: { partition: temp ? MS_TEMP : MS_LOGIN } }), { temp });
 });
 ipcMain.handle('restore', async () => {
   let r = null;
@@ -328,12 +353,22 @@ ipcMain.handle('restore', async () => {
   return r;
 });
 ipcMain.handle('logout', () => { auth = null; return true; });
-ipcMain.handle('accounts:list', () => { const a = accLoad(); return a.list.map(x => ({ id: x.id, name: x.name, active: x.id === a.active })); });
+ipcMain.handle('accounts:list', () => {
+  const a = accLoad(), l = a.list.map(x => ({ id: x.id, name: x.name, active: !tempAcc && x.id === a.active }));
+  return tempAcc ? [{ id: tempAcc.id, name: tempAcc.name, active: true, temp: true }, ...l] : l;
+});
 ipcMain.handle('accounts:switch', async (_, id) => { try { return await switchAccount(id); } catch { return { error: 'Sesja wygasła — dodaj to konto ponownie.' }; } });
 // Usunięcie konta: okno logowania Microsoftu zapomina zapisane konta; usunięcie aktywnego konta (wylogowanie z launchera)
 // wylogowuje też z profilu MiB
 ipcMain.handle('accounts:remove', async (_, id) => {
-  const a = accLoad(), wasActive = a.active === id;
+  if (tempAcc && tempAcc.id === id) {
+    tempAcc = null; auth = null;
+    try { await session.fromPartition(MS_TEMP).clearStorageData(); } catch {}
+    try { await prof.logout(); } catch {}
+    prof.setRemember({ on: true });
+    return { mibLoggedOut: true };
+  }
+  const a = accLoad(), wasActive = !tempAcc && a.active === id;
   a.list = a.list.filter(x => x.id !== id); if (wasActive) { a.active = null; auth = null; } accSave(a);
   await clearMsLogin();
   if (wasActive) { try { await prof.logout(); } catch {} }
@@ -723,7 +758,7 @@ function startHud(pid, mibDir, gameAcc) {
   if (mibDir) {
     // „aktywne” dla menu w grze to konto, na którym gra działa (nie to wybrane później w oknie launchera)
     try {
-      bridge = mibmod.createBridge({ dir: mibDir, accounts: () => ({ ...accLoad(), active: gameAcc }), onSwitch: relaunchWithAccount,
+      bridge = mibmod.createBridge({ dir: mibDir, accounts: () => { const a = accLoad(); return { ...a, list: tempAcc ? [{ id: tempAcc.id, name: tempAcc.name }, ...a.list] : a.list, active: gameAcc }; }, onSwitch: relaunchWithAccount,
         // kosmetyki z profilu MiB dla menu w grze (Załóż/Zdejmij pod prawym Shiftem)
         cosmetics: async () => {
           const st = await prof.state();

@@ -101,12 +101,16 @@
   let st = { loading: true }, tab = 'signup', busy = false;
 
   // ===== Dolny blok paska bocznego =====
+  // bez konta Microsoft (klasa nolog z ui.js, od 0.35.0) dolny blok otwiera okno logowania
+  const noAcc = () => document.documentElement.classList.contains('nolog');
   function sidebar() {
+    if (!st.loggedIn && noAcc()) { $('plname').textContent = T('Zaloguj się'); $('plsub').textContent = T('Konto Microsoft'); return; }
     $('plname').textContent = st.loggedIn ? st.nick : st.needsProfile ? T('Dokończ profil MiB') : st.offline || st.loading ? T('Profil MiB') : T('Załóż profil MiB');
     $('plsub').textContent = st.loggedIn ? st.mibId : st.needsProfile ? T('Wybierz nick') : st.loading ? T('Wczytywanie…') : st.offline ? T('Brak połączenia') : T('Kosmetyki i ustawienia');
   }
-  $('plbox').addEventListener('click', () => go('prof'));
-  $('plbox').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go('prof'); } });
+  const plGo = () => (noAcc() && !st.loggedIn && window.mibGate ? window.mibGate.open() : go('prof'));
+  $('plbox').addEventListener('click', plGo);
+  $('plbox').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); plGo(); } });
 
   // Po założeniu profilu: potwierdzenie z ID (kody odzyskiwania usunięte w 0.27.0 — profil loguje konto Microsoft)
   const created = id => toast(T('Profil MiB został pomyślnie założony. Twoje ID:') + ' ' + id);
@@ -825,14 +829,7 @@
     cosNav();
     if (st.loading) return box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'mut' }, T('Wczytywanie…')));
     const skin = await skinSection();
-    if (!st.loggedIn) {
-      trying = {};
-      dressPage([]);
-      box.replaceChildren(h('div', { class: 'cosw' }, cosLeft([]), h('div', { class: 'cosr' }, cosTitle(), h('div', { class: 'empty-state' },
-        h('p', {}, st.offline ? T('Brak połączenia z serwerem MiB. Kosmetyki pokażą się, gdy połączenie wróci.') : T('Peleryny i inne przedmioty zapisują się na profilu MiB. Załóż profil, żeby je zbierać.')),
-        st.offline ? null : h('button', { class: 'b', on: { click: () => { tab = 'signup'; go('prof'); } } }, T(st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB'))), skin)));
-      return;
-    }
+    if (!st.loggedIn) return renderBrowse(skin);
     const [list, pc] = await Promise.all([mib.call('prof:cosmetics'), mib.call('prof:pet')]);
     const items = Array.isArray(list) ? list : [];
     if (pc && !pc.error) petCfg = pc;
@@ -851,6 +848,33 @@
     // bez prezentu gift to null: replaceChildren wstawiłby napis „null”
     box.replaceChildren(h('div', { class: 'cosw' }, cosLeft(items), h('div', { class: 'cosr' },
       ...[cosTitle(), wallet, gift, h('div', { class: 'sec' }, tabs, chips, ...body.filter(Boolean))].filter(Boolean))));
+  }
+  // Bez profilu MiB (od 0.35.0; bez konta Microsoft to jedyny sposób): Sklep do oglądania i przymierzania na postaci,
+  // kupowanie i zakładanie po zalogowaniu. Katalog z prof:catalog (to, co jest dziś na sprzedaż), pamiętany do następnej próby.
+  let browseList = null;
+  async function renderBrowse(skin) {
+    const box = $('cos-box'), noAcc = document.documentElement.classList.contains('nolog');
+    if (!Array.isArray(browseList)) browseList = await mib.call('prof:catalog');
+    const ok = Array.isArray(browseList), err = ok ? null : (browseList && browseList.error) || 'offline', list = ok ? browseList.map(c => ({ ...c, imageUrl: c.texture })) : [];
+    if (!ok) browseList = null;
+    kindSrc = list;
+    for (const t of Object.keys(trying)) if (!list.some(c => c.id === trying[t].id)) delete trying[t];
+    dressPage([]);
+    const go2 = () => (noAcc ? window.mibGate && window.mibGate.open() : (tab = 'signup', go('prof')));
+    const cta = h('div', { class: 'card browse-cta', id: 'cos-cta' },
+      h('div', {}, h('b', {}, T(noAcc ? 'Zaloguj się, żeby zbierać kosmetyki' : st.offline ? 'Brak połączenia z serwerem MiB' : 'Załóż profil MiB, żeby zbierać kosmetyki')),
+        h('p', { class: 'mut' }, T(st.offline && !noAcc ? 'Kosmetyki pokażą się, gdy połączenie wróci. Sklep możesz dalej oglądać.' : 'Możesz oglądać Sklep i przymierzać przedmioty na postaci. Kupowanie i zakładanie po zalogowaniu.'))),
+      st.offline && !noAcc ? null : h('button', { class: 'b', type: 'button', on: { click: go2 } }, T(noAcc ? 'Zaloguj się' : st.needsProfile ? 'Dokończ profil MiB' : 'Załóż profil MiB')));
+    const shown = list.filter(ofKind);
+    const card = c => h('div', { class: 'cosi shopi' + (trying[c.type] && trying[c.type].id === c.id ? ' try' : ''), 'data-id': c.id, title: T('Kliknij, żeby przymierzyć'),
+      on: { click: () => tryToggle(c, []) } },
+    h('i', { 'aria-hidden': 'true' }, itemImage(c, 5)), h('b', {}, c.name), h('small', { class: 'mut' }, T(KIND[c.type] || 'Kosmetyk')), price(c.price));
+    const grid = !ok ? h('p', { class: 'empty' }, msg(err))
+      : !list.length ? h('p', { class: 'empty' }, T('W Sklepie nie ma teraz przedmiotów.'))
+      : !shown.length ? h('p', { class: 'empty' }, T('Brak przedmiotów tego rodzaju w Sklepie.'))
+      : h('div', { class: 'cos-grid' }, ...shown.map(card));
+    box.replaceChildren(h('div', { class: 'cosw' }, cosLeft([]), h('div', { class: 'cosr' }, cosTitle(), cta,
+      h('div', { class: 'sec' }, h('h3', {}, T('Sklep')), kindChips(), grid), noAcc ? null : skin)));
   }
   // Przymiarka: klik w przedmiot zakłada go na postać na górze strony (bez zakładania w grze); drugi klik zdejmuje
   function tryToggle(c, owned) {
@@ -1751,7 +1775,7 @@
     document.body.append(o);
     setTimeout(() => { if (o.isConnected) close(); }, 2200);
   };
-  window.mibProfileUI = { modsShown, refresh, holidays: () => holidayCheck(true), get loggedIn() { return !!(st.loggedIn || st.offline); },
+  window.mibProfileUI = { modsShown, refresh, sidebar, holidays: () => holidayCheck(true), get loggedIn() { return !!(st.loggedIn || st.offline); },
     openShop: () => document.querySelector('#side .nav[data-tab="shop"]').click() };
   window.mibUI = { h, msg, fmtDate, capeThumb, itemImage, copyText };
   sidebar();

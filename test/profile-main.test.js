@@ -684,3 +684,25 @@ test('mc-login: Mojang nie potwierdził albo złe dane — bez kont i sesji', as
   const noKey = await handle(w.req({ name: 'Steve', serverId: 'a'.repeat(32) }), { url: 'https://x.supabase.co' }, w.fetch);
   assert.equal((await noKey.json()).error, 'mc_login_setup');
 });
+
+test('"do not remember me" keeps the MiB session only in memory (0.35.0)', async () => {
+  const store = memStore();
+  const { p, tick } = mk({ store });
+  await p.mcLogin({ name: 'Gracz', serverId: 'ab'.repeat(16) });
+  assert.ok(store.files['mib-session.json']);
+  p.setRemember({ on: false });
+  assert.equal(store.files['mib-session.json'], undefined, 'plik usunięty od razu');
+  tick(20_000_000);
+  assert.equal((await p.state()).loggedIn, true, 'dalej zalogowany (odświeżona sesja w pamięci)');
+  assert.equal(store.files['mib-session.json'], undefined, 'odświeżenie też nie zapisuje');
+  p.setRemember({ on: true });
+  assert.ok(store.files['mib-session.json'], 'po zmianie zdania zapisane');
+});
+
+test('catalog for browsing without login: priced items on sale today', async () => {
+  const supa = fakeSupa({ select: async t => (t === 'cosmetics' ? [{ id: 'pet_kotek', price: 1500 }, { id: 'cape_start', price: null }, { id: 'zima_pet', price: 1500 }]
+    : t === 'themes' ? [{ id: 'boze', starts: '12-20', ends: '12-26', enabled: true, forced: false, items: ['zima_pet'] }] : []) });
+  const { p } = mk({ supa });
+  assert.deepEqual((await p.catalog()).map(c => c.id), ['pet_kotek'], 'poza świętami bez kolekcji');
+  assert.ok(supa.calls.filter(c => c[0] === 'select').every(c => c[3] === undefined), 'bez tokenu gracza');
+});

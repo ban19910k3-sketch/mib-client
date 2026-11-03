@@ -19,12 +19,13 @@ const CRASH_MAX = 20000;
 function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, mods, hidden = () => false, openExternal = async () => {}, mcProof = async () => null }) {
   let sess = null, restored = false, game = null, flushing = null, seq = 0, server = null, shareServer = true, lastPing = 0;
   let loggedInNow = false; // zalogowany w tym uruchomieniu launchera (a nie sesją zapisaną na dysku)
+  let remember = true; // „Nie zapamiętuj mnie na tym komputerze” (od 0.35.0): sesja tylko w pamięci, bez pliku
   const modLocks = {};
 
   function saveSession(s) {
     sess = s;
     restored = true; // sesja w pamięci jest ważniejsza niż plik z dysku
-    if (!s) return store.remove(SESSION);
+    if (!s || !remember) return store.remove(SESSION);
     // Hasła nie zapisujemy nigdy; refresh token tylko zaszyfrowany przez system. ID profilu nie jest tajne.
     if (safeStorage.isEncryptionAvailable()) store.write(SESSION, { t: safeStorage.encryptString(s.refreshToken).toString('base64'), u: s.userId });
   }
@@ -197,6 +198,19 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       saveSession(null);
       loggedInNow = false;
       return { loggedIn: false };
+    },
+    // Konto Microsoft „nie zapamiętuj mnie” (main.js): sesja profilu tylko w pamięci, plik z dysku znika od razu
+    setRemember({ on }) {
+      remember = on !== false;
+      if (!remember) store.remove(SESSION);
+      else if (sess) saveSession(sess);
+      return { remember };
+    },
+    // Sklep do oglądania bez logowania (od 0.35.0): kosmetyki na sprzedaż dziś (tabele czytają wszyscy)
+    async catalog() {
+      const [list, th] = await Promise.all([api.allCosmetics(),
+        supa.select('themes', 'select=id,starts,ends,enabled,forced,items').catch(e => (e.code === 'schema_outdated' ? [] : Promise.reject(e)))]);
+      return P.browseCatalog(list, th, new Date(now()));
     },
     // Start launchera bez aktywnego konta Microsoft (od 0.35.0, main.js): profil idzie za kontem Microsoft, więc sesja
     // zapisana przy poprzednim uruchomieniu się wylogowuje (nie zostaje np. na szkolnym komputerze). Logowania e-mailem
@@ -486,7 +500,7 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   card: 'prof:card', ideasPublic: 'prof:ideasPublic', ideaVote: 'prof:ideaVote', wallet: 'prof:wallet', shopOpen: 'prof:shopOpen',
   shop: 'prof:shop', buy: 'prof:buy', buyOffer: 'prof:buyOffer', coinLog: 'prof:coinLog', daily: 'prof:daily',
   themes: 'prof:themes', themeGifts: 'prof:themeGifts', claimThemeGift: 'prof:claimThemeGift', advent: 'prof:advent', claimAdvent: 'prof:claimAdvent',
-  pet: 'prof:pet', setPet: 'prof:setPet' };
+  pet: 'prof:pet', setPet: 'prof:setPet', catalog: 'prof:catalog' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

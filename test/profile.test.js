@@ -388,3 +388,20 @@ test('cosmeticModel: wszystkie pety, ogony i plecaki w schema.sql (0.34.0) mają
     assert.ok(P.modelFaces(m, type === 'pet' ? -28 : 152, 22).length > 0, id + ': miniatura');
   }
 });
+
+test('browseCatalog: shop without login shows priced items, holiday collections only during the holiday (0.35.0)', () => {
+  const themes = [
+    { id: 'boze', starts: '12-20', ends: '12-26', enabled: true, forced: false, items: ['zima_pet', 'zima_hat'] },
+    { id: 'wielkanoc', starts: 'E-3', ends: 'E+1', enabled: false, forced: false, items: ['zajac'] },
+    { id: 'halloween', starts: '10-15', ends: '11-05', enabled: true, forced: true, items: ['dynia'] },
+  ];
+  const list = [
+    { id: 'pet_kotek', price: 1500 }, { id: 'cape_start', price: null }, { id: 'zima_pet', price: 1500 }, { id: 'zima_hat', price: null },
+    { id: 'zajac', price: 500 }, { id: 'dynia', price: 300 },
+  ];
+  const ids = d => P.browseCatalog(list, themes, d).map(c => c.id);
+  assert.deepEqual(ids(new Date(2026, 6, 1)), ['pet_kotek', 'dynia'], 'latem: całoroczne i włączone na siłę');
+  assert.deepEqual(ids(new Date(2026, 11, 22)), ['pet_kotek', 'zima_pet', 'dynia'], 'w święta: kolekcja świąteczna z ceną');
+  assert.deepEqual(P.browseCatalog(list, null, new Date(2026, 6, 1)).map(c => c.id), ['pet_kotek', 'zima_pet', 'zajac', 'dynia'], 'stara baza bez motywów');
+  assert.deepEqual(P.browseCatalog(null, themes), []);
+});

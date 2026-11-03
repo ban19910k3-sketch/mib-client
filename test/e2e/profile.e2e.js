@@ -37,6 +37,57 @@ function png(w, h, px) {
   try {
     await w.waitForSelector('#app.on', { timeout: 15000 });
     await w.click('#w-go', { timeout: 5000 }).catch(() => {});
+    // Okno logowania przy starcie (0.35.0): bez konta Microsoft logo MiB Client, logowanie, PL/EN, bezpieczeństwo, „Później”
+    await w.waitForSelector('#gate.on #g-go', { timeout: 15000 });
+    assert.match(await w.textContent('#gate'), /MiB Client.*Zaloguj się przez Microsoft.*Nie zapamiętuj mnie na tym komputerze.*szkolnym albo cudzym.*oficjalnej stronie Microsoftu.*Później/s);
+    assert.equal(await w.isChecked('#g-temp'), false, 'domyślnie zapamiętuje');
+    await w.waitForTimeout(800);
+    await shot('gate.png');
+    await w.click('#gate .g-lang [data-l="en"]');
+    await w.waitForFunction(() => /Sign in with Microsoft/.test(document.getElementById('g-go').textContent) && /Don't remember me/.test(document.getElementById('gate').textContent));
+    await w.click('#gate .g-lang [data-l="pl"]');
+    await w.waitForFunction(() => /Zaloguj się przez Microsoft/.test(document.getElementById('g-go').textContent));
+    ok('(ar) okno logowania przy starcie: logo, Microsoft, nie zapamiętuj mnie, bezpieczeństwo, PL/EN');
+    // „Później”: Strona główna, Kosmetyki, Sklep (oglądanie i przymierzanie) i Aktualności działają, reszta z kartą logowania
+    await w.click('#g-later');
+    await w.waitForFunction(() => document.getElementById('gate').hidden && document.documentElement.classList.contains('nolog'));
+    for (const p of ['friends', 'ideas', 'prof', 'set']) {
+      await w.click(`.nav[data-p="${p}"]`);
+      await w.waitForSelector(`#p-${p}.on .lockcard`, { state: 'visible' });
+      assert.equal(await w.$$eval(`#p-${p} > :not(.lockcard)`, l => l.filter(e => e.offsetParent).length), 0, 'reszta strony ukryta: ' + p);
+    }
+    assert.match(await w.textContent('#p-friends .lockcard'), /Znajomi.*Zaloguj się, żeby to zobaczyć/s);
+    assert.ok(await w.isVisible('.nav[data-p="friends"] .lki'), 'kłódka w pasku bocznym');
+    assert.equal(await w.isVisible('.nav[data-p="news"] .lki'), false, 'Aktualności bez kłódki');
+    await w.click('.nav[data-p="news"]');
+    assert.equal(await w.$('#p-news .lockcard'), null);
+    fake.cosmetics.cape_start.price = 120;
+    fake.cosmetics.cape_start.texture = 'data:image/png;base64,' + png(64, 32, (x, y) => [120, 40, 200, 255]).toString('base64');
+    await w.click('#side .nav[data-tab="shop"]');
+    await w.waitForSelector('#cos-cta .b');
+    await w.waitForSelector('#cos-box .cosi[data-id="cape_start"]');
+    assert.match(await w.textContent('#cos-box .cosi[data-id="cape_start"]'), /Peleryna Start.*120/s, 'sklep do oglądania z ceną');
+    assert.equal(await w.$('#cos-tabs'), null, 'bez zakładek Moje przedmioty i Historia');
+    await w.click('#cos-box .cosi[data-id="cape_start"]');
+    await w.waitForSelector('#cos-box .cosi[data-id="cape_start"].try');
+    await shot('gate-later-shop.png');
+    delete fake.cosmetics.cape_start.price; delete fake.cosmetics.cape_start.texture;
+    ok('(as) bez logowania: zablokowane strony z kartą logowania, Sklep do oglądania i przymierzania');
+    // logowanie (atrapa okna Microsoftu w procesie głównym): „Nie zapamiętuj mnie” idzie do main.js, potem „Witaj, <nick>!”
+    await app.evaluate(({ ipcMain }) => { global.loginArgs = []; ipcMain.removeHandler('login'); ipcMain.handle('login', async (_, o) => { global.loginArgs.push(o); await new Promise(r => setTimeout(r, 400)); return { name: 'Steve', id: 'acc0', temp: o && o.remember === false }; }); });
+    await w.click('#p-cos #cos-cta .b');
+    await w.waitForSelector('#gate.on #g-go');
+    await w.check('#g-temp');
+    await w.click('#g-go');
+    await w.waitForSelector('#g-st.busy .spin');
+    await w.waitForFunction(() => /Witaj, Steve!/.test(document.getElementById('g-st').textContent));
+    await shot('gate-ok.png');
+    await w.waitForFunction(() => document.getElementById('gate').hidden && !document.documentElement.classList.contains('nolog'));
+    assert.deepEqual(await app.evaluate(() => global.loginArgs), [{ remember: false }]);
+    await w.waitForSelector('.toast:has-text("Nie zapamiętamy Cię")');
+    assert.equal(await w.textContent('#accn'), 'Steve');
+    ok('(at) logowanie z okna: kółko, „Witaj, Steve!”, okno znika, strony odblokowane');
+    await w.click('.nav[data-p="home"]');
     await w.waitForFunction(() => document.getElementById('plname').textContent === 'Załóż profil MiB');
     ok('(a) dolny blok zachęca do założenia profilu');
     assert.equal(await w.evaluate(() => document.documentElement.classList.contains('t-halloween')), require('../../lib/profile').season() === 'halloween', 'motyw według daty');
@@ -1038,7 +1089,9 @@ function png(w, h, px) {
     w.once('dialog', d => d.accept());
     await w.click('#accname');
     await w.click('#accmenu .ai[data-id="acc1"] .rm');
-    await w.waitForFunction(() => document.getElementById('plname').textContent === 'Załóż profil MiB');
+    // bez konta: dolny blok „Zaloguj się” i znowu okno logowania
+    await w.waitForFunction(() => document.getElementById('plname').textContent === 'Zaloguj się' && document.documentElement.classList.contains('nolog'));
+    await w.waitForSelector('#gate.on #g-go');
     const left = await app.evaluate(async ({ session }) => ({ def: (await session.defaultSession.cookies.get({})).map(c => c.name),
       ms: (await session.fromPartition('persist:mslogin').cookies.get({})).length }));
     assert.deepEqual(left.def.filter(n => n === 'MSPAuth' || n === 'keep'), ['keep'], 'ciasteczko Microsoftu usunięte, inne zostaje');
@@ -1049,6 +1102,10 @@ function png(w, h, px) {
     // Co nowego: po aktualizacji (inna wersja w mib-state.json) okno z listą zmian tej wersji, tylko raz
     fs.writeFileSync(path.join(userData, 'mib-state.json'), JSON.stringify({ lastVersion: '0.0.1' }));
     await w.reload();
+    // bez konta po starcie najpierw okno logowania; „Co nowego” po nim
+    await w.waitForSelector('#gate.on #g-later', { timeout: 15000 });
+    assert.equal(await w.$('#wn'), null, '„Co nowego” czeka na okno logowania');
+    await w.click('#g-later');
     await w.waitForSelector('#wn h4', { timeout: 15000 });
     assert.match(await w.textContent('#wn'), /Co nowego.*(Dodane|Zmienione|Usunięte)/s);
     await shot('whatsnew.png');
