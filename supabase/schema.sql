@@ -61,6 +61,10 @@ begin
   end if;
   insert into public.profiles (id, nick) values (p_uid, p_nick) returning num into v_num;
   update public.profiles set founder = (v_num <= 1000) where id = p_uid;
+  -- Peleryna 1000 graczy (od 0.38.0): profile do MIB-001000 dostają ją od razu (kosmetyk cape_1k dodany w panelu admina)
+  if v_num <= 1000 and exists (select 1 from public.cosmetics where id = 'cape_1k') then
+    insert into public.owned_cosmetics (user_id, cosmetic_id, source) values (p_uid, 'cape_1k', 'founder') on conflict do nothing;
+  end if;
 end $$;
 
 -- Profil powstaje razem z kontem; nick przychodzi w danych rejestracji. Konto z kontem Minecraft (od 0.26.0) zakłada
@@ -343,8 +347,10 @@ begin
     where o.user_id = v_uid and o.cosmetic_id = p_id and c.type = p_type) then
     raise exception 'not_owned';
   end if;
+  -- peleryna i plecak się wykluczają (od 0.38.0): założenie jednego zdejmuje drugie
   update public.profiles
-    set equipped = case when p_id is null then equipped - p_type else jsonb_set(equipped, array[p_type], to_jsonb(p_id)) end
+    set equipped = case when p_id is null then equipped - p_type
+      else jsonb_set(equipped - case p_type when 'cape' then 'back' when 'back' then 'cape' else '' end, array[p_type], to_jsonb(p_id)) end
     where id = v_uid returning equipped into v;
   if v is null then raise exception 'no_profile'; end if;
   return v;
@@ -1116,6 +1122,189 @@ create table if not exists private.activity (
 -- Ważna aktualność (od 0.20.0): okno, które każdy gracz zobaczy raz (w launcherze i powiadomienie w grze)
 alter table public.announcements add column if not exists popup boolean not null default false;
 
+-- ===== Party (od 0.38.0) =====
+-- Grupa do 8 osób. Lider zaprasza znajomych (party zakłada się samo przy pierwszym zaproszeniu), członkowie widzą się
+-- nawzajem (obecność, serwer i wersja, jak znajomi), a gdy lider gra na serwerze, reszta dostaje w launcherze „Dołącz”.
+-- Czat party: 1–300 znaków, wiadomości z 2 dni. Lider, który odchodzi, oddaje party najdłużej obecnemu członkowi.
+create table if not exists private.parties (
+  id bigserial primary key,
+  leader uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+create table if not exists private.party_members (
+  user_id uuid primary key references public.profiles (id) on delete cascade,
+  party_id bigint not null references private.parties (id) on delete cascade,
+  joined_at timestamptz not null default now()
+);
+create index if not exists party_members_party on private.party_members (party_id);
+create table if not exists private.party_invites (
+  party_id bigint not null references private.parties (id) on delete cascade,
+  to_id uuid not null references public.profiles (id) on delete cascade,
+  from_id uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (party_id, to_id)
+);
+create table if not exists private.party_messages (
+  id bigserial primary key,
+  party_id bigint not null references private.parties (id) on delete cascade,
+  from_id uuid references public.profiles (id) on delete set null,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists party_messages_party on private.party_messages (party_id, id);
+
+create or replace function private.my_party(p_user uuid) returns bigint
+language sql stable security definer set search_path = '' as $$
+  select party_id from private.party_members where user_id = p_user;
+$$;
+
+-- Wyjście z party (też wyrzucenie): lider oddaje party najdłużej obecnemu; ostatni gasi światło
+create or replace function private.party_drop(p_user uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_party bigint := private.my_party(p_user);
+  v_next uuid;
+begin
+  if v_party is null then return; end if;
+  delete from private.party_members where user_id = p_user;
+  select user_id into v_next from private.party_members where party_id = v_party order by joined_at, user_id limit 1;
+  if v_next is null then
+    delete from private.parties where id = v_party;
+  elsif (select leader from private.parties where id = v_party) = p_user then
+    update private.parties set leader = v_next where id = v_party;
+  end if;
+end $$;
+
+-- Zaproszenie znajomego: tylko lider (bez party zakłada je); razem z zaproszonymi najwyżej 8 osób. Wynik: id party
+create or replace function public.party_invite(p_user uuid) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_party bigint;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
+  if p_user is null or p_user = v_me or not private.are_friends(v_me, p_user) or private.is_banned(p_user) then raise exception 'party_not_friend'; end if;
+  v_party := private.my_party(v_me);
+  if v_party is null then
+    insert into private.parties (leader) values (v_me) returning id into v_party;
+    insert into private.party_members (user_id, party_id) values (v_me, v_party);
+  elsif (select leader from private.parties where id = v_party) <> v_me then
+    raise exception 'party_not_leader';
+  end if;
+  if exists (select 1 from private.party_members where user_id = p_user and party_id = v_party) then raise exception 'party_already'; end if;
+  delete from private.party_invites where created_at < now() - interval '1 day';
+  if (select count(*) from private.party_members where party_id = v_party)
+     + (select count(*) from private.party_invites where party_id = v_party and to_id <> p_user) >= 8 then
+    raise exception 'party_full';
+  end if;
+  insert into private.party_invites (party_id, to_id, from_id) values (v_party, p_user, v_me)
+    on conflict (party_id, to_id) do update set from_id = excluded.from_id, created_at = now();
+  return v_party;
+end $$;
+
+-- Zaproszenia do party dla mnie (z dnia)
+create or replace function public.party_invites()
+returns table (party_id bigint, from_nick text, leader_nick text, members bigint, created_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select i.party_id, f.nick, l.nick, (select count(*) from private.party_members m where m.party_id = i.party_id), i.created_at
+  from private.party_invites i
+  join private.parties p on p.id = i.party_id
+  join public.profiles f on f.id = i.from_id
+  join public.profiles l on l.id = p.leader
+  where i.to_id = (select auth.uid()) and i.created_at > now() - interval '1 day'
+  order by i.created_at desc;
+$$;
+
+-- Odpowiedź na zaproszenie: przyjęcie wyprowadza z poprzedniego party. Wynik: 'joined' albo 'declined'
+create or replace function public.party_answer(p_party bigint, p_accept boolean) returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if not exists (select 1 from private.party_invites where party_id = p_party and to_id = v_me and created_at > now() - interval '1 day') then
+    raise exception 'party_invite_missing';
+  end if;
+  delete from private.party_invites where party_id = p_party and to_id = v_me;
+  if not coalesce(p_accept, false) then return 'declined'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
+  if (select count(*) from private.party_members where party_id = p_party) >= 8 then raise exception 'party_full'; end if;
+  if private.my_party(v_me) is distinct from p_party then perform private.party_drop(v_me); end if;
+  insert into private.party_members (user_id, party_id) values (v_me, p_party) on conflict (user_id) do nothing;
+  return 'joined';
+end $$;
+
+create or replace function public.party_leave() returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'not_logged_in'; end if;
+  perform private.party_drop(auth.uid());
+end $$;
+
+-- Wyrzucenie z party: tylko lider, nie siebie
+create or replace function public.party_kick(p_user uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_party bigint := private.my_party(auth.uid());
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if v_party is null or (select leader from private.parties where id = v_party) <> v_me then raise exception 'party_not_leader'; end if;
+  if p_user = v_me or private.my_party(p_user) is distinct from v_party then raise exception 'party_not_member'; end if;
+  perform private.party_drop(p_user);
+end $$;
+
+-- Moje party: lider, członkowie z obecnością (serwer i wersja tylko w grze), zaproszeni i ostatnia wiadomość; null = bez party
+create or replace function public.party_state() returns json
+language sql stable security definer set search_path = '' as $$
+  select json_build_object('id', p.id, 'leader', p.leader, 'me', (select auth.uid()),
+    'members', (select coalesce(json_agg(json_build_object('id', u.id, 'nick', u.nick, 'num', u.num, 'mc_name', u.mc_name,
+        'status', case when pr.seen_at > now() - interval '5 minutes' then case when pr.playing then 'game' else 'launcher' end else 'offline' end,
+        'version', case when pr.playing and pr.seen_at > now() - interval '5 minutes' then pr.version end,
+        'server', case when pr.playing and pr.seen_at > now() - interval '5 minutes' then pr.server end) order by m.joined_at, m.user_id), '[]'::json)
+      from private.party_members m join public.profiles u on u.id = m.user_id left join private.presence pr on pr.user_id = u.id
+      where m.party_id = p.id),
+    'invited', (select coalesce(json_agg(json_build_object('id', u.id, 'nick', u.nick) order by i.created_at), '[]'::json)
+      from private.party_invites i join public.profiles u on u.id = i.to_id where i.party_id = p.id and i.created_at > now() - interval '1 day'),
+    'last_message', (select max(x.id) from private.party_messages x where x.party_id = p.id and x.created_at > now() - interval '2 days'))
+  from private.parties p
+  where p.id = private.my_party((select auth.uid()));
+$$;
+
+-- Czat party: znaki sterujące i kody kolorów (§) znikają; 1–300 znaków, najwyżej 20 na minutę
+create or replace function public.party_send(p_body text) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_me uuid := auth.uid();
+  v_party bigint := private.my_party(auth.uid());
+  v_body text := btrim(regexp_replace(regexp_replace(coalesce(p_body, ''), '§.?', '', 'g'), '[[:cntrl:]]+', ' ', 'g'));
+  v_id bigint;
+  v_at timestamptz;
+begin
+  if v_me is null then raise exception 'not_logged_in'; end if;
+  if private.is_banned(v_me) then raise exception 'banned'; end if;
+  if v_party is null then raise exception 'party_none'; end if;
+  if length(v_body) = 0 then raise exception 'message_empty'; end if;
+  if length(v_body) > 300 then raise exception 'message_long'; end if;
+  if (select count(*) from private.party_messages where from_id = v_me and created_at > now() - interval '1 minute') >= 20 then raise exception 'message_limit'; end if;
+  delete from private.party_messages where party_id = v_party and created_at < now() - interval '2 days';
+  insert into private.party_messages (party_id, from_id, body) values (v_party, v_me, v_body) returning id, created_at into v_id, v_at;
+  return json_build_object('id', v_id, 'created_at', v_at);
+end $$;
+
+-- Ostatnie 50 wiadomości party (albo nowsze niż p_after), od najstarszej
+create or replace function public.party_messages(p_after bigint default 0)
+returns table (id bigint, from_id uuid, nick text, mine boolean, body text, created_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select x.id, x.from_id, x.nick, x.mine, x.body, x.created_at from (
+    select m.id, m.from_id, u.nick, m.from_id = (select auth.uid()) as mine, m.body, m.created_at
+    from private.party_messages m left join public.profiles u on u.id = m.from_id
+    where m.party_id = private.my_party((select auth.uid())) and m.created_at > now() - interval '2 days' and m.id > coalesce(p_after, 0)
+    order by m.id desc limit 50) x
+  order by x.id;
+$$;
+
 -- ===== Panel admina =====
 -- Admin jest zapisany jako konto (nie numer MIB): przy pierwszym uruchomieniu tego pliku zostaje nim profil MIB-000002.
 -- Późniejsze uruchomienia niczego tu nie zmieniają, nawet gdy numeracja zostanie wyzerowana.
@@ -1293,6 +1482,16 @@ begin
 end $$;
 
 -- Wszystkie kosmetyki naraz (od 0.35.0): daje brakujące / zabiera wszystkie (i zdejmuje założone); wynik: ile przedmiotów
+-- Zbanowani gracze (od 0.38.0): lista w zakładce Gracze z przyciskiem „Odbanuj”
+create or replace function public.admin_list_banned()
+returns table (id uuid, nick text, num bigint, banned_at timestamptz, ban_reason text, warnings integer)
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return query select p.id, p.nick, p.num::bigint, p.banned_at, p.ban_reason, coalesce(p.warnings, 0)::integer
+    from public.profiles p where p.banned_at is not null order by p.banned_at desc;
+end $$;
+
 create or replace function public.admin_grant_all(p_user uuid) returns integer
 language plpgsql security definer set search_path = '' as $$
 declare v_n integer;
@@ -2245,6 +2444,18 @@ update public.themes t set items = t.items || array(select x from unnest(v.ids) 
   where t.id = v.id and not exists (select 1 from private.migrations where id = 'pety-0.34');
 insert into private.migrations (id) values ('pety-0.34') on conflict do nothing;
 insert into private.migrations (id) values ('tekstury-0.35') on conflict do nothing;
+-- peleryna i plecak razem (0.38.0): raz zdejmujemy pelerynę tym, którzy mają założone oba (plecak zostaje)
+update public.profiles set equipped = equipped - 'cape'
+  where equipped ? 'cape' and equipped ? 'back' and not exists (select 1 from private.migrations where id = 'peleryna-plecak-0.38');
+insert into private.migrations (id) values ('peleryna-plecak-0.38') on conflict do nothing;
+-- Peleryna 1000 graczy (0.38.0): raz dla profili, które już są (do MIB-001000); dopiero gdy cape_1k jest w bazie
+insert into public.owned_cosmetics (user_id, cosmetic_id, source)
+  select p.id, 'cape_1k', 'founder' from public.profiles p
+  where p.num <= 1000 and exists (select 1 from public.cosmetics where id = 'cape_1k')
+    and not exists (select 1 from private.migrations where id = 'peleryna-1k-0.38')
+on conflict do nothing;
+insert into private.migrations (id) select 'peleryna-1k-0.38' where exists (select 1 from public.cosmetics where id = 'cape_1k')
+on conflict do nothing;
 
 -- nowe rodzaje zmian coinsów: nagroda świąteczna i kalendarz adwentowy
 alter table private.coin_log drop constraint if exists coin_log_kind_check;
@@ -2510,6 +2721,24 @@ grant execute on function public.message_send(uuid, text) to authenticated;
 grant execute on function public.messages_with(uuid, bigint) to authenticated;
 grant execute on function public.messages_read(uuid) to authenticated;
 grant execute on function public.messages_unread() to authenticated;
+revoke all on function private.my_party(uuid) from public, anon, authenticated;
+revoke all on function private.party_drop(uuid) from public, anon, authenticated;
+revoke all on function public.party_invite(uuid) from public, anon;
+revoke all on function public.party_invites() from public, anon;
+revoke all on function public.party_answer(bigint, boolean) from public, anon;
+revoke all on function public.party_leave() from public, anon;
+revoke all on function public.party_kick(uuid) from public, anon;
+revoke all on function public.party_state() from public, anon;
+revoke all on function public.party_send(text) from public, anon;
+revoke all on function public.party_messages(bigint) from public, anon;
+grant execute on function public.party_invite(uuid) to authenticated;
+grant execute on function public.party_invites() to authenticated;
+grant execute on function public.party_answer(bigint, boolean) to authenticated;
+grant execute on function public.party_leave() to authenticated;
+grant execute on function public.party_kick(uuid) to authenticated;
+grant execute on function public.party_state() to authenticated;
+grant execute on function public.party_send(text) to authenticated;
+grant execute on function public.party_messages(bigint) to authenticated;
 revoke all on function private.is_banned(uuid) from public, anon, authenticated;
 revoke all on function private.is_blocked(uuid, uuid) from public, anon, authenticated;
 revoke all on function private.today() from public, anon, authenticated;

@@ -26,6 +26,8 @@ public final class MibPlayers {
 	public static final class Entry {
 		public final String uuid, name, cape, hat, wings, aura, mask;
 		public String pet, tail, back, petName;
+		/** Członek mojego party (od 0.38.0): ikonka party przy nicku. */
+		public boolean party;
 		public int petMode = Pets.FLY, petSide = 1;
 
 		public Entry(String uuid, String name, String cape) {
@@ -72,7 +74,7 @@ public final class MibPlayers {
 		return name == null ? null : byName.get(name.toLowerCase(Locale.ROOT));
 	}
 
-	/** players.json: {"players":[{"uuid","name","cape","hat","mask","wings","aura","pet","tail","back","petMode","petSide","petName"}]}; zły plik = brak graczy. */
+	/** players.json: {"players":[{"uuid","name","cape","hat","mask","wings","aura","pet","tail","back","petMode","petSide","petName","party"}]}; zły plik = brak graczy. */
 	public static MibPlayers parse(String json) {
 		Object v;
 		try {
@@ -93,6 +95,7 @@ public final class MibPlayers {
 			e.petMode = Pets.mode(m.get("petMode") instanceof String ? (String) m.get("petMode") : null);
 			e.petSide = Pets.side(m.get("petSide") instanceof String ? (String) m.get("petSide") : null);
 			e.petName = Pets.name(m.get("petName"));
+			e.party = Boolean.TRUE.equals(m.get("party"));
 			out.add(e);
 		}
 		return new MibPlayers(out);

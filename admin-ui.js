@@ -2,6 +2,7 @@
 // Tylko po polsku — panel widzi wyłącznie właściciel.
 (() => {
   const { h, msg, fmtDate, itemImage } = window.mibUI;
+  const mibConfirm = (t, o) => window.mibConfirm(t, o); // okno potwierdzenia w launcherze (confirm() psuje pisanie w Electronie na Windowsie)
   const ERR = {
     not_admin: 'To konto nie jest adminem.',
     cosmetic_id_invalid: 'ID przedmiotu: 2–32 znaki, tylko małe litery, cyfry i _ (np. cape_turniej).',
@@ -63,7 +64,7 @@
   const failed = r => r && !Array.isArray(r) && r.error;
   const TYPES = { cape: 'Peleryna', hat: 'Czapka', mask: 'Maska', wings: 'Skrzydła', aura: 'Aura', pet: 'Pet', tail: 'Ogon', back: 'Plecak' };
   const TYPES_MANY = { cape: 'Peleryny', hat: 'Czapki', mask: 'Maski', wings: 'Skrzydła', aura: 'Aury', pet: 'Pety', tail: 'Ogony', back: 'Plecaki' };
-  const SOURCES = { code: 'kod', admin: 'od admina', gift: 'prezent', shop: 'sklep', theme: 'nagroda świąteczna', advent: 'kalendarz adwentowy' };
+  const SOURCES = { code: 'kod', admin: 'od admina', gift: 'prezent', shop: 'sklep', theme: 'nagroda świąteczna', advent: 'kalendarz adwentowy', founder: 'pierwsze 1000 graczy' };
   const coins = n => Number(n || 0).toLocaleString('pl-PL');
   // Ruch cząsteczek aury: końcówka ID (launcher i mod znają tylko te)
   const MOTIONS = { souls: 'Unoszą się z ziemi (dusze, serca, bańki)', pumpkins: 'Krążą i lecą w górę, z iskrami', ghosts: 'Trzy krążą wokół (duszki, prezenty, bloki)',
@@ -203,7 +204,7 @@
             save.textContent = 'Zapisz zmiany'; cancel.hidden = false; title.focus();
           } } }, 'Zmień'),
           h('button', { class: 'b danger', on: { click: async () => {
-            if (!confirm('Usunąć aktualność „' + a.title + '”?')) return;
+            if (!(await mibConfirm('Usunąć aktualność „' + a.title + '”?', { danger: true, ok: 'Usuń' }))) return;
             const r = await call('admin_delete_announcement', { p_id: a.id });
             if (failed(r)) return toast(err(r), 1);
             load(); window.mibLoadAnn();
@@ -282,7 +283,7 @@
             } } }, 'Nagródź') : null,
             h('button', { class: 'b ghost', on: { click: () => copy(i.body) } }, 'Kopiuj'),
             h('button', { class: 'b danger', on: { click: async () => {
-              if (!confirm('Usunąć ten pomysł?')) return;
+              if (!(await mibConfirm('Usunąć ten pomysł?', { danger: true, ok: 'Usuń' }))) return;
               const r = await call('admin_delete_idea', { p_id: i.id });
               if (failed(r)) return toast(err(r), 1);
               all = all.filter(x => x.id !== i.id); show(); badge();
@@ -334,7 +335,7 @@
   function moderation(p, report, done) {
     if (p.banned) return h('div', { class: 'row mod-row', style: 'align-items:center' }, h('em', { class: 'tag ban' }, 'Zbanowany'),
       h('button', { class: 'b ghost', type: 'button', on: { click: async () => {
-        if (!confirm('Zdjąć bana graczowi ' + p.nick + '? Ostrzeżenia wrócą do zera.')) return;
+        if (!(await mibConfirm('Zdjąć bana graczowi ' + p.nick + '? Ostrzeżenia wrócą do zera.'))) return;
         const r = await call('admin_unban', { p_user: p.user_id || p.id });
         if (failed(r)) return toast(err(r), 1);
         toast('Ban zdjęty.'); done();
@@ -347,7 +348,7 @@
         toast(r.banned ? 'Czwarte ostrzeżenie: konto zbanowane.' : 'Ostrzeżenie ' + r.warnings + '/4 wysłane.'); done();
       } } }, 'Ostrzeż (' + Math.min(4, (p.warnings || 0) + 1) + '/4)'),
       h('button', { class: 'b danger', type: 'button', on: { click: async () => {
-        if (!confirm('Zbanować ' + p.nick + ' od razu, bez czekania na 4 ostrzeżenia?')) return;
+        if (!(await mibConfirm('Zbanować ' + p.nick + ' od razu, bez czekania na 4 ostrzeżenia?', { danger: true, ok: 'Zbanuj' }))) return;
         const r = await call('admin_ban', { p_user: p.user_id || p.id, p_reason: why.value, p_report: report ? report.id : null });
         if (failed(r)) return toast(err(r), 1);
         toast('Konto zbanowane.'); done();
@@ -443,7 +444,7 @@
         h('div', { class: 'row' },
           h('button', { class: 'b ghost', on: { click: () => { editing = true; id.value = c.id; id.disabled = true; name.value = c.name; type.value = c.type; price.value = c.price != null ? c.price : ''; motionRow.hidden = true; texture = null; preview(c.texture); save.textContent = 'Zapisz zmiany'; name.focus(); } } }, 'Edytuj'),
           h('button', { class: 'b danger', on: { click: async () => {
-            if (!confirm('Usunąć przedmiot „' + c.name + '”?')) return;
+            if (!(await mibConfirm('Usunąć przedmiot „' + c.name + '”?', { danger: true, ok: 'Usuń' }))) return;
             const r = await call('admin_delete_cosmetic', { p_id: c.id });
             if (failed(r)) return toast(err(r), 1);
             load();
@@ -540,7 +541,7 @@
             save.textContent = 'Zapisz zmiany'; recalc(); name.focus();
           } } }, 'Edytuj'),
           h('button', { class: 'b danger', on: { click: async () => {
-            if (!confirm('Usunąć ofertę „' + o.name + '”? Kupione przedmioty zostają u graczy.')) return;
+            if (!(await mibConfirm('Usunąć ofertę „' + o.name + '”? Kupione przedmioty zostają u graczy.', { danger: true, ok: 'Usuń' }))) return;
             const r = await call('admin_delete_offer', { p_id: o.id });
             if (failed(r)) return toast(err(r), 1);
             if (editing === o.id) reset();
@@ -586,7 +587,7 @@
         h('div', {}, h('b', { class: 'mono' }, k.code, k.expires_at && new Date(k.expires_at) < new Date() ? h('em', { class: 'tag' }, 'wygasł') : null),
           h('span', { class: 'mut' }, k.cosmetic_name + ', użyto ' + k.used_count + ' z ' + k.max_uses + (k.expires_at ? ', ważny do ' + fmtDate(k.expires_at) : ''))),
         h('button', { class: 'b ghost', on: { click: () => copy(k.code) } }, 'Kopiuj'),
-        h('button', { class: 'b danger', on: { click: async () => { if (!confirm('Usunąć kod ' + k.code + '?')) return; const r = await call('admin_delete_code', { p_code: k.code }); if (failed(r)) return toast(err(r), 1); load(); } } }, 'Usuń')))
+        h('button', { class: 'b danger', on: { click: async () => { if (!(await mibConfirm('Usunąć kod ' + k.code + '?', { danger: true, ok: 'Usuń' }))) return; const r = await call('admin_delete_code', { p_code: k.code }); if (failed(r)) return toast(err(r), 1); load(); } } }, 'Usuń')))
         : [h('p', { class: 'empty' }, 'Nie ma jeszcze kodów.')]));
     }
     const gen = h('button', { class: 'b', type: 'submit', id: 'ak-go' }, 'Wygeneruj kody');
@@ -637,7 +638,7 @@
         coinsRow(p),
         h('div', { class: 'sr' }, h('span', {}, 'Wyślij prezent (z oknem „Odbierz”)'), await giftForm(p.id, null, () => show(p), owned)),
         h('div', { class: 'sr' }, h('span', {}, p.banned ? 'Ban' + (p.ban_reason ? ': ' + p.ban_reason : '') : 'Ostrzeżenia i ban'),
-          moderation(p, null, async () => { await search(); const x = (await call('admin_find_players', { p_q: window.MibProfile.formatMibId(p.num) }))[0]; if (x) show(x); })),
+          moderation(p, null, async () => { await search(); loadBanned(); const x = (await call('admin_find_players', { p_q: window.MibProfile.formatMibId(p.num) }))[0]; if (x) show(x); })),
         delBox(p)));
     }
     // Przedmioty gracza (od 0.34.0): zwijana lista (zwinięta, gdy jest ich dużo), Zabierz przy każdym, a dla całego
@@ -645,7 +646,7 @@
     function ownedBox(p, owned, cos) {
       const missing = cos.filter(c => !owned.some(o => o.id === c.id)).length;
       const all = async (fn, ask, done) => {
-        if (!confirm(ask)) return;
+        if (!(await mibConfirm(ask, fn === 'admin_revoke_all' ? { danger: true, ok: 'Zabierz' } : { ok: 'Daj' }))) return;
         const r = await call(fn, { p_user: p.id });
         if (failed(r)) return toast(err(r), 1);
         toast(done.replace('%d', r));
@@ -706,8 +707,28 @@
       conf.oninput = () => { del.disabled = conf.value !== p.nick; };
       return h('div', { class: 'sr' }, h('span', {}, 'Usuń konto (nieodwracalne)'), h('span', { class: 'row' }, conf, del));
     }
-    box.append(await giftAllBox(), h('form', { class: 'row', on: { submit: ev => { ev.preventDefault(); search(); } } }, q, h('button', { class: 'b', type: 'submit' }, 'Szukaj')), res, detail);
-    search();
+    // Zbanowani (od 0.38.0): od razu lista z „Odbanuj”, bez szukania gracza
+    const banned = h('details', { class: 'own-box ban-box', id: 'ap-banned' });
+    async function loadBanned() {
+      const l = await call('admin_list_banned');
+      if (failed(l)) return banned.replaceChildren(h('summary', {}, h('b', {}, 'Zbanowani')), h('p', { class: 'err pf-other-in' }, err(l)));
+      banned.hidden = false;
+      banned.replaceChildren(h('summary', {}, h('b', {}, 'Zbanowani gracze: ' + l.length)),
+        h('div', { class: 'ban-list' }, ...(l.length ? l.map(b => h('div', { class: 'card arow', 'data-id': b.id },
+          h('div', {}, h('b', {}, b.nick, h('em', { class: 'tag ban' }, 'ban')),
+            h('span', { class: 'mut' }, window.MibProfile.formatMibId(b.num) + ', od ' + fmtDate(b.banned_at) + (b.ban_reason ? ' — ' + b.ban_reason : '') + ', ostrzeżenia: ' + (b.warnings || 0) + '/4')),
+          h('button', { class: 'b', type: 'button', on: { click: async e => {
+            if (!(await mibConfirm('Zdjąć bana graczowi ' + b.nick + '? Ostrzeżenia wrócą do zera.', { ok: 'Odbanuj' }))) return;
+            e.target.disabled = true;
+            const r = await call('admin_unban', { p_user: b.id });
+            if (failed(r)) { e.target.disabled = false; return toast(err(r), 1); }
+            toast(b.nick + ' odbanowany.');
+            loadBanned(); search();
+          } } }, 'Odbanuj'))) : [h('p', { class: 'empty' }, 'Nikt nie jest zbanowany.')])));
+      if (l.length) banned.open = true;
+    }
+    box.append(await giftAllBox(), banned, h('form', { class: 'row', on: { submit: ev => { ev.preventDefault(); search(); } } }, q, h('button', { class: 'b', type: 'submit' }, 'Szukaj')), res, detail);
+    search(); loadBanned();
   }
   // Prezent dla wszystkich (np. święta, 1000 graczy): każdy, kto nie ma tego kosmetyku, dostanie okno „Masz prezent!”
   async function giftAllBox() {
@@ -716,7 +737,7 @@
     const note = h('input', { id: 'ga-note', maxlength: 200, placeholder: 'Wiadomość, np. Wesołych Świąt od MiB!' });
     const go = h('button', { class: 'b', id: 'ga-go', type: 'button', on: { click: async () => {
       if (!pick.value) return toast('Najpierw dodaj przedmiot w zakładce Kosmetyki.', 1);
-      if (!confirm('Wysłać „' + pick.selectedOptions[0].textContent + '” wszystkim graczom, którzy go nie mają?')) return;
+      if (!(await mibConfirm('Wysłać „' + pick.selectedOptions[0].textContent + '” wszystkim graczom, którzy go nie mają?'))) return;
       go.disabled = true;
       const r = await call('admin_gift_all', { p_cosmetic: pick.value, p_message: note.value });
       go.disabled = false;

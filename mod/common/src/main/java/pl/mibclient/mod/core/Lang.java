@@ -72,6 +72,8 @@ public final class Lang {
 		put("notice.gift", "Prezent od MiB!", "A gift from MiB!");
 		put("notice.gift.from", "Prezent od %s!", "A gift from %s!");
 		put("notice.news", "Ważna aktualność MiB", "Important MiB news");
+		put("notice.party", "Party", "Party");
+		put("friends.party.hint", "Czat party: piszą wszyscy członkowie. Zapraszasz i dołączasz w launcherze.", "Party chat: every member can write. Invite and join in the launcher.");
 		put("notice.gift.body", "%s czeka na Ciebie. Odbierz w launcherze.", "%s is waiting for you. Claim it in the launcher.");
 		put("notice.message", "Wiadomość od %s", "Message from %s");
 		put("notice.message.reply", "(odpowiesz pod prawym Shiftem: Znajomi)", "(reply in the Right Shift menu: Friends)");
@@ -91,6 +93,7 @@ public final class Lang {
 		put("chat.message_not_friend", "Pisać możesz tylko do znajomych.", "You can only message your friends.");
 		put("chat.message_empty", "Wiadomość jest pusta.", "The message is empty.");
 		put("chat.message_long", "Wiadomość może mieć najwyżej 500 znaków.", "A message can be at most 500 characters long.");
+		put("chat.party_none", "Nie jesteś już w party.", "You're no longer in a party.");
 		put("chat.message_limit", "Za dużo wiadomości naraz. Odczekaj chwilę.", "Too many messages at once. Wait a moment.");
 		put("chat.offline", "Brak połączenia z serwerem MiB. Wiadomość nie została wysłana.", "Can't reach the MiB server. The message wasn't sent.");
 		put("chat.failed", "Nie udało się wysłać wiadomości.", "Couldn't send the message.");

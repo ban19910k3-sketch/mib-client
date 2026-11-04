@@ -450,3 +450,27 @@ test('bridge: tryb i strona peta z menu w grze (cosmetic-request.json z polem pe
   assert.strictEqual(pets.length, 1, 'złe dane: nic');
   assert.ok(fs.existsSync(path.join(dir, 'cosmetic-result.json')), 'błąd dla gry');
 });
+
+test('most: party w menu gry (wpis „Party”, czat party), powiadomienie „party” i ikonka party w players.json (0.38.0)', async () => {
+  const dir = path.join(tmp(), 'mib'), sent = [];
+  const party = { id: 'party', nick: 'Party (2/8)', status: 'game', server: 'play.mib.pl', unread: 1, party: true, members: '★Lider · Ja' };
+  const b = m.createBridge({ dir, accounts: () => ({ list: [], active: null }), onSwitch: async () => {}, now: () => 900,
+    friends: async () => ({ loggedIn: true, list: [party, { id: 'a', nick: 'Ala', status: 'offline', server: null, unread: 0, members: 'nie' }] }),
+    chat: async id => (id === 'party' ? [{ id: 5, mine: false, body: 'Lider: gramy?', read: true }] : []),
+    onSend: async (to, body) => { sent.push(to + ':' + body); } });
+  fs.mkdirSync(dir, { recursive: true });
+  const read = n => JSON.parse(fs.readFileSync(path.join(dir, n), 'utf8'));
+  await b.pollOnce();
+  assert.deepStrictEqual(read('friends.json').list, [party, { id: 'a', nick: 'Ala', status: 'offline', server: null, unread: 0 }], 'członkowie tylko przy party');
+  fs.writeFileSync(path.join(dir, 'chat-request.json'), JSON.stringify({ with: 'party', at: 900 }));
+  await b.pollOnce();
+  assert.deepStrictEqual(read('chat.json'), { with: 'party', at: 900, messages: [{ id: 5, mine: false, body: 'Lider: gramy?', read: true }] });
+  fs.writeFileSync(path.join(dir, 'chat-send.json'), JSON.stringify({ to: 'party', body: 'Jasne', at: 900 }));
+  await b.pollOnce();
+  assert.deepStrictEqual(sent, ['party:Jasne']);
+  b.notice({ type: 'party', nick: 'Lider', text: 'Lider Lider gra na play.mib.pl (Minecraft 1.21.11).' });
+  assert.deepStrictEqual((({ type, nick, text }) => ({ type, nick, text }))(read('notice.json')), { type: 'party', nick: 'Lider', text: 'Lider Lider gra na play.mib.pl (Minecraft 1.21.11).' });
+  const pl = JSON.parse(m.playersPayload([{ uuid: '11111111-2222-3333-4444-555555555555', name: 'Lider', party: true }, { uuid: '11111111-2222-3333-4444-555555555556', name: 'Obcy', party: 'tak' }]));
+  assert.equal(pl.players[0].party, true);
+  assert.equal('party' in pl.players[1], false, 'tylko prawdziwe true');
+});

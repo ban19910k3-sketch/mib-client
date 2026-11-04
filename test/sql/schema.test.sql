@@ -484,7 +484,7 @@ end $$;
 -- Pety, ogony i plecaki (0.34.0): osobne miejsca naraz, ustawienia peta widzą inni gracze MiB
 insert into public.cosmetics (id, name, type) values ('pet_t', 'Pet', 'pet'), ('tail_t', 'Ogon', 'tail'), ('back_t', 'Plecak', 'back') on conflict do nothing;
 insert into public.owned_cosmetics (user_id, cosmetic_id) values ('22222222-2222-2222-2222-222222222222', 'pet_t'),
-  ('22222222-2222-2222-2222-222222222222', 'tail_t'), ('22222222-2222-2222-2222-222222222222', 'back_t') on conflict do nothing;
+  ('22222222-2222-2222-2222-222222222222', 'tail_t'), ('22222222-2222-2222-2222-222222222222', 'back_t'), ('22222222-2222-2222-2222-222222222222', 'cape_start') on conflict do nothing;
 set role authenticated;
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 do $$ declare e jsonb; begin
@@ -492,6 +492,11 @@ do $$ declare e jsonb; begin
   perform public.equip_cosmetic('tail', 'tail_t');
   e := public.equip_cosmetic('back', 'back_t');
   assert e ->> 'pet' = 'pet_t' and e ->> 'tail' = 'tail_t' and e ->> 'back' = 'back_t' and e ->> 'hat' = 'hat_one', 'pet, ogon i plecak razem z czapką';
+  -- peleryna i plecak się wykluczają (0.38.0)
+  e := public.equip_cosmetic('cape', 'cape_start');
+  assert e ->> 'cape' = 'cape_start' and not e ? 'back' and e ->> 'pet' = 'pet_t', 'peleryna zdejmuje plecak (reszta zostaje)';
+  e := public.equip_cosmetic('back', 'back_t');
+  assert e ->> 'back' = 'back_t' and not e ? 'cape', 'plecak zdejmuje pelerynę';
   assert (select pet from public.profiles) = '{"mode": "fly", "side": "left", "name": ""}'::jsonb, 'domyślnie lata po lewej, bez imienia';
   assert (select pet_mode from public.mib_who(null, array['Gracz'])) = 'fly' and (select pet_name from public.mib_who(null, array['Gracz'])) is null, 'domyślne ustawienia peta';
   assert public.set_pet('walk', 'right', '  Mruczek ') = '{"mode": "walk", "side": "right", "name": "Mruczek"}'::jsonb, 'zapis ustawień peta';
@@ -1439,3 +1444,117 @@ end $$;
 insert into auth.sessions (user_id) values ('aaaaaaaa-0000-0000-0000-0000000ad001');
 \i ../../supabase/schema.sql
 do $$ begin assert exists (select 1 from auth.sessions where user_id = 'aaaaaaaa-0000-0000-0000-0000000ad001'), 'tylko raz'; end $$;
+
+-- ===== Party (0.38.0) =====
+insert into auth.users (id, email, raw_user_meta_data)
+  select ('7a000000-0000-0000-0000-00000000000' || i)::uuid, 'party' || i || '@test.pl', json_build_object('nick', 'Party_' || i)::jsonb from generate_series(1, 9) i;
+-- Party_1 przyjaźni się z 2..9, Party_2 z nikim więcej
+insert into private.friends (from_id, to_id, accepted)
+  select '7a000000-0000-0000-0000-000000000001', ('7a000000-0000-0000-0000-00000000000' || i)::uuid, true from generate_series(2, 9) i;
+set role authenticated;
+set request.jwt.claim.sub = '7a000000-0000-0000-0000-000000000001';
+do $$
+declare v bigint; st json;
+begin
+  assert public.party_state() is null, 'bez party';
+  v := public.party_invite('7a000000-0000-0000-0000-000000000002');
+  st := public.party_state();
+  assert (st ->> 'id')::bigint = v and st ->> 'leader' = '7a000000-0000-0000-0000-000000000001', 'party założone przy pierwszym zaproszeniu';
+  assert json_array_length(st -> 'members') = 1 and json_array_length(st -> 'invited') = 1, 'lider i zaproszony';
+  assert public.party_invite('7a000000-0000-0000-0000-000000000002') = v, 'drugie zaproszenie tego samego nie psuje';
+end $$;
+select pg_temp.expect_error($q$select public.party_invite('11111111-1111-1111-1111-111111111111')$q$, 'party_not_friend');
+select pg_temp.expect_error($q$select public.party_invite(auth.uid())$q$, 'party_not_friend');
+set request.jwt.claim.sub = '7a000000-0000-0000-0000-000000000002';
+do $$
+declare v bigint := (select party_id from public.party_invites());
+begin
+  assert (select leader_nick from public.party_invites()) = 'Party_1', 'zaproszenie od lidera';
+  assert public.party_answer(v, true) = 'joined';
+  assert json_array_length(public.party_state() -> 'members') = 2 and json_array_length(public.party_state() -> 'invited') = 0, 'w party';
+  perform public.party_send('  Siema §cparty!  ');
+  assert (select body from public.party_messages()) = 'Siema party!', 'czat party bez kodów kolorów';
+  assert (select mine from public.party_messages()), 'moja wiadomość';
+end $$;
+-- zwykły członek nie zaprasza ani nie wyrzuca
+select pg_temp.expect_error($q$select public.party_invite('7a000000-0000-0000-0000-000000000001')$q$, 'party_not_leader');
+select pg_temp.expect_error($q$select public.party_kick('7a000000-0000-0000-0000-000000000001')$q$, 'party_not_leader');
+select pg_temp.expect_error($q$select public.party_send(repeat('x', 301))$q$, 'message_long');
+-- obecność członków: serwer widzą inni w party
+select public.presence_ping(true, '1.21.11', 'play.mib.pl', false);
+set request.jwt.claim.sub = '7a000000-0000-0000-0000-000000000001';
+do $$
+declare m json;
+begin
+  select x into m from json_array_elements(public.party_state() -> 'members') x where x ->> 'nick' = 'Party_2';
+  assert m ->> 'status' = 'game' and m ->> 'server' = 'play.mib.pl' and m ->> 'version' = '1.21.11', 'serwer członka party';
+  assert (select nick from public.party_messages()) = 'Party_2', 'lider widzi czat';
+  assert public.party_state() ->> 'me' = '7a000000-0000-0000-0000-000000000001', 'party_state zna mnie';
+  -- limit 8 razem z zaproszonymi
+  for i in 3..8 loop perform public.party_invite(('7a000000-0000-0000-0000-00000000000' || i)::uuid); end loop;
+end $$;
+select pg_temp.expect_error($q$select public.party_invite('7a000000-0000-0000-0000-000000000009')$q$, 'party_full');
+-- odrzucenie zwalnia miejsce
+set request.jwt.claim.sub = '7a000000-0000-0000-0000-000000000008';
+do $$ begin assert public.party_answer((select party_id from public.party_invites()), false) = 'declined'; end $$;
+set request.jwt.claim.sub = '7a000000-0000-0000-0000-000000000001';
+do $$ begin perform public.party_invite('7a000000-0000-0000-0000-000000000009'); end $$;
+-- wyrzucenie i odejście lidera: party przechodzi na najdłużej obecnego
+do $$ begin perform public.party_kick('7a000000-0000-0000-0000-000000000002'); assert json_array_length(public.party_state() -> 'members') = 1, 'wyrzucony'; end $$;
+set request.jwt.claim.sub = '7a000000-0000-0000-0000-000000000003';
+do $$ begin perform public.party_answer((select party_id from public.party_invites()), true); end $$;
+set request.jwt.claim.sub = '7a000000-0000-0000-0000-000000000001';
+do $$ begin perform public.party_leave(); assert public.party_state() is null, 'lider wyszedł'; end $$;
+set request.jwt.claim.sub = '7a000000-0000-0000-0000-000000000003';
+do $$ begin assert public.party_state() ->> 'leader' = '7a000000-0000-0000-0000-000000000003', 'nowy lider'; perform public.party_leave(); end $$;
+reset role;
+do $$ begin
+  assert not exists (select 1 from private.parties p join private.party_members m on m.party_id = p.id where m.user_id::text like '7a000000%'), 'ostatni gasi światło';
+end $$;
+set role anon;
+select pg_temp.expect_error($q$select public.party_state()$q$, 'permission denied');
+reset role;
+
+-- peleryna i plecak razem z dawnych wersji (0.38.0): raz zostaje sam plecak
+update public.profiles set equipped = '{"cape": "cape_start", "back": "back_t", "hat": "hat_one"}' where id = '22222222-2222-2222-2222-222222222222';
+delete from private.migrations where id = 'peleryna-plecak-0.38';
+\i ../../supabase/schema.sql
+do $$ begin
+  assert (select equipped from public.profiles where id = '22222222-2222-2222-2222-222222222222') = '{"back": "back_t", "hat": "hat_one"}', 'peleryna zdjęta, plecak i czapka zostają';
+end $$;
+
+-- Peleryna 1000 graczy (0.38.0): bez cape_1k w bazie nic się nie dzieje i migracja czeka
+do $$ begin
+  assert not exists (select 1 from public.owned_cosmetics where cosmetic_id = 'cape_1k'), 'bez kosmetyku nikt nie ma';
+  assert not exists (select 1 from private.migrations where id = 'peleryna-1k-0.38'), 'migracja czeka na kosmetyk';
+end $$;
+-- właściciel dodał ją w panelu admina: po uruchomieniu schematu mają ją wszyscy do MIB-001000
+insert into public.cosmetics (id, name, type) values ('cape_1k', 'Peleryna 1000 graczy', 'cape');
+\i ../../supabase/schema.sql
+do $$ begin
+  assert (select count(*) from public.owned_cosmetics o join public.profiles p on p.id = o.user_id where o.cosmetic_id = 'cape_1k' and o.source = 'founder')
+    = (select count(*) from public.profiles where num <= 1000), 'każdy do MIB-001000';
+  assert not exists (select 1 from public.owned_cosmetics o join public.profiles p on p.id = o.user_id where o.cosmetic_id = 'cape_1k' and p.num > 1000), 'MIB-001001 bez';
+  assert exists (select 1 from private.migrations where id = 'peleryna-1k-0.38'), 'migracja zapisana';
+end $$;
+-- zabrana przez admina nie wraca przy kolejnym uruchomieniu schematu
+delete from public.owned_cosmetics where cosmetic_id = 'cape_1k' and user_id = '22222222-2222-2222-2222-222222222222';
+\i ../../supabase/schema.sql
+do $$ begin
+  assert not exists (select 1 from public.owned_cosmetics where cosmetic_id = 'cape_1k' and user_id = '22222222-2222-2222-2222-222222222222'), 'nie wraca';
+end $$;
+-- nowe profile: MIB-001000 dostaje od razu (e-mail i konto Minecraft), MIB-001001 już nie
+select setval('public.profiles_num_seq', 999);
+insert into auth.users (id, email, encrypted_password, raw_user_meta_data) values ('1c000000-0000-0000-0000-000000001000', 'k1000@test.pl', 'x', '{"nick":"Gracz_1000"}');
+insert into auth.users (id, email, raw_app_meta_data) values ('1c000000-0000-0000-0000-000000001001', 'k1001@test.pl', '{"mc_uuid":"1c000000-0000-4000-8000-000000001001","mc_name":"Gracz_1001"}');
+do $$ begin
+  assert (select num from public.profiles where id = '1c000000-0000-0000-0000-000000001000') = 1000, 'num 1000';
+  assert exists (select 1 from public.owned_cosmetics where user_id = '1c000000-0000-0000-0000-000000001000' and cosmetic_id = 'cape_1k' and source = 'founder'), 'MIB-001000 ma pelerynę';
+  assert (select num from public.profiles where id = '1c000000-0000-0000-0000-000000001001') = 1001, 'num 1001';
+  assert not exists (select 1 from public.owned_cosmetics where user_id = '1c000000-0000-0000-0000-000000001001' and cosmetic_id = 'cape_1k'), 'MIB-001001 bez peleryny';
+end $$;
+select setval('public.profiles_num_seq', 998);
+insert into auth.users (id, email, raw_app_meta_data) values ('1c000000-0000-0000-0000-000000000999', 'k999@test.pl', '{"mc_uuid":"1c000000-0000-4000-8000-000000000999","mc_name":"Gracz_999"}');
+do $$ begin
+  assert exists (select 1 from public.owned_cosmetics o join public.profiles p on p.id = o.user_id where p.num = 999 and o.cosmetic_id = 'cape_1k'), 'z kontem Minecraft też od razu';
+end $$;

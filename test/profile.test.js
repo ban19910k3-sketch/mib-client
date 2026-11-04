@@ -428,3 +428,27 @@ test('launcher style (0.36.0): presets, own colors, palette, game colors and sha
   assert.deepEqual(P.sanitizeSynced({ style: { p: 'custom', a: 'zly' } }), {}, 'zły motyw z profilu odrzucony');
   assert.ok(P.SYNCED_KEYS.includes('style'));
 });
+
+test('party: lider gra na serwerze, wpis w menu gry, czat w grze, powiadomienia', () => {
+  const st = { id: 7, leader: 'L', me: 'M', members: [
+    { id: 'L', nick: 'Lider', status: 'game', server: 'play.mib.pl', version: '1.21.11' },
+    { id: 'M', nick: 'Ja', status: 'launcher', server: null, version: null },
+    { id: 'K', nick: 'Kolega', status: 'offline' }] };
+  assert.deepEqual(P.partyPlay(st), { key: 'L|play.mib.pl|1.21.11', nick: 'Lider', server: 'play.mib.pl', version: '1.21.11' });
+  assert.equal(P.partyPlay({ ...st, me: 'L' }), null, 'lider nie dostaje powiadomienia o sobie');
+  assert.equal(P.partyPlay({ ...st, members: [st.members[0], { ...st.members[1], status: 'game', server: 'play.mib.pl', version: '1.21.11' }] }), null, 'już jestem na tym serwerze');
+  assert.notEqual(P.partyPlay({ ...st, members: [st.members[0], { ...st.members[1], status: 'game', server: 'inny.pl', version: '1.21.11' }] }), null, 'inny serwer: Dołącz');
+  assert.equal(P.partyPlay({ ...st, members: [{ ...st.members[0], server: null }, st.members[1]] }), null, 'lider bez serwera (świat jednoosobowy)');
+  assert.equal(P.partyPlay(null), null);
+  assert.deepEqual(P.partyEntry(st, 2), { id: 'party', nick: 'Party (3/8)', status: 'game', server: 'play.mib.pl', unread: 2, party: true, members: '★Lider · Ja · Kolega' });
+  assert.equal(P.partyEntry(null), null);
+  assert.equal(P.partyEntry({ ...st, members: [] }), null);
+  assert.deepEqual(P.partyChatRows([{ id: 1, nick: 'Lider', mine: false, body: 'kurwa gramy' }, { id: 2, nick: 'Ja', mine: true, body: 'ok' }], P.cleanText),
+    [{ id: 1, mine: false, read: true, body: 'Lider: ' + P.cleanText('kurwa gramy') }, { id: 2, mine: true, read: true, body: 'ok' }]);
+  assert.notEqual(P.cleanText('kurwa gramy'), 'kurwa gramy');
+  assert.deepEqual(P.friendNotice({ type: 'party_play', nick: 'Lider', server: 'play.mib.pl', version: '1.21.11' }, 'pl'),
+    { title: 'Party gra', body: 'Lider Lider gra na play.mib.pl (Minecraft 1.21.11) — Dołącz' });
+  assert.match(P.friendNotice({ type: 'party_invite', nick: 'Kolega' }, 'en').body, /Kolega invites you to a party/);
+  assert.equal(P.friendNotice({ type: 'party_msg', nick: 'Kolega', text: 'x'.repeat(200) }, 'pl').body.length, 140);
+  assert.equal(P.PARTY_MAX, 8);
+});

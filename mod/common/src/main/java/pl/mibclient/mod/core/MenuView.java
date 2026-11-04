@@ -1001,13 +1001,15 @@ public final class MenuView {
 			final int[] r = {ct[0], y, ct[2], 20};
 			boolean clickable = y >= top && y + 20 <= bottom, hover = clickable && in(r, mx, my);
 			box(c, r[0], y, r[2], 20, hover ? BOX_HOVER : BOX, f.unread > 0 ? Theme.AM : hover ? Theme.EDGE2 : LINE);
-			Shapes.round(c, r[0] + 7, y + 7, 6, 6, rad(3), pixels, "game".equals(f.status) ? Theme.GOOD : "launcher".equals(f.status) ? Theme.AM : Theme.OFF, 0);
+			// party (od 0.38.0): ikonka grupy zamiast kropki statusu, członkowie zamiast statusu
+			if (f.party) Shapes.icon(c, "users", r[0] + 4, y + 4, "game".equals(f.status) ? Theme.GOOD : Theme.AM_HI);
+			else Shapes.round(c, r[0] + 7, y + 7, 6, 6, rad(3), pixels, "game".equals(f.status) ? Theme.GOOD : "launcher".equals(f.status) ? Theme.AM : Theme.OFF, 0);
 			String right = f.unread > 0 ? Lang.t("friends.new", f.unread) : null;
 			int rw = right != null ? c.textWidth(right) + 12 : 16;
 			String nick = Shapes.ellipsize(c, f.nick, Math.min(110, r[2] / 3), false);
-			c.text(nick, r[0] + 19, y + 6, Theme.TEXT, false);
+			c.text(nick, r[0] + 19, y + 6, f.party ? Theme.AM_HI : Theme.TEXT, false);
 			int sx = r[0] + 19 + c.textWidth(nick) + 10;
-			c.text(Shapes.ellipsize(c, f.statusText(), r[0] + r[2] - rw - 8 - sx, false), sx, y + 6, "game".equals(f.status) ? Theme.GOOD : FAINT, false);
+			c.text(Shapes.ellipsize(c, f.statusText(), r[0] + r[2] - rw - 8 - sx, false), sx, y + 6, f.party ? Theme.TEXT : "game".equals(f.status) ? Theme.GOOD : FAINT, false);
 			if (right != null) c.text(right, r[0] + r[2] - 8 - c.textWidth(right), y + 6, Theme.AM_HI, false);
 			else Shapes.icon(c, "message", r[0] + r[2] - 16, y + 4, hover ? Theme.AM_HI : FAINT);
 			if (clickable) hits.add(new Hit("friend:" + f.id, r, new Runnable() {
@@ -1022,7 +1024,7 @@ public final class MenuView {
 	}
 
 	private static int rank(Friends.Friend f) {
-		return f.unread > 0 ? 0 : "game".equals(f.status) ? 1 : "launcher".equals(f.status) ? 2 : 3;
+		return f.party ? -1 : f.unread > 0 ? 0 : "game".equals(f.status) ? 1 : "launcher".equals(f.status) ? 2 : 3;
 	}
 
 	/**
@@ -1040,14 +1042,14 @@ public final class MenuView {
 		}
 		header(c, Shapes.ellipsize(c, f.nick, ct[2] / 2 - 30, false), mx, my);
 		String st = Shapes.ellipsize(c, f.statusText(), ct[2] / 2, false);
-		c.text(st, ct[0] + ct[2] - c.textWidth(st), ct[1] + 4, "game".equals(f.status) ? Theme.GOOD : FAINT, false);
+		c.text(st, ct[0] + ct[2] - c.textWidth(st), ct[1] + 4, f.party ? Theme.TEXT : "game".equals(f.status) ? Theme.GOOD : FAINT, false);
 		Friends.Chat ch = actions.chat(f.id);
 		String err = actions.chatMessage();
 		int inputY = ct[1] + ct[3] - 16, top = ct[1] + 22, bottom = inputY - (err != null ? 14 : 4);
 		box(c, ct[0], top, ct[2], bottom - top, BOX, LINE);
 		int lh = c.lineHeight() + 1, bw = Math.max(60, ct[2] * 3 / 4);
 		if (ch == null || ch.messages.isEmpty()) {
-			String t = ch == null ? Lang.t("chat.loading") : Lang.t("chat.empty", f.nick);
+			String t = ch == null ? Lang.t("chat.loading") : f.party ? Lang.t("friends.party.hint") : Lang.t("chat.empty", f.nick);
 			c.text(Shapes.ellipsize(c, t, ct[2] - 12, false), ct[0] + (ct[2] - Math.min(ct[2] - 12, c.textWidth(t))) / 2, (top + bottom) / 2 - 4, Theme.MUTED, false);
 		} else {
 			int lastMine = -1;
@@ -1227,7 +1229,7 @@ public final class MenuView {
 			return true;
 		}
 		if (page == Page.CHAT) {
-			if (ch >= 32 && ch != 127 && ch != '\u00a7' && draft.length() < Friends.MAX_MESSAGE) draft += ch;
+			if (ch >= 32 && ch != 127 && ch != '\u00a7' && draft.length() < (Friends.PARTY.equals(chatWith) ? Friends.MAX_PARTY_MESSAGE : Friends.MAX_MESSAGE)) draft += ch;
 			return true;
 		}
 		if (!searchable() || ch < 32 || ch == 127 || query.length() >= 32) return false;

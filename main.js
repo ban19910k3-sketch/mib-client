@@ -8,7 +8,7 @@ const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
 const { diagnoseCrash } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
-const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText, THEME_IDS, mcProfileAction } = require('./lib/profile');
+const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText, THEME_IDS, mcProfileAction, partyPlay, partyEntry, partyChatRows } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
 const { createMibPresence, joinMojang, helloMessage } = require('./lib/presence');
@@ -77,18 +77,20 @@ const shown = new Set(); // powiadomienia trzymane do kliknięcia (bez tego Wind
 function friendPopup(n) {
   const s = { ...defaults(), ...rd('settings.json', {}) }, t = friendNotice(n, s.lang);
   // w grze święto pokazuje się jak prezent („Prezent od MiB!”, tekst: co czeka w launcherze)
-  const inGame = n.type === 'holiday' ? { type: 'gift', nick: 'MiB', text: t.title + ': ' + (n.kind === 'advent' ? n.day + (s.lang === 'en' ? ' December' : ' grudnia') : n.name) } : n;
+  const inGame = n.type === 'holiday' ? { type: 'gift', nick: 'MiB', text: t.title + ': ' + (n.kind === 'advent' ? n.day + (s.lang === 'en' ? ' December' : ' grudnia') : n.name) }
+    // party w grze: okienko „Party” z gotowym tekstem (w grze nie ma przycisku Dołącz — jest w launcherze)
+    : n.type.startsWith('party_') ? { type: 'party', nick: n.nick, text: n.type === 'party_msg' ? n.nick + ': ' + n.text : t.body.replace(/ — (Dołącz|Join)$/, '.') } : n;
   if (bridge && n.type !== 'idea') { try { bridge.notice(inGame); } catch {} }
   // ważna aktualność przy otwartym launcherze: wystarczy okno w launcherze
   // przy otwartym launcherze wiadomość, prezent i odpowiedź pokazuje samo okno (dymek, okno prezentu, licznik);
   // wiadomość w grze z modem: okienko w grze
   const focused = win && !win.isDestroyed() && win.isFocused();
-  if ((n.type === 'message' && bridge) || (focused && ['message', 'gift', 'idea', 'news', 'holiday'].includes(n.type))) return;
+  if (((n.type === 'message' || n.type === 'party_msg') && bridge) || (focused && ['message', 'gift', 'idea', 'news', 'holiday', 'party_msg', 'party_play', 'party_invite'].includes(n.type))) return;
   try {
     if (!Notification.isSupported()) return;
     const x = new Notification({ title: 'MiB Client — ' + t.title, body: t.body, icon: path.join(__dirname, 'icon.png') });
     shown.add(x);
-    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); if (n.type === 'message') send('chat:open', n.from); else if (n.type === 'gift') send('gifts:open'); else if (n.type === 'idea') send('ideas:open'); else if (n.type === 'news') send('news:popup', n.ann); else if (n.type === 'holiday') send('holiday:open', n.kind); else send('friends:open'); } });
+    x.on('click', () => { shown.delete(x); if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); if (n.type === 'message') send('chat:open', n.from); else if (n.type === 'gift') send('gifts:open'); else if (n.type === 'idea') send('ideas:open'); else if (n.type === 'news') send('news:popup', n.ann); else if (n.type === 'holiday') send('holiday:open', n.kind); else if (n.type === 'party_play') send('party:join', { version: n.version, server: n.server }); else if (n.type === 'party_msg') send('party:open'); else send('friends:open'); } });
     x.on('close', () => shown.delete(x));
     x.show();
   } catch {}
@@ -130,8 +132,48 @@ async function watchMessages() {
 setInterval(() => watchMessages().catch(() => {}), 10000);
 setTimeout(() => watchMessages().catch(() => {}), 6000);
 ipcMain.handle('chat:check', () => watchMessages().catch(() => {}));
+// Party (0.38.0): co 15 s zaproszenia, „Lider gra na X — Dołącz” (gdy lider zmieni serwer albo wersję) i nowe wiadomości
+// czatu party; launcher dostaje stan (party:changed), menu gry wpis „Party” na liście znajomych, nicki członków ikonkę party
+let partyNow = null, partyInvSeen = null, partyPlayKey = null, partyMsgSeen = null, partyUnread = 0, partyChatOpen = false;
+const partyNames = () => new Set(((partyNow && partyNow.members) || []).filter(m => m.id !== partyNow.me && m.mc_name).map(m => m.mc_name.toLowerCase()));
+async function watchParty() {
+  const [s, inv] = await Promise.all([prof.partyState(), prof.partyInvites()]);
+  if ((s && s.error) || !Array.isArray(inv)) { // bez profilu albo bez sieci: od nowa
+    if (partyNow) { partyNow = null; send('party:changed', null); if (bridge) bridge.friendsChanged(); }
+    partyInvSeen = null; partyPlayKey = null; partyMsgSeen = null; partyUnread = 0;
+    return;
+  }
+  const before = JSON.stringify(partyNow), notify = ({ ...defaults(), ...rd('settings.json', {}) }).friendNotify !== false;
+  partyNow = s || null;
+  const r = freshKeys(partyInvSeen, inv, x => x.party_id + '@' + x.created_at), first = !partyInvSeen;
+  partyInvSeen = r.seen;
+  if (notify) for (const i of first ? inv : r.fresh) { friendPopup({ type: 'party_invite', nick: i.from_nick }); send('party:invite', { nick: i.from_nick }); }
+  const play = partyPlay(partyNow);
+  if (play && play.key !== partyPlayKey && notify) { friendPopup({ type: 'party_play', nick: play.nick, server: play.server, version: play.version }); send('party:play', play); }
+  partyPlayKey = play ? play.key : null;
+  // czat party: nowe wiadomości od innych (pierwsze odpytanie tylko zapamiętuje, gdzie jesteśmy)
+  const last = partyNow ? Number(partyNow.last_message) || 0 : 0;
+  if (!partyNow) { partyMsgSeen = null; partyUnread = 0; }
+  else if (partyMsgSeen === null) partyMsgSeen = last;
+  else if (last > partyMsgSeen) {
+    const rows = await prof.partyMessages({ after: partyMsgSeen });
+    if (Array.isArray(rows)) {
+      partyMsgSeen = last;
+      const theirs = rows.filter(m => !m.mine);
+      send('party:messages', rows.map(m => (m.mine ? m : { ...m, body: clean(m.body) })));
+      if (!partyChatOpen) partyUnread += theirs.length;
+      if (notify && !partyChatOpen) for (const m of theirs.slice(-3)) friendPopup({ type: 'party_msg', nick: m.nick || '?', text: clean(m.body) });
+    }
+  }
+  if (JSON.stringify(partyNow) !== before || r.fresh.length) { send('party:changed', partyNow); if (bridge) bridge.friendsChanged(); }
+}
+setInterval(() => watchParty().catch(() => {}), 15000);
+setTimeout(() => watchParty().catch(() => {}), 9000);
+ipcMain.handle('party:check', () => watchParty().catch(() => {}));
+// otwarty czat party w launcherze: bez licznika i powiadomień o nowych wiadomościach
+ipcMain.handle('party:chatOpen', (_, open) => { partyChatOpen = !!open; if (open) partyUnread = 0; });
 // Prezenty od MiB i odpowiedzi na pomysły: co minutę; nowe = powiadomienie (Windows, w grze), launcher pokazuje okno prezentu
-let giftsSeen = null, ideasSeenKeys = null;
+let giftsSeen = null;
 async function watchGifts() {
   const g = await prof.gifts();
   if (Array.isArray(g)) {
@@ -140,13 +182,21 @@ async function watchGifts() {
     send('gifts:changed', g.length);
     for (const x of r.fresh) friendPopup({ type: 'gift', nick: x.from_nick || 'MiB', text: x.name });
   } else giftsSeen = null;
+  // zmiany w pomysłach: pokazane zapamiętuje mib-state.json (ideaPops), więc odpowiedź admina, gdy launcher był zamknięty,
+  // też wyskakuje — od 0.38.0 jako okno w launcherze (idea:reply), poza tym powiadomienie Windows w tle
   const u = await prof.ideaUpdates();
   if (Array.isArray(u)) {
-    const r = freshKeys(ideasSeenKeys, u, x => x.id + '@' + x.updated_at);
-    ideasSeenKeys = r.seen;
+    const key = x => x.id + '@' + x.updated_at, state = rd('mib-state.json', {}) || {}, popped = new Set(state.ideaPops || []);
+    const fresh = u.filter(x => !popped.has(key(x)));
     send('ideas:changed', u.length);
-    for (const x of r.fresh) friendPopup({ type: 'idea', nick: 'MiB', status: x.status, text: x.reply });
-  } else ideasSeenKeys = null;
+    if (fresh.length) {
+      wr('mib-state.json', { ...(rd('mib-state.json', {}) || {}), ideaPops: [...popped, ...fresh.map(key)].slice(-300) });
+      for (const x of fresh) {
+        if (x.reply) send('idea:reply', { id: x.id, body: x.body, reply: x.reply, status: x.status });
+        friendPopup({ type: 'idea', nick: 'MiB', status: x.status, text: x.reply });
+      }
+    }
+  }
   if (g && !g.error && bridge) bridge.refreshCosmetics().catch(() => {}); // prezenty do odebrania także w menu gry
   // ostrzeżenie od admina: okno w launcherze (gracz potwierdza, że je przeczytał)
   const w = await prof.warnings();
@@ -800,7 +850,8 @@ function startHud(pid, mibDir, gameAcc) {
         // imiona petów innych graczy przez filtr wulgaryzmów, gdy jest włączony
         petName: n => clean(n),
         // gracze MiB z listy Tab (logo przed nickiem) i tekstury ich peleryn w <gra>/mib/capes
-        players: req => mibPresence.players(req, path.join(mibDir, 'capes')),
+        // członkowie mojego party z ikonką party przy nicku (0.38.0)
+        players: async req => { const rows = await mibPresence.players(req, path.join(mibDir, 'capes')), pn = partyNames(); return Array.isArray(rows) ? rows.map(r => ({ ...r, party: !!(r && typeof r.name === 'string' && pn.has(r.name.toLowerCase())) })) : rows; },
         // moduł Screenshot: zrzut ekranu z gry od razu w schowku
         onScreenshot: file => { const img = nativeImage.createFromPath(file); if (!img.isEmpty()) clipboard.writeImage(img); },
         // znajomi widzą serwer, na którym grasz (chyba że wyłączysz to w ustawieniach)
@@ -811,15 +862,23 @@ function startHud(pid, mibDir, gameAcc) {
           if (!Array.isArray(l)) return l && l.error === 'not_logged_in' ? { loggedIn: false, list: [] } : null;
           const un = {};
           for (const u of unreadRows) un[u.from_id] = Number(u.unread) || 0;
-          return { loggedIn: true, list: l.filter(f => f.state === 'friend').map(f => ({ id: f.id, nick: f.nick, status: f.status, server: f.server, unread: un[f.id] || 0 })) };
+          const party = partyEntry(partyNow, partyUnread);
+          return { loggedIn: true, list: [...(party ? [party] : []), ...l.filter(f => f.state === 'friend').map(f => ({ id: f.id, nick: f.nick, status: f.status, server: f.server, unread: un[f.id] || 0 }))] };
         },
         chat: async id => {
+          // czat party (0.38.0): cudze wiadomości z nickiem na początku, otwarta rozmowa zeruje licznik
+          if (id === 'party') {
+            const rows = await prof.partyMessages({});
+            if (!Array.isArray(rows)) return null;
+            if (partyUnread) { partyUnread = 0; bridge.friendsChanged(); }
+            return partyChatRows(rows, clean);
+          }
           const l = await prof.chat({ id });
           if (!Array.isArray(l)) return null;
           if (l.some(m => !m.mine && !m.read)) { await prof.chatRead({ id }); watchMessages().catch(() => {}); }
           return l.map(m => (m.mine ? m : { ...m, body: clean(m.body) }));
         },
-        onSend: async (id, body) => { const r = await prof.chatSend({ id, body }); if (r && r.error) throw new Error(r.error); } }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
+        onSend: async (id, body) => { const r = id === 'party' ? await prof.partySend({ body }) : await prof.chatSend({ id, body }); if (r && r.error) throw new Error(r.error); if (id === 'party') watchParty().catch(() => {}); } }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
     return;
   }

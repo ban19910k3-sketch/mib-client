@@ -34,6 +34,15 @@ class NoticeTest {
 	}
 
 	@Test
+	void parsesPartyNotice() {
+		Notice n = Notice.parse("{\"id\":\"8-1\",\"type\":\"party\",\"nick\":\"Lider\",\"text\":\"Lider Lider gra na play.mib.pl (Minecraft 1.21.11).\",\"at\":8}");
+		assertTrue(n.party());
+		assertEquals("Party", n.title());
+		assertEquals("Lider Lider gra na play.mib.pl (Minecraft 1.21.11).", n.body());
+		assertNull(Notice.parse("{\"id\":\"8-2\",\"type\":\"party\",\"nick\":\"Lider\",\"at\":8}"), "party bez tekstu");
+	}
+
+	@Test
 	void parsesMessageNotice() {
 		Notice n = Notice.parse("{\"id\":\"7-3\",\"type\":\"message\",\"nick\":\"Ala\",\"text\":\"Gramy?\",\"at\":7}");
 		assertTrue(n.message());

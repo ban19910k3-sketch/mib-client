@@ -33,6 +33,8 @@ function png(w, h, px) {
   const w = await app.firstWindow();
   const errors = [];
   w.on('pageerror', e => errors.push(e.message));
+  // od 0.38.0 żadnych systemowych okienek (confirm/alert psują pisanie w polach w Electronie na Windowsie)
+  w.on('dialog', d => { errors.push('systemowe okienko: ' + d.message()); d.dismiss().catch(() => {}); });
   const shot = n => w.screenshot({ path: path.join(OUT, n) });
   // wybór przedmiotu w panelu admina (0.37.0): przycisk obok ukrytej listy otwiera okno z kafelkami
   const pickItem = async (sel, id) => {
@@ -612,6 +614,59 @@ function png(w, h, px) {
     await w.waitForFunction(() => !document.getElementById('chat'));
     ok('(ab) zgłoszenie wiadomości z rozmowy: powód, opis i kopia rozmowy');
 
+    // Party (0.38.0): „Do party” przy znajomym, karta party, czat party, „Lider gra na X — Dołącz”, wyjście, zaproszenie od innego
+    await w.click('.nav[data-p="friends"]');
+    await w.waitForSelector('#party-sec .empty-party');
+    await w.click('#fr-list .frow:has-text("Kolega") button:has-text("Do party")');
+    await w.waitForSelector('.toast:has-text("Zaproszenie do party wysłane do Kolega")');
+    const pty = fake.st.parties[0];
+    assert.ok(pty && pty.leader === me.id && pty.invites.some(i => i.to === kolega.id), 'party w bazie z zaproszeniem');
+    await w.waitForFunction(() => /Party \(1\/8\).*Zaproszeni: Kolega/s.test((document.getElementById('party-card') || {}).textContent || ''));
+    assert.equal(await w.$('#fr-list .frow:has-text("Kolega") button:has-text("Do party")'), null, 'zaproszony już bez „Do party”');
+    pty.invites = []; pty.members.push({ user: kolega.id, at: Date.now() }); // Kolega dołączył
+    await w.evaluate(() => mib.call('party:check'));
+    await w.waitForFunction(() => /Party \(2\/8\)/.test((document.getElementById('party-card') || {}).textContent || ''));
+    assert.match(await w.textContent('#party-card'), /Tester_1.*Lider.*\(Ty\).*Kolega.*W grze · play\.mib\.pl · 1\.21\.11.*Wyrzuć/s);
+    assert.equal(await w.$('#party-card .prow:has-text("Kolega") button:has-text("Dołącz")'), null, 'Kolega nie jest liderem: bez Dołącz w party');
+    await shot('party.png');
+    // czat party
+    await w.click('#party-chat');
+    await w.waitForSelector('#pchat .empty');
+    pty.messages.push({ id: ++fake.st.msgId, from: kolega.id, body: 'Wbijajcie, kurwa szybko', at: new Date().toISOString() });
+    await w.waitForSelector('#pchat .msg:has-text("Wbijajcie, k**** szybko") .who:has-text("Kolega")', { timeout: 8000 });
+    await w.fill('#pchat-in', 'Już idę!');
+    await w.press('#pchat-in', 'Enter');
+    await w.waitForSelector('#pchat .msg.me:has-text("Już idę!")');
+    assert.ok(pty.messages.some(m => m.from === me.id && m.body === 'Już idę!'), 'wiadomość party w bazie');
+    await shot('party-chat.png');
+    await w.press('#pchat-in', 'Escape');
+    await w.waitForFunction(() => !document.getElementById('pchat'));
+    // Kolega zostaje liderem i gra na serwerze: okienko „Lider gra na X — Dołącz” i Dołącz przy liderze
+    pty.leader = kolega.id;
+    await w.evaluate(() => mib.call('party:check'));
+    await w.waitForSelector('#party-pop #pp-join');
+    assert.match(await w.textContent('#party-pop'), /Lider Kolega gra na play\.mib\.pl \(Minecraft 1\.21\.11\).*Dołącz.*Później/s);
+    await shot('party-pop.png');
+    await w.click('#pp-x');
+    await w.waitForFunction(() => document.querySelector('#party-card .prow:has(.tag.lead)') && /Kolega/.test(document.querySelector('#party-card .prow:has(.tag.lead)').textContent));
+    assert.ok(await w.$('#party-card .prow:has-text("Kolega") button:has-text("Dołącz")'), 'Dołącz przy liderze w grze');
+    assert.equal(await w.$('#party-card button:has-text("Wyrzuć")'), null, 'członek nie wyrzuca');
+    // wyjście z party (okno potwierdzenia)
+    await w.click('#party-leave');
+    await w.click('#cfm-ok');
+    await w.waitForSelector('#party-sec .empty-party');
+    assert.ok(!fake.st.parties.some(x => x.members.some(m => m.user === me.id)), 'wyszedł z party');
+    // zaproszenie do party od Kolegi: dymek, licznik przy Znajomi, Odrzuć
+    fake.st.parties[0].invites.push({ to: me.id, from: kolega.id, at: new Date().toISOString() });
+    await w.evaluate(() => mib.call('party:check'));
+    await w.waitForSelector('.toast:has-text("Kolega zaprasza Cię do party")');
+    await w.waitForSelector('#fr-list .pinv:has-text("Zaprasza Cię do party (1/8)")');
+    await w.waitForFunction(() => document.querySelector('.nav[data-p="friends"] .cnt').textContent === '1');
+    await w.click('#fr-list .pinv button:has-text("Odrzuć")');
+    await w.waitForFunction(() => !document.querySelector('#fr-list .pinv'));
+    assert.equal(fake.st.parties[0].invites.length, 0, 'odrzucone zaproszenie do party');
+    ok('(ax) party: Do party, karta z liderem, czat party, „Lider gra na X — Dołącz”, wyjście i zaproszenie od innego');
+
     // Karta znajomego: postać w jego kosmetykach, odznaki, osiągnięcia; Zablokuj i Odblokuj
     fake.st.owned.push({ user: kolega.id, cosmetic: 'cape_start', at: now });
     kolega.equipped = { cape: 'cape_start' }; kolega.playtime = 720; kolega.launches = 12;
@@ -622,8 +677,8 @@ function png(w, h, px) {
     assert.ok(await w.$('#fcard .ach.on[data-id="hours_10"]'), '12 godzin gry: osiągnięcie 10 godzin');
     await w.waitForTimeout(800);
     await shot('friend-card.png');
-    w.once('dialog', d => d.accept());
     await w.click('#fc-block');
+    await w.click('#cfm-ok');
     await w.waitForFunction(() => !document.getElementById('fcard'));
     assert.ok(fake.st.blocks.some(b => b.user === me.id && b.blocked === kolega.id), 'blokada w bazie');
     assert.ok(!fake.st.friends.some(f => [f.from, f.to].includes(kolega.id) && [f.from, f.to].includes(me.id)), 'blokada kończy znajomość');
@@ -700,10 +755,18 @@ function png(w, h, px) {
     assert.equal(await w.textContent('#plname'), 'Dokończ profil MiB');
     await shot('prof-complete.png');
     await w.fill('#pc-nick', 'Sierota_1');
+    // Peleryna 1000 graczy (0.38.0): kosmetyk cape_1k dodany w panelu admina, nowy profil do MIB-001000 dostaje go od razu
+    fake.cosmetics.cape_1k = { id: 'cape_1k', name: 'Peleryna 1000 graczy', type: 'cape', image_url: null, texture: fake.cosmetics.cape_start.texture || null };
     await w.click('#pc-go');
     await w.waitForSelector('.toast:has-text("pomyślnie założony")');
     await w.waitForFunction(() => document.getElementById('plname').textContent === 'Sierota_1');
     ok('(j) konto bez profilu: wybór nicku dokańcza profil');
+    await w.waitForFunction(() => /Jesteś jednym z pierwszych 1000 graczy![\s\S]*Peleryna 1000 graczy/.test((document.getElementById('unlock') || {}).textContent || '')
+      || [...document.querySelectorAll('.toast')].some(t => /Peleryna 1000 graczy/.test(t.textContent)));
+    assert.ok(fake.st.owned.some(o => o.cosmetic === 'cape_1k' && o.source === 'founder' && fake.st.users.find(u => u.id === o.user).nick === 'Sierota_1'));
+    assert.equal(await w.evaluate(() => localStorage.getItem('mib-founder-cape-' + document.getElementById('plsub').textContent.match(/MIB-\d+/)[0])), '1', 'efekt tylko raz');
+    delete fake.cosmetics.cape_1k; fake.st.owned = fake.st.owned.filter(o => o.cosmetic !== 'cape_1k');
+    ok('(aw) peleryna 1000 graczy od razu po założeniu profilu, z efektem „Nowy przedmiot”');
 
     // Panel admina: Sierota_1 ma numer 2 (MIB-000002)
     await w.waitForSelector('.nav[data-p="admin"]:not([hidden])');
@@ -834,8 +897,8 @@ function png(w, h, px) {
     await w.waitForFunction(() => /Od admina: zakup na stronie.*\+1500/s.test(document.getElementById('ap-coins-log').textContent) && /Pakiet: Pakiet testowy/.test(document.getElementById('ap-coins-log').textContent));
     // przedmioty gracza (0.35.0): daj wszystkie, lista zwijana, zabierz wszystkie
     const tid = fake.st.users.find(u => u.nick === 'Tester_1').id, all = Object.keys(fake.cosmetics).length;
-    w.once('dialog', d => d.accept());
     await w.click('#ap-grant-all');
+    await w.click('#cfm-ok');
     await until(() => fake.st.owned.filter(o => o.user === tid).length === all);
     await w.waitForFunction(n => document.querySelectorAll('#ap-owned .own-chip').length === n && /^Ma \d+ przedmiot/.test(document.querySelector('#ap-owned summary').textContent), all);
     assert.equal(await w.isDisabled('#ap-grant-all'), true, 'nie ma już czego dawać');
@@ -844,8 +907,9 @@ function png(w, h, px) {
     assert.equal(await w.$eval('#ap-owned', d => d.open), !wasOpen, 'lista się zwija i rozwija');
     await w.locator('#ap-owned').scrollIntoViewIfNeeded();
     await shot('admin-items.png');
-    w.once('dialog', d => d.accept());
     await w.click('#ap-revoke-all');
+    assert.match(await w.textContent('#cfm'), /Zabrać graczowi.*Zabierz/s, 'okno potwierdzenia w launcherze');
+    await w.click('#cfm-ok');
     await until(() => !fake.st.owned.some(o => o.user === tid));
     await w.waitForFunction(() => !document.querySelector('#ap-owned') && !document.querySelector('#ap-grant-all').disabled);
     ok('(ap) gracze: daj wszystkie i zabierz wszystkie przedmioty, zwijana lista');
@@ -858,13 +922,16 @@ function png(w, h, px) {
     await w.waitForSelector('#ap-detail .mod-row');
     assert.match(await w.textContent('#ap-detail .mod-row'), /Ostrzeżenia: 1\/4/);
     await w.fill('#ap-detail .warn-why', 'Próba oszustwa');
-    w.once('dialog', d => d.accept());
     await w.click('#ap-detail button:has-text("Zbanuj")');
+    await w.click('#cfm-ok');
+    await w.waitForSelector('#ap-banned[open] .arow:has-text("Kolega")');
     await until(() => kolega.banned && kolega.banReason === 'Próba oszustwa');
     await w.waitForSelector('#ap-detail .mod-row button:has-text("Odbanuj")');
     await shot('admin-ban.png');
-    w.once('dialog', d => d.accept());
-    await w.click('#ap-detail button:has-text("Odbanuj")');
+    // odbanowanie z listy zbanowanych (0.38.0), bez szukania gracza
+    await w.click('#ap-banned .arow:has-text("Kolega") button:has-text("Odbanuj")');
+    await w.click('#cfm-ok');
+    await w.waitForFunction(() => /Nikt nie jest zbanowany/.test(document.getElementById('ap-banned').textContent));
     await until(() => !kolega.banned && kolega.warnings === 0);
     ok('(ag) gracze: ban od razu i zdjęcie bana (ostrzeżenia od zera)');
     await w.click('[data-tab="cos"]');
@@ -1005,15 +1072,28 @@ function png(w, h, px) {
     assert.match(await w.textContent('#pf-hunter'), /Łowca błędów/);
     ok('(z) prezenty od MiB: okno z podglądem, Odbierz, Załóż od razu, licznik przy Kosmetyki, odznaka Łowca błędów');
 
-    // Odpowiedź na pomysł: kropka przy Pomysły, odpowiedź pod pomysłem, po obejrzeniu kropka znika
+    // Odpowiedź na pomysł (od 0.38.0 także okno w launcherze): okno z odpowiedzią i „Zobacz w Pomysłach”, kropka przy Pomysły
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('idea:reply', { id: 999, body: 'Czat w grze się zacina', reply: 'Naprawione w 0.38.0!', status: 'done' }));
+    // okna idą po kolei: prawdziwa odpowiedź admina (main.js) mogła przyjść pierwsza
+    await w.waitForSelector('#idea-pop #ip-go');
+    if (!/0\.38\.0/.test(await w.textContent('#idea-pop'))) {
+      assert.match(await w.textContent('#idea-pop'), /Naprawione, poprawka będzie w 0\.19\.0\./);
+      await w.click('#idea-pop #ip-ok');
+      await w.waitForSelector('#idea-pop:has-text("0.38.0") #ip-go');
+    }
+    assert.match(await w.textContent('#idea-pop'), /Twórca odpowiedział na Twój pomysł.*Czat w grze się zacina.*Naprawione w 0\.38\.0!.*Zrobione/s);
+    await shot('idea-reply-pop.png');
+    await w.click('#idea-pop #ip-ok');
+    // prawdziwa odpowiedź z pomysłu admina (main.js co minutę) może też otworzyć okno — wtedy „Zobacz w Pomysłach”
+    await w.waitForFunction(() => !document.getElementById('idea-pop') || document.querySelector('#idea-pop .ip-reply'));
     await w.waitForFunction(() => document.querySelector('.nav[data-p="ideas"] .cnt')?.textContent === '1');
-    await w.click('.nav[data-p="ideas"]');
+    if (await w.$('#idea-pop')) await w.click('#idea-pop #ip-go'); else await w.click('.nav[data-p="ideas"]');
     await w.waitForSelector('#id-list .ireply');
     assert.match(await w.textContent('#id-list .idea'), /Nagrodzony.*Zrobione.*Czat w grze.*Odpowiedź twórcy MiB Client.*Naprawione, poprawka będzie w 0\.19\.0\./s);
     await w.waitForFunction(() => document.querySelector('.nav[data-p="ideas"] .cnt').hidden);
     await w.waitForTimeout(300);
     await shot('ideas-reply.png');
-    ok('(aa) odpowiedź twórcy pod pomysłem i kropka przy Pomysły do obejrzenia');
+    ok('(aa) odpowiedź twórcy: okno w launcherze, odpowiedź pod pomysłem i kropka przy Pomysły do obejrzenia');
 
     await w.click('.nav[data-p="admin"]');
     await w.click('[data-tab="players"]');
@@ -1041,8 +1121,8 @@ function png(w, h, px) {
     ok('(aw) panel admina: wybór przedmiotu w oknie z kafelkami, rodzajami i szukaniem');
     await w.fill('#ga-note', 'Wesołych Świąt od MiB!');
     const giftsBefore = fake.st.gifts.length;
-    w.once('dialog', d => d.accept());
     await w.click('#ga-go');
+    await w.click('#cfm-ok');
     await until(() => fake.st.gifts.length > giftsBefore);
     const toAll = fake.st.gifts.slice(giftsBefore);
     assert.ok(toAll.every(g => g.cosmetic === 'cape_start' && g.message === 'Wesołych Świąt od MiB!' && g.user !== sier.id), 'tylko gracze bez tej peleryny');
@@ -1161,9 +1241,9 @@ function png(w, h, px) {
       await session.defaultSession.cookies.set({ url: 'https://example.com/', name: 'keep', value: '1', expirationDate: exp });
       await session.fromPartition('persist:mslogin').cookies.set({ url: 'https://login.microsoftonline.com/', name: 'ESTSAUTH', value: '1', expirationDate: exp });
     });
-    w.once('dialog', d => d.accept());
     await w.click('#accname');
     await w.click('#accmenu .ai[data-id="acc1"] .rm');
+    await w.click('#cfm-ok');
     // bez konta: dolny blok „Zaloguj się” i znowu okno logowania
     await w.waitForFunction(() => document.getElementById('plname').textContent === 'Zaloguj się' && document.documentElement.classList.contains('nolog'));
     await w.waitForSelector('#gate.on #g-go');

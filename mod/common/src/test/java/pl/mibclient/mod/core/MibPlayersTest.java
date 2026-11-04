@@ -93,4 +93,12 @@ class MibPlayersTest {
 		assertEquals(1, Cosmetics.frame(4, Cosmetics.FRAME_MS));
 		assertEquals(0, Cosmetics.frame(4, 4 * Cosmetics.FRAME_MS), "po ostatniej znowu pierwsza");
 	}
+
+	@Test
+	void partyMembersFlag() {
+		MibPlayers p = MibPlayers.parse("{\"players\":[{\"uuid\":\"11111111-2222-4333-8444-555555555555\",\"name\":\"Lider\",\"party\":true},"
+				+ "{\"uuid\":\"11111111-2222-4333-8444-555555555556\",\"name\":\"Obcy\",\"party\":\"tak\"}]}");
+		assertTrue(p.find(java.util.UUID.fromString("11111111-2222-4333-8444-555555555555"), "Lider").party);
+		assertFalse(p.find(java.util.UUID.fromString("11111111-2222-4333-8444-555555555556"), "Obcy").party);
+	}
 }

@@ -18,10 +18,13 @@ public final class Notice {
 		this(id, type, nick, version, server, null, at);
 	}
 
-	/** type: "started", "invite" (z serwerem i wersją), "message" (text = treść), "gift" (text = nazwa kosmetyku) albo "news" (text = tytuł). */
+	/**
+	 * type: "started", "invite" (z serwerem i wersją), "message" (text = treść), "gift" (text = nazwa kosmetyku), "news"
+	 * (text = tytuł) albo "party" (od 0.38.0; text = gotowy tekst od launchera: zaproszenie, lider gra na serwerze, czat party).
+	 */
 	public Notice(String id, String type, String nick, String version, String server, String text, long at) {
 		this.id = id;
-		this.type = "invite".equals(type) || "message".equals(type) || "gift".equals(type) || "news".equals(type) ? type : "started";
+		this.type = "invite".equals(type) || "message".equals(type) || "gift".equals(type) || "news".equals(type) || "party".equals(type) ? type : "started";
 		this.nick = nick;
 		this.version = version;
 		this.server = server;
@@ -44,7 +47,7 @@ public final class Notice {
 		if (nick.isEmpty()) return null;
 		Object type = m.get("type");
 		String server = str(m.get("server")), version = str(m.get("version")), text = str(m.get("text"));
-		if ("invite".equals(type) && server == null || ("message".equals(type) || "gift".equals(type) || "news".equals(type)) && text == null) return null;
+		if ("invite".equals(type) && server == null || ("message".equals(type) || "gift".equals(type) || "news".equals(type) || "party".equals(type)) && text == null) return null;
 		return new Notice((String) m.get("id"), type instanceof String ? (String) type : "started", nick, version, server, text,
 				((Number) m.get("at")).longValue());
 	}
@@ -69,8 +72,13 @@ public final class Notice {
 		return "news".equals(type);
 	}
 
+	public boolean party() {
+		return "party".equals(type);
+	}
+
 	public String title() {
 		if (news()) return Lang.t("notice.news");
+		if (party()) return Lang.t("notice.party");
 		// prezent kupiony przez znajomego (od 0.24.0): z jego nickiem
 		if (gift()) return "MiB".equals(nick) ? Lang.t("notice.gift") : Lang.t("notice.gift.from", nick);
 		if (message()) return Lang.t("notice.message", nick);
@@ -78,7 +86,7 @@ public final class Notice {
 	}
 
 	public String body() {
-		if (news()) return text;
+		if (news() || party()) return text;
 		if (gift()) return Lang.t("notice.gift.body", text);
 		if (message()) return text + " " + Lang.t("notice.message.reply");
 		if (invite()) return Lang.t("notice.invite.body", nick, server, version == null ? "?" : version);
@@ -121,7 +129,7 @@ public final class Notice {
 			int x = sw - MARGIN - w + (int) Math.round((1 - p) * (w + MARGIN)), y = MARGIN;
 			Shapes.panel(c, x, y, w, h, Theme.SLAB, Theme.AM);
 			c.fill(x + 1, y + 2, x + 3, y + h - 2, Theme.AM);
-			Shapes.icon(c, n.invite() ? "server" : n.message() ? "message" : n.gift() ? "archive" : n.news() ? "info-box" : "user", x + PAD + 1, y + PAD - 1, Theme.AM_HI);
+			Shapes.icon(c, n.party() ? "users" : n.invite() ? "server" : n.message() ? "message" : n.gift() ? "archive" : n.news() ? "info-box" : "user", x + PAD + 1, y + PAD - 1, Theme.AM_HI);
 			c.text(Shapes.ellipsize(c, n.title(), w - tx - PAD, false), x + tx, y + PAD, Theme.AM_HI, false);
 			for (int i = 0; i < lines.length; i++) c.text(lines[i], x + tx, y + PAD + lh + 3 + i * lh, Theme.TEXT, false);
 		}

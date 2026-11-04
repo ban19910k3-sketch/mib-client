@@ -957,3 +957,34 @@ label.srow{cursor:pointer}
 .ipk-t small{font-size:10.5px;color:var(--m)}
 .ipk-t.none .ipk-i{font-size:28px}
 .ipk-grid .empty{grid-column:1/-1}
+/* Okno potwierdzenia w launcherze (od 0.38.0, mibConfirm w ui.js) */
+#cfm{z-index:60}
+.cfm-m{width:min(440px,92vw)!important}
+.cfm-t{font-size:14px;line-height:1.55;color:var(--t);white-space:pre-line}
+/* Zbanowani w panelu admina (od 0.38.0) */
+.ban-box{margin:6px 0 10px}.ban-list{display:flex;flex-direction:column;gap:6px;padding:4px 12px 12px}
+.ban-list .arow{padding:10px 12px}.tag.ban{background:color-mix(in srgb,var(--bad) 20%,transparent);color:var(--bad);margin-left:6px}
+/* Okno odpowiedzi na pomysł (od 0.38.0) */
+.ip-m{width:min(500px,92vw)!important}
+.ip-idea{margin:0;padding:8px 12px;border-left:3px solid var(--edge2);color:var(--m);font-size:13px;line-height:1.5;white-space:pre-line}
+.ip-reply{margin:0}.ip-reply p{white-space:pre-line}
+/* Party (0.38.0): karta na stronie Znajomi, czat party, okienko „Lider gra na X — Dołącz” */
+.party-card{display:flex;flex-direction:column;gap:8px;padding:14px 16px;box-shadow:inset 0 0 0 1px var(--am-lo)}
+.party-card .ph{align-items:center;gap:8px}.party-card .ph h3{margin:0;flex:1}
+.party-card .hint{font-size:12px;margin:2px 0 0;text-align:left;max-width:none}.party-card h3{border:0;padding:0;margin:0}
+.prow{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:var(--r-sm);background:var(--slab2)}
+.prow .fi{flex:1;min-width:0;display:flex;flex-direction:column}
+.prow .dot{width:9px;height:9px;border-radius:50%;background:var(--m);flex:none}
+.prow.st-game .dot{background:#4ade80}.prow.st-launcher .dot{background:var(--am-hi)}
+.tag.lead{margin-left:6px;color:#ffd463;background:rgba(255,212,99,.12)}
+#pchat .chat-m{width:580px;height:min(660px,86vh);padding:16px 18px}
+#pchat .chat-head{margin:0;padding:0 0 12px;border-bottom:1px solid var(--edge);align-items:center}
+#pchat .pico{color:var(--am-hi);display:flex}
+#pchat .err:empty{display:none}
+.msg .who{font-size:12px;color:var(--am-hi)}
+#party-pop{position:fixed;right:18px;top:68px;z-index:55;background:var(--slab);border-color:var(--am-lo);width:300px;max-width:calc(100vw - 36px);padding:14px 16px;display:flex;flex-direction:column;gap:8px;
+  box-shadow:0 12px 32px rgba(0,0,0,.45),inset 0 0 0 1px var(--am-lo);animation:ppin .25s ease-out}
+#party-pop p{margin:0;font-size:14px;line-height:1.4}#party-pop p b{display:inline}
+#party-pop .row{gap:8px;justify-content:flex-end}
+@keyframes ppin{from{transform:translateY(-12px);opacity:0}}
+.nomotion #party-pop{animation:none}

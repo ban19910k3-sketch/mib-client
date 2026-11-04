@@ -1,10 +1,13 @@
-<!-- 0.37.0 -->
+<!-- 0.38.0 -->
+## Dodane
+- Party ze znajomymi: do 8 osób. Zapraszasz przyciskiem „Do party” na stronie Znajomi.
+- Gdy lider party wejdzie na serwer, reszta dostaje powiadomienie „Dołącz” — jedno kliknięcie i gracie razem na tym samym serwerze i wersji.
+- Czat party w launcherze i w grze (pod prawym Shiftem, w Znajomych).
+- W grze członkowie Twojego party mają ikonkę obok logo MiB przy nicku.
+- Okno z odpowiedzią twórcy na Twój pomysł — także gdy odpowiedź przyszła, kiedy launcher był zamknięty.
+- Peleryna 1000 graczy: pierwsze 1000 profili MiB (do MIB-001000) dostaje ją od razu po zalogowaniu kontem Microsoft.
+
 ## Zmienione
-
-- Po zalogowaniu kontem Microsoft profil MiB loguje się sam, a jeśli go nie masz, zakłada się sam. Nie trzeba już logować się do niego osobno.
-- Na stronie Profil MiB widać, że trwa logowanie. Gdy coś pójdzie nie tak, zobaczysz powód i przycisk „Spróbuj ponownie”, a launcher sam spróbuje jeszcze raz za chwilę.
-- Logowanie e-mailem do starego profilu MiB jest schowane pod „Masz stary profil MiB z e-mailem?”.
-
-## Usunięte
-
-- Na stronie Pomysły nie ma już pomysłów innych graczy ani głosowania na nie. Widzisz tylko swoje pomysły i odpowiedzi twórcy.
+- Peleryny i plecaka nie można nosić razem: założenie jednego zdejmuje drugie.
+- Okna potwierdzenia są teraz w wyglądzie launchera. Naprawia to pisanie w polach tekstowych po takim oknie (np. wiadomość przy prezencie).
+- Pusta rozmowa ze znajomym nie wisi już na „Wczytywanie…”.

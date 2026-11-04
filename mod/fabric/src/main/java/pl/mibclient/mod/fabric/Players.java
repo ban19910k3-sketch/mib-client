@@ -31,7 +31,9 @@ import net.minecraft.network.chat.FontDescription;
 public final class Players {
 	private static final MibId FONT = MibId.fromNamespaceAndPath("mibclient", "badge");
 	/** Znak z czcionki mibclient:badge (assets/mibclient/font/badge.json) z logo MiB. */
-	private static final Component BADGE = badge();
+	private static final Component BADGE = badge("\uE000");
+	/** Ikonka party (od 0.38.0, ta sama czcionka): członkowie mojego party, zaraz za logo MiB. */
+	private static final Component PARTY = badge("\uE001");
 
 	private final MibClient mib;
 	private MibPlayers list = MibPlayers.NONE;
@@ -47,13 +49,13 @@ public final class Players {
 		this.mib = mib;
 	}
 
-	private static Component badge() {
+	private static Component badge(String ch) {
 		//#if MC >= 1.21.9
 		Style s = Style.EMPTY.withFont(new FontDescription.Resource(FONT)).withColor(ChatFormatting.WHITE);
 		//#else
 		Style s = Style.EMPTY.withFont(FONT).withColor(ChatFormatting.WHITE);
 		//#endif
-		return Component.literal("").withStyle(s);
+		return Component.literal(ch).withStyle(s);
 	}
 
 	public static UUID id(GameProfile p) {
@@ -120,7 +122,13 @@ public final class Players {
 			if (c.player != null && c.player.getUUID().equals(id) && mib.modules.isOn("nick_hider")) {
 				out = Component.literal(Lang.pl() ? "Ty" : "You");
 			}
-			out = Component.empty().append(BADGE).append(" ").append(out);
+			MutableComponent pre = Component.empty().append(BADGE);
+			MibPlayers.Entry e = list.find(id, name);
+			if (e != null && e.party) {
+				MibClient.hooks.add("party_badge");
+				pre.append(PARTY);
+			}
+			out = pre.append(" ").append(out);
 		}
 		if (mib.modules.isOn("tier_tagger")) {
 			String mode = ((pl.mibclient.mod.core.Setting.ChoiceSetting) mib.modules.def("tier_tagger").setting("mode")).get(mib.modules.state("tier_tagger"));

@@ -8,7 +8,7 @@ const THEME_SEED = { niepodleglosc: ['Święto Niepodległości', 50], boze: ['B
 
 function createFake() {
   const st = { today: null, themes: P.DEFAULT_THEMES.map(t => ({ ...t, name: THEME_SEED[t.id][0], gift_coins: THEME_SEED[t.id][1], gift_cosmetic: null, daily_bonus: 0, items: [] })),
-    themeClaims: [], advent: Array.from({ length: 24 }, (_, i) => ({ day: i + 1, coins: i + 1 >= 20 ? 0 : 20, cosmetic_id: null })), adventClaims: [], offers: [], offerId: 0, coinLog: [], logId: 0, daily: {}, config: {}, votes: [], blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
+    themeClaims: [], advent: Array.from({ length: 24 }, (_, i) => ({ day: i + 1, coins: i + 1 >= 20 ? 0 : 20, cosmetic_id: null })), adventClaims: [], offers: [], offerId: 0, coinLog: [], logId: 0, daily: {}, config: {}, votes: [], blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, parties: [], partyId: 0, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
   const newSession = u => {
@@ -17,6 +17,8 @@ function createFake() {
     return { access_token: at, refresh_token: rt, expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: u.id, email: u.email } };
   };
   const norm = c => String(c || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+  // Peleryna 1000 graczy (0.38.0): jak private.make_profile — profile do MIB-001000, gdy cape_1k jest w bazie
+  const founderCape = u => { if (u.num <= 1000 && cosmetics.cape_1k) st.owned.push({ user: u.id, cosmetic: 'cape_1k', source: 'founder', at: new Date().toISOString() }); };
   const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, pet: u.pet || { mode: 'fly', side: 'left', name: '' }, coins: u.coins || 0, bugs_found: u.bugs || 0, warnings: u.warnings || 0, banned_at: u.banned || null, ban_reason: u.banReason || null, mc_name: u.mcName || null });
   const banned = u => !!(u && u.banned);
   // Motywy: tak jak private.theme_season, on_sale i advent_today w schema.sql (st.today podmienia dzień)
@@ -55,6 +57,7 @@ function createFake() {
         if (st.users.some(u => u.email === body.email.toLowerCase())) return json(res, 422, { error_code: 'user_already_exists' });
         const u = { id: crypto.randomUUID(), email: body.email.toLowerCase(), password: body.password, nick, num: ++st.num, created: new Date().toISOString() };
         st.users.push(u);
+        founderCape(u);
         return json(res, 200, newSession(u));
       }
       if (p === '/auth/v1/token') {
@@ -222,6 +225,7 @@ function createFake() {
               return { warnings: u.warnings, banned: u.warnings >= 4 };
             },
             admin_ban: () => { const u = st.users.find(x => x.id === body.p_user); u.banned = new Date().toISOString(); u.banReason = body.p_reason; const r = st.reports.find(x => x.id === body.p_report); if (r) r.status = 'banned'; return null; },
+            admin_list_banned: () => st.users.filter(u => u.banned).map(u => ({ id: u.id, nick: u.nick, num: u.num, banned_at: u.banned, ban_reason: u.banReason || null, warnings: u.warnings || 0 })),
             admin_unban: () => { const u = st.users.find(x => x.id === body.p_user); u.banned = null; u.banReason = null; u.warnings = 0; st.warnings.forEach(w => { if (w.user === u.id) w.seen = true; }); return null; },
             admin_dismiss_report: () => { const r = st.reports.find(x => x.id === body.p_id); if (!r) throw new Error('report_missing'); r.status = 'dismissed'; return null; },
             admin_gift_all: () => {
@@ -265,6 +269,7 @@ function createFake() {
           if (!user.noProfile) return json(res, 400, { code: 'P0001', message: 'profile_exists' });
           if (st.users.some(u => !u.noProfile && u.nick.toLowerCase() === String(body.p_nick).toLowerCase())) return json(res, 400, { code: 'P0001', message: 'nick_taken' });
           user.nick = body.p_nick; user.noProfile = false; user.num = ++st.num;
+          founderCape(user);
           return json(res, 204);
         }
         // ustawienia peta (0.34.0): jak set_pet w schema.sql
@@ -281,10 +286,11 @@ function createFake() {
           if (body.p_id && (!c || c.type !== body.p_type || !st.owned.some(o => o.user === user.id && o.cosmetic === body.p_id))) return json(res, 400, { code: 'P0001', message: 'not_owned' });
           user.equipped = { ...(user.equipped || {}) };
           if (body.p_id) user.equipped[body.p_type] = body.p_id; else delete user.equipped[body.p_type];
+          if (body.p_id && (body.p_type === 'cape' || body.p_type === 'back')) delete user.equipped[body.p_type === 'cape' ? 'back' : 'cape']; // jak equip_cosmetic
           return json(res, 200, user.equipped);
         }
         // Znajomi: tak jak friend_* i friends_list w schema.sql (bez limitów)
-        if (fn.startsWith('friend') || fn.startsWith('presence') || fn.startsWith('game_invite') || fn.startsWith('message')) {
+        if (fn.startsWith('friend') || fn.startsWith('presence') || fn.startsWith('game_invite') || fn.startsWith('message') || fn.startsWith('party_')) {
           const err = m => json(res, 400, { code: 'P0001', message: m });
           const pair = (a, b) => st.friends.find(f => (f.from === a && f.to === b) || (f.from === b && f.to === a));
           if (fn === 'friend_request') {
@@ -335,6 +341,58 @@ function createFake() {
             for (const m of st.messages) if (m.to === user.id && !m.read && friends(m.from, m.to)) (by[m.from] = by[m.from] || []).push(m);
             return json(res, 200, Object.entries(by).map(([from, l]) => ({ from_id: from, nick: st.users.find(u => u.id === from).nick, unread: l.length,
               last_id: l[l.length - 1].id, last_body: l[l.length - 1].body, last_at: l[l.length - 1].at })));
+          }
+          // Party (0.38.0): jak party_* w schema.sql (bez limitu wiadomości na minutę)
+          if (fn.startsWith('party_')) {
+            const fresh = pr => pr && Date.now() - pr.at < 5 * 60000;
+            const mine = () => st.parties.find(x => x.members.some(m => m.user === user.id)) || null;
+            const nick = id => (st.users.find(u => u.id === id) || {}).nick;
+            const isFriend = id => st.friends.some(f => f.accepted && ((f.from === user.id && f.to === id) || (f.to === user.id && f.from === id)));
+            const drop = uid => { const x = st.parties.find(q => q.members.some(m => m.user === uid)); if (!x) return;
+              x.members = x.members.filter(m => m.user !== uid);
+              if (!x.members.length) st.parties = st.parties.filter(q => q !== x); else if (x.leader === uid) x.leader = x.members[0].user; };
+            const err = m => json(res, 400, { code: 'P0001', message: m });
+            if (fn === 'party_state') {
+              const x = mine(); if (!x) return json(res, 200, null);
+              return json(res, 200, { id: x.id, leader: x.leader, me: user.id, members: x.members.map(m => { const u = st.users.find(q => q.id === m.user), pr = st.presence[m.user], live = fresh(pr);
+                return { id: u.id, nick: u.nick, num: u.num, mc_name: u.mcName || null, status: live ? (pr.playing ? 'game' : 'launcher') : 'offline', version: live && pr.playing ? pr.version : null, server: live && pr.playing ? pr.server : null }; }),
+                invited: x.invites.map(i => ({ id: i.to, nick: nick(i.to) })), last_message: x.messages.length ? x.messages[x.messages.length - 1].id : null });
+            }
+            if (fn === 'party_invite') {
+              if (!isFriend(body.p_user)) return err('party_not_friend');
+              let x = mine();
+              if (x && x.leader !== user.id) return err('party_not_leader');
+              if (x && (x.members.some(m => m.user === body.p_user) || x.invites.some(i => i.to === body.p_user))) return err('party_already');
+              if (x && x.members.length + x.invites.length >= 8) return err('party_full');
+              if (!x) { x = { id: ++st.partyId, leader: user.id, members: [{ user: user.id, at: Date.now() }], invites: [], messages: [] }; st.parties.push(x); }
+              x.invites.push({ to: body.p_user, from: user.id, at: new Date().toISOString() });
+              return json(res, 200, x.id);
+            }
+            if (fn === 'party_invites') return json(res, 200, st.parties.flatMap(x => x.invites.filter(i => i.to === user.id).map(i => ({ party_id: x.id, from_nick: nick(i.from), leader_nick: nick(x.leader), members: x.members.length, created_at: i.at }))));
+            if (fn === 'party_answer') {
+              const x = st.parties.find(q => q.id === Number(body.p_party) && q.invites.some(i => i.to === user.id));
+              if (!x) return err('party_invite_missing');
+              x.invites = x.invites.filter(i => i.to !== user.id);
+              if (!body.p_accept) return json(res, 200, 'declined');
+              drop(user.id); x.members.push({ user: user.id, at: Date.now() });
+              return json(res, 200, 'joined');
+            }
+            if (fn === 'party_leave') { drop(user.id); return json(res, 204); }
+            if (fn === 'party_kick') {
+              const x = mine(); if (!x || x.leader !== user.id) return err('party_not_leader');
+              if (!x.members.some(m => m.user === body.p_user)) return err('party_not_member');
+              drop(body.p_user); return json(res, 204);
+            }
+            if (fn === 'party_send') {
+              const x = mine(); if (!x) return err('party_none');
+              const b = String(body.p_body || '').trim(); if (!b) return err('message_empty');
+              const m = { id: ++st.msgId, from: user.id, body: b, at: new Date().toISOString() }; x.messages.push(m);
+              return json(res, 200, { id: m.id, created_at: m.at });
+            }
+            if (fn === 'party_messages') {
+              const x = mine(); if (!x) return json(res, 200, []);
+              return json(res, 200, x.messages.filter(m => m.id > (Number(body.p_after) || 0)).slice(-50).map(m => ({ id: m.id, from_id: m.from, nick: nick(m.from), mine: m.from === user.id, body: m.body, created_at: m.at })));
+            }
           }
           if (fn === 'friends_list') {
             const fresh = pr => pr && Date.now() - pr.at < 5 * 60000;

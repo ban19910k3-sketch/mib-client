@@ -5,7 +5,7 @@ const P = require('./lib/profile');
 const SESSION = 'mib-session.json', QUEUE = 'mib-stats-queue.json', REVIEW = 'mib-mod-review.json';
 const QUEUE_MAX = 200;
 // Funkcje panelu admina; baza i tak sprawdza, czy wywołuje je admin
-const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_cosmetics', 'admin_grant', 'admin_revoke', 'admin_grant_all', 'admin_revoke_all', 'admin_delete_player',
+const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_cosmetics', 'admin_grant', 'admin_revoke', 'admin_grant_all', 'admin_revoke_all', 'admin_list_banned', 'admin_delete_player',
   'admin_save_cosmetic', 'admin_delete_cosmetic', 'admin_create_codes', 'admin_list_codes', 'admin_delete_code',
   'admin_list_announcements', 'admin_save_announcement', 'admin_delete_announcement',
   'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea', 'admin_answer_idea', 'admin_gift', 'admin_gift_all',
@@ -410,6 +410,20 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       await authed(t => supa.rpc('game_invite_dismiss', { p_from: id }, t));
       return { ok: true };
     },
+    // ===== Party (0.38.0): do 8 osób, lider zaprasza znajomych, czat party; schema.sql robi resztę =====
+    partyState: () => authed(t => supa.rpc('party_state', {}, t)),
+    async partyInvite({ id }) { return { party: await authed(t => supa.rpc('party_invite', { p_user: id }, t)) }; },
+    partyInvites: () => authed(t => supa.rpc('party_invites', {}, t)),
+    async partyAnswer({ id, accept }) { return { result: await authed(t => supa.rpc('party_answer', { p_party: id, p_accept: !!accept }, t)) }; },
+    async partyLeave() { await authed(t => supa.rpc('party_leave', {}, t)); return { ok: true }; },
+    async partyKick({ id }) { await authed(t => supa.rpc('party_kick', { p_user: id }, t)); return { ok: true }; },
+    partyMessages: ({ after } = {}) => authed(t => supa.rpc('party_messages', { p_after: Number(after) || 0 }, t)),
+    async partySend({ body }) {
+      const b = String(body == null ? '' : body).trim();
+      if (!b) return { error: 'message_empty' };
+      if (b.length > 300) return { error: 'message_long' };
+      return { result: await authed(t => supa.rpc('party_send', { p_body: b }, t)) };
+    },
     // ===== Bezpieczeństwo: blokowanie, zgłoszenia, ostrzeżenia =====
     async block({ id }) { await authed(t => supa.rpc('block_user', { p_user: id }, t)); return { ok: true }; },
     async unblock({ id }) { await authed(t => supa.rpc('unblock_user', { p_user: id }, t)); return { ok: true }; },
@@ -494,6 +508,8 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   equip: 'prof:equip', modInfo: 'prof:modInfo', modRestore: 'prof:modRestore', modReplace: 'prof:modReplace', submitIdea: 'prof:submitIdea', myIdeas: 'prof:myIdeas',
   friends: 'prof:friends', friendRequest: 'prof:friendRequest', friendAnswer: 'prof:friendAnswer', friendRemove: 'prof:friendRemove',
   inviteFriend: 'prof:inviteFriend', invites: 'prof:invites', inviteDismiss: 'prof:inviteDismiss', nowPlaying: 'prof:nowPlaying',
+  partyState: 'prof:partyState', partyInvite: 'prof:partyInvite', partyInvites: 'prof:partyInvites', partyAnswer: 'prof:partyAnswer',
+  partyLeave: 'prof:partyLeave', partyKick: 'prof:partyKick', partyMessages: 'prof:partyMessages', partySend: 'prof:partySend',
   chat: 'prof:chat', chatSend: 'prof:chatSend', chatRead: 'prof:chatRead', chatUnread: 'prof:chatUnread',
   ideaUpdates: 'prof:ideaUpdates', ideasSeen: 'prof:ideasSeen', gifts: 'prof:gifts', claimGift: 'prof:claimGift',
   block: 'prof:block', unblock: 'prof:unblock', blocked: 'prof:blocked', report: 'prof:report', warnings: 'prof:warnings', warningsSeen: 'prof:warningsSeen',

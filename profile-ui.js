@@ -80,6 +80,13 @@
     message_empty: 'Wiadomość jest pusta.',
     message_long: 'Wiadomość może mieć najwyżej 500 znaków.',
     message_limit: 'Za dużo wiadomości naraz. Odczekaj chwilę.',
+    party_not_friend: 'Do party zaprosisz tylko znajomych.',
+    party_not_leader: 'Tylko lider party może to zrobić.',
+    party_already: 'Ten gracz jest już w Twoim party albo ma od Ciebie zaproszenie.',
+    party_full: 'Party jest pełne (najwyżej 8 osób razem z zaproszonymi).',
+    party_invite_missing: 'To zaproszenie do party już wygasło.',
+    party_none: 'Nie jesteś w party.',
+    party_not_member: 'Tego gracza nie ma w Twoim party.',
     skin_no_account: 'Zaloguj się kontem Microsoft (przycisk u góry), żeby zmienić skina.',
     skin_not_png: 'To nie jest plik PNG.',
     skin_size: 'Skin musi mieć 64×64 piksele (albo stary format 64×32).',
@@ -303,8 +310,23 @@
     }
   }
 
+  // Peleryna 1000 graczy (0.38.0): baza daje ją od razu profilom do MIB-001000 (źródło „founder”); raz na profil efekt
+  // „Nowy przedmiot” — tylko gdy dostał ją niedawno (na nowym komputerze po miesiącach już bez efektu)
+  async function founderCape() {
+    const key = 'mib-founder-cape-' + st.mibId;
+    try { if (localStorage.getItem(key)) return; } catch { return; }
+    const list = await mib.call('prof:cosmetics');
+    const c = Array.isArray(list) && list.find(x => x.source === 'founder');
+    if (!c) return;
+    try { localStorage.setItem(key, '1'); } catch {}
+    if (!(Date.now() - Date.parse(c.acquiredAt) < 7 * 864e5)) return;
+    for (let i = 0; i < 60 && document.querySelector('#gate:not([hidden]), #warn, #gift, #news-pop, #wn, #fcard, #unlock, #cfm, #idea-pop, #welcome.on'); i++) await new Promise(r => setTimeout(r, 1000));
+    if (window.mibUnlock) mibUnlock({ name: c.name, type: c.type, imageUrl: c.imageUrl, label: T('Jesteś jednym z pierwszych 1000 graczy!') });
+    else toast(T('Nowy przedmiot') + ': ' + c.name);
+  }
+
   // ===== Strona Kosmetyki =====
-  const GLYPH = { cape: '▚', hat: '▀', mask: '▄', wings: '▞', aura: '✺', pet: '🐾', tail: '〰', back: '▣' };
+  const GLYPH ={ cape: '▚', hat: '▀', mask: '▄', wings: '▞', aura: '✺', pet: '🐾', tail: '〰', back: '▣' };
   // Miniatura peleryny: zewnętrzna strona z tekstury Minecrafta (pole 10×16 od piksela 1,1), powiększona k razy
   // (animowana tekstura: klatki jedna pod drugą przewijane animacją capeanim ze style.css)
   function capeThumb(url, k) {
@@ -455,7 +477,7 @@
     }
     setBtn.onclick = () => picked && apply(picked, variant.value);
     const reset = h('button', { class: 'b ghost', type: 'button', on: { click: async () => {
-      if (!confirm(T('Wrócić do domyślnego skina Minecrafta?'))) return;
+      if (!(await window.mibConfirm(T('Wrócić do domyślnego skina Minecrafta?')))) return;
       const r = await mib.call('skin:reset');
       if (r.error) { err.textContent = msg(r.error); return; }
       toast(T('Przywrócono domyślny skin.')); picked = null; cur.dataUrl = null; setBtn.disabled = true; show(null, 'classic');
@@ -781,6 +803,8 @@
     aura: [[5, 1, 2, 3], [5, 8, 2, 3], [1, 5, 3, 2], [8, 5, 3, 2], [5, 5, 2, 2], [2, 2, 1, 1], [9, 2, 1, 1], [2, 9, 1, 1], [9, 9, 1, 1]],
     pet: [[1, 4, 2, 2], [4, 1, 2, 2], [7, 1, 2, 2], [10, 4, 1, 2], [4, 6, 4, 1], [3, 7, 6, 2], [4, 9, 4, 1]],
     tail: [[1, 9, 4, 1], [5, 8, 2, 1], [7, 6, 1, 2], [8, 3, 1, 3], [7, 2, 1, 1], [5, 1, 2, 1], [9, 4, 2, 1]],
+    // party (0.38.0): dwie osoby, jak ikona „users” w menu gry
+    party: [[2, 1, 4, 1], [7, 1, 3, 1], [1, 2, 2, 3], [5, 2, 2, 3], [9, 2, 2, 3], [2, 5, 4, 1], [7, 5, 3, 1], [2, 7, 4, 1], [8, 7, 2, 1], [1, 8, 1, 1], [6, 8, 1, 1], [10, 8, 1, 1], [0, 9, 1, 2], [7, 9, 1, 2], [11, 9, 1, 2]],
     back: [[4, 1, 4, 1], [3, 2, 1, 1], [8, 2, 1, 1], [2, 3, 8, 1], [2, 4, 1, 7], [9, 4, 1, 7], [3, 10, 6, 1], [4, 6, 4, 1], [4, 7, 1, 2], [7, 7, 1, 2]],
   };
   const kindIcon = k => {
@@ -938,8 +962,12 @@
         h('b', {}, c.name), h('small', { class: 'mut' }, c.equipped ? '✓ ' + T('Założona — widać ją w grze') : T(c.source === 'shop' ? 'Kupiono' : 'Odebrano') + ' ' + fmtDate(c.acquiredAt)),
         h('button', { class: c.equipped ? 'b ghost' : 'b', type: 'button', on: { click: async e => {
           e.currentTarget.disabled = true;
+          // peleryna i plecak się wykluczają (od 0.38.0, pilnuje baza): powiedz graczowi, co zdjęliśmy
+          const other = !c.equipped && (c.type === 'cape' ? 'back' : c.type === 'back' ? 'cape' : null);
+          const had = other && items.some(x => x.equipped && x.type === other);
           const r = await mib.call('prof:equip', { type: c.type, id: c.equipped ? null : c.id });
           if (r.error) toast(msg(r.error), 1);
+          else if (had) toast(T(other === 'back' ? 'Zdjęto plecak: peleryny i plecaka nie można nosić razem.' : 'Zdjęto pelerynę: peleryny i plecaka nie można nosić razem.'));
           renderCos();
         } } }, T(c.equipped ? 'Zdejmij' : 'Załóż')))))
       : h('p', { class: 'empty' }, Array.isArray(list) ? T('Nie masz jeszcze żadnych przedmiotów. Kup coś w Sklepie albo wpisz kod z konkursu.') : msg(list.error));
@@ -1295,9 +1323,9 @@
     const nav = document.querySelector('.nav[data-p="friends"]');
     let b = nav.querySelector('.cnt');
     if (!st.loggedIn) { if (b) b.hidden = true; return; }
-    const [l, inv, un] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites'), mib.call('prof:chatUnread')]);
+    const [l, inv, un, pinv] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites'), mib.call('prof:chatUnread'), mib.call('prof:partyInvites')]);
     if (!Array.isArray(l)) return;
-    const n = l.filter(f => f.state === 'incoming').length + (Array.isArray(inv) ? inv.length : 0)
+    const n = l.filter(f => f.state === 'incoming').length + (Array.isArray(inv) ? inv.length : 0) + (Array.isArray(pinv) ? pinv.length : 0)
       + (Array.isArray(un) ? un.reduce((a, u) => a + Number(u.unread || 0), 0) : 0);
     if (!b) { b = h('em', { class: 'cnt' }); nav.append(b); }
     b.textContent = String(n); b.hidden = !n;
@@ -1340,7 +1368,7 @@
   function openChat(f) {
     closeChat();
     chatWith = f;
-    let shown = '', first = true;
+    let shown = null, first = true;
     const list = h('div', { class: 'chat-list', id: 'chat-list' }, h('p', { class: 'mut' }, T('Wczytywanie…')));
     const input = h('input', { id: 'chat-in', maxlength: 500, autocomplete: 'off', placeholder: T('Napisz wiadomość…') });
     const sendB = h('button', { class: 'b', id: 'chat-send', type: 'submit' }, T('Wyślij'));
@@ -1396,6 +1424,106 @@
     chatReload = load;
     load();
   }
+  // ===== Party (0.38.0): do 8 osób, lider zaprasza znajomych, czat party, „Lider gra na X — Dołącz” =====
+  let partyChatTimer = null, partyChatReload = null;
+  function closePartyChat() {
+    clearTimeout(partyChatTimer); partyChatReload = null;
+    const o = $('pchat'); if (o) { o.remove(); mib.call('party:chatOpen', false); }
+  }
+  function openPartyChat(party) {
+    closePartyChat();
+    let shown = null, first = true;
+    const list = h('div', { class: 'chat-list', id: 'pchat-list' }, h('p', { class: 'mut' }, T('Wczytywanie…')));
+    const input = h('input', { id: 'pchat-in', maxlength: 300, autocomplete: 'off', placeholder: T('Napisz do party…') });
+    const sendB = h('button', { class: 'b', id: 'pchat-send', type: 'submit' }, T('Wyślij'));
+    const err = h('p', { class: 'err', id: 'pchat-err' });
+    const form = h('form', { class: 'row chat-form', on: { submit: async e => {
+      e.preventDefault();
+      const body = input.value.trim();
+      if (!body || sendB.disabled) return;
+      sendB.disabled = true; err.textContent = '';
+      const r = await mib.call('prof:partySend', { body });
+      sendB.disabled = false;
+      if (r.error) { err.textContent = msg(r.error, r.detail); return; }
+      input.value = ''; first = true;
+      load(); input.focus();
+    } } }, input, sendB);
+    const who = (party && party.members || []).map(m => m.nick + (m.id === party.leader ? ' ★' : '')).join(' · ');
+    const ov = h('div', { class: 'ov on', id: 'pchat' }, h('div', { class: 'm chat-m', role: 'dialog', 'aria-label': T('Czat party') },
+      h('div', { class: 'frow chat-head' }, h('i', { class: 'pico', 'aria-hidden': 'true' }, kindIcon('party')),
+        h('div', { class: 'fi' }, h('b', {}, T('Czat party')), h('span', { class: 'mut', id: 'pchat-who' }, who)),
+        h('button', { class: 'b ghost', id: 'pchat-x', type: 'button', on: { click: closePartyChat } }, T('Zamknij'))),
+      list, err, form));
+    ov.addEventListener('mousedown', e => { if (e.target === ov) closePartyChat(); });
+    ov.addEventListener('keydown', e => { if (e.key === 'Escape') closePartyChat(); });
+    document.body.append(ov);
+    mib.call('party:chatOpen', true);
+    input.focus();
+    async function load() {
+      clearTimeout(partyChatTimer);
+      if (!ov.isConnected) return;
+      const l = await mib.call('prof:partyMessages', {});
+      if (!ov.isConnected) return;
+      if (!Array.isArray(l)) list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
+      else {
+        const key = l.map(m => m.id).join(',');
+        if (key !== shown) {
+          shown = key;
+          const bottom = first || list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+          list.replaceChildren(...(l.length ? l.map(m => h('div', { class: 'msg' + (m.mine ? ' me' : '') },
+            m.mine ? null : h('b', { class: 'who' }, m.nick || '?'),
+            h('span', { class: 'tx' }, m.mine ? m.body : clean(m.body)),
+            h('small', {}, timeOf(m.created_at))))
+            : [h('p', { class: 'empty' }, T('Czat party: piszą wszyscy członkowie. Wiadomości znikają po 2 dniach.'))]));
+          if (bottom) list.scrollTop = list.scrollHeight;
+          first = false;
+        }
+      }
+      partyChatTimer = setTimeout(load, 4000);
+    }
+    partyChatReload = load;
+    load();
+  }
+  // Okienko w rogu: lider party wszedł na serwer (main.js party:play) — jedno kliknięcie i gra rusza na tym serwerze
+  function partyPop(p) {
+    const old = $('party-pop'); if (old) old.remove();
+    const el = h('div', { id: 'party-pop', class: 'card', role: 'alert' },
+      h('small', { class: 'gift-kicker' }, 'Party'),
+      h('p', {}, T('Lider') + ' ', h('b', {}, p.nick), ' ' + T('gra na') + ' ' + p.server + ' (Minecraft ' + p.version + ')'),
+      h('div', { class: 'row' },
+        h('button', { class: 'b', id: 'pp-join', type: 'button', on: { click: () => { el.remove(); window.mibJoin(p.version, p.server); } } }, T('Dołącz')),
+        h('button', { class: 'b ghost', id: 'pp-x', type: 'button', on: { click: () => el.remove() } }, T('Później'))));
+    document.body.append(el);
+    setTimeout(() => el.remove(), 60000);
+  }
+  // Karta party na stronie Znajomi: zaproszenia do party, członkowie (lider z gwiazdką), Dołącz do lidera, czat, wyjście
+  function partySection(party, pinv, here, reload) {
+    const act = (label, cls, fn, id) => h('button', { class: 'b ' + cls, type: 'button', ...(id ? { id } : {}), on: { click: async e => { e.currentTarget.disabled = true; const r = await fn(); if (r && r.error) toast(msg(r.error, r.detail), 1); mib.call('party:check'); reload(); } } }, T(label));
+    const out = [];
+    for (const i of pinv) out.push(h('div', { class: 'card frow st-launcher pinv' }, h('i', { class: 'dot', 'aria-hidden': 'true' }),
+      h('div', { class: 'fi' }, h('b', {}, i.from_nick), h('span', { class: 'mut' }, T('Zaprasza Cię do party') + ' (' + i.members + '/' + MibProfile.PARTY_MAX + ')')),
+      act('Dołącz', '', async () => { const r = await mib.call('prof:partyAnswer', { id: i.party_id, accept: true }); if (!r.error) toast(T('Jesteś w party.')); return r; }),
+      act('Odrzuć', 'ghost', () => mib.call('prof:partyAnswer', { id: i.party_id, accept: false }))));
+    if (party) {
+      const lead = party.leader === party.me;
+      const rows = party.members.map(m => h('div', { class: 'prow st-' + m.status },
+        h('i', { class: 'dot', 'aria-hidden': 'true' }),
+        h('div', { class: 'fi' }, h('b', {}, m.nick, m.id === party.leader ? h('em', { class: 'tag lead', title: T('Lider party') }, '★ ' + T('Lider')) : null, m.id === party.me ? h('span', { class: 'mut' }, ' (' + T('Ty') + ')') : null),
+          h('span', { class: 'mut' }, statusText(m))),
+        m.id === party.leader && m.id !== party.me && m.status === 'game' && m.server && m.version && m.server !== here
+          ? h('button', { class: 'b', type: 'button', on: { click: () => window.mibJoin(m.version, m.server) } }, T('Dołącz')) : null,
+        lead && m.id !== party.me ? act('Wyrzuć', 'ghost', async () => (await window.mibConfirm(T('Wyrzucić') + ' ' + m.nick + ' ' + T('z party?'), { danger: true, ok: T('Wyrzuć') })) ? mib.call('prof:partyKick', { id: m.id }) : null) : null));
+      out.push(h('div', { class: 'card party-card', id: 'party-card' },
+        h('div', { class: 'row ph' }, h('h3', {}, 'Party (' + party.members.length + '/' + MibProfile.PARTY_MAX + ')'),
+          h('button', { class: 'b', id: 'party-chat', type: 'button', on: { click: () => openPartyChat(party) } }, T('Czat party')),
+          act('Wyjdź z party', 'ghost', async () => (await window.mibConfirm(T('Wyjść z party?') + (lead && party.members.length > 1 ? ' ' + T('Liderem zostanie osoba, która dołączyła najwcześniej.') : ''), { ok: T('Wyjdź') })) ? mib.call('prof:partyLeave') : null, 'party-leave')),
+        ...rows,
+        party.invited.length ? h('p', { class: 'mut' }, T('Zaproszeni') + ': ' + party.invited.map(x => x.nick).join(', ')) : null,
+        h('p', { class: 'mut hint' }, T(lead ? 'Zapraszasz znajomych przyciskiem „Do party” przy ich nicku. Gdy wejdziesz na serwer, reszta party dostanie „Dołącz”.' : 'Gdy lider wejdzie na serwer, dostaniesz powiadomienie „Dołącz” — jedno kliknięcie i grasz razem z nim.'))));
+    } else if (!pinv.length) out.push(h('div', { class: 'card party-card empty-party' }, h('h3', {}, 'Party'),
+      h('p', { class: 'mut' }, T('Zagrajcie razem: zaproś do 7 znajomych przyciskiem „Do party” przy ich nicku. Gdy lider wejdzie na serwer, reszta dostaje „Dołącz” i czat party.'))));
+    return out.length ? h('div', { class: 'sec', id: 'party-sec' }, ...out) : null;
+  }
   async function renderFriends() {
     const box = $('friends-box');
     clearTimeout(friendsTimer);
@@ -1429,7 +1557,8 @@
       ...buttons);
     async function load() {
       clearTimeout(friendsTimer);
-      const [l, inv, me, un, bl] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites'), mib.call('prof:nowPlaying'), mib.call('prof:chatUnread'), mib.call('prof:blocked')]);
+      const [l, inv, me, un, bl, ps, pi] = await Promise.all([mib.call('prof:friends'), mib.call('prof:invites'), mib.call('prof:nowPlaying'), mib.call('prof:chatUnread'), mib.call('prof:blocked'),
+        mib.call('prof:partyState'), mib.call('prof:partyInvites')]);
       if (!box.isConnected || !$('p-friends').classList.contains('on')) return;
       if (!Array.isArray(l)) return list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
       const unread = {};
@@ -1444,11 +1573,21 @@
         if (!r.error) toast(T('Zaproszenie do gry wysłane do') + ' ' + f.nick + '.');
         return r;
       });
+      // party: przycisk „Do party” przy znajomym (gdy nie jestem w party albo jestem liderem, jest miejsce i jeszcze go tam nie ma)
+      const party = ps && !ps.error && Array.isArray(ps.members) ? ps : null, pinv = Array.isArray(pi) ? pi : [];
+      const lead = !party || party.leader === party.me, room = !party || party.members.length + party.invited.length < MibProfile.PARTY_MAX;
+      const inParty = id => !!party && (party.members.some(m => m.id === id) || party.invited.some(m => m.id === id));
+      const toParty = f => act('Do party', 'ghost', async () => {
+        const r = await mib.call('prof:partyInvite', { id: f.id });
+        if (!r.error) { toast(T('Zaproszenie do party wysłane do') + ' ' + f.nick + '.'); mib.call('party:check'); }
+        return r;
+      });
       const inc = l.filter(f => f.state === 'incoming'), out = l.filter(f => f.state === 'outgoing');
       const order = { game: 0, launcher: 1, offline: 2 };
       const fr = l.filter(f => f.state === 'friend').sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3) || a.nick.localeCompare(b.nick));
       const sec = (title, items) => items.length ? h('div', { class: 'sec' }, h('h3', {}, T(title) + ' (' + items.length + ')'), ...items) : null;
       list.replaceChildren(...[
+        ps && ps.error === 'schema_outdated' ? null : partySection(party, pinv, here, load),
         sec('Zaproszenia do gry', games.map(i => h('div', { class: 'card frow st-game ginv' },
           h('i', { class: 'dot', 'aria-hidden': 'true' }),
           h('div', { class: 'fi' }, h('b', {}, i.nick), h('span', { class: 'mut' }, T('Zaprasza na') + ' ' + i.server + ' · ' + i.version)),
@@ -1461,8 +1600,9 @@
         fr.length ? sec('Twoi znajomi', fr.map(f => row(f,
           f.status === 'game' && f.server && f.version && f.server !== here ? act('Dołącz', '', async () => { window.mibJoin(f.version, f.server); }) : null,
           canInvite(f) ? invite(f) : null,
+          !st.banned && lead && room && !inParty(f.id) ? toParty(f) : null,
           write(f),
-          act('Usuń', 'ghost', () => confirm(T('Usunąć') + ' ' + f.nick + ' ' + T('ze znajomych?')) ? mib.call('prof:friendRemove', { id: f.id }) : null))))
+          act('Usuń', 'ghost', async () => (await window.mibConfirm(T('Usunąć') + ' ' + f.nick + ' ' + T('ze znajomych?'), { danger: true, ok: T('Usuń') })) ? mib.call('prof:friendRemove', { id: f.id }) : null))))
           : h('p', { class: 'empty' }, T('Nie masz jeszcze znajomych. Wpisz nick albo ID MiB kolegi i kliknij „Zaproś”.')),
         sec('Wysłane zaproszenia', out.map(f => row(f, act('Anuluj', 'ghost', () => mib.call('prof:friendRemove', { id: f.id }))))),
         sec('Zablokowani', (Array.isArray(bl) ? bl : []).map(b => h('div', { class: 'card frow blocked' }, h('i', { class: 'dot', 'aria-hidden': 'true' }),
@@ -1508,7 +1648,7 @@
     reason.focus();
   }
   async function blockUser(f, after) {
-    if (!confirm(T('Zablokować') + ' ' + f.nick + '? ' + T('Znajomość, zaproszenia i rozmowa znikną, a ten gracz nie zaprosi Cię ponownie. Jeśli ktoś Cię obraża, najpierw zgłoś wiadomość.'))) return;
+    if (!(await window.mibConfirm(T('Zablokować') + ' ' + f.nick + '? ' + T('Znajomość, zaproszenia i rozmowa znikną, a ten gracz nie zaprosi Cię ponownie. Jeśli ktoś Cię obraża, najpierw zgłoś wiadomość.'), { danger: true, ok: T('Zablokuj') }))) return;
     const r = await mib.call('prof:block', { id: f.id });
     if (r.error) return toast(msg(r.error, r.detail), 1);
     toast(f.nick + ' ' + T('zablokowany.'));
@@ -1608,7 +1748,7 @@
       modsLoad();
     };
     replace.onclick = async () => {
-      if (!confirm(T('Zastąpić kopię na profilu modami z tego komputera?'))) return;
+      if (!(await window.mibConfirm(T('Zastąpić kopię na profilu modami z tego komputera?')))) return;
       const x = await mib.call('prof:modReplace', { gv });
       if (x && x.error) return toast(msg(x.error), 1);
       toast(T('Kopia modów zapisana na profilu.'));
@@ -1721,12 +1861,44 @@
     friendsBadge();
     giftsCheck(!!st.loggedIn); ideasBadge();
     if (st.loggedIn) mib.call('prof:warnings').then(showWarnings);
-    if (st.loggedIn && !was) { achievementsCheck(false); mib.call('news:check'); daily = null; dailyAt = 0; }
+    if (st.loggedIn && !was) { achievementsCheck(false); founderCape(); mib.call('news:check'); daily = null; dailyAt = 0; }
     dailyCheck();
     holidayCheck(st.loggedIn !== was);
     if (st.loggedIn && !was) { mibSync.pull(); if (window.mibWave) mibWave(); }
   }
   async function refresh() { apply(await mib.call('prof:state')); }
+  // Odpowiedź twórcy na pomysł gracza (od 0.38.0, main.js idea:reply): okno w launcherze, po kolei, gdy nic innego nie jest otwarte
+  const ideaQueue = [];
+  let ideaTimer = null;
+  const IDEA_ST_LBL = { new: 'Nowy', seen: 'Przeczytany', planned: 'W planach', done: 'Zrobione', rejected: 'Odrzucony' };
+  function ideaPop() {
+    ideaTimer = null;
+    if (!ideaQueue.length || $('idea-pop')) return;
+    if (document.querySelector('#gate:not([hidden]), #warn, #gift, #news-pop, #wn, #fcard, #unlock, #cfm, #welcome.on')) { ideaTimer = setTimeout(ideaPop, 2000); return; }
+    const x = ideaQueue.shift();
+    const close = () => { ov.remove(); setTimeout(ideaPop, 300); };
+    const body = String(x.body || ''), short = body.length > 160 ? body.slice(0, 157) + '…' : body;
+    const ov = h('div', { class: 'ov on', id: 'idea-pop', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'ip-title', on: { keydown: e => { if (e.key === 'Escape') close(); } } },
+      h('div', { class: 'm ip-m' },
+        h('small', { class: 'gift-kicker' }, T('Odpowiedź twórcy MiB Client')),
+        h('h3', { id: 'ip-title' }, T('Twórca odpowiedział na Twój pomysł')),
+        short ? h('blockquote', { class: 'ip-idea' }, short) : null,
+        h('div', { class: 'ireply ip-reply' }, h('p', {}, x.reply)),
+        x.status && x.status !== 'new' ? h('em', { class: 'tag st-' + x.status }, T(IDEA_ST_LBL[x.status] || x.status)) : null,
+        h('div', { class: 'row', style: 'justify-content:flex-end' },
+          h('button', { class: 'b ghost', type: 'button', id: 'ip-ok', on: { click: close } }, T('OK')),
+          h('button', { class: 'b', type: 'button', id: 'ip-go', on: { click: () => { ideaQueue.length = 0; close(); go('ideas'); } } }, T('Zobacz w Pomysłach')))));
+    document.body.append(ov);
+    ov.querySelector('#ip-go').focus();
+  }
+  // Party (0.38.0): stan z main.js co 15 s, „Lider gra na X — Dołącz”, kliknięte powiadomienie Windows, nowe wiadomości
+  mib.on('party:changed', () => { if (friendsReload && $('p-friends').classList.contains('on')) friendsReload(); friendsBadge(); });
+  mib.on('party:invite', x => { toast(x.nick + ' ' + T('zaprasza Cię do party. Odpowiedz na stronie Znajomi.')); friendsBadge(); });
+  mib.on('party:play', x => { if (st.loggedIn) partyPop(x); });
+  mib.on('party:join', x => { if (x && x.server && x.version) window.mibJoin(x.version, x.server); });
+  mib.on('party:open', async () => { go('friends'); const s2 = await mib.call('prof:partyState'); if (s2 && !s2.error) openPartyChat(s2); });
+  mib.on('party:messages', () => { if (partyChatReload) partyChatReload(); });
+  mib.on('idea:reply', x => { if (x && x.reply) { ideaQueue.push(x); if (!ideaTimer) ideaTimer = setTimeout(ideaPop, 400); } });
   // Profil z konta Minecraft (od 0.26.0, main.js): założony, zalogowany albo połączony z profilem e-mail
   mib.on('profile:changed', async x => {
     await refresh();

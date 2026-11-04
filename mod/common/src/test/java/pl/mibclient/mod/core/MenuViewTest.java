@@ -587,4 +587,17 @@ class MenuViewTest {
 		assertTrue(ch.messages.get(0).mine && ch.messages.get(0).read);
 		assertEquals(2, ch.withPending(Arrays.asList("w drodze")).messages.size());
 	}
+
+	@Test
+	void partyEntryOnFriendsList() {
+		Friends f = Friends.parse("{\"loggedIn\":true,\"list\":[{\"id\":\"party\",\"nick\":\"Party (3/8)\",\"status\":\"game\",\"server\":\"play.mib.pl\",\"unread\":1,"
+				+ "\"party\":true,\"members\":\"★Lider · Ja · Kolega\"},{\"id\":\"b\",\"nick\":\"Bob\",\"party\":true,\"members\":\"x\"}]}");
+		Friends.Friend p = f.get(Friends.PARTY);
+		assertTrue(p.party);
+		assertEquals("★Lider · Ja · Kolega · play.mib.pl", p.statusText());
+		assertFalse(f.get("b").party, "party tylko pod id party");
+		assertNull(f.get("b").members);
+		assertEquals("Offline", f.get("b").statusText());
+		assertEquals(1, f.unread());
+	}
 }
