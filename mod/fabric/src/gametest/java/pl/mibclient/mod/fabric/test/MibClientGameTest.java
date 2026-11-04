@@ -318,26 +318,6 @@ public class MibClientGameTest implements FabricClientGameTest {
 			check(box == null, box);
 			context.setScreen(() -> null);
 			context.runOnClient(c -> MibClient.testCosmetics = null);
-			// Spotify z komputera (0.40.0): kwadrat w panelu startowym, odtwarzacz i polecenia do launchera
-			context.runOnClient(c -> {
-				MibClient.testSpotifyCalls.clear();
-				MibClient.testSpotify = new pl.mibclient.mod.core.Spotify("playing", "Testowy utwór", "MiB Client", "Album", 30000, 180000, System.currentTimeMillis(), null);
-			});
-			context.setScreen(() -> new MenuScreen(MibClient.get(), null));
-			context.waitTicks(3);
-			click(context, "spotify");
-			check(context.computeOnClient(c -> view(c) != null && view(c).page() == MenuView.Page.SPOTIFY), "kwadrat Spotify nie otworzył odtwarzacza");
-			context.takeScreenshot("06m-spotify");
-			click(context, "spotify:toggle");
-			click(context, "spotify:next");
-			check(context.computeOnClient(c -> java.util.Arrays.asList("toggle", "next").equals(new java.util.ArrayList<>(MibClient.testSpotifyCalls))), "przyciski Spotify nie wysłały poleceń");
-			context.runOnClient(c -> MibClient.testSpotify = pl.mibclient.mod.core.Spotify.OFF);
-			context.waitTicks(3);
-			context.takeScreenshot("06n-spotify-login");
-			click(context, "spotify:open");
-			check(context.computeOnClient(c -> MibClient.testSpotifyCalls.contains("open")), "„Otwórz Spotify” nie wysłało polecenia");
-			context.setScreen(() -> null);
-			context.runOnClient(c -> MibClient.testSpotify = null);
 			// Znajomi w menu: lista, rozmowa i pisanie wiadomości
 			context.runOnClient(c -> {
 				MibClient.testFriends = new pl.mibclient.mod.core.Friends(true, java.util.Arrays.asList(

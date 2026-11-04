@@ -23,18 +23,6 @@ public final class Lang {
 		put("menu.off", "Wyłączony", "Disabled");
 		put("menu.all", "Wszystkie", "All");
 		put("menu.edit_hud", "Edytuj HUD", "Edit HUD");
-		put("spotify.login", "Zaloguj się w Spotify", "Sign in to Spotify");
-		put("spotify.login_body", "Włącz aplikację Spotify na komputerze i zaloguj się. Gdy coś zagra, utwór i przyciski pokażą się tutaj.",
-				"Open the Spotify app on your computer and sign in. When something plays, the song and buttons show up here.");
-		put("spotify.open", "Otwórz Spotify", "Open Spotify");
-		put("spotify.opening", "Otwieram Spotify na komputerze…", "Opening Spotify on your computer…");
-		put("spotify.unsupported", "Spotify działa na Windows", "Spotify works on Windows");
-		put("spotify.unsupported_body", "Utwór i sterowanie bierzemy z aplikacji Spotify na Windows.", "The song and controls come from the Spotify app on Windows.");
-		put("spotify.playing", "Teraz gra", "Now playing");
-		put("spotify.paused", "Pauza", "Paused");
-		put("spotify.prev", "Poprzedni", "Previous");
-		put("spotify.next", "Następny", "Next");
-		put("spotify.toggle", "Graj / pauza", "Play / pause");
 		put("menu.home", "Wróć do panelu startowego", "Back to the start panel");
 		put("menu.collapse", "Zamknij menu", "Close the menu");
 		put("menu.accounts", "Zmień konto", "Switch account");

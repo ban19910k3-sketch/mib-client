@@ -19,7 +19,7 @@ import pl.mibclient.mod.core.modules.Waypoints;
  */
 public final class MenuView {
 	/** HUB (od 0.39.0): mały panel startowy pod prawym Shiftem; pozostałe strony to pełne menu. */
-	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS, FRIENDS, CHAT, HUB, SPOTIFY }
+	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS, FRIENDS, CHAT, HUB }
 
 	public static final int KEY_ESCAPE = 256, KEY_BACKSPACE = 259, KEY_ENTER = 257;
 	private static final int FAINT = Theme.FAINT, WHITE = 0xFFFFFFFF;
@@ -214,7 +214,6 @@ public final class MenuView {
 		} else if (page == Page.ACCOUNTS) accounts(c, mx, my);
 		else if (page == Page.COSMETICS) cosmetics(c, mx, my);
 		else if (page == Page.FRIENDS) friends(c, mx, my);
-		else if (page == Page.SPOTIFY) spotify(c, mx, my);
 		else chat(c, mx, my);
 		if (tip != null) {
 			int tw = c.textWidth(tip) + 12, x = Math.max(2, Math.min(tipAt[0], w - tw - 2));
@@ -254,8 +253,6 @@ public final class MenuView {
 		if (fs != null) tabs.add(new Tab("friends", "message", Lang.t("menu.friends") + (fs.unread() > 0 ? " (" + fs.unread() + ")" : ""), Page.FRIENDS,
 				fs.unread() > 0 && page != Page.FRIENDS && page != Page.CHAT, "users", Lang.t("menu.friends")));
 		if (!actions.accounts().isEmpty()) tabs.add(new Tab("accounts", "users", Lang.t("menu.tab_accounts"), Page.ACCOUNTS, false, "user", Lang.t("menu.tab_accounts")));
-		// Spotify z komputera (0.40.0): gdy gra działa z launchera; ikona to logo Spotify rysowane przez spotifyLogo
-		if (actions.spotify() != null) tabs.add(new Tab("spotify", null, "Spotify", Page.SPOTIFY, false, null, "Spotify"));
 		return tabs;
 	}
 
@@ -271,7 +268,7 @@ public final class MenuView {
 			".###....#####....###.",
 			".###....#####....###.",
 			"###......###......###"};
-	// od 0.40.0 mniejszy panel (był za duży), mieści 5 kwadratów razem ze Spotify
+	// od 0.40.0 mniejszy panel (był za duży)
 	private static final int HUB_S = 36, HUB_G = 6, HUB_P = 10, HUB_LOGO = 2, HUB_EDIT = 26;
 	/** Powiększenie napisów w panelu startowym (EDYTUJ HUD, nazwa pod kursorem). */
 	private static final float HUB_TEXT = 1.15f;
@@ -323,12 +320,9 @@ public final class MenuView {
 			Shapes.round(c, r[0], r[1], r[2], r[3], rad(5), pixels, hover ? Theme.alpha(Theme.mix(Theme.SLAB2, Theme.AM_LO, 0.45), 0xF4) : BOX,
 					hover ? Theme.AM : LINE);
 			int ix = r[0] + (HUB_S - 24) / 2, iy = r[1] + (HUB_S - 24) / 2;
-			if (tb.hubIcon == null) spotifyLogo(c, ix, iy, 24);
-			else {
-				c.push(2, ix, iy);
-				Shapes.icon(c, tb.hubIcon, ix, iy, hover ? WHITE : Theme.TEXT);
-				c.pop();
-			}
+			c.push(2, ix, iy);
+			Shapes.icon(c, tb.hubIcon, ix, iy, hover ? WHITE : Theme.TEXT);
+			c.pop();
 			if (tb.alert) Shapes.round(c, r[0] + r[2] - 9, r[1] + 3, 6, 6, rad(3), pixels, Theme.AM_HI, 0);
 			if (hover) label = tb.hubLabel;
 			final Page target = tb.page;
@@ -405,28 +399,17 @@ public final class MenuView {
 		int langX = language(c, close[0] - 6, t[1], t[3], mx, my);
 
 		List<Tab> tabs = tabs();
-		// zakładka bez ikony z PixelIcons (Spotify, od 0.40.0) to samo logo w kwadracie; reszta dzieli resztę miejsca
-		int x = lg[0] + lg[2] + MenuLayout.GAP, room = langX - 6 - x, named = 0;
-		for (Tab tb : tabs) if (tb.icon != null) named++;
-		room -= (tabs.size() - named) * (t[3] + 6);
-		int each = Math.min(110, (room - (named - 1) * 6) / Math.max(1, named));
+		int x = lg[0] + lg[2] + MenuLayout.GAP, room = langX - 6 - x;
+		int each = Math.min(110, (room - (tabs.size() - 1) * 6) / Math.max(1, tabs.size()));
 		for (Tab tb : tabs) {
-			int[] r = {x, t[1], tb.icon == null ? t[3] : Math.max(each, 40), t[3]};
+			int[] r = {x, t[1], Math.max(each, 40), t[3]};
 			boolean on = tb.page == Page.GRID ? modulesTab() : tb.page == Page.FRIENDS ? page == Page.FRIENDS || page == Page.CHAT : page == tb.page;
 			boolean hover = in(r, mx, my);
 			box(c, r[0], r[1], r[2], r[3], on ? ACCENT_BG : hover ? BOX_HOVER : BOX, on ? Theme.AM : hover ? Theme.EDGE2 : LINE);
-			if (tb.icon == null) {
-				spotifyLogo(c, r[0] + (r[2] - 12) / 2, r[1] + (r[3] - 12) / 2, 12);
-				if (hover) {
-					tip = tb.label;
-					tipAt = new int[] {r[0], r[1] + r[3] + 3};
-				}
-			} else {
-				String label = Shapes.ellipsize(c, tb.label, r[2] - 32, false);
-				int lw = 16 + c.textWidth(label), sx = r[0] + (r[2] - lw) / 2;
-				Shapes.icon(c, tb.icon, sx, r[1] + (r[3] - 12) / 2, on ? Theme.AM_HI : tb.alert ? Theme.AM : Theme.MUTED);
-				c.text(label, sx + 16, r[1] + (r[3] - 8) / 2, on ? WHITE : tb.alert ? Theme.AM_HI : hover ? Theme.TEXT : Theme.MUTED, false);
-			}
+			String label = Shapes.ellipsize(c, tb.label, r[2] - 32, false);
+			int lw = 16 + c.textWidth(label), sx = r[0] + (r[2] - lw) / 2;
+			Shapes.icon(c, tb.icon, sx, r[1] + (r[3] - 12) / 2, on ? Theme.AM_HI : tb.alert ? Theme.AM : Theme.MUTED);
+			c.text(label, sx + 16, r[1] + (r[3] - 8) / 2, on ? WHITE : tb.alert ? Theme.AM_HI : hover ? Theme.TEXT : Theme.MUTED, false);
 			final Page target = tb.page;
 			hits.add(new Hit(tb.name, r, new Runnable() {
 				@Override
@@ -1180,113 +1163,6 @@ public final class MenuView {
 			}
 		}));
 		return y + 26;
-	}
-
-	private static final int SPOTIFY_GREEN = 0xFF1ED760, SPOTIFY_DARK = 0xFF121212;
-	/** Komunikat po „Otwórz Spotify” (do następnego wejścia na stronę). */
-	private String spotifyMsg;
-
-	/** Logo Spotify: zielone koło z trzema łukami (każdy łuk z trzech odcinków, środek wyżej), rozmiar s jednostek. */
-	private void spotifyLogo(Canvas c, int x, int y, int s) {
-		Shapes.round(c, x, y, s, s, rad(s / 2.0), pixels, SPOTIFY_GREEN, 0);
-		int t = Math.max(1, s / 10);
-		for (int i = 0; i < 3; i++) {
-			int w = (int) Math.round(s * (0.60 - 0.09 * i)), x0 = x + (s - w) / 2, ym = y + (int) Math.round(s * (0.27 + 0.18 * i)), q = Math.max(1, w / 4);
-			c.fill(x0, ym + t / 2 + 1, x0 + q, ym + t / 2 + 1 + t, SPOTIFY_DARK);
-			c.fill(x0 + q, ym, x0 + w - q, ym + t, SPOTIFY_DARK);
-			c.fill(x0 + w - q, ym + t / 2 + 1, x0 + w, ym + t / 2 + 1 + t, SPOTIFY_DARK);
-		}
-	}
-
-	/**
-	 * Spotify z komputera (od 0.40.0): odtwarzacz (okładka, tytuł, wykonawca, pasek postępu, poprzedni / graj-pauza /
-	 * następny) albo okno „Zaloguj się w Spotify” z przyciskiem, który otwiera Spotify na komputerze.
-	 */
-	private void spotify(Canvas c, int mx, int my) {
-		int[] ct = layout.content;
-		header(c, "Spotify", mx, my);
-		Spotify sp = actions.spotify();
-		if (sp == null) sp = Spotify.OFF;
-		if (!sp.ready()) {
-			int w = Math.min(320, ct[2]), h = sp.unsupported() ? 110 : 142, x = ct[0] + (ct[2] - w) / 2, y = ct[1] + 30 + Math.max(0, (ct[3] - 30 - h) / 2);
-			box(c, x, y, w, h, BOX, LINE);
-			spotifyLogo(c, x + (w - 36) / 2, y + 14, 36);
-			c.font(Canvas.BOLD);
-			String t = Lang.t(sp.unsupported() ? "spotify.unsupported" : "spotify.login");
-			c.text(t, x + (w - c.textWidth(t)) / 2, y + 60, WHITE, false);
-			c.font(Canvas.UI);
-			int ty = y + 76;
-			for (String l : Shapes.wrap(c, Lang.t(sp.unsupported() ? "spotify.unsupported_body" : "spotify.login_body"), w - 28, 3)) {
-				c.text(l, x + (w - c.textWidth(l)) / 2, ty, Theme.MUTED, false);
-				ty += 10;
-			}
-			if (!sp.unsupported()) {
-				String bt = Lang.t("spotify.open");
-				int[] b = {x + (w - (c.textWidth(bt) + 40)) / 2, y + h - 30, c.textWidth(bt) + 40, 20};
-				boolean hover = in(b, mx, my);
-				Shapes.round(c, b[0], b[1], b[2], b[3], rad(10), pixels, hover ? 0xFF3BE477 : SPOTIFY_GREEN, 0);
-				c.font(Canvas.BOLD);
-				c.text(bt, b[0] + (b[2] - c.textWidth(bt)) / 2, b[1] + 6, SPOTIFY_DARK, false);
-				c.font(Canvas.UI);
-				hits.add(new Hit("spotify:open", b, new Runnable() {
-					@Override
-					public void run() {
-						actions.spotifyCommand("open");
-						spotifyMsg = Lang.t("spotify.opening");
-					}
-				}));
-			}
-			if (spotifyMsg != null) c.text(spotifyMsg, x + (w - c.textWidth(spotifyMsg)) / 2, y + h + 8, Theme.AM_HI, false);
-			return;
-		}
-		spotifyMsg = null;
-		int cs = Math.min(112, ct[3] - 60), x = ct[0], y = ct[1] + 32;
-		box(c, x, y, cs, cs, INSET, LINE);
-		Object cover = sp.cover == null ? null : actions.image("spotify", sp.cover);
-		if (cover != null) c.image(cover, x + 1, y + 1, cs - 2, cs - 2);
-		else spotifyLogo(c, x + (cs - 40) / 2, y + (cs - 40) / 2, 40);
-		int tx = x + cs + 16, tw = ct[0] + ct[2] - tx;
-		spotifyLogo(c, tx, y + 2, 12);
-		c.text(Lang.t(sp.playing() ? "spotify.playing" : "spotify.paused"), tx + 17, y + 4, sp.playing() ? SPOTIFY_GREEN : Theme.MUTED, false);
-		c.font(Canvas.TITLE);
-		c.push(1.4f, tx, y + 22);
-		c.text(Shapes.ellipsize(c, sp.title == null ? "—" : sp.title, (int) (tw / 1.4f), false), tx, y + 22, WHITE, false);
-		c.pop();
-		c.font(Canvas.UI);
-		if (sp.artist != null) c.text(Shapes.ellipsize(c, sp.artist, tw, false), tx, y + 40, Theme.TEXT, false);
-		if (sp.album != null) c.text(Shapes.ellipsize(c, sp.album, tw, false), tx, y + 52, FAINT, false);
-		// pasek postępu i czasy
-		long now = System.currentTimeMillis(), pos = sp.positionAt(now);
-		int by = y + 70;
-		Shapes.round(c, tx, by, tw, 4, rad(2), pixels, Theme.alpha(Theme.EDGE2, 0xC0), 0);
-		if (sp.duration > 0) Shapes.round(c, tx, by, Math.max(4, (int) (tw * Math.min(1.0, pos / (double) sp.duration))), 4, rad(2), pixels, SPOTIFY_GREEN, 0);
-		String a = Spotify.time(pos), d = sp.duration > 0 ? Spotify.time(sp.duration) : "";
-		c.text(a, tx, by + 8, FAINT, false);
-		c.text(d, tx + tw - c.textWidth(d), by + 8, FAINT, false);
-		// przyciski: poprzedni, graj/pauza (większy, zielony), następny
-		int cy = by + 22, mid = tx + tw / 2;
-		spotifyButton(c, "spotify:prev", "skip-prev", new int[] {mid - 62, cy + 4, 28, 28}, false, mx, my, "prev");
-		spotifyButton(c, "spotify:toggle", sp.playing() ? "pause" : "play", new int[] {mid - 18, cy, 36, 36}, true, mx, my, "toggle");
-		spotifyButton(c, "spotify:next", "skip-next", new int[] {mid + 34, cy + 4, 28, 28}, false, mx, my, "next");
-	}
-
-	private void spotifyButton(Canvas c, String name, String icon, int[] r, boolean main, int mx, int my, final String cmd) {
-		boolean hover = in(r, mx, my);
-		Shapes.round(c, r[0], r[1], r[2], r[3], rad(r[2] / 2.0), pixels, main ? (hover ? 0xFF3BE477 : SPOTIFY_GREEN) : hover ? BOX_HOVER : BOX, main ? 0 : hover ? Theme.EDGE2 : LINE);
-		int k = main ? 2 : 1, ix = r[0] + (r[2] - 12 * k) / 2, iy = r[1] + (r[3] - 12 * k) / 2;
-		c.push(k, ix, iy);
-		Shapes.icon(c, icon, ix, iy, main ? SPOTIFY_DARK : hover ? WHITE : Theme.TEXT);
-		c.pop();
-		if (hover) {
-			tip = Lang.t("spotify." + cmd);
-			tipAt = new int[] {r[0], r[1] + r[3] + 3};
-		}
-		hits.add(new Hit(name, r, new Runnable() {
-			@Override
-			public void run() {
-				actions.spotifyCommand(cmd);
-			}
-		}));
 	}
 
 	/** Znajomi: lista (najpierw w grze, potem w launcherze, offline), klik otwiera rozmowę; licznik nowych wiadomości. */

@@ -10,7 +10,6 @@ const { diagnoseCrash } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
 const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText, THEME_IDS, mcProfileAction, partyPlay, partyEntry, partyChatRows } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
-const { createSpotify } = require('./lib/spotify');
 const serverList = require('./lib/servers');
 const { createMibPresence, joinMojang, helloMessage } = require('./lib/presence');
 const skinApi = require('./lib/skin');
@@ -847,37 +846,8 @@ async function ensureForge(root, mc) {
 // ---- Nakładka HUD (Right Shift) ----
 // Z modem MiB menu jest w samej grze: launcher tylko obsługuje zmianę konta przez pliki w <gra>/mib (bez starej nakładki)
 let ov = null, fgProc = null, menuOpen = false, fg = true, hooked = false, bridge = null;
-// Spotify z komputera dla menu w grze (0.40.0): stan z lib/spotify.js, okładka jako PNG 64×64 w <gra>/mib/spotify
-let spotifyNow = null, spotifyCover = null, spotifyKey = '', spotifyDir = null;
-const spotifyWatch = createSpotify({ log: t => send('log', t), onState: s => {
-  const key = s.title ? s.title + '|' + s.artist : '';
-  if (key !== spotifyKey) { spotifyKey = key; spotifyCover = null; }
-  if (s.cover && spotifyDir) {
-    try {
-      const img = nativeImage.createFromBuffer(Buffer.from(s.cover, 'base64'));
-      if (!img.isEmpty()) {
-        const png = img.resize({ width: 64, height: 64, quality: 'good' }).toPNG(), name = 'cover-' + crypto.createHash('sha1').update(png).digest('hex').slice(0, 8) + '.png';
-        fs.mkdirSync(spotifyDir, { recursive: true });
-        for (const f of fs.readdirSync(spotifyDir)) if (f !== name && /^cover-[0-9a-f]{8}\.png$/.test(f)) fs.unlinkSync(path.join(spotifyDir, f));
-        fs.writeFileSync(path.join(spotifyDir, name), png);
-        spotifyCover = name;
-      }
-    } catch {}
-  }
-  delete s.cover;
-  spotifyNow = s;
-} });
-// „Otwórz Spotify” z gry: aplikacja Spotify (gdy jest zainstalowana — protokół spotify: w rejestrze), inaczej strona pobierania
-function openSpotify() {
-  if (process.platform !== 'win32') return shell.openExternal('https://open.spotify.com');
-  require('child_process').execFile('reg', ['query', 'HKCU\\Software\\Classes\\spotify'], { timeout: 5000, windowsHide: true }, err => {
-    shell.openExternal(err ? 'https://www.spotify.com/pl/download/windows/' : 'spotify:').catch(() => {});
-  });
-}
 function startHud(pid, mibDir, gameAcc) {
   if (mibDir) {
-    spotifyDir = path.join(mibDir, 'spotify'); spotifyNow = null; spotifyCover = null; spotifyKey = '';
-    spotifyWatch.start();
     // „aktywne” dla menu w grze to konto, na którym gra działa (nie to wybrane później w oknie launchera)
     try {
       bridge = mibmod.createBridge({ dir: mibDir, accounts: () => { const a = accLoad(); return { ...a, list: tempAcc ? [{ id: tempAcc.id, name: tempAcc.name }, ...a.list] : a.list, active: gameAcc }; }, onSwitch: relaunchWithAccount,
@@ -933,9 +903,6 @@ function startHud(pid, mibDir, gameAcc) {
           if (l.some(m => !m.mine && !m.read)) { await prof.chatRead({ id }); watchMessages().catch(() => {}); }
           return l.map(m => (m.mine ? m : { ...m, body: clean(m.body) }));
         },
-        // Spotify z komputera (0.40.0): stan dla menu w grze i polecenia (poprzedni, pauza, następny, otwórz Spotify)
-        spotify: () => (spotifyNow ? { state: spotifyNow, cover: spotifyCover } : null),
-        onSpotify: async cmd => { if (cmd === 'open') openSpotify(); else spotifyWatch.send(cmd); },
         onSend: async (id, body) => { const r = id === 'party' ? await prof.partySend({ body }) : await prof.chatSend({ id, body }); if (r && r.error) throw new Error(r.error); if (id === 'party') watchParty().catch(() => {}); } }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
     return;
@@ -960,7 +927,6 @@ function startHud(pid, mibDir, gameAcc) {
 function toggleMenu() { menuOpen = !menuOpen; if (!ov || ov.isDestroyed()) return; ov.setIgnoreMouseEvents(!menuOpen); ov.webContents.send('menu', menuOpen); }
 function stopHud() {
   if (bridge) { bridge.stop(); bridge = null; }
-  spotifyWatch.stop(); spotifyNow = null;
   try { if (hooked) { require('uiohook-napi').uIOhook.stop(); hooked = false; } } catch {}
   try { if (fgProc) fgProc.kill(); } catch {} fgProc = null; menuOpen = false;
   if (ov && !ov.isDestroyed()) ov.close(); ov = null;

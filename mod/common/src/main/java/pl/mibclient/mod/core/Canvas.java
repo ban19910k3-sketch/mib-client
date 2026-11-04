@@ -42,7 +42,7 @@ public interface Canvas {
 	void effectIcon(Object handle, int x, int y);
 
 	/**
-	 * Obrazek od launchera (główka gracza, miniatura kosmetyku, okładka utworu; uchwyt z MenuActions.image) rozciągnięty
+	 * Obrazek od launchera (główka gracza, miniatura kosmetyku; uchwyt z MenuActions.image) rozciągnięty
 	 * na w×h (od 0.40.0).
 	 */
 	default void image(Object handle, int x, int y, int w, int h) {

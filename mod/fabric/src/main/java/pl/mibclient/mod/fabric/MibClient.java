@@ -128,9 +128,6 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public static volatile Cosmetics testCosmetics;
 	/** Znajomi i rozmowa podane przez test gry (bez launchera); null = z launchera. */
 	public static volatile Friends testFriends;
-	/** Test gry (0.40.0): Spotify bez launchera i polecenia, które menu wysłało. */
-	public static volatile pl.mibclient.mod.core.Spotify testSpotify;
-	public static final java.util.List<String> testSpotifyCalls = new java.util.concurrent.CopyOnWriteArrayList<>();
 	public static volatile Friends.Chat testChat;
 	/** Znajomi z launchera (czytani najwyżej co sekundę), otwarta rozmowa i wiadomości w drodze do launchera. */
 	private Friends friendsCache;
@@ -936,25 +933,7 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 
 	// ===== Znajomi i rozmowy (MenuActions) =====
 
-	@Override
-	public pl.mibclient.mod.core.Spotify spotify() {
-		if (testSpotify != null) return testSpotify;
-		if (bridge == null) return null;
-		pl.mibclient.mod.core.Spotify s = bridge.spotify(System.currentTimeMillis());
-		return s == null ? pl.mibclient.mod.core.Spotify.OFF : s;
-	}
-
-	@Override
-	public void spotifyCommand(String cmd) {
-		if (testSpotify != null) {
-			testSpotifyCalls.add(cmd);
-			return;
-		}
-		if (bridge != null) bridge.requestSpotify(cmd);
-		hooks.add("spotify_" + cmd);
-	}
-
-	/** Obrazki od launchera (główki, miniatury, okładki): tekstura i data pliku; sprawdzane najwyżej co 2 s. */
+	/** Obrazki od launchera (główki, miniatury): tekstura i data pliku; sprawdzane najwyżej co 2 s. */
 	private final java.util.Map<String, Object[]> images = new java.util.HashMap<>();
 
 	@Override

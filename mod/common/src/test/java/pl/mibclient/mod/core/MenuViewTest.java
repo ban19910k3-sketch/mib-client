@@ -32,7 +32,6 @@ class MenuViewTest {
 	GameInfo info;
 	/** Obrazki od launchera, które „są na dysku” (dir/plik). */
 	final java.util.Set<String> images = new java.util.HashSet<String>();
-	Spotify spotify;
 
 	@BeforeEach
 	void setUp() {
@@ -122,16 +121,6 @@ class MenuViewTest {
 			@Override
 			public int[] playerBlockPos() {
 				return pos;
-			}
-
-			@Override
-			public Spotify spotify() {
-				return spotify;
-			}
-
-			@Override
-			public void spotifyCommand(String cmd) {
-				calls.add("spotify:" + cmd);
 			}
 
 			@Override
@@ -734,36 +723,5 @@ class MenuViewTest {
 		click("kind:all");
 		render();
 		assertNotNull(v.hitRect("cos:c1"));
-	}
-
-	@Test
-	void spotifyLoginWindowAndPlayer() {
-		v.openHub();
-		render();
-		assertNull(v.hitRect("spotify"), "bez launchera nie ma Spotify");
-		spotify = Spotify.OFF;
-		v.openHub();
-		click("spotify");
-		assertEquals(MenuView.Page.SPOTIFY, v.page());
-		render();
-		assertTrue(c.hasText("Zaloguj się w Spotify") && c.hasText("Otwórz Spotify"), "okno logowania, gdy Spotify nie gra");
-		assertNull(v.hitRect("spotify:toggle"));
-		click("spotify:open");
-		assertEquals(Arrays.asList("spotify:open"), calls);
-		render();
-		assertTrue(c.hasText("Otwieram Spotify na komputerze…"));
-		spotify = new Spotify("playing", "Nowa piosenka", "Wykonawca", "Album", 30000, 200000, System.currentTimeMillis(), "cover-0a1b2c3d.png");
-		images.add("spotify/cover-0a1b2c3d.png");
-		render();
-		assertTrue(c.hasText("Nowa piosenka") && c.hasText("Wykonawca") && c.hasText("Teraz gra") && c.hasText("3:20"));
-		assertTrue(c.images.stream().anyMatch(x -> x.startsWith("spotify/cover-0a1b2c3d.png")), "okładka utworu");
-		click("spotify:prev");
-		click("spotify:toggle");
-		click("spotify:next");
-		assertEquals(Arrays.asList("spotify:open", "spotify:prev", "spotify:toggle", "spotify:next"), calls);
-		spotify = new Spotify("unsupported", null, null, null, 0, 0, 0, null);
-		render();
-		assertTrue(c.hasText("Spotify działa na Windows"));
-		assertNull(v.hitRect("spotify:open"));
 	}
 }

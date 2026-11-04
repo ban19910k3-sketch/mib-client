@@ -17,20 +17,11 @@ public interface MenuActions {
 
 	/** Kosmetyki z profilu MiB albo null, gdy gra działa bez launchera (przycisk „Kosmetyki” jest wtedy schowany). */
 	/**
-	 * Obrazek PNG od launchera z mib/&lt;dir&gt;/&lt;file&gt; (dir: heads, thumbs, spotify) jako uchwyt dla Canvas.image albo null,
+	 * Obrazek PNG od launchera z mib/&lt;dir&gt;/&lt;file&gt; (dir: heads, thumbs) jako uchwyt dla Canvas.image albo null,
 	 * gdy go nie ma (od 0.40.0).
 	 */
 	default Object image(String dir, String file) {
 		return null;
-	}
-
-	/** Spotify z komputera (od 0.40.0): stan od launchera albo null (gra bez launchera — bez przycisku Spotify). */
-	default Spotify spotify() {
-		return null;
-	}
-
-	/** Polecenie dla Spotify przez launcher: toggle, next, prev albo open (otwiera aplikację Spotify na komputerze). */
-	default void spotifyCommand(String cmd) {
 	}
 
 	default Cosmetics cosmetics() {

@@ -20,15 +20,8 @@ class PreviewTest {
 		return new File(p);
 	}
 
-	/** Spotify w podglądach (0.40.0): null = bez Spotify. */
-	static Spotify previewSpotify;
-
 	private static MenuActions actions(final List<Account> accounts) {
 		return new MenuActions() {
-			@Override
-			public Spotify spotify() {
-				return previewSpotify;
-			}
 
 			@Override
 			public void openHudEditor(String moduleId) {
@@ -139,18 +132,6 @@ class PreviewTest {
 		Lang.setGame("en_us");
 		menu(out, "hub-en", 1920, 1080, v);
 		Lang.setGame("pl_pl");
-		// Spotify (0.40.0): kwadrat w panelu, okno logowania i odtwarzacz
-		previewSpotify = Spotify.OFF;
-		v.openHub();
-		menu(out, "hub-spotify", 1280, 720, v);
-		v.render(new RecordingCanvas(), 640, 360, -1, -1);
-		int[] r = v.hitRect("spotify");
-		v.mouseClicked(r[0] + 1, r[1] + 1, 0);
-		menu(out, "spotify-login", 1280, 720, v);
-		previewSpotify = new Spotify("playing", "Blinding Lights", "The Weeknd", "After Hours", 83000, 200000, System.currentTimeMillis(), "cover-00000000.png");
-		menu(out, "spotify-player", 1280, 720, v);
-		menu(out, "spotify-player-1080", 1920, 1080, v);
-		previewSpotify = null;
 	}
 
 	@Test

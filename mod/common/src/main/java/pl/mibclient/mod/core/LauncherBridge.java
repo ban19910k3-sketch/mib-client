@@ -148,32 +148,8 @@ public final class LauncherBridge {
 		return playersParsed;
 	}
 
-	private byte[] spotifyBytes;
-	private Spotify spotifyParsed;
-
-	/** Spotify z spotify.json (od 0.40.0) albo null, gdy launcher go nie zapisał; stary plik to Spotify.OFF. */
-	public Spotify spotify(long now) {
-		byte[] b = bytes("spotify.json");
-		if (b == null) return null;
-		if (!java.util.Arrays.equals(b, spotifyBytes) || spotifyParsed == null) {
-			spotifyBytes = b;
-			spotifyParsed = Spotify.parse(new String(b, StandardCharsets.UTF_8), now);
-		}
-		if (spotifyParsed != null && Math.abs(now - spotifyParsed.at) > Spotify.STALE_MS) return Spotify.OFF;
-		return spotifyParsed;
-	}
-
-	/** Polecenie dla Spotify (toggle, next, prev, open) przez launcher. */
-	public void requestSpotify(String cmd) {
-		if (!java.util.Arrays.asList("toggle", "next", "prev", "open").contains(cmd)) return;
-		Map<String, Object> m = new LinkedHashMap<String, Object>();
-		m.put("cmd", cmd);
-		m.put("at", System.currentTimeMillis());
-		write("spotify-request.json", m);
-	}
-
-	/** Katalogi z obrazkami od launchera (od 0.40.0): główki znajomych, miniatury kosmetyków, okładki Spotify. */
-	public static final java.util.List<String> IMAGE_DIRS = java.util.Arrays.asList("heads", "thumbs", "spotify");
+	/** Katalogi z obrazkami od launchera (od 0.40.0): główki znajomych i miniatury kosmetyków. */
+	public static final java.util.List<String> IMAGE_DIRS = java.util.Arrays.asList("heads", "thumbs");
 
 	/** Bezpieczna nazwa pliku obrazka od launchera: małe litery, cyfry, _ . - i końcówka .png. */
 	public static boolean validImageName(String file) {
