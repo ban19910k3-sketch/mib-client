@@ -600,4 +600,81 @@ class MenuViewTest {
 		assertEquals("Offline", f.get("b").statusText());
 		assertEquals(1, f.unread());
 	}
+
+	@Test
+	void hubIsSmallStartPanelWithIconSquares() {
+		friends = Friends.LOGGED_OUT;
+		cosmetics = Cosmetics.LOGGED_OUT;
+		v.openHub();
+		render();
+		assertEquals(MenuView.Page.HUB, v.page());
+		for (String k : new String[] {"modules", "cosmetics", "friends", "edit_hud", "close"}) assertNotNull(v.hitRect(k), k);
+		assertNull(v.hitRect("accounts"), "bez kont nie ma kwadratu Konta");
+		assertNull(v.hitRect("cat:ALL"), "w panelu nie ma pełnego menu");
+		assertNull(v.hitRect("lang"));
+		// kwadraty w jednym rzędzie, jednakowe, „Edytuj HUD” pod nimi na całą szerokość
+		int[] a = v.hitRect("modules"), b = v.hitRect("cosmetics"), e = v.hitRect("edit_hud");
+		assertEquals(a[1], b[1]);
+		assertEquals(a[2], a[3], "kwadrat");
+		assertTrue(e[1] > a[1] + a[3], "Edytuj HUD pod kwadratami");
+		assertTrue(e[2] > 3 * a[2], "Edytuj HUD szeroki");
+		// panel na środku ekranu
+		int[] f = v.hitRect("friends");
+		int cx = (a[0] + f[0] + f[2]) / 2;
+		assertTrue(Math.abs(cx - 320) <= 2, "wyśrodkowany: " + cx);
+		assertTrue(c.texts.stream().anyMatch(t -> t.s.equals("EDYTUJ HUD")));
+		assertFalse(c.texts.stream().anyMatch(t -> t.s.equals("KOSMETYKI")), "bez kursora nie ma podpisu");
+	}
+
+	@Test
+	void hubShowsLabelUnderCursorAndOpensPages() {
+		cosmetics = Cosmetics.LOGGED_OUT;
+		v.openHub();
+		render();
+		int[] r = v.hitRect("cosmetics");
+		c.clear();
+		v.render(c, 640, 360, r[0] + 5, r[1] + 5);
+		RecordingCanvas.Text t = c.texts.stream().filter(x -> x.s.equals("KOSMETYKI")).findFirst().orElse(null);
+		assertNotNull(t, "nazwa kwadratu pod kursorem");
+		assertTrue(t.x > r[0] + 5 && t.y > r[1] + 5, "po prawej pod kursorem");
+		click("cosmetics");
+		assertEquals(MenuView.Page.COSMETICS, v.page());
+		click("home");
+		assertEquals(MenuView.Page.HUB, v.page(), "logo wraca do panelu");
+		click("modules");
+		assertEquals(MenuView.Page.GRID, v.page());
+		v.openHub();
+		click("edit_hud");
+		assertEquals(Arrays.asList("hud:null"), calls);
+		v.openHub();
+		click("close");
+		assertTrue(v.takeClose());
+	}
+
+	@Test
+	void typingInHubSearchesModulesAndEscapeCloses() {
+		v.openHub();
+		render();
+		assertFalse(v.keyPressed(MenuView.KEY_ESCAPE), "Esc w panelu zamyka menu");
+		assertTrue(v.charTyped('c'));
+		assertTrue(v.charTyped('p'));
+		assertEquals(MenuView.Page.GRID, v.page());
+		assertEquals("cp", v.query());
+		v.openHub();
+		assertFalse(v.charTyped(' '), "spacja w panelu nic nie robi");
+		assertEquals(MenuView.Page.HUB, v.page());
+	}
+
+	@Test
+	void hubMarksUnreadFriendsAndFitsAllFourTabs() {
+		friends = new Friends(true, Arrays.asList(new Friends.Friend("a", "Ala", "game", null, 2)));
+		cosmetics = Cosmetics.LOGGED_OUT;
+		accounts.add(new Account("x", "Steve", true));
+		v.openHub();
+		render();
+		for (String k : new String[] {"modules", "cosmetics", "friends", "accounts"}) assertNotNull(v.hitRect(k), k);
+		int[] a = v.hitRect("modules"), d = v.hitRect("accounts"), e = v.hitRect("edit_hud");
+		assertEquals(a[0], e[0], "rząd kwadratów tak szeroki jak Edytuj HUD");
+		assertEquals(d[0] + d[2], e[0] + e[2]);
+	}
 }

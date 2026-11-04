@@ -24,7 +24,9 @@ public final class MenuScreen extends Screen {
 		super(Component.literal("MiB Client"));
 		this.mib = mib;
 		this.view = new MenuView(mib.modules, mib);
+		// prawy Shift (od 0.39.0): najpierw mały panel startowy; z edytora HUD prosto do ustawień modułu
 		if (settingsFor != null) view.openSettings(settingsFor);
+		else view.openHub();
 	}
 
 	public MenuView view() {

@@ -18,7 +18,8 @@ import pl.mibclient.mod.core.modules.Waypoints;
  * Rysuje przez Canvas w jednostkach menu; kliknięcia trafiają w te same prostokąty, które zostały narysowane.
  */
 public final class MenuView {
-	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS, FRIENDS, CHAT }
+	/** HUB (od 0.39.0): mały panel startowy pod prawym Shiftem; pozostałe strony to pełne menu. */
+	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS, FRIENDS, CHAT, HUB }
 
 	public static final int KEY_ESCAPE = 256, KEY_BACKSPACE = 259, KEY_ENTER = 257;
 	private static final int FAINT = Theme.FAINT, WHITE = 0xFFFFFFFF;
@@ -88,6 +89,11 @@ public final class MenuView {
 	/** Wiadomość, którą gracz właśnie pisze w rozmowie. */
 	public String draft() {
 		return draft;
+	}
+
+	/** Panel startowy (MenuScreen pod prawym Shiftem): logo, kwadraty z ikonami zakładek i „Edytuj HUD”. */
+	public void openHub() {
+		page = Page.HUB;
 	}
 
 	/** Otwiera rozmowę ze znajomym (strona CHAT). */
@@ -193,6 +199,11 @@ public final class MenuView {
 		c.font(Canvas.UI);
 		c.fill(0, 0, w, h, Theme.alpha(Theme.DIM, 0x58));
 		Holidays.menu(Theme.ID, c, w, h, System.currentTimeMillis());
+		if (page == Page.HUB) {
+			hub(c, w, h, mx, my);
+			c.font(f0);
+			return;
+		}
 		topBar(c, mx, my);
 		int[] m = layout.main;
 		Shapes.round(c, m[0], m[1], m[2], m[3], rad(5), pixels, MAIN, LINE);
@@ -218,23 +229,154 @@ public final class MenuView {
 
 	/** Zakładka na pasku u góry. */
 	private static final class Tab {
-		final String name, icon, label;
+		final String name, icon, label, hubIcon, hubLabel;
 		final Page page;
 		final boolean alert;
 
-		Tab(String name, String icon, String label, Page page, boolean alert) {
+		Tab(String name, String icon, String label, Page page, boolean alert, String hubIcon, String hubLabel) {
 			this.name = name;
 			this.icon = icon;
 			this.label = label;
 			this.page = page;
 			this.alert = alert;
+			this.hubIcon = hubIcon;
+			this.hubLabel = hubLabel;
 		}
+	}
+
+	/** Zakładki: Moduły zawsze, a Znajomi, Kosmetyki i Konta tylko, gdy są dostępne (launcher, profil MiB, konta). */
+	private List<Tab> tabs() {
+		List<Tab> tabs = new ArrayList<Tab>();
+		tabs.add(new Tab("modules", "grid-3x3", Lang.t("menu.tab_modules"), Page.GRID, false, "sliders", Lang.t("menu.tab_modules")));
+		if (actions.cosmetics() != null) tabs.add(new Tab("cosmetics", "archive", Lang.t("menu.cosmetics"), Page.COSMETICS, false, "shirt", Lang.t("menu.cosmetics")));
+		Friends fs = actions.friends();
+		if (fs != null) tabs.add(new Tab("friends", "message", Lang.t("menu.friends") + (fs.unread() > 0 ? " (" + fs.unread() + ")" : ""), Page.FRIENDS,
+				fs.unread() > 0 && page != Page.FRIENDS && page != Page.CHAT, "users", Lang.t("menu.friends")));
+		if (!actions.accounts().isEmpty()) tabs.add(new Tab("accounts", "users", Lang.t("menu.tab_accounts"), Page.ACCOUNTS, false, "user", Lang.t("menu.tab_accounts")));
+		return tabs;
+	}
+
+	/** Logo MiB („M” z launchera) w pikselach: # = kolor, wyżej jaśniejszy. */
+	private static final String[] LOGO = {
+			".....####...####.....",
+			"....#####...#####....",
+			"....######.######....",
+			"...#######.#######...",
+			"...###.#######.###...",
+			"..###..#######..###..",
+			"..###...#####...###..",
+			".###....#####....###.",
+			".###....#####....###.",
+			"###......###......###"};
+	private static final int HUB_S = 46, HUB_G = 8, HUB_P = 12, HUB_LOGO = 3, HUB_EDIT = 32;
+	/** Powiększenie napisów w panelu startowym (EDYTUJ HUD, nazwa pod kursorem). */
+	private static final float HUB_TEXT = 1.3f;
+
+	private static void logo(Canvas c, int x, int y, int k) {
+		for (int j = 0; j < LOGO.length; j++) {
+			int col = Theme.mix(Theme.AM_HI, Theme.AM, j / (double) (LOGO.length - 1));
+			String row = LOGO[j];
+			for (int i = 0; i < row.length(); i++) {
+				if (row.charAt(i) != '#') continue;
+				int s = i;
+				while (i + 1 < row.length() && row.charAt(i + 1) == '#') i++;
+				c.fill(x + s * k, y + j * k, x + (i + 1) * k, y + (j + 1) * k, col);
+			}
+		}
+	}
+
+	/**
+	 * Panel startowy (od 0.39.0, wzór: menu Dawn): mała karta na środku — logo MiB, w rogu „zwiń”, rząd kwadratów z dużymi
+	 * ikonami zakładek (Moduły, Kosmetyki, Znajomi, Konta) i szeroki „Edytuj HUD”; nad kwadratem pod kursorem jego nazwa
+	 * wielkimi literami. Kwadraty mają nazwy jak zakładki na pasku pełnego menu (modules, cosmetics…), więc testy i
+	 * skróty klikają je tak samo; pisanie od razu otwiera Moduły z wyszukiwarką.
+	 */
+	private void hub(Canvas c, int w, int h, int mx, int my) {
+		List<Tab> tabs = tabs();
+		int n = tabs.size(), cols = Math.max(n, 3);
+		int inner = cols * HUB_S + (cols - 1) * HUB_G, logoH = LOGO.length * HUB_LOGO;
+		int cw = inner + 2 * HUB_P, ch = HUB_P + logoH + 14 + HUB_S + HUB_G + HUB_EDIT + HUB_P;
+		int x = (w - cw) / 2, y = (h - ch) / 2;
+		Shapes.round(c, x, y, cw, ch, rad(7), pixels, Theme.alpha(Theme.SLAB, 0xEE), LINE);
+		logo(c, x + (cw - LOGO[0].length() * HUB_LOGO) / 2, y + HUB_P, HUB_LOGO);
+
+		int[] close = {x + cw - HUB_P - 14, y + HUB_P - 4, 18, 18};
+		boolean ch0 = in(close, mx, my);
+		Shapes.round(c, close[0], close[1], close[2], close[3], rad(9), pixels, ch0 ? BOX_HOVER : 0, 0);
+		Shapes.icon(c, "shrink", close[0] + 3, close[1] + 3, ch0 ? WHITE : Theme.MUTED);
+		hits.add(new Hit("close", close, new Runnable() {
+			@Override
+			public void run() {
+				closeRequested = true;
+			}
+		}));
+		String label = ch0 ? Lang.t("menu.collapse") : null;
+
+		int sy = y + HUB_P + logoH + 14, sx = x + HUB_P + (inner - (n * HUB_S + (n - 1) * HUB_G)) / 2;
+		for (Tab tb : tabs) {
+			int[] r = {sx, sy, HUB_S, HUB_S};
+			boolean hover = in(r, mx, my);
+			Shapes.round(c, r[0], r[1], r[2], r[3], rad(5), pixels, hover ? Theme.alpha(Theme.mix(Theme.SLAB2, Theme.AM_LO, 0.45), 0xF4) : BOX,
+					hover ? Theme.AM : LINE);
+			int ix = r[0] + (HUB_S - 24) / 2, iy = r[1] + (HUB_S - 24) / 2;
+			c.push(2, ix, iy);
+			Shapes.icon(c, tb.hubIcon, ix, iy, hover ? WHITE : Theme.TEXT);
+			c.pop();
+			if (tb.alert) Shapes.round(c, r[0] + r[2] - 9, r[1] + 3, 6, 6, rad(3), pixels, Theme.AM_HI, 0);
+			if (hover) label = tb.hubLabel;
+			final Page target = tb.page;
+			hits.add(new Hit(tb.name, r, new Runnable() {
+				@Override
+				public void run() {
+					page = target;
+				}
+			}));
+			sx += HUB_S + HUB_G;
+		}
+
+		int[] e = {x + HUB_P, sy + HUB_S + HUB_G, inner, HUB_EDIT};
+		boolean eh = in(e, mx, my);
+		Shapes.round(c, e[0], e[1], e[2], e[3], rad(5), pixels, eh ? Theme.alpha(Theme.mix(Theme.SLAB2, Theme.AM_LO, 0.45), 0xF4) : BOX, eh ? Theme.AM : LINE);
+		c.font(Canvas.TITLE);
+		String et = Shapes.ellipsize(c, Lang.t("menu.edit_hud").toUpperCase(java.util.Locale.ROOT), (int) ((e[2] - 12) / HUB_TEXT), false);
+		int etx = e[0] + (int) ((e[2] - c.textWidth(et) * HUB_TEXT) / 2), ety = e[1] + (int) ((e[3] - 8 * HUB_TEXT) / 2);
+		c.push(HUB_TEXT, etx, ety);
+		c.text(et, etx, ety, WHITE, false);
+		c.pop();
+		hits.add(new Hit("edit_hud", e, new Runnable() {
+			@Override
+			public void run() {
+				actions.openHudEditor(null);
+			}
+		}));
+
+		// nazwa przycisku pod kursorem: wielkie litery, z cieniem, po prawej pod strzałką (nie wychodzi za ekran)
+		if (label != null) {
+			String t = label.toUpperCase(java.util.Locale.ROOT);
+			int tw = (int) Math.ceil(c.textWidth(t) * HUB_TEXT), lx = Math.max(2, Math.min(mx + 10, w - tw - 4)), ly = Math.min(my + 14, h - 14);
+			c.push(HUB_TEXT, lx, ly);
+			c.text(t, lx, ly, WHITE, true);
+			c.pop();
+		}
+		c.font(Canvas.UI);
 	}
 
 	/** Rząd u góry: pole z logo, zakładki (Moduły, a Znajomi, Kosmetyki i Konta tylko, gdy są dostępne), język i krzyżyk. */
 	private void topBar(Canvas c, int mx, int my) {
 		int[] t = layout.top, lg = layout.logo;
-		box(c, lg[0], lg[1], lg[2], lg[3], BOX, LINE);
+		boolean lh = in(lg, mx, my);
+		box(c, lg[0], lg[1], lg[2], lg[3], lh ? BOX_HOVER : BOX, lh ? Theme.EDGE2 : LINE);
+		// logo wraca do panelu startowego (0.39.0)
+		hits.add(new Hit("home", lg, new Runnable() {
+			@Override
+			public void run() {
+				page = Page.HUB;
+			}
+		}));
+		if (lh) {
+			tip = Lang.t("menu.home");
+			tipAt = new int[] {lg[0], lg[1] + lg[3] + 3};
+		}
 		c.font(Canvas.BOLD);
 		int lx = lg[0] + 10, ty = lg[1] + (lg[3] - 8) / 2;
 		c.text("MiB", lx, ty, Theme.AM_HI, false);
@@ -255,13 +397,7 @@ public final class MenuView {
 		}));
 		int langX = language(c, close[0] - 6, t[1], t[3], mx, my);
 
-		List<Tab> tabs = new ArrayList<Tab>();
-		tabs.add(new Tab("modules", "grid-3x3", Lang.t("menu.tab_modules"), Page.GRID, false));
-		Friends fs = actions.friends();
-		if (fs != null) tabs.add(new Tab("friends", "message", Lang.t("menu.friends") + (fs.unread() > 0 ? " (" + fs.unread() + ")" : ""), Page.FRIENDS,
-				fs.unread() > 0 && page != Page.FRIENDS && page != Page.CHAT));
-		if (actions.cosmetics() != null) tabs.add(new Tab("cosmetics", "archive", Lang.t("menu.cosmetics"), Page.COSMETICS, false));
-		if (!actions.accounts().isEmpty()) tabs.add(new Tab("accounts", "users", Lang.t("menu.tab_accounts"), Page.ACCOUNTS, false));
+		List<Tab> tabs = tabs();
 		int x = lg[0] + lg[2] + MenuLayout.GAP, room = langX - 6 - x;
 		int each = Math.min(110, (room - (tabs.size() - 1) * 6) / Math.max(1, tabs.size()));
 		for (Tab tb : tabs) {
@@ -1192,7 +1328,7 @@ public final class MenuView {
 			}
 		}
 		if (key == KEY_ESCAPE) {
-			if (page == Page.GRID) return false;
+			if (page == Page.GRID || page == Page.HUB) return false;
 			page = Page.GRID;
 			return true;
 		}
@@ -1231,6 +1367,11 @@ public final class MenuView {
 		if (page == Page.CHAT) {
 			if (ch >= 32 && ch != 127 && ch != '\u00a7' && draft.length() < (Friends.PARTY.equals(chatWith) ? Friends.MAX_PARTY_MESSAGE : Friends.MAX_MESSAGE)) draft += ch;
 			return true;
+		}
+		if (page == Page.HUB && ch > 32 && ch != 127) {
+			page = Page.GRID;
+			query = "";
+			scroll = 0;
 		}
 		if (!searchable() || ch < 32 || ch == 127 || query.length() >= 32) return false;
 		query += ch;

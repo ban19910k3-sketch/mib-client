@@ -90,6 +90,30 @@ class PreviewTest {
 		c.save(new File(out, name + ".png"));
 	}
 
+	/** Panel startowy pod prawym Shiftem (0.39.0): bez kursora i z kursorem nad kwadratem (nazwa pod kursorem). */
+	@Test
+	void renderHub() throws Exception {
+		File out = out();
+		Lang.setGame("pl_pl");
+		ModuleManager mm = new ModuleManager(Config.load(new File(dir, "h.json")), ModuleCatalog.ALL);
+		MenuView v = new MenuView(mm, actions(Arrays.asList(new Account("a", "Ban19910k", true))));
+		v.openHub();
+		menu(out, "hub", 1280, 720, v);
+		for (String k : new String[] {"cosmetics", "modules", "edit_hud"}) {
+			v.render(new RecordingCanvas(), 640, 360, -1, -1);
+			int[] r = v.hitRect(k);
+			int sc = MenuLayout.scale(1280, 720);
+			v.pixelScale(sc);
+			PreviewCanvas c = new PreviewCanvas(1280, 720, sc);
+			c.gameBackground(640, 360);
+			v.render(c, 640, 360, r[0] + r[2] / 2, r[1] + r[3] / 2);
+			c.save(new File(out, "hub-hover-" + k + ".png"));
+		}
+		Lang.setGame("en_us");
+		menu(out, "hub-en", 1920, 1080, v);
+		Lang.setGame("pl_pl");
+	}
+
 	@Test
 	void renderMenus() throws Exception {
 		File out = out();

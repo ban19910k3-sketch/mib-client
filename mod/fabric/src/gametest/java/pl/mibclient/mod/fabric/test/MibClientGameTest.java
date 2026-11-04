@@ -73,8 +73,18 @@ public class MibClientGameTest implements FabricClientGameTest {
 			//#if MC >= 26.1
 			check(context.computeOnClient(MibClientGameTest::textInputOn), "menu nie włączyło wpisywania tekstu (wyszukiwarka nie dostanie liter)");
 			//#endif
+			check(context.computeOnClient(c -> view(c) != null && view(c).page() == MenuView.Page.HUB), "prawy Shift nie otworzył panelu startowego");
 			context.takeScreenshot("01-menu");
+			// panel startowy: nazwa kwadratu pod kursorem, „Moduły” otwiera pełne menu, logo wraca do panelu
+			hover(context, "modules");
+			context.takeScreenshot("01b-menu-hover");
+			click(context, "modules");
+			check(context.computeOnClient(c -> view(c) != null && view(c).page() == MenuView.Page.GRID), "kwadrat Moduły nie otworzył modułów");
+			context.takeScreenshot("01c-modules");
+			click(context, "home");
+			check(context.computeOnClient(c -> view(c) != null && view(c).page() == MenuView.Page.HUB), "logo nie wróciło do panelu startowego");
 
+			// pisanie w panelu otwiera Moduły z wyszukiwarką
 			input.typeChars("cps");
 			context.waitTicks(3);
 			click(context, "pill:cps");
@@ -511,6 +521,24 @@ public class MibClientGameTest implements FabricClientGameTest {
 
 	private static MenuView view(Minecraft c) {
 		return Input.screen(c) instanceof MenuScreen ? ((MenuScreen) Input.screen(c)).view() : null;
+	}
+
+	/** Kursor nad środkiem elementu menu, bez klikania (np. nazwa kwadratu w panelu startowym). */
+	private void hover(ClientGameTestContext context, String name) {
+		double[] p = context.computeOnClient(c -> {
+			if (!(Input.screen(c) instanceof MenuScreen)) return null;
+			MenuScreen s = (MenuScreen) Input.screen(c);
+			int[] r = s.view().hitRect(name);
+			if (r == null) return null;
+			int k = s.menuScale();
+			return new double[] {(r[0] + r[2] / 2.0) * k, (r[1] + r[3] / 2.0) * k};
+		});
+		if (p == null) {
+			errors.add("brak elementu menu " + name);
+			return;
+		}
+		context.getInput().setCursorPos(p[0], p[1]);
+		context.waitTicks(3);
 	}
 
 	/** Klik w środek elementu menu (jednostki menu × piksele okna na jednostkę). */

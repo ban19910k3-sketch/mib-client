@@ -23,6 +23,8 @@ public final class Lang {
 		put("menu.off", "Wyłączony", "Disabled");
 		put("menu.all", "Wszystkie", "All");
 		put("menu.edit_hud", "Edytuj HUD", "Edit HUD");
+		put("menu.home", "Wróć do panelu startowego", "Back to the start panel");
+		put("menu.collapse", "Zamknij menu", "Close the menu");
 		put("menu.accounts", "Zmień konto", "Switch account");
 		put("menu.blocked", "Zablokowane na tym serwerze", "Blocked on this server");
 		put("menu.blocked_short", "Zablokowane", "Blocked");
