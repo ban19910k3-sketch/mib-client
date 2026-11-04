@@ -1,8 +1,8 @@
-<!-- 0.42.0 -->
+<!-- 0.43.0 -->
 ## Dodane
-- MiB Client na Maca (z procesorem Intel i Apple): ten sam launcher, mod MiB w grze, kosmetyki, znajomi i party.
-- Na Macu aktualizacje działają jak na Windows: wyskakuje okno z nową wersją, klikasz „Aktualizuj” i launcher sam się podmienia.
-- Na Macu Java do gry pobiera się sama.
+- MiB Client na Linuksa: launcher, mod MiB w grze, kosmetyki, znajomi i party. Aktualizacje instalują się same, tak jak na Windows.
+- MiB Client na Androida (wersja próbna): Minecraft z modem MiB na telefonie. Aplikacja sama przygotowuje Minecrafta 1.21.11 z modem MiB, a przycisk „MiB” na ekranie gry otwiera menu MiB.
+- Na Androidzie aplikacja sama sprawdza nowe wersje i proponuje aktualizację.
 
 ## Zmienione
-- Na Macu skróty do stron launchera to Cmd + cyfra (na Windows dalej Ctrl + cyfra).
+- Na Androidzie na razie bez kosmetyków innych graczy, znajomych i czatu w menu gry — te funkcje działają z launcherem na komputerze.
