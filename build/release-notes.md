@@ -1,11 +1,10 @@
-<!-- 0.36.0 -->
-## Dodane
-
-- Motywy launchera w Ustawieniach, w zakładce Wygląd: gotowe Ocean, Las, Lawa, Śnieg i Neon albo Własny z wybranym kolorem akcentu, tła, kart i latających cząsteczek. Do tego możesz ustawić własny obrazek tła.
-- Kod motywu: skopiuj go i wyślij znajomemu, a on wklei go u siebie i dostanie ten sam wygląd.
-- Motyw zapisuje się na profilu MiB, więc masz go na każdym komputerze.
-- Menu w grze (pod prawym Shiftem) ma kolory Twojego motywu.
-
+<!-- 0.37.0 -->
 ## Zmienione
 
-- W święta launcher i gra dalej mają świąteczny wygląd, a Twój motyw wraca po święcie.
+- Po zalogowaniu kontem Microsoft profil MiB loguje się sam, a jeśli go nie masz, zakłada się sam. Nie trzeba już logować się do niego osobno.
+- Na stronie Profil MiB widać, że trwa logowanie. Gdy coś pójdzie nie tak, zobaczysz powód i przycisk „Spróbuj ponownie”, a launcher sam spróbuje jeszcze raz za chwilę.
+- Logowanie e-mailem do starego profilu MiB jest schowane pod „Masz stary profil MiB z e-mailem?”.
+
+## Usunięte
+
+- Na stronie Pomysły nie ma już pomysłów innych graczy ani głosowania na nie. Widzisz tylko swoje pomysły i odpowiedzi twórcy.

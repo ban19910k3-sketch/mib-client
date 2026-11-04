@@ -283,39 +283,61 @@ async function profile(xbox, o = {}) {
 // go zakłada (funkcja mc-login w Supabase); profil założony e-mailem łączy z kontem Minecraft. Od 0.27.0 profil idzie
 // za kontem Microsoft: inne konto = profil tego konta (zmiana konta w trakcie sprawdzania = sprawdzenie jeszcze raz).
 let mibLinking = null, mibAgain = false;
-const MC_LOGIN_ERR = { mc_login_missing: 'funkcja mc-login nie jest wgrana w Supabase (supabase/README.md)', mc_login_jwt: 'w funkcji mc-login wyłącz „Verify JWT” (supabase/README.md)',
+const MC_LOGIN_ERR = { mojang_join: 'nie udało się zgłosić konta w sesji Minecrafta (Mojang)', mc_login_missing: 'funkcja mc-login nie jest wgrana w Supabase (supabase/README.md)', mc_login_jwt: 'w funkcji mc-login wyłącz „Verify JWT” (supabase/README.md)',
   mc_login_setup: 'funkcja mc-login nie ma klucza (sekret MIB_SECRET_KEY, supabase/README.md)', not_verified: 'Mojang nie potwierdził konta', mojang_unavailable: 'Mojang nie odpowiada',
   mc_taken: 'to konto Minecraft ma już inny profil MiB', offline: 'brak połączenia z serwerem MiB' };
 const mcErr = r => MC_LOGIN_ERR[r.error] || r.error + (r.detail ? ' (' + r.detail + ')' : '');
+// Stan logowania do profilu MiB dla interfejsu (od 0.37.0): busy (łączę), ok, needsProfile, error {error, message, retryIn};
+// przy błędach chwilowych (sieć, Mojang, serwer) launcher sam próbuje jeszcze raz po 15 s, 1 min i 3 min
+let mibStatus = { state: 'idle' }, mibRetryT = null, mibTries = 0;
+const MIB_RETRY_MS = [15000, 60000, 180000];
+const MIB_RETRYABLE = new Set(['offline', 'mojang_unavailable', 'mojang_join', 'not_verified', 'server_error', 'unknown', 'busy', 'rate_limited', 'request_failed']);
+function setMibStatus(s) { mibStatus = s; send('profile:status', s); }
+function mibOk(state = 'ok') { mibTries = 0; clearTimeout(mibRetryT); setMibStatus({ state }); }
+function mibFail(r) {
+  const e = r && r.error ? r : { error: 'unknown', detail: r && r.detail };
+  send('log', 'Profil MiB z konta Minecraft: ' + mcErr(e));
+  const wait = MIB_RETRYABLE.has(e.error) && mibTries < MIB_RETRY_MS.length ? MIB_RETRY_MS[mibTries++] : 0;
+  clearTimeout(mibRetryT);
+  if (wait) mibRetryT = setTimeout(() => mibFromMinecraft(), wait);
+  setMibStatus({ state: 'error', error: e.error, message: mcErr(e), retryIn: wait || null });
+}
+function mibIdle() { mibTries = 0; clearTimeout(mibRetryT); setMibStatus({ state: 'idle' }); }
 function mibFromMinecraft() {
   if (mibLinking) { mibAgain = true; return mibLinking; }
-  if (!auth) return null;
+  if (!auth) { mibIdle(); return null; }
   const mc = auth.mclc();
-  const verified = async () => { const serverId = crypto.randomBytes(16).toString('hex'); await joinMojang({ fetch: (...a) => fetch(...a), mc, serverId }); return serverId; };
+  const verified = async () => {
+    const serverId = crypto.randomBytes(16).toString('hex');
+    try { await joinMojang({ fetch: (...a) => fetch(...a), mc, serverId }); } catch (e) { throw Object.assign(new Error(e.message), { code: 'mojang_join' }); }
+    return serverId;
+  };
   mibLinking = (async () => {
     const st = await prof.state(), action = mcProfileAction(st, mc.uuid);
-    if (action === 'none') return;
+    if (action === 'none') return st.offline ? mibFail({ error: 'offline' }) : mibOk(st.needsProfile ? 'needsProfile' : 'ok');
+    setMibStatus({ state: 'busy' });
     if (action === 'link') {
       // profil e-mail bez konta Minecraft: łączymy go z tym kontem; gdy to konto ma już inny profil, przełączamy na niego
-      const r = await prof.mcLink({ name: mc.name, serverId: await verified() });
-      if (r && r.ok) { send('profile:changed', { linked: r.name }); return; }
-      if (!r || r.error !== 'mc_taken') { if (r && r.error) send('log', 'Połączenie profilu MiB z kontem Minecraft: ' + mcErr(r)); return; }
+      let r; try { r = await prof.mcLink({ name: mc.name, serverId: await verified() }); } catch (e) { r = { error: e.code || 'unknown', detail: e.message }; }
+      if (r && r.ok) { mibOk(); send('profile:changed', { linked: r.name }); return; }
+      if (!r || r.error !== 'mc_taken') return mibFail(r);
     }
     const was = st.loggedIn;
     let r;
-    try { r = await prof.mcLogin({ name: mc.name, serverId: await verified() }); } catch (e) { r = { error: 'unknown', detail: e.message }; }
-    if (r && r.loggedIn) return send('profile:changed', { created: !!r.created, nick: r.nick, switched: was });
-    if (r && r.error) send('log', 'Profil MiB z konta Minecraft: ' + mcErr(r));
+    try { r = await prof.mcLogin({ name: mc.name, serverId: await verified() }); } catch (e) { r = { error: e.code || 'unknown', detail: e.message }; }
+    if (r && r.loggedIn) { mibOk(); return send('profile:changed', { created: !!r.created, nick: r.nick, switched: was }); }
     // profil innego konta nie zostaje zalogowany przy tym koncie Microsoft (od 0.35.0)
     if (was) { await prof.logout(); send('profile:changed', { loggedOut: true }); }
-  })().catch(e => send('log', 'Profil MiB z konta Minecraft: ' + e.message)).finally(() => {
+    mibFail(r);
+  })().catch(e => mibFail({ error: 'unknown', detail: e.message })).finally(() => {
     mibLinking = null;
     if (mibAgain) { mibAgain = false; mibFromMinecraft(); }
   });
   return mibLinking;
 }
-// po zalogowaniu e-mailem: połączenie profilu z kontem Minecraft
-ipcMain.handle('profile:mc', () => mibFromMinecraft());
+// „Spróbuj ponownie” w launcherze i połączenie po zalogowaniu e-mailem: od nowa, z pełną liczbą ponowień
+ipcMain.handle('profile:mc', () => { mibTries = 0; clearTimeout(mibRetryT); mibFromMinecraft(); return true; });
+ipcMain.handle('profile:status', () => mibStatus);
 async function switchAccount(id) {
   if (tempAcc && tempAcc.id === id) return profile(await new Auth('select_account').refresh(tempAcc.t), { temp: true });
   const rec = accLoad().list.find(x => x.id === id); if (!rec) throw new Error('brak konta');
@@ -352,7 +374,7 @@ ipcMain.handle('restore', async () => {
     else if (a.active) r = await switchAccount(a.active);
   } catch { r = null; }
   // bez aktywnego konta Microsoft profil MiB z poprzedniego uruchomienia się wylogowuje (od 0.35.0); wróci sam po zalogowaniu kontem
-  if (!r) { const d = await prof.dropSaved(); if (d && d.was) send('profile:changed', { loggedOut: true }); }
+  if (!r) { mibIdle(); const d = await prof.dropSaved(); if (d && d.was) send('profile:changed', { loggedOut: true }); }
   return r;
 });
 ipcMain.handle('logout', () => { auth = null; return true; });
@@ -365,14 +387,14 @@ ipcMain.handle('accounts:switch', async (_, id) => { try { return await switchAc
 // wylogowuje też z profilu MiB
 ipcMain.handle('accounts:remove', async (_, id) => {
   if (tempAcc && tempAcc.id === id) {
-    tempAcc = null; auth = null;
+    tempAcc = null; auth = null; mibIdle();
     try { await session.fromPartition(MS_TEMP).clearStorageData(); } catch {}
     try { await prof.logout(); } catch {}
     prof.setRemember({ on: true });
     return { mibLoggedOut: true };
   }
   const a = accLoad(), wasActive = !tempAcc && a.active === id;
-  a.list = a.list.filter(x => x.id !== id); if (wasActive) { a.active = null; auth = null; } accSave(a);
+  a.list = a.list.filter(x => x.id !== id); if (wasActive) { a.active = null; auth = null; mibIdle(); } accSave(a);
   await clearMsLogin();
   if (wasActive) { try { await prof.logout(); } catch {} }
   return { mibLoggedOut: wasActive };

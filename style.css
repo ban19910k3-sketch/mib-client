@@ -927,3 +927,33 @@ label.srow{cursor:pointer}
 .style-code{display:flex;flex-wrap:wrap;gap:8px;width:100%}
 .style-code input{flex:1;min-width:180px;font-family:Consolas,ui-monospace,monospace;font-size:12px;letter-spacing:.02em}
 #s-style-row{display:flex;flex-direction:column;align-items:stretch;gap:12px}
+/* Logowanie do profilu MiB kontem Minecraft (od 0.37.0) */
+.pf-auto{display:flex;align-items:center;gap:14px;padding:16px 18px;margin:8px 0 14px}
+.pf-auto.err{flex-direction:column;align-items:flex-start;gap:6px;border-color:color-mix(in srgb,var(--bad) 45%,var(--edge))}
+.pf-auto b{font-size:15px;color:var(--hi)}.pf-auto p{font-size:13px;line-height:1.5;margin-top:3px}
+.pf-auto .spin{width:22px;height:22px;flex:none;border-radius:50%;border:3px solid var(--edge2);border-top-color:var(--am);animation:g-spin .8s linear infinite}
+.pf-other{margin-top:8px;border:1px solid var(--edge);border-radius:var(--r-sm);background:var(--slab)}
+.pf-other>summary{padding:10px 14px;cursor:pointer;font-size:13px;color:var(--m)}.pf-other>summary:hover{color:var(--t)}
+.pf-other-in{padding:4px 14px 14px}
+/* Panel admina: wybór przedmiotu w oknie z kafelkami (od 0.37.0) */
+.ipick{display:inline-flex;align-items:center;gap:10px;min-width:240px;max-width:100%;padding:6px 12px 6px 6px;border:1px solid var(--edge2);border-radius:var(--r-sm);background:var(--slab2);color:var(--t);font:inherit;text-align:left;cursor:pointer;transition:border-color .15s}
+.ipick:hover{border-color:var(--am)}.ipick:disabled{opacity:.5;cursor:default}
+.ipick-i{width:40px;height:40px;flex:none;display:grid;place-items:center;border-radius:8px;background:var(--slab);font-style:normal;color:var(--m);overflow:hidden}
+.ipick-i>*{max-width:40px;max-height:40px;image-rendering:pixelated}
+.ipick-t{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}.ipick-t b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ipick-t small{font-size:11px;color:var(--m)}
+.ipick-c{font-size:11px;font-weight:700;color:var(--am-hi);padding:3px 8px;border-radius:999px;background:var(--tint)}
+#ipk{z-index:40}
+.ipk-m{width:min(860px,94vw)!important;max-height:86vh;padding:18px!important;gap:10px!important}
+.ipk-head{display:flex;align-items:center;gap:10px}.ipk-head h3{margin-right:auto}
+.ipk-x{width:32px;height:32px;border:0;border-radius:50%;background:var(--slab2);color:var(--m);cursor:pointer;font-size:13px}.ipk-x:hover{color:var(--t);background:var(--edge)}
+#ipk-q{width:100%}
+.ipk-kinds{margin:0!important}
+.ipk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));align-content:start;gap:8px;overflow:auto;min-height:220px;max-height:calc(86vh - 210px);padding:2px 4px 4px 2px}
+.ipk-t{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px 8px;border:1px solid var(--edge);border-radius:var(--r-sm);background:var(--slab2);color:var(--t);font:inherit;cursor:pointer;text-align:center;transition:border-color .12s,transform .12s}
+.ipk-t:hover{border-color:var(--am);transform:translateY(-1px)}.ipk-t.on{border-color:var(--am);box-shadow:0 0 0 1px var(--am);background:var(--tint)}
+.ipk-t .ipk-i{width:72px;height:72px;display:grid;place-items:center;border-radius:8px;background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--am) 14%,transparent),transparent 70%);font-style:normal;font-size:22px;color:var(--faint)}
+.ipk-t .ipk-i>*{max-width:72px;max-height:72px;image-rendering:pixelated}
+.ipk-t b{font-size:12px;line-height:1.25;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ipk-t small{font-size:10.5px;color:var(--m)}
+.ipk-t.none .ipk-i{font-size:28px}
+.ipk-grid .empty{grid-column:1/-1}

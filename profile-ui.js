@@ -1,6 +1,14 @@
 // Ekrany profilu MiB i kosmetyków. Rozmawia z procesem głównym przez kanały prof:*.
 (() => {
   const ERR = {
+    // logowanie do profilu MiB kontem Minecraft (od 0.37.0, main.js → profile:status)
+    mc_login_missing: 'Serwer MiB nie jest jeszcze gotowy do logowania kontem Minecraft. Daj znać twórcy MiB.',
+    mc_login_jwt: 'Serwer MiB nie jest jeszcze gotowy do logowania kontem Minecraft. Daj znać twórcy MiB.',
+    mc_login_setup: 'Serwer MiB nie jest jeszcze gotowy do logowania kontem Minecraft. Daj znać twórcy MiB.',
+    not_verified: 'Mojang nie potwierdził Twojego konta Minecraft. Sprawdź, czy to konto ma kupionego Minecrafta, i spróbuj ponownie.',
+    mojang_join: 'Mojang nie potwierdził Twojego konta Minecraft. Sprawdź, czy to konto ma kupionego Minecrafta, i spróbuj ponownie.',
+    mojang_unavailable: 'Serwery Mojanga nie odpowiadają. Spróbuj za chwilę.',
+    mc_taken: 'To konto Minecraft ma już inny profil MiB.',
     shop_missing: 'Sklep MiB Coins nie jest jeszcze dostępny.',
     coins_not_enough: 'Masz za mało MiB Coins.',
     not_for_sale: 'Tego przedmiotu nie ma już w sklepie.',
@@ -99,12 +107,14 @@
   const clean = t => (typeof S !== 'undefined' && S && S.chatFilter === false ? String(t == null ? '' : t) : MibProfile.cleanText(t));
 
   let st = { loading: true }, tab = 'signup', busy = false;
+  let mibSt = { state: 'idle' }, otherOpen = false; // logowanie do profilu MiB kontem Minecraft (main.js), viewAuto niżej
 
   // ===== Dolny blok paska bocznego =====
   // bez konta Microsoft (klasa nolog z ui.js, od 0.35.0) dolny blok otwiera okno logowania
   const noAcc = () => document.documentElement.classList.contains('nolog');
   function sidebar() {
     if (!st.loggedIn && noAcc()) { $('plname').textContent = T('Zaloguj się'); $('plsub').textContent = T('Konto Microsoft'); return; }
+    if (!st.loggedIn && !st.needsProfile && !st.offline && !st.loading && mibSt.state !== 'error') { $('plname').textContent = T('Profil MiB'); $('plsub').textContent = T('Logowanie…'); return; }
     $('plname').textContent = st.loggedIn ? st.nick : st.needsProfile ? T('Dokończ profil MiB') : st.offline || st.loading ? T('Profil MiB') : T('Załóż profil MiB');
     $('plsub').textContent = st.loggedIn ? st.mibId : st.needsProfile ? T('Wybierz nick') : st.loading ? T('Wczytywanie…') : st.offline ? T('Brak połączenia') : T('Kosmetyki i ustawienia');
   }
@@ -190,6 +200,23 @@
       tab === 'signup' ? formSignup() : formLogin(),
     ];
   }
+  // Konto Microsoft jest, a profilu MiB jeszcze nie (od 0.37.0): launcher loguje do niego sam (main.js, profile:status) i
+  // zakłada go, gdy go nie ma; formularze e-mail tylko pod „Masz stary profil MiB z e-mailem?” (łączenie starych profili)
+  mib.call('profile:status').then(x => { if (x) { mibSt = x; if (!st.loggedIn) render(); } }).catch(() => {});
+  mib.on('profile:status', x => { mibSt = x || { state: 'idle' }; if (!st.loggedIn) { render(); sidebar(); } });
+  function viewAuto() {
+    const other = h('details', { class: 'pf-other', id: 'pf-other', open: otherOpen, on: { toggle: e => { otherOpen = e.currentTarget.open; } } },
+      h('summary', {}, T('Masz stary profil MiB z e-mailem?')), h('div', { class: 'pf-other-in' }, ...viewOut().slice(3)));
+    const err = mibSt.state === 'error';
+    const card = err
+      ? h('div', { class: 'card pf-auto err', id: 'pf-auto', role: 'alert' }, h('b', {}, T('Nie udało się zalogować do profilu MiB')),
+        h('p', { class: 'mut' }, ERR[mibSt.error] ? T(ERR[mibSt.error]) : msg(mibSt.error || 'unknown')),
+        h('div', { class: 'row' }, h('button', { class: 'b', id: 'pf-retry', type: 'button', on: { click: () => { mibSt = { state: 'busy' }; render(); mib.call('profile:mc'); } } }, T('Spróbuj ponownie'))),
+        mibSt.retryIn ? h('small', { class: 'mut' }, T('Launcher spróbuje też sam za chwilę.')) : null)
+      : h('div', { class: 'card pf-auto', id: 'pf-auto', role: 'status' }, h('i', { class: 'spin', 'aria-hidden': 'true' }),
+        h('div', {}, h('b', {}, T('Loguję do profilu MiB…')), h('p', { class: 'mut' }, T('Wystarczy konto Microsoft: profil MiB loguje się sam, a jeśli go nie masz, zakłada się sam.'))));
+    return [h('h2', {}, T('Profil MiB')), card, other];
+  }
   function viewComplete() {
     const nick = h('input', { id: 'pc-nick', maxlength: 16, autocomplete: 'off' }), err = errBox();
     const submit = h('button', { class: 'b', id: 'pc-go', type: 'submit' }, T('Utwórz profil'));
@@ -242,7 +269,7 @@
   }
   function render() {
     const box = $('prof-box');
-    box.replaceChildren(...(st.loading ? [h('h2', {}, T('Profil MiB')), h('p', { class: 'mut' }, T('Wczytywanie…'))] : st.loggedIn ? viewIn() : st.needsProfile ? viewComplete() : st.offline ? viewOffline() : viewOut()).filter(Boolean));
+    box.replaceChildren(...(st.loading ? [h('h2', {}, T('Profil MiB')), h('p', { class: 'mut' }, T('Wczytywanie…'))] : st.loggedIn ? viewIn() : st.needsProfile ? viewComplete() : st.offline ? viewOffline() : noAcc() ? viewOut() : viewAuto()).filter(Boolean));
     if (st.loggedIn) mib.call('prof:cosmetics').then(l => { const e = $('pf-cos'); if (e) e.textContent = Array.isArray(l) ? T('Posiadane przedmioty') + ': ' + l.length : msg(l.error); });
     if (st.loggedIn) achievementsCheck(true);
   }
@@ -1223,53 +1250,12 @@
     body.addEventListener('input', () => { count.textContent = body.value.trim().length + ' / 1000'; });
     const err = errBox(), send = h('button', { class: 'b', id: 'id-send', type: 'submit' }, T('Wyślij pomysł'));
     const list = h('div', { id: 'id-list' }, h('p', { class: 'mut' }, T('Wczytywanie…')));
-    // Pomysły innych graczy: głos jednym kliknięciem (nie na własny), najpopularniejsze albo najnowsze
-    const pub = h('div', { id: 'ip-list' }, h('p', { class: 'mut' }, T('Wczytywanie…')));
-    const sortSeg = h('div', { class: 'seg', role: 'tablist', id: 'ip-sort' }, ...[['top', 'Najpopularniejsze'], ['new', 'Najnowsze']].map(([k, l]) =>
-      h('button', { type: 'button', role: 'tab', class: ideaSort === k ? 'on' : '', 'data-sort': k, on: { click: () => {
-        ideaSort = k; pubShown = 20;
-        for (const b of sortSeg.children) b.classList.toggle('on', b.dataset.sort === k);
-        loadPublic();
-      } } }, T(l))));
-    let pubAll = [], pubShown = 20;
-    async function loadPublic() {
-      const l = await mib.call('prof:ideasPublic', { sort: ideaSort });
-      if (!Array.isArray(l)) { pub.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail))); return; }
-      pubAll = l; showPublic();
-    }
-    function voteBtn(i) {
-      const cnt = h('b', {}, String(i.votes));
-      const b = h('button', { class: 'vote' + (i.voted ? ' on' : ''), type: 'button', 'aria-pressed': String(!!i.voted), disabled: !!i.mine,
-        title: T(i.mine ? 'To Twój pomysł' : i.voted ? 'Cofnij głos' : 'Daj głos'), on: { click: async () => {
-          b.disabled = true;
-          const r = await mib.call('prof:ideaVote', { id: i.id, on: !i.voted });
-          b.disabled = false;
-          if (r.error) return toast(msg(r.error, r.detail), 1);
-          i.voted = !i.voted; i.votes = r.votes;
-          b.classList.toggle('on', i.voted); b.setAttribute('aria-pressed', String(i.voted)); b.title = T(i.voted ? 'Cofnij głos' : 'Daj głos'); cnt.textContent = String(i.votes);
-        } } }, voteIcon(), cnt);
-      return b;
-    }
-    function showPublic() {
-      const l = pubAll.slice(0, pubShown);
-      pub.replaceChildren(...(l.length ? l.map(i => h('div', { class: 'card idea pub' + (i.mine ? ' mine' : ''), 'data-id': i.id }, voteBtn(i),
-        h('div', { class: 'ibody' },
-          h('div', { class: 'ihead' }, h('b', {}, i.mine ? T('Twój pomysł') : i.nick), h('em', { class: 'tag' }, T(IDEA_CAT[i.category] || i.category)),
-            i.status !== 'new' ? h('em', { class: 'tag st-' + i.status }, T(IDEA_ST[i.status] || i.status)) : null, h('span', { class: 'mut' }, fmtDate(i.created_at))),
-          h('p', {}, i.mine ? i.body : clean(i.body)),
-          i.reply ? h('div', { class: 'ireply' }, h('small', {}, T('Odpowiedź twórcy MiB Client')), h('p', {}, i.reply)) : null)))
-        : [h('p', { class: 'empty' }, T('Nikt jeszcze nie wysłał pomysłu do głosowania. Bądź pierwszy!'))]),
-        ...(pubAll.length > pubShown ? [h('button', { class: 'b ghost', type: 'button', on: { click: () => { pubShown += 20; showPublic(); } } }, T('Pokaż więcej'))] : []));
-    }
     async function loadMine() {
       const l = await mib.call('prof:myIdeas');
       if (!Array.isArray(l)) return list.replaceChildren(h('p', { class: 'err' }, msg(l.error, l.detail)));
-      const votes = {};
-      for (const x of pubAll) votes[x.id] = x.votes;
       list.replaceChildren(...(l.length ? l.map(i => h('div', { class: 'card idea' },
         h('div', { class: 'ihead' }, h('em', { class: 'tag' }, T(IDEA_CAT[i.category] || i.category)), h('span', { class: 'mut' }, fmtDate(i.created_at)),
           i.rewarded ? h('em', { class: 'tag hunter' }, T('Nagrodzony')) : null,
-          votes[i.id] ? h('em', { class: 'tag votes' }, T('Głosy') + ': ' + votes[i.id]) : null,
           h('em', { class: 'tag st-' + i.status }, T(IDEA_ST[i.status] || i.status))),
         h('p', {}, i.body),
         i.reply ? h('div', { class: 'ireply' }, h('small', {}, T('Odpowiedź twórcy MiB Client')), h('p', {}, i.reply)) : null))
@@ -1287,19 +1273,14 @@
       if (r.error) { err.textContent = msg(r.error, r.detail); return; }
       body.value = ''; count.textContent = '0 / 1000';
       toast(T('Dzięki, pomysł wysłany.'));
-      await loadPublic(); loadMine();
+      loadMine();
     } } },
     field('Czego dotyczy', cat), field('Pomysł', body, 'Od 10 do 1000 znaków. Najwyżej 5 pomysłów dziennie.'), err,
     h('div', { class: 'row', style: 'align-items:center;justify-content:space-between' }, send, count));
-    box.replaceChildren(...head, form, h('div', { class: 'sec' }, h('h3', {}, T('Twoje pomysły')), list),
-      h('div', { class: 'sec', id: 'ip' }, h('div', { class: 'row', style: 'align-items:center;justify-content:space-between' }, h('h3', {}, T('Pomysły graczy')), sortSeg),
-        h('p', { class: 'mut' }, T('Daj głos pomysłom, które chcesz zobaczyć w MiB Client. Twórca widzi, które są najpopularniejsze.')), pub));
-    await loadPublic();
+    // od 0.37.0 bez pomysłów innych graczy: każdy widzi tylko swoje (i odpowiedzi twórcy)
+    box.replaceChildren(...head, form, h('div', { class: 'sec' }, h('h3', {}, T('Twoje pomysły')), list));
     loadMine();
   }
-  let ideaSort = 'top';
-  const voteIcon = () => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
-    s.innerHTML = '<path fill="currentColor" d="M11 4h2v2h-2zM9 6h6v2H9zM7 8h10v2H7zM5 10h14v2H5zM10 12h4v8h-4z"/>'; return s; };
 
   // ===== Strona Znajomi =====
   // Status znajomego: w grze (serwer, wersja), w launcherze albo offline z czasem ostatniej obecności
@@ -1777,7 +1758,7 @@
   };
   window.mibProfileUI = { modsShown, refresh, sidebar, holidays: () => holidayCheck(true), get loggedIn() { return !!(st.loggedIn || st.offline); },
     openShop: () => document.querySelector('#side .nav[data-tab="shop"]').click() };
-  window.mibUI = { h, msg, fmtDate, capeThumb, itemImage, copyText };
+  window.mibUI = { h, msg, fmtDate, capeThumb, itemImage, copyText, kindIcon };
   sidebar();
   render();
   refresh();

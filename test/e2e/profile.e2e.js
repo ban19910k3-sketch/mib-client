@@ -34,6 +34,13 @@ function png(w, h, px) {
   const errors = [];
   w.on('pageerror', e => errors.push(e.message));
   const shot = n => w.screenshot({ path: path.join(OUT, n) });
+  // wybór przedmiotu w panelu admina (0.37.0): przycisk obok ukrytej listy otwiera okno z kafelkami
+  const pickItem = async (sel, id) => {
+    await w.click(sel + ' + .ipick');
+    await w.waitForSelector('#ipk .ipk-t');
+    await w.click(`#ipk .ipk-t[data-id="${id}"]`);
+    await w.waitForSelector('#ipk', { state: 'detached' });
+  };
   try {
     await w.waitForSelector('#app.on', { timeout: 15000 });
     await w.click('#w-go', { timeout: 5000 }).catch(() => {});
@@ -88,7 +95,8 @@ function png(w, h, px) {
     assert.equal(await w.textContent('#accn'), 'Steve');
     ok('(at) logowanie z okna: kółko, „Witaj, Steve!”, okno znika, strony odblokowane');
     await w.click('.nav[data-p="home"]');
-    await w.waitForFunction(() => document.getElementById('plname').textContent === 'Załóż profil MiB');
+    // po zalogowaniu kontem Microsoft profil MiB loguje się sam (0.37.0): dolny blok „Logowanie…”
+    await w.waitForFunction(() => document.getElementById('plname').textContent === 'Profil MiB' && document.getElementById('plsub').textContent === 'Logowanie…');
     ok('(a) dolny blok zachęca do założenia profilu');
     assert.equal(await w.evaluate(() => document.documentElement.classList.contains('t-halloween')), require('../../lib/profile').season() === 'halloween', 'motyw według daty');
     ok('(ao) motyw Halloween według daty');
@@ -98,8 +106,22 @@ function png(w, h, px) {
     assert.match(await w.textContent('#id-reward'), /ekskluzywny kosmetyk.*musi naprawdę występować/, 'informacja o nagrodzie za błąd');
     ok('(m) pomysły bez profilu: zachęta do założenia profilu');
     await w.click('#plbox');
+    // zamiast formularzy: „Loguję do profilu MiB…”, a przy błędzie powód i „Spróbuj ponownie” (stan z main.js)
+    await w.waitForSelector('#p-prof.on #pf-auto .spin');
+    assert.match(await w.textContent('#pf-auto'), /Loguję do profilu MiB.*loguje się sam/s);
+    assert.equal(await w.isVisible('#pf-nick'), false, 'formularze e-mail schowane');
+    await shot('prof-auto.png');
+    await app.evaluate(({ ipcMain, BrowserWindow }) => { global.mcRetry = 0; ipcMain.removeHandler('profile:mc'); ipcMain.handle('profile:mc', () => { global.mcRetry++; return true; });
+      BrowserWindow.getAllWindows()[0].webContents.send('profile:status', { state: 'error', error: 'mojang_unavailable', message: 'Mojang nie odpowiada', retryIn: 15000 }); });
+    await w.waitForSelector('#pf-auto.err #pf-retry');
+    assert.match(await w.textContent('#pf-auto'), /Nie udało się zalogować do profilu MiB.*Serwery Mojanga nie odpowiadają.*spróbuje też sam/s);
+    await shot('prof-auto-err.png');
+    await w.click('#pf-retry');
+    await until(async () => (await app.evaluate(() => global.mcRetry)) === 1);
+    await w.waitForSelector('#pf-auto .spin');
+    ok('(av) profil MiB loguje się sam po koncie Microsoft: „Loguję…”, błąd z powodem i „Spróbuj ponownie”');
+    await w.click('#pf-other summary');
     await w.waitForSelector('#p-prof.on #pf-nick');
-    assert.match(await w.textContent('#pf-mc-hint'), /kontem Microsoft.*założy się sam/s, 'podpowiedź: profil z konta Minecraft');
     await shot('prof-out.png');
 
     await w.fill('#pf-nick', 'Łukasz'); await w.fill('#pf-email', 'tester@mib.pl'); await w.fill('#pf-pass', 'haslo1234');
@@ -640,30 +662,18 @@ function png(w, h, px) {
     assert.doesNotMatch(crash.details, /accessToken\s+\w{20}/, 'bez tokenów');
     ok('(ad) osiągnięcia na profilu, okno ostrzeżenia 1/4 i raport awarii do twórcy');
 
-    // Głosowanie na pomysły innych graczy (bez własnych i bez zgłoszeń błędów), filtr wulgaryzmów w treści
+    // Pomysły innych graczy (od 0.37.0) nie są widoczne: każdy widzi tylko swoje; głosy z wcześniejszych wersji zostają dla admina
     fake.st.ideas.push({ id: ++fake.st.ideaId, user: kolega.id, category: 'feature', body: 'Dodajcie kurwa tryb 1v1 na arenie', status: 'new', created_at: now },
       { id: ++fake.st.ideaId, user: ziomek.id, category: 'cosmetic', body: 'Skrzydła z ognia dla zwycięzców', status: 'planned', created_at: now },
       { id: ++fake.st.ideaId, user: ziomek.id, category: 'bug', body: 'Czat się zacina w menu gry', status: 'new', created_at: now });
     const kIdea = fake.st.ideas.find(i => i.user === kolega.id && i.category === 'feature');
-    fake.st.votes.push({ idea: fake.st.ideaId - 1, user: kolega.id }, { idea: fake.st.ideaId - 1, user: 'x' });
+    fake.st.votes.push({ idea: fake.st.ideaId - 1, user: kolega.id }, { idea: fake.st.ideaId - 1, user: 'x' }, { idea: kIdea.id, user: me.id });
     await w.click('.nav[data-p="ideas"]');
-    await w.waitForSelector('#ip-list .idea.pub');
-    assert.match(await w.textContent('#ip-list .idea.pub:first-child'), /Ziomek.*Skrzydła z ognia/s, 'najpopularniejsze na górze');
-    assert.equal(await w.$('#ip-list .idea.pub:has-text("Czat się zacina")'), null, 'zgłoszeń błędów nie ma w głosowaniu');
-    const kCard = `#ip-list .idea.pub[data-id="${kIdea.id}"]`;
-    assert.match(await w.textContent(kCard), /Dodajcie k\*\*\*\* tryb 1v1/, 'filtr wulgaryzmów w pomysłach');
-    assert.equal(await w.isDisabled('#ip-list .idea.pub.mine .vote'), true, 'na własny pomysł nie można głosować');
-    await w.click(kCard + ' .vote');
-    await w.waitForFunction(s => document.querySelector(s + ' .vote').classList.contains('on') && document.querySelector(s + ' .vote b').textContent === '1', kCard);
-    assert.ok(fake.st.votes.some(v => v.idea === kIdea.id && v.user === me.id), 'głos w bazie');
-    await shot('ideas-vote.png');
-    await w.click(kCard + ' .vote');
-    await w.waitForFunction(s => !document.querySelector(s + ' .vote').classList.contains('on') && document.querySelector(s + ' .vote b').textContent === '0', kCard);
-    await w.click(kCard + ' .vote');
-    await until(() => fake.st.votes.some(v => v.idea === kIdea.id && v.user === me.id));
-    await w.click('#ip-sort button[data-sort="new"]');
-    await w.waitForFunction(id => document.querySelector('#ip-list .idea.pub').dataset.id === String(id), fake.st.ideaId - 1);
-    ok('(ak) głosowanie na pomysły graczy: najpopularniejsze, głos i cofnięcie, filtr wulgaryzmów');
+    await w.waitForSelector('#id-list .idea');
+    assert.equal(await w.$('#ip-list'), null, 'bez sekcji z pomysłami graczy');
+    assert.doesNotMatch(await w.textContent('#ideas-box'), /Skrzydła z ognia|Dodajcie|Pomysły graczy/, 'cudzych pomysłów nie widać');
+    assert.ok(!fake.st.calls.some(c => c.path === '/rest/v1/rpc/ideas_public'), 'launcher nawet o nie nie pyta');
+    ok('(ak) Pomysły: gracz widzi tylko swoje pomysły, bez pomysłów innych graczy');
 
     await w.click('.nav[data-p="prof"]');
     await w.waitForSelector('#p-prof.on .phead');
@@ -722,7 +732,7 @@ function png(w, h, px) {
     await until(() => fake.st.ideas[0].reply === 'Dzięki, dodamy ją w następnej wersji!');
     await w.click(idea + ' button:has-text("Nagródź")');
     await w.waitForSelector(idea + ' .gift-form .gift-pick option', { state: 'attached' });
-    await w.selectOption(idea + ' .gift-pick', 'cape_start');
+    await pickItem(idea + ' .gift-pick', 'cape_start');
     await w.fill(idea + ' .gift-note', 'Dzięki za świetny pomysł!');
     await w.click(idea + ' button:has-text("Wyślij nagrodę")');
     await w.waitForSelector(idea + ' .tag.hunter:has-text("Nagrodzony")');
@@ -909,7 +919,7 @@ function png(w, h, px) {
     await w.waitForFunction(() => /MM-DD/.test(document.querySelector('#at-form .err').textContent));
     await w.fill('#at-starts', '02-12');
     await w.fill('#at-coins', '75');
-    await w.selectOption('#at-gift', 'cape_start');
+    await pickItem('#at-gift', 'cape_start');
     await w.fill('#at-bonus', '5');
     await w.check('#at-items input[value="hat_mib"]');
     await w.check('#at-forced');
@@ -922,9 +932,9 @@ function png(w, h, px) {
     await w.fill('#aa-list .adv-row[data-day="7"] .adv-coins', '40');
     await w.press('#aa-list .adv-row[data-day="7"] .adv-coins', 'Tab');
     await until(() => fake.st.advent.find(a => a.day === 7).coins === 40);
-    await w.selectOption('#aa-list .adv-row[data-day="8"] .adv-cos', 'cape_start');
+    await pickItem('#aa-list .adv-row[data-day="8"] .adv-cos', 'cape_start');
     await until(() => fake.st.advent.find(a => a.day === 8).cosmetic_id === 'cape_start');
-    await w.waitForSelector('#aa-list .adv-row[data-day="8"] .pick-thumb');
+    await w.waitForSelector('#aa-list .adv-row[data-day="8"] .ipick .ipick-i > *');
     await w.waitForSelector('#aa-stage canvas.cape3d:not([hidden])');
     await w.waitForTimeout(500);
     await shot('admin-themes.png');
@@ -942,9 +952,9 @@ function png(w, h, px) {
     await w.click('[data-tab="players"]');
     await w.click('#ap-res .arow:has-text("Sierota_1")');
     await w.waitForSelector('#ap-detail .gift-pick option[value="cape_start"]', { state: 'attached' });
-    await w.selectOption('#ap-detail .gift-pick', 'cape_start');
+    await pickItem('#ap-detail .gift-pick', 'cape_start');
     // podgląd przedmiotu przy wyborze (0.28.0): miniatura i postać 3D w wybranym przedmiocie
-    await w.waitForSelector('#ap-detail .gift-form .pick-thumb');
+    await w.waitForSelector('#ap-detail .gift-form .ipick .ipick-i > *');
     await w.waitForSelector('#ap-detail .gift-form canvas.cape3d:not([hidden])');
     await w.waitForFunction(() => document.querySelector('#ap-detail .gift-form canvas.cape3d').dataset !== undefined);
     await w.waitForTimeout(800);
@@ -961,7 +971,7 @@ function png(w, h, px) {
     await until(() => fake.st.ideas.some(i => i.user === sier.id && i.reply));
     await w.click(bugCard + ' button:has-text("Nagródź")');
     await w.waitForSelector(bugCard + ' .gift-pick option[value="hat_mib"]', { state: 'attached' });
-    await w.selectOption(bugCard + ' .gift-pick', 'hat_mib');
+    await pickItem(bugCard + ' .gift-pick', 'hat_mib');
     await w.fill(bugCard + ' .gift-note', 'Dzięki za znalezienie błędu z czatem!');
     await w.click(bugCard + ' button:has-text("Wyślij nagrodę")');
     await w.waitForSelector(bugCard + ' .tag.hunter');
@@ -1008,7 +1018,27 @@ function png(w, h, px) {
     await w.click('.nav[data-p="admin"]');
     await w.click('[data-tab="players"]');
     await w.waitForSelector('#ga-pick option[value="cape_start"]', { state: 'attached' });
-    await w.selectOption('#ga-pick', 'cape_start');
+    // okno wyboru: kafelki z podglądem, rodzaje, szukanie, Esc zamyka bez zmiany
+    await w.click('#ga-pick + .ipick');
+    await w.waitForSelector('#ipk .ipk-t .ipk-i > *');
+    const kindsIn = await w.$$eval('#ipk .ipk-kinds .kind', l => l.map(b => b.dataset.k));
+    assert.ok(kindsIn[0] === 'all' && kindsIn.includes('cape') && kindsIn.includes('hat'), 'rodzaje: ' + kindsIn);
+    await w.click('#ipk .ipk-kinds [data-k="hat"]');
+    assert.ok(await w.$$eval('#ipk .ipk-t', l => l.length > 0 && l.every(t => /Czapka/.test(t.textContent))), 'tylko czapki');
+    await w.click('#ipk .ipk-kinds [data-k="all"]');
+    await w.fill('#ipk-q', 'Peleryna Start');
+    await w.waitForFunction(() => document.querySelectorAll('#ipk .ipk-t').length === 1);
+    await shot('admin-picker.png');
+    await w.keyboard.press('Escape');
+    await w.waitForSelector('#ipk', { state: 'detached' });
+    await w.click('#ga-pick + .ipick');
+    assert.equal(await w.inputValue('#ipk-q'), 'Peleryna Start', 'okno pamięta szukanie');
+    await w.press('#ipk-q', 'Enter');
+    await w.waitForSelector('#ipk', { state: 'detached' });
+    assert.equal(await w.inputValue('#ga-pick'), 'cape_start', 'Enter wybiera pierwszy kafelek');
+    assert.match(await w.textContent('#ga-pick + .ipick'), /Peleryna Start.*Peleryna/s, 'przycisk pokazuje wybraną rzecz');
+    await w.click('#ga-pick + .ipick'); await w.fill('#ipk-q', ''); await w.keyboard.press('Escape');
+    ok('(aw) panel admina: wybór przedmiotu w oknie z kafelkami, rodzajami i szukaniem');
     await w.fill('#ga-note', 'Wesołych Świąt od MiB!');
     const giftsBefore = fake.st.gifts.length;
     w.once('dialog', d => d.accept());
@@ -1078,8 +1108,13 @@ function png(w, h, px) {
     assert.equal(await w.isChecked('#s-cf'), true, 'filtr wulgaryzmów domyślnie włączony');
     await w.uncheck('#s-cf'); await w.click('#s-save');
     await w.waitForFunction(() => mib.call('settings:get').then(s => s.chatFilter === false));
-    await w.click('.nav[data-p="ideas"]');
-    await w.waitForSelector('#ip-list .idea.pub:has-text("Dodajcie kurwa tryb")');
+    // (pomysłów innych graczy już nie widać, więc filtr sprawdzamy w rozmowie ze znajomym)
+    if (!fake.st.friends.some(f => f.accepted && [f.from, f.to].includes(kolega.id) && [f.from, f.to].includes(sier.id))) fake.st.friends.push({ from: kolega.id, to: sier.id, accepted: true });
+    fake.st.messages.push({ id: ++fake.st.msgId, from: kolega.id, to: sier.id, body: 'Ale kurwa gra', at: new Date().toISOString(), read: true });
+    await w.click('.nav[data-p="friends"]');
+    await w.click('#fr-list .frow:has-text("Kolega") .chat-b');
+    await w.waitForSelector('#chat .msg:has-text("Ale kurwa gra")');
+    await w.press('#chat-in', 'Escape');
     await w.click('.nav[data-p="set"]');
     await w.click('.stab[data-st="gen"]');
     await w.check('#s-cf'); await w.click('#s-save');

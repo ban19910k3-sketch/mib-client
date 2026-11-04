@@ -90,16 +90,92 @@
   // (jedna na cały panel, przenoszona tam, gdzie ostatnio wybierano). stage: miejsce na postać, gdy lista jest w wąskim wierszu.
   function pickPreview(select, all, stage) {
     const box = h('span', { class: 'pick-prev' });
+    itemChooser(select, all);
     const show = big => {
       const c = all.find(x => x.id === select.value), tex = c && (c.texture || c.image_url);
-      box.replaceChildren(...(c ? [h('i', { class: 'pick-thumb', title: c.name + ' (' + (TYPES[c.type] || c.type) + ')' }, window.mibUI.itemImage({ ...c, imageUrl: tex }, 3))] : []));
+      box.replaceChildren();
       if (big && c && tex) (stage || box).append(capePreview(tex, c.type, c.id));
       else if (big && stage) stage.replaceChildren();
     };
     select.addEventListener('change', () => show(true));
-    select.addEventListener('focus', () => show(true));
     show(false);
     return box;
+  }
+
+  // Wybór przedmiotu (od 0.37.0): zamiast długiej listy przycisk z wybraną rzeczą, a po kliknięciu okno z kafelkami
+  // (miniatury), rodzajami i szukaniem. Lista <select> zostaje ukryta pod spodem: wartość, zdarzenie change i podgląd 3D jak dotąd.
+  let pickKind = 'all', pickQuery = '';
+  const texOf = c => c.texture || c.image_url;
+  function itemChooser(select, all) {
+    select.hidden = true;
+    const btn = h('button', { type: 'button', class: 'ipick', 'aria-haspopup': 'dialog', on: { click: () => openPicker(select, all, btn) } });
+    const draw = () => {
+      const c = all.find(x => x.id === select.value), opt = select.selectedOptions[0];
+      btn.replaceChildren(h('i', { class: 'ipick-i', 'aria-hidden': 'true' }, c && texOf(c) ? window.mibUI.itemImage({ ...c, imageUrl: texOf(c) }, 2) : c ? '◆' : '∅'),
+        h('span', { class: 'ipick-t' }, h('b', {}, c ? c.name : opt ? opt.textContent : 'Brak przedmiotów'), h('small', {}, c ? TYPES[c.type] || c.type : 'kliknij, żeby wybrać')),
+        h('span', { class: 'ipick-c', 'aria-hidden': 'true' }, 'Zmień'));
+      btn.disabled = !select.options.length;
+    };
+    select.addEventListener('change', draw);
+    new MutationObserver(draw).observe(select, { childList: true }); // listy wypełniane później (np. kody)
+    draw();
+    // przycisk w miejscu listy, gdy ta trafi do strony
+    let tries = 0;
+    const place = () => { if (!select.isConnected) return ++tries < 600 && requestAnimationFrame(place); if (select.nextSibling !== btn) select.after(btn); };
+    place();
+  }
+  function openPicker(select, all, from) {
+    const old = document.getElementById('ipk'); if (old) old.remove();
+    const items = [...select.options].filter(o => o.value).map(o => all.find(c => c.id === o.value) || { id: o.value, name: o.textContent, type: '' });
+    const empty = [...select.options].find(o => !o.value);
+    const kinds = ['all', ...Object.keys(TYPES).filter(t => items.some(c => c.type === t))];
+    if (!kinds.includes(pickKind)) pickKind = 'all';
+    const q = h('input', { type: 'search', id: 'ipk-q', placeholder: 'Szukaj po nazwie albo ID…', value: pickQuery, 'aria-label': 'Szukaj przedmiotu' });
+    const bar = h('div', { class: 'kinds ipk-kinds', role: 'group', 'aria-label': 'Rodzaj' });
+    const grid = h('div', { class: 'ipk-grid', id: 'ipk-grid' }), count = h('small', { class: 'mut ipk-n' });
+    const io = new IntersectionObserver(es => es.forEach(e => {
+      if (!e.isIntersecting) return;
+      io.unobserve(e.target);
+      const c = e.target._c;
+      e.target.querySelector('.ipk-i').replaceChildren(texOf(c) ? window.mibUI.itemImage({ ...c, imageUrl: texOf(c) }, 4) : '◆');
+    }), { root: grid, rootMargin: '240px' });
+    const close = () => { io.disconnect(); ov.remove(); document.removeEventListener('keydown', key, true); from.focus(); };
+    const choose = v => { select.value = v; select.dispatchEvent(new Event('change')); close(); };
+    const key = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+    const tile = c => {
+      const t = h('button', { type: 'button', class: 'ipk-t' + (c.id === select.value ? ' on' : ''), 'data-id': c.id, title: c.name + ' — ' + c.id, on: { click: () => choose(c.id) } },
+        h('i', { class: 'ipk-i', 'aria-hidden': 'true' }), h('b', {}, c.name), h('small', {}, TYPES[c.type] || c.type || ''));
+      t._c = c; io.observe(t);
+      return t;
+    };
+    function draw() {
+      const needle = q.value.trim().toLowerCase();
+      const match = c => !needle || (c.name + ' ' + c.id).toLowerCase().includes(needle);
+      bar.replaceChildren(...kinds.map(k => {
+        const n = items.filter(c => (k === 'all' || c.type === k) && match(c)).length;
+        return h('button', { type: 'button', class: 'kind' + (k === pickKind ? ' on' : '') + (n ? '' : ' none'), 'data-k': k, 'aria-pressed': String(k === pickKind),
+          on: { click: () => { pickKind = k; draw(); } } },
+        h('span', { class: 'ki' }, window.mibUI.kindIcon(k), h('span', { class: 'kn' }, String(n))), h('span', { class: 'kl' }, k === 'all' ? 'Wszystko' : TYPES_MANY[k] || TYPES[k]));
+      }));
+      const shown = items.filter(c => (pickKind === 'all' || c.type === pickKind) && match(c));
+      grid.replaceChildren(...(empty && !needle ? [h('button', { type: 'button', class: 'ipk-t none' + (!select.value ? ' on' : ''), 'data-id': '', on: { click: () => choose('') } },
+        h('i', { class: 'ipk-i', 'aria-hidden': 'true' }, '∅'), h('b', {}, empty.textContent), h('small', {}, 'bez przedmiotu'))] : []), ...shown.map(tile));
+      if (!shown.length && !(empty && !needle)) grid.append(h('p', { class: 'empty' }, needle ? 'Nic nie pasuje do „' + q.value.trim() + '”.' : 'Brak przedmiotów tego rodzaju.'));
+      count.textContent = shown.length + ' z ' + items.length;
+    }
+    q.oninput = () => { pickQuery = q.value; draw(); };
+    // Enter wybiera pierwszy kafelek (bez preventDefault Enter trafiłby potem w przycisk wyboru i otworzył okno znowu)
+    q.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const f = grid.querySelector('.ipk-t:not(.none)'); if (f) f.click(); } };
+    const ov = h('div', { class: 'ov on', id: 'ipk', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Wybierz przedmiot', on: { mousedown: e => { if (e.target === ov) close(); } } },
+      h('div', { class: 'm ipk-m' },
+        h('div', { class: 'ipk-head' }, h('h3', {}, 'Wybierz przedmiot'), count, h('button', { type: 'button', class: 'ipk-x', 'aria-label': 'Zamknij', on: { click: close } }, '✕')),
+        q, bar, grid));
+    document.body.append(ov);
+    document.addEventListener('keydown', key, true);
+    draw();
+    q.focus();
+    const sel = grid.querySelector('.ipk-t.on');
+    if (sel) sel.scrollIntoView({ block: 'center' });
   }
   // Pełna lista kosmetyków z teksturami (do podglądu); lite — bez tekstur
   const allWithTextures = async () => { const l = await mib.call('prof:allCosmetics'); return Array.isArray(l) ? l : []; };
