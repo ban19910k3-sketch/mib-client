@@ -1,0 +1,221 @@
+// MiB Client na Androida (od 0.43.0): dodatek do Amethyst (LGPL-3.0, https://github.com/AngelAuraMC/Amethyst-Android),
+// wpinany przez android/mib.py. Ten plik jest na tej samej licencji (LGPL-3.0).
+// - setup: profil „MiB Client” (Minecraft z Fabric, mod MiB i Fabric API z paczki aplikacji) w osobnym folderze gry,
+//   przy pierwszym uruchomieniu wybrany; po aktualizacji aplikacji pliki moda się odświeżają.
+// - aktualizacje jak na komputerze: przy starcie pyta GitHuba o najnowsze wydanie MiB; gdy jest nowsza wersja z plikiem
+//   na Androida — okno „Jest nowa wersja”, „Aktualizuj” pobiera APK i otwiera instalator Androida.
+package pl.mibclient.android;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.res.AssetManager;
+import android.net.Uri;
+import android.os.Build;
+import android.util.Log;
+import android.widget.ProgressBar;
+
+import androidx.core.content.FileProvider;
+
+import net.kdt.pojavlaunch.BuildConfig;
+import net.kdt.pojavlaunch.Tools;
+import net.kdt.pojavlaunch.prefs.LauncherPreferences;
+import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles;
+import net.kdt.pojavlaunch.value.launcherprofiles.MinecraftProfile;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+
+public final class Mib {
+    private static final String TAG = "MiB";
+    static final String REPO = "ban19910k3-sketch/mib-client";
+    static final String APK = "MiB-Client-android.apk";
+    /** Stały klucz profilu (Amethyst zamienia klucze, które nie są UUID). */
+    static final String PROFILE_KEY = "6d694200-c11e-4e7a-8000-000000000001";
+    static final String GAME_DIR = "./custom_instances/mib";
+    static final String MOD = "mib-client-mod.jar";
+    private static boolean checked;
+
+    private Mib() {}
+
+    /** Z LauncherActivity.onCreate (przed listą profili): profil MiB od razu, aktualizacja w tle. */
+    public static void start(Activity a) {
+        try { setup(a); } catch (Throwable t) { Log.e(TAG, "setup", t); }
+        if (checked) return;
+        checked = true;
+        new Thread(() -> {
+            try { checkUpdate(a); } catch (Throwable t) { Log.w(TAG, "update", t); }
+        }, "MiB-update").start();
+    }
+
+    // ---------- profil MiB ----------
+
+    static void setup(Context c) throws Exception {
+        AssetManager am = c.getAssets();
+        String bundled = read(am.open("mib/version.txt")).trim();
+        SharedPreferences p = c.getSharedPreferences("mib", Context.MODE_PRIVATE);
+        String fabricJson = read(am.open("mib/fabric-profile.json"));
+        String id = new JSONObject(fabricJson).getString("id");
+        File game = new File(Tools.DIR_GAME_HOME, GAME_DIR), mods = new File(game, "mods");
+        File versionJson = new File(Tools.DIR_HOME_VERSION, id + "/" + id + ".json");
+        String api = read(am.open("mib/fabric-api.txt")).trim();
+        if (!bundled.equals(p.getString("installed", "")) || !versionJson.isFile() || !new File(mods, MOD).isFile() || !new File(mods, api).isFile()) {
+            if (!versionJson.getParentFile().isDirectory() && !versionJson.getParentFile().mkdirs()) throw new IOException("nie da się utworzyć " + versionJson.getParent());
+            Tools.write(versionJson.getAbsolutePath(), fabricJson);
+            if (!mods.isDirectory() && !mods.mkdirs()) throw new IOException("nie da się utworzyć " + mods);
+            File[] old = mods.listFiles();
+            if (old != null) for (File f : old) {
+                String n = f.getName().toLowerCase(Locale.ROOT);
+                if (n.startsWith("mib-client-mod") || n.startsWith("fabric-api-")) f.delete();
+            }
+            copy(am.open("mib/" + MOD), new File(mods, MOD));
+            copy(am.open("mib/" + api), new File(mods, api));
+        }
+        LauncherProfiles.load();
+        MinecraftProfile mp = LauncherProfiles.mainProfileJson.profiles.get(PROFILE_KEY);
+        boolean created = mp == null;
+        if (created) {
+            mp = new MinecraftProfile();
+            LauncherProfiles.mainProfileJson.profiles.put(PROFILE_KEY, mp);
+        }
+        mp.name = "MiB Client";
+        mp.lastVersionId = id;
+        mp.gameDir = GAME_DIR;
+        mp.icon = "data:image/png;base64," + read(am.open("mib/icon.b64")).trim();
+        LauncherProfiles.write();
+        if (created) LauncherPreferences.DEFAULT_PREF.edit().putString(LauncherPreferences.PREF_KEY_CURRENT_PROFILE, PROFILE_KEY).apply();
+        p.edit().putString("installed", bundled).apply();
+        Log.i(TAG, "profil MiB gotowy: " + id + " (MiB " + bundled + ")");
+    }
+
+    // ---------- aktualizacje ----------
+
+    /** Czy wersja a jest nowsza od b (liczby oddzielone kropkami). */
+    static boolean newer(String a, String b) {
+        String[] x = a.split("\\."), y = b.split("\\.");
+        for (int i = 0; i < Math.max(x.length, y.length); i++) {
+            int d = num(x, i) - num(y, i);
+            if (d != 0) return d > 0;
+        }
+        return false;
+    }
+
+    private static int num(String[] s, int i) {
+        try { return i < s.length ? Integer.parseInt(s[i].replaceAll("[^0-9].*$", "")) : 0; } catch (NumberFormatException e) { return 0; }
+    }
+
+    static void checkUpdate(Activity a) throws Exception {
+        HttpURLConnection con = open("https://api.github.com/repos/" + REPO + "/releases/latest");
+        con.setRequestProperty("Accept", "application/vnd.github+json");
+        if (con.getResponseCode() != 200) throw new IOException("kod " + con.getResponseCode());
+        JSONObject rel = new JSONObject(read(con.getInputStream()));
+        String version = rel.optString("tag_name", "").replaceFirst("^v", "");
+        if (!version.matches("\\d+\\.\\d+\\.\\d+") || !newer(version, BuildConfig.VERSION_NAME)) return;
+        JSONArray assets = rel.optJSONArray("assets");
+        String url = null;
+        for (int i = 0; assets != null && i < assets.length(); i++) {
+            JSONObject as = assets.getJSONObject(i);
+            if (APK.equals(as.optString("name"))) url = as.optString("browser_download_url");
+        }
+        if (url == null || !url.startsWith("https://github.com/" + REPO + "/releases/download/")) return;
+        final String apkUrl = url, notes = notes(rel.optString("body", ""));
+        a.runOnUiThread(() -> {
+            if (a.isFinishing()) return;
+            new AlertDialog.Builder(a)
+                    .setTitle(t("Jest nowa wersja MiB Client " + version, "New MiB Client version " + version))
+                    .setMessage(t("Masz " + BuildConfig.VERSION_NAME + ".", "You have " + BuildConfig.VERSION_NAME + ".") + (notes.isEmpty() ? "" : "\n\n" + notes))
+                    .setPositiveButton(t("Aktualizuj", "Update"), (d, w) -> download(a, apkUrl))
+                    .setNegativeButton(t("Później", "Later"), null)
+                    .show();
+        });
+    }
+
+    private static void download(Activity a, String url) {
+        ProgressBar bar = new ProgressBar(a, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(100);
+        bar.setPadding(48, 24, 48, 24);
+        AlertDialog dlg = new AlertDialog.Builder(a).setTitle(t("Pobieranie aktualizacji…", "Downloading update…")).setView(bar).setCancelable(false).show();
+        new Thread(() -> {
+            try {
+                File dir = new File(a.getCacheDir(), "mib-update");
+                if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("nie da się utworzyć " + dir);
+                File apk = new File(dir, APK);
+                HttpURLConnection con = open(url);
+                if (con.getResponseCode() != 200) throw new IOException("kod " + con.getResponseCode());
+                long total = con.getContentLength(), got = 0;
+                try (InputStream in = con.getInputStream(); OutputStream out = new FileOutputStream(apk)) {
+                    byte[] buf = new byte[1 << 16];
+                    for (int n; (n = in.read(buf)) > 0; ) {
+                        out.write(buf, 0, n);
+                        got += n;
+                        if (total > 0) { final int pct = (int) (got * 100 / total); a.runOnUiThread(() -> bar.setProgress(pct)); }
+                    }
+                }
+                if (total > 0 && got != total) throw new IOException(t("pobieranie przerwane", "download interrupted"));
+                Uri uri = FileProvider.getUriForFile(a, a.getPackageName() + ".mibupdate", apk);
+                Intent i = new Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                a.runOnUiThread(() -> { dlg.dismiss(); a.startActivity(i); });
+            } catch (Exception e) {
+                Log.e(TAG, "download", e);
+                a.runOnUiThread(() -> {
+                    dlg.dismiss();
+                    new AlertDialog.Builder(a).setTitle(t("Błąd aktualizacji", "Update error")).setMessage(String.valueOf(e.getMessage()))
+                            .setPositiveButton("OK", null).show();
+                });
+            }
+        }, "MiB-download").start();
+    }
+
+    /** Opis zmian z GitHuba (Markdown) jako zwykły tekst. */
+    static String notes(String md) {
+        return md.replace("\r", "").replaceAll("(?m)^<!--.*-->\\s*$", "").replaceAll("(?m)^#{1,6}\\s*", "")
+                .replaceAll("(?m)^\\s*[-*]\\s+", "• ").replace("**", "").replace("`", "").replaceAll("\n{3,}", "\n\n").trim();
+    }
+
+    // ---------- pomocnicze ----------
+
+    private static String t(String pl, String en) {
+        return "pl".equals(Locale.getDefault().getLanguage()) ? pl : en;
+    }
+
+    private static HttpURLConnection open(String url) throws IOException {
+        HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
+        con.setRequestProperty("User-Agent", "MiB-Client-Android");
+        con.setConnectTimeout(15000);
+        con.setReadTimeout(30000);
+        con.setInstanceFollowRedirects(true);
+        return con;
+    }
+
+    static String read(InputStream in) throws IOException {
+        try (InputStream i = in) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            for (int n; (n = i.read(buf)) > 0; ) out.write(buf, 0, n);
+            return new String(out.toByteArray(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static void copy(InputStream in, File to) throws IOException {
+        File tmp = new File(to.getPath() + ".tmp");
+        try (InputStream i = in; OutputStream out = new FileOutputStream(tmp)) {
+            byte[] buf = new byte[1 << 16];
+            for (int n; (n = i.read(buf)) > 0; ) out.write(buf, 0, n);
+        }
+        if (!tmp.renameTo(to)) throw new IOException("nie da się zapisać " + to);
+    }
+}

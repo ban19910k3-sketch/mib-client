@@ -1,0 +1,140 @@
+# MiB Client na Androida (od 0.43.0): Amethyst (LGPL-3.0, wersja przypięta niżej) + zmiany MiB (android/mib.py) + mod MiB,
+# Fabric API i profil Fabric dla Minecrafta $MC w paczce. Buduje APK i sprawdza go w emulatorze Androida (zrzut ekranu
+# w adnotacji). Z release.yml (release: true) wrzuca MiB-Client-android.apk do szkicu wydania — podpisany kluczem MiB
+# (android/mib.p12, hasło w sekrecie MIB_KEY_PASSWORD; bez sekretu wydanie na Androida się nie zbuduje).
+name: Android
+
+on:
+  push:
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+env:
+  AMETHYST: 28d6e12d68121b7dd75f2e841058a6b7cdfe4a29
+  MC: 1.21.11
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: |
+            25
+            21
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Mod MiB
+        working-directory: mod
+        run: ./gradlew -Pmc=$MC :mc-$MC:build --no-daemon || { sleep 30; ./gradlew -Pmc=$MC :mc-$MC:build --no-daemon --refresh-dependencies; }
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME_25_X64 }}
+      - name: Fabric i Fabric API
+        run: |
+          mkdir -p mibin
+          loader=$(curl -fsS "https://meta.fabricmc.net/v2/versions/loader/$MC" | jq -r '[.[] | select(.loader.stable)][0].loader.version')
+          curl -fsS -o mibin/fabric.json "https://meta.fabricmc.net/v2/versions/loader/$MC/$loader/profile/json"
+          api=$(curl -fsS -G "https://api.modrinth.com/v2/project/fabric-api/version" --data-urlencode "loaders=[\"fabric\"]" --data-urlencode "game_versions=[\"$MC\"]" | jq -c '.[0].files[] | select(.primary)')
+          curl -fsS -o "mibin/$(jq -r .filename <<<"$api")" "$(jq -r .url <<<"$api")"
+          ls -la mibin
+      - name: Amethyst
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git init -q amethyst && cd amethyst
+          git fetch -q --depth 1 https://github.com/AngelAuraMC/Amethyst-Android "$AMETHYST" && git checkout -q FETCH_HEAD
+          git submodule update --init --recursive
+      # Java 8 do paczki (jak w Amethyst); Javę 17/21/25 aplikacja pobiera sama, gdy gra jej potrzebuje
+      - uses: dawidd6/action-download-artifact@v9
+        with:
+          workflow: build.yml
+          path: amethyst/app_pojavlauncher/src/main/assets/components/jre
+          workflow_conclusion: completed
+          repo: AngelAuraMC/angelauramc-openjdk-build
+          branch: buildjre8
+          name: jre8-pojav
+      - name: Zmiany MiB
+        run: |
+          pip install -q pillow
+          v=$(node -p "require('./package.json').version")
+          python3 android/mib.py --src amethyst --version "$v" --mod "mod/versions/$MC/build/libs/mib-mod-fabric-$MC.jar" \
+            --fabric-api "$(ls mibin/fabric-api-*.jar)" --fabric-profile mibin/fabric.json --icon icon.png
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          validate-wrappers: false
+          gradle-version: "9.6.1"
+      - name: Zbuduj APK
+        working-directory: amethyst
+        env:
+          MIB_KEY_PASSWORD: ${{ secrets.MIB_KEY_PASSWORD }}
+          RELEASE: ${{ inputs.release }}
+        run: |
+          if [ -n "$MIB_KEY_PASSWORD" ]; then export MIB_KEYSTORE="$GITHUB_WORKSPACE/android/mib.p12"
+          elif [ "$RELEASE" = true ]; then echo "::error::Brak sekretu MIB_KEY_PASSWORD (hasło klucza android/mib.p12) — APK na Androida nie zostanie wydany"; exit 1
+          else echo "::warning::Brak sekretu MIB_KEY_PASSWORD — APK testowy podpisany kluczem debug"; fi
+          ./scripts/languagelist_updater.sh
+          gradle :app_pojavlauncher:assembleRelease
+          mkdir -p ../out && mv app_pojavlauncher/build/outputs/apk/release/app_pojavlauncher-release.apk ../out/MiB-Client-android.apk
+          ls -la ../out
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-apk
+          path: out/MiB-Client-android.apk
+          if-no-files-found: error
+      - name: Do szkicu wydania
+        if: inputs.release
+        run: gh release upload "v$(node -p "require('./package.json').version")" out/MiB-Client-android.apk --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # emulator: aplikacja startuje, profil MiB z modem gotowy, bez awarii; zrzut ekranu w adnotacji (mały JPEG w base64)
+  emulator:
+    needs: apk
+    if: ${{ !inputs.release }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+      - name: KVM i skrypt testu
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          pip install -q pillow
+          cat > test.sh <<'EOF'
+          set -u
+          P=pl.mibclient.android
+          adb install -r MiB-Client-android.apk
+          adb shell pm grant $P android.permission.POST_NOTIFICATIONS || true
+          adb logcat -c
+          adb shell am start -W -n $P/net.kdt.pojavlaunch.TestStorageActivity
+          sleep 45
+          adb exec-out screencap -p > shot.png
+          adb logcat -d > logcat.txt || true
+          python3 -c "import base64,io;from PIL import Image;im=Image.open('shot.png').convert('RGB');im.thumbnail((400,400));b=io.BytesIO();im.save(b,'JPEG',quality=50);print('::notice title=zrzut-android::'+base64.b64encode(b.getvalue()).decode())"
+          pid=$(adb shell pidof $P || true); echo "pid: $pid"
+          mods=$(adb shell ls /sdcard/Android/data/$P/files/custom_instances/mib/mods || true); echo "mody: $mods"
+          grep -E " (MiB|AndroidRuntime)" logcat.txt | tail -40 || true
+          ok=1
+          [ -n "$pid" ] || { echo "::error::MiB Client nie działa po starcie"; ok=0; }
+          if grep -q "FATAL EXCEPTION" logcat.txt; then echo "::error::awaria: $(grep -A8 'FATAL EXCEPTION' logcat.txt | tr '\n' ' ' | cut -c1-1500)"; ok=0; fi
+          grep -q "profil MiB gotowy" logcat.txt || { echo "::error::brak profilu MiB: $(grep -E ' MiB|Exception' logcat.txt | tail -15 | tr '\n' ' ' | cut -c1-1500)"; ok=0; }
+          echo "$mods" | grep -q mib-client-mod.jar || { echo "::error::brak moda MiB w folderze gry"; ok=0; }
+          echo "$mods" | grep -q "fabric-api-" || { echo "::error::brak Fabric API w folderze gry"; ok=0; }
+          [ $ok = 1 ] && echo "::notice::PASS Android: aplikacja startuje, profil MiB z modem i Fabric API"
+          [ $ok = 1 ]
+          EOF
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: bash test.sh

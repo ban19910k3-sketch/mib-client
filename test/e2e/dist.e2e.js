@@ -106,7 +106,9 @@ async function step(name, f) {
   });
 
   if (MAC) await step('aktualizacja: najnowsze wydanie z GitHuba (bez zipa na Maca — brak aktualizacji)', async () => {
-    const r = await macUp.latest(fetch);
+    // na maszynach GitHuba wspólny limit zapytań bez logowania — z tokenem przebiegu
+    const gh = (u, o = {}) => fetch(u, process.env.GH_TOKEN ? { ...o, headers: { ...o.headers, Authorization: 'Bearer ' + process.env.GH_TOKEN } } : o);
+    const r = await macUp.latest(gh);
     console.log('najnowsze wydanie:', JSON.stringify(r && { version: r.version, zip: r.zip }));
     if (r) { assert.match(r.zip, /\/releases\/download\/v[\d.]+\/MiB-Client-[\d.]+-mac\.zip$/); assert.equal((await fetch(r.zip, { method: 'HEAD' })).ok, true); }
   });
