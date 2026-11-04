@@ -391,7 +391,7 @@ function createFake() {
             }
             if (fn === 'party_messages') {
               const x = mine(); if (!x) return json(res, 200, []);
-              return json(res, 200, x.messages.filter(m => m.id > (Number(body.p_after) || 0)).slice(-50).map(m => ({ id: m.id, from_id: m.from, nick: nick(m.from), mine: m.from === user.id, body: m.body, created_at: m.at })));
+              return json(res, 200, x.messages.filter(m => m.id > (Number(body.p_after) || 0)).slice(-50).map(m => ({ id: m.id, from_id: m.from, nick: nick(m.from), mine: m.from === user.id, body: m.body, created_at: m.at, mc_name: (st.users.find(u => u.id === m.from) || {}).mcName || null })));
             }
           }
           if (fn === 'friends_list') {
@@ -401,7 +401,7 @@ function createFake() {
               const live = f.accepted && fresh(pr);
               return { id: o.id, nick: o.nick, num: o.num, state: f.accepted ? 'friend' : f.from === user.id ? 'outgoing' : 'incoming',
                 status: !f.accepted ? null : live ? (pr.playing ? 'game' : 'launcher') : 'offline',
-                version: live && pr.playing ? pr.version : null, server: live && pr.playing ? pr.server : null, seen_at: f.accepted && pr ? new Date(pr.at).toISOString() : null };
+                version: live && pr.playing ? pr.version : null, server: live && pr.playing ? pr.server : null, seen_at: f.accepted && pr ? new Date(pr.at).toISOString() : null, mc_name: f.accepted ? o.mcName || null : null };
             }));
           }
           if (fn === 'presence_ping') {

@@ -108,6 +108,15 @@
     return e;
   };
   const T = s => tr(s);
+  // Główka skina gracza (0.38.0) po nazwie konta Minecraft z mc-heads.net; bez konta Minecraft albo bez sieci — Steve
+  const head = (mc, size = 28) => h('img', { class: 'head', 'data-mc': mc || '', width: size, height: size, alt: '', draggable: 'false',
+    src: mc ? 'https://mc-heads.net/avatar/' + encodeURIComponent(mc) + '/' + size * 2 : FACE,
+    on: { error: e => { if (e.target.dataset.fb) return; e.target.dataset.fb = '1'; e.target.src = FACE; } } });
+  // główka z kropką statusu w rogu (lista znajomych, party, nagłówek rozmowy)
+  const headDot = (mc, size = 32) => h('span', { class: 'hdot' }, head(mc, size), h('i', { class: 'dot', 'aria-hidden': 'true' }));
+  // wiadomość od kogoś innego: główka i nick przy pierwszej z kilku pod rząd, potem samo wcięcie
+  const otherMsg = (first, mc, nick, bubble) => h('div', { class: 'mrow' }, first ? head(mc, 28) : h('span', { class: 'hsp' }),
+    h('div', { class: 'mcol' }, first ? h('b', { class: 'who' }, nick) : null, bubble));
   const go = page => document.querySelector(`.nav[data-p="${page}"]`).click();
   const fmtDate = d => new Date(d).toLocaleDateString(LANG === 'en' ? 'en-GB' : 'pl-PL');
   // filtr wulgaryzmów w tekstach innych graczy (Ustawienia, domyślnie włączony)
@@ -1388,7 +1397,7 @@
     } } }, input, sendB);
     const ov = h('div', { class: 'ov on', id: 'chat' }, h('div', { class: 'm chat-m', role: 'dialog', 'aria-label': T('Rozmowa z') + ' ' + f.nick },
       h('div', { class: 'frow chat-head st-' + f.status },
-        h('i', { class: 'dot', 'aria-hidden': 'true' }),
+        headDot(f.mc_name, 34),
         h('div', { class: 'fi' }, h('b', {}, f.nick), h('span', { class: 'mut' }, statusText(f))),
         h('button', { class: 'b ghost', id: 'chat-block', type: 'button', on: { click: () => blockUser(f, closeChat) } }, T('Zablokuj')),
         h('button', { class: 'b ghost', id: 'chat-x', type: 'button', on: { click: closeChat } }, T('Zamknij'))),
@@ -1409,10 +1418,13 @@
           shown = key;
           const bottom = first || list.scrollHeight - list.scrollTop - list.clientHeight < 40;
           const lastMine = l.reduce((a, m, i) => (m.mine ? i : a), -1);
-          list.replaceChildren(...(l.length ? l.map((m, i) => h('div', { class: 'msg' + (m.mine ? ' me' : '') },
-            h('span', { class: 'tx' }, m.mine ? m.body : clean(m.body)),
-            h('small', {}, timeOf(m.created_at) + (i === lastMine && m.read ? ' · ' + T('przeczytana') : ''),
-              m.mine ? null : h('button', { class: 'rep-b', type: 'button', title: T('Zgłoś wiadomość'), on: { click: () => openReport(f, m, b => { if (b) closeChat(); }) } }, T('Zgłoś')))))
+          list.replaceChildren(...(l.length ? l.map((m, i) => {
+            const bubble = h('div', { class: 'msg' + (m.mine ? ' me' : '') },
+              h('span', { class: 'tx' }, m.mine ? m.body : clean(m.body)),
+              h('small', {}, timeOf(m.created_at) + (i === lastMine && m.read ? ' · ' + T('przeczytana') : ''),
+                m.mine ? null : h('button', { class: 'rep-b', type: 'button', title: T('Zgłoś wiadomość'), on: { click: () => openReport(f, m, b => { if (b) closeChat(); }) } }, T('Zgłoś'))));
+            return m.mine ? bubble : otherMsg(i === 0 || l[i - 1].mine, f.mc_name, f.nick, bubble);
+          })
             : [h('p', { class: 'empty' }, T('Napisz pierwszą wiadomość do') + ' ' + f.nick + '.')]));
           if (bottom) list.scrollTop = list.scrollHeight;
           first = false;
@@ -1448,10 +1460,10 @@
       input.value = ''; first = true;
       load(); input.focus();
     } } }, input, sendB);
-    const who = (party && party.members || []).map(m => m.nick + (m.id === party.leader ? ' ★' : '')).join(' · ');
+    const who = (party && party.members || []).map(m => h('span', { class: 'mem' }, head(m.mc_name, 16), m.nick + (m.id === party.leader ? ' ★' : '')));
     const ov = h('div', { class: 'ov on', id: 'pchat' }, h('div', { class: 'm chat-m', role: 'dialog', 'aria-label': T('Czat party') },
       h('div', { class: 'frow chat-head' }, h('i', { class: 'pico', 'aria-hidden': 'true' }, kindIcon('party')),
-        h('div', { class: 'fi' }, h('b', {}, T('Czat party')), h('span', { class: 'mut', id: 'pchat-who' }, who)),
+        h('div', { class: 'fi' }, h('b', {}, T('Czat party')), h('span', { class: 'mut', id: 'pchat-who' }, ...who)),
         h('button', { class: 'b ghost', id: 'pchat-x', type: 'button', on: { click: closePartyChat } }, T('Zamknij'))),
       list, err, form));
     ov.addEventListener('mousedown', e => { if (e.target === ov) closePartyChat(); });
@@ -1470,10 +1482,12 @@
         if (key !== shown) {
           shown = key;
           const bottom = first || list.scrollHeight - list.scrollTop - list.clientHeight < 40;
-          list.replaceChildren(...(l.length ? l.map(m => h('div', { class: 'msg' + (m.mine ? ' me' : '') },
-            m.mine ? null : h('b', { class: 'who' }, m.nick || '?'),
-            h('span', { class: 'tx' }, m.mine ? m.body : clean(m.body)),
-            h('small', {}, timeOf(m.created_at))))
+          list.replaceChildren(...(l.length ? l.map((m, i) => {
+            const bubble = h('div', { class: 'msg' + (m.mine ? ' me' : '') },
+              h('span', { class: 'tx' }, m.mine ? m.body : clean(m.body)),
+              h('small', {}, timeOf(m.created_at)));
+            return m.mine ? bubble : otherMsg(i === 0 || l[i - 1].from_id !== m.from_id, m.mc_name, m.nick || '?', bubble);
+          })
             : [h('p', { class: 'empty' }, T('Czat party: piszą wszyscy członkowie. Wiadomości znikają po 2 dniach.'))]));
           if (bottom) list.scrollTop = list.scrollHeight;
           first = false;
@@ -1507,7 +1521,7 @@
     if (party) {
       const lead = party.leader === party.me;
       const rows = party.members.map(m => h('div', { class: 'prow st-' + m.status },
-        h('i', { class: 'dot', 'aria-hidden': 'true' }),
+        headDot(m.mc_name, 30),
         h('div', { class: 'fi' }, h('b', {}, m.nick, m.id === party.leader ? h('em', { class: 'tag lead', title: T('Lider party') }, '★ ' + T('Lider')) : null, m.id === party.me ? h('span', { class: 'mut' }, ' (' + T('Ty') + ')') : null),
           h('span', { class: 'mut' }, statusText(m))),
         m.id === party.leader && m.id !== party.me && m.status === 'game' && m.server && m.version && m.server !== here
@@ -1551,7 +1565,7 @@
     const list = h('div', { id: 'fr-list' }, h('p', { class: 'mut' }, T('Wczytywanie…')));
     const act = (label, cls, fn) => h('button', { class: 'b ' + cls, type: 'button', on: { click: async e => { e.currentTarget.disabled = true; const r = await fn(); if (r && r.error) toast(msg(r.error, r.detail), 1); load(); } } }, T(label));
     const row = (f, ...buttons) => h('div', { class: 'card frow' + (f.status ? ' st-' + f.status : '') },
-      h('i', { class: 'dot', 'aria-hidden': 'true' }),
+      headDot(f.mc_name, 32),
       h('div', { class: 'fi' }, f.state === 'friend' ? h('button', { class: 'linkb fr-name', type: 'button', title: T('Pokaż kartę gracza'), on: { click: () => openCard(f) } }, f.nick) : h('b', {}, f.nick),
         h('span', { class: 'mut' }, f.state === 'friend' ? statusText(f) : f.num ? MibProfile.formatMibId(f.num) : '')),
       ...buttons);

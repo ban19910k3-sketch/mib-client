@@ -654,9 +654,11 @@ begin
   delete from private.friend_messages where (from_id = v_me and to_id = p_user) or (from_id = p_user and to_id = v_me);
 end $$;
 
--- Znajomi i zaproszenia; status: game (w grze), launcher, offline — tylko u przyjętych znajomych
+-- Znajomi i zaproszenia; status: game (w grze), launcher, offline — tylko u przyjętych znajomych. Od 0.38.0 także nazwa
+-- konta Minecraft przyjętego znajomego (główka skina przy nicku w launcherze)
+drop function if exists public.friends_list();
 create or replace function public.friends_list()
-returns table (id uuid, nick text, num bigint, state text, status text, version text, server text, seen_at timestamptz)
+returns table (id uuid, nick text, num bigint, state text, status text, version text, server text, seen_at timestamptz, mc_name text)
 language sql stable security definer set search_path = '' as $$
   select p.id, p.nick, p.num,
     case when f.accepted then 'friend' when f.from_id = (select auth.uid()) then 'outgoing' else 'incoming' end,
@@ -665,7 +667,8 @@ language sql stable security definer set search_path = '' as $$
          else 'offline' end,
     case when f.accepted and pr.playing and pr.seen_at > now() - interval '5 minutes' then pr.version end,
     case when f.accepted and pr.playing and pr.seen_at > now() - interval '5 minutes' then pr.server end,
-    case when f.accepted then pr.seen_at end
+    case when f.accepted then pr.seen_at end,
+    case when f.accepted then p.mc_name end
   from private.friends f
   join public.profiles p on p.id = case when f.from_id = (select auth.uid()) then f.to_id else f.from_id end
   left join private.presence pr on pr.user_id = p.id
@@ -1293,12 +1296,13 @@ begin
   return json_build_object('id', v_id, 'created_at', v_at);
 end $$;
 
--- Ostatnie 50 wiadomości party (albo nowsze niż p_after), od najstarszej
+-- Ostatnie 50 wiadomości party (albo nowsze niż p_after), od najstarszej; mc_name = główka skina przy nicku
+drop function if exists public.party_messages(bigint);
 create or replace function public.party_messages(p_after bigint default 0)
-returns table (id bigint, from_id uuid, nick text, mine boolean, body text, created_at timestamptz)
+returns table (id bigint, from_id uuid, nick text, mine boolean, body text, created_at timestamptz, mc_name text)
 language sql stable security definer set search_path = '' as $$
-  select x.id, x.from_id, x.nick, x.mine, x.body, x.created_at from (
-    select m.id, m.from_id, u.nick, m.from_id = (select auth.uid()) as mine, m.body, m.created_at
+  select x.id, x.from_id, x.nick, x.mine, x.body, x.created_at, x.mc_name from (
+    select m.id, m.from_id, u.nick, m.from_id = (select auth.uid()) as mine, m.body, m.created_at, u.mc_name
     from private.party_messages m left join public.profiles u on u.id = m.from_id
     where m.party_id = private.my_party((select auth.uid())) and m.created_at > now() - interval '2 days' and m.id > coalesce(p_after, 0)
     order by m.id desc limit 50) x

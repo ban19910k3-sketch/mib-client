@@ -1451,6 +1451,7 @@ insert into auth.users (id, email, raw_user_meta_data)
 -- Party_1 przyjaźni się z 2..9, Party_2 z nikim więcej
 insert into private.friends (from_id, to_id, accepted)
   select '7a000000-0000-0000-0000-000000000001', ('7a000000-0000-0000-0000-00000000000' || i)::uuid, true from generate_series(2, 9) i;
+update public.profiles set mc_name = 'Party2_MC' where id = '7a000000-0000-0000-0000-000000000002';
 set role authenticated;
 set request.jwt.claim.sub = '7a000000-0000-0000-0000-000000000001';
 do $$
@@ -1475,6 +1476,7 @@ begin
   perform public.party_send('  Siema §cparty!  ');
   assert (select body from public.party_messages()) = 'Siema party!', 'czat party bez kodów kolorów';
   assert (select mine from public.party_messages()), 'moja wiadomość';
+  assert (select mc_name from public.party_messages()) = 'Party2_MC', 'konto Minecraft nadawcy (główka skina)';
 end $$;
 -- zwykły członek nie zaprasza ani nie wyrzuca
 select pg_temp.expect_error($q$select public.party_invite('7a000000-0000-0000-0000-000000000001')$q$, 'party_not_leader');
@@ -1490,6 +1492,8 @@ begin
   assert m ->> 'status' = 'game' and m ->> 'server' = 'play.mib.pl' and m ->> 'version' = '1.21.11', 'serwer członka party';
   assert (select nick from public.party_messages()) = 'Party_2', 'lider widzi czat';
   assert public.party_state() ->> 'me' = '7a000000-0000-0000-0000-000000000001', 'party_state zna mnie';
+  assert (select mc_name from public.friends_list() where nick = 'Party_2') = 'Party2_MC', 'konto Minecraft znajomego (główka skina)';
+  assert (select mc_name from public.friends_list() where nick = 'Party_3') is null, 'bez konta Minecraft';
   -- limit 8 razem z zaproszonymi
   for i in 3..8 loop perform public.party_invite(('7a000000-0000-0000-0000-00000000000' || i)::uuid); end loop;
 end $$;

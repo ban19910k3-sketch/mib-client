@@ -531,7 +531,7 @@ function png(w, h, px) {
 
     // Znajomi: zaproszenie po nicku, zaproszenie od kogoś innego, znajomy w grze z serwerem
     const now = new Date().toISOString();
-    const kolega = { id: 'u-kolega', email: 'k@mib.pl', password: 'x', nick: 'Kolega', num: 50, created: now };
+    const kolega = { id: 'u-kolega', email: 'k@mib.pl', password: 'x', nick: 'Kolega', num: 50, created: now, mcName: 'Kolega_MC' };
     const ziomek = { id: 'u-ziomek', email: 'z@mib.pl', password: 'x', nick: 'Ziomek', num: 51, created: now };
     fake.st.users.push(kolega, ziomek);
     const me = fake.st.users.find(u => u.nick === 'Tester_1');
@@ -578,6 +578,11 @@ function png(w, h, px) {
     await w.waitForFunction(() => document.querySelector('.nav[data-p="friends"] .cnt').textContent === '1');
     await w.click('#fr-list .frow:has-text("Kolega") .chat-b');
     await w.waitForSelector('#chat .msg:has-text("Siema, gramy?")');
+    // główka skina Kolegi z lewej przy nicku: w nagłówku i przy jego wiadomościach (0.38.0)
+    assert.ok(await w.$('#chat .chat-head img.head[data-mc="Kolega_MC"]'), 'główka w nagłówku rozmowy');
+    assert.equal(await w.textContent('#chat .mrow:has-text("Siema, gramy?") .who'), 'Kolega');
+    assert.ok(await w.$('#chat .mrow:has-text("Siema, gramy?") > img.head[data-mc="Kolega_MC"]'), 'główka przy nicku w wiadomości');
+    assert.ok(await w.$('#fr-list .frow:has-text("Kolega") img.head[data-mc="Kolega_MC"]'), 'główka na liście znajomych');
     await w.waitForFunction(() => document.querySelector('.nav[data-p="friends"] .cnt').hidden);
     assert.ok(fake.st.messages[0].read, 'otwarta rozmowa oznacza wiadomość jako przeczytaną');
     await w.fill('#chat-in', 'Jasne, wchodzę!');
@@ -627,13 +632,16 @@ function png(w, h, px) {
     await w.evaluate(() => mib.call('party:check'));
     await w.waitForFunction(() => /Party \(2\/8\)/.test((document.getElementById('party-card') || {}).textContent || ''));
     assert.match(await w.textContent('#party-card'), /Tester_1.*Lider.*\(Ty\).*Kolega.*W grze · play\.mib\.pl · 1\.21\.11.*Wyrzuć/s);
+    assert.ok(await w.$('#party-card .prow:has-text("Kolega") img.head[data-mc="Kolega_MC"]'), 'główka członka party');
     assert.equal(await w.$('#party-card .prow:has-text("Kolega") button:has-text("Dołącz")'), null, 'Kolega nie jest liderem: bez Dołącz w party');
     await shot('party.png');
     // czat party
     await w.click('#party-chat');
     await w.waitForSelector('#pchat .empty');
     pty.messages.push({ id: ++fake.st.msgId, from: kolega.id, body: 'Wbijajcie, kurwa szybko', at: new Date().toISOString() });
-    await w.waitForSelector('#pchat .msg:has-text("Wbijajcie, k**** szybko") .who:has-text("Kolega")', { timeout: 8000 });
+    await w.waitForSelector('#pchat .mrow:has-text("Wbijajcie, k**** szybko") .who:has-text("Kolega")', { timeout: 8000 });
+    assert.ok(await w.$('#pchat .mrow:has-text("Wbijajcie") > img.head[data-mc="Kolega_MC"]'), 'główka przy nicku na czacie party');
+    assert.ok(await w.$('#pchat-who img.head[data-mc="Kolega_MC"]'), 'główki członków w nagłówku czatu party');
     await w.fill('#pchat-in', 'Już idę!');
     await w.press('#pchat-in', 'Enter');
     await w.waitForSelector('#pchat .msg.me:has-text("Już idę!")');

@@ -988,3 +988,17 @@ label.srow{cursor:pointer}
 #party-pop .row{gap:8px;justify-content:flex-end}
 @keyframes ppin{from{transform:translateY(-12px);opacity:0}}
 .nomotion #party-pop{animation:none}
+/* Główki skinów przy nickach (0.38.0): lista znajomych, party, nagłówki i wiadomości w czatach */
+.head{display:block;flex:none;border-radius:4px;image-rendering:pixelated;background:var(--slab2);box-shadow:0 0 0 1px var(--edge2)}
+.hdot{position:relative;flex:none;display:block}
+.hdot .dot,.frow .hdot .dot,.prow .hdot .dot{position:absolute;right:-3px;bottom:-3px;width:11px;height:11px;border-radius:50%;box-shadow:0 0 0 2px var(--slab)}
+.prow .hdot .dot{box-shadow:0 0 0 2px var(--slab2)}
+.mrow{display:flex;align-items:flex-start;gap:8px;align-self:flex-start;max-width:84%}
+.mrow .hsp{width:28px;flex:none}
+.mrow .mcol{min-width:0;display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+.mrow .msg{max-width:100%}
+.mrow .who{font-size:12px;color:var(--am-hi);padding-left:2px}
+.mrow .head{margin-top:0}
+#pchat-who{display:flex;flex-wrap:wrap;gap:4px 10px}
+#pchat-who .mem{display:inline-flex;align-items:center;gap:5px}
+#pchat-who .head{border-radius:3px}
