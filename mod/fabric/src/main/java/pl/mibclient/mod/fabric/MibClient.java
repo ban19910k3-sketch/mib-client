@@ -937,7 +937,6 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	// ===== Znajomi i rozmowy (MenuActions) =====
 
 	@Override
-	@Override
 	public pl.mibclient.mod.core.Spotify spotify() {
 		if (testSpotify != null) return testSpotify;
 		if (bridge == null) return null;
