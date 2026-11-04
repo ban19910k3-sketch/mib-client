@@ -565,8 +565,20 @@ const txt = n => Array.isArray(n) ? n.map(x => x.note).join('\n') : String(n || 
   .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
   .replace(/^[ \t]*#{1,6}[ \t]*/gm, '').replace(/^[ \t]*[-*][ \t]+/gm, '• ').replace(/\*\*|__|`/g, '')
   .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+// Mac (od 0.42.0): bez podpisu Apple własne aktualizacje (lib/macupdate.js) — to samo okno „Jest nowa wersja”, „Aktualizuj”
+// pobiera nową aplikację i podmienia ją po zamknięciu launchera
+const macUp = require('./lib/macupdate');
+let macNext = null;
 async function checkUpdate(manual) {
   if (!app.isPackaged) { if (manual) send('upd:none', 'Tryb deweloperski: aktualizacje działają tylko w zainstalowanej wersji.'); return; }
+  if (process.platform === 'darwin') {
+    try {
+      const r = await macUp.latest((...a) => fetch(...a));
+      if (r && macUp.newer(r.version, app.getVersion())) { macNext = r; send('upd:avail', { version: r.version, notes: txt(r.notes) || 'Brak opisu zmian.', current: app.getVersion() }); }
+      else if (manual) send('upd:none', 'Masz najnowszą wersję (' + app.getVersion() + ').');
+    } catch { if (manual) send('upd:none', 'Nie udało się sprawdzić aktualizacji.'); }
+    return;
+  }
   try { const r = await autoUpdater.checkForUpdates();
     if (!r || !r.updateInfo || r.updateInfo.version === app.getVersion()) { if (manual) send('upd:none', 'Masz najnowszą wersję (' + app.getVersion() + ').'); }
   } catch (e) { if (manual) send('upd:none', 'Nie udało się sprawdzić aktualizacji.'); }
@@ -576,7 +588,30 @@ autoUpdater.on('download-progress', p => send('upd:prog', Math.round(p.percent))
 autoUpdater.on('update-downloaded', () => autoUpdater.quitAndInstall());
 autoUpdater.on('error', e => send('upd:none', 'Błąd aktualizacji: ' + e.message));
 ipcMain.handle('upd:check', () => checkUpdate(true));
-ipcMain.handle('upd:install', () => { autoUpdater.downloadUpdate(); return true; });
+ipcMain.handle('upd:install', () => {
+  if (process.platform === 'darwin') { macInstall().catch(e => send('upd:none', 'Błąd aktualizacji: ' + e.message)); return true; }
+  autoUpdater.downloadUpdate(); return true;
+});
+async function macInstall() {
+  const appPath = macUp.appBundle(process.execPath);
+  if (!macNext) return;
+  // uruchomiony z obrazu dmg albo z Pobranych (macOS przenosi go wtedy do folderu tylko do odczytu): instalator do pobrania
+  if (!macUp.canSelfUpdate(appPath)) {
+    shell.openExternal(macUp.DMG_URL).catch(() => {});
+    send('upd:none', 'Przenieś MiB Client do folderu Aplikacje — wtedy aktualizacje zainstalują się same. Teraz pobierz nową wersję z otwartej strony.');
+    return;
+  }
+  const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mib-upd-')), zip = path.join(tmp, 'update.zip'), out = path.join(tmp, 'app');
+  await macUp.download({ url: macNext.zip, file: zip, fetch: (...a) => fetch(...a), onProgress: p => send('upd:prog', p) });
+  fs.mkdirSync(out);
+  await new Promise((ok, no) => require('child_process').execFile('ditto', ['-x', '-k', zip, out], e => (e ? no(e) : ok())));
+  const fresh = path.join(out, 'MiB Client.app');
+  if (!fs.existsSync(fresh)) throw new Error('w paczce nie ma MiB Client.app');
+  const script = path.join(tmp, 'swap.sh');
+  fs.writeFileSync(script, macUp.swapScript({ pid: process.pid, app: appPath, fresh }), { mode: 0o755 });
+  spawn('/bin/sh', [script], { detached: true, stdio: 'ignore' }).unref();
+  app.quit();
+}
 
 ipcMain.handle('ver', () => app.getVersion());
 // pamięć komputera w MB (suwak „Pamięć dla gry” w Ustawieniach)
@@ -654,18 +689,8 @@ async function javaMajor(version) {
     const n = (j.javaVersion && j.javaVersion.majorVersion) || 8; return n === 16 ? 17 : n;
   } catch { return 8; }
 }
-async function ensureJava(major) {
-  const base = path.join(dir(), 'java', String(major));
-  const find = () => { try { for (const d of fs.readdirSync(base)) { const p = path.join(base, d, 'bin', 'java.exe'); if (fs.existsSync(p)) return p; } } catch {} return null; };
-  let p = find(); if (p) return p;
-  send('log', 'Pobieranie Javy ' + major + ' (jednorazowo, ok. 50 MB)…');
-  const r = await fetch('https://api.adoptium.net/v3/binary/latest/' + major + '/ga/windows/x64/jre/hotspot/normal/eclipse');
-  if (!r.ok) throw new Error('nie udało się pobrać Javy (kod ' + r.status + ')');
-  const AdmZip = require('adm-zip'); fs.mkdirSync(base, { recursive: true });
-  new AdmZip(Buffer.from(await r.arrayBuffer())).extractAllTo(base, true);
-  p = find(); if (!p) throw new Error('nie znaleziono java.exe po rozpakowaniu');
-  send('log', 'Java ' + major + ' gotowa.'); return p;
-}
+// od 0.42.0 w lib/java.js: Windows, Mac (Intel i Apple) i Linux
+const ensureJava = major => require('./lib/java').ensureJava({ base: path.join(dir(), 'java', String(major)), major, fetch: (...a) => fetch(...a), log: t => send('log', t) });
 
 // ---- Instalacja dodatków z Modrinth ----
 const UA = { headers: { 'User-Agent': 'MiB-Client/' + app.getVersion() } };
@@ -907,6 +932,8 @@ function startHud(pid, mibDir, gameAcc) {
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
     return;
   }
+  // stara nakładka bez moda (prawy Shift przez uiohook, okno gry przez PowerShell) tylko na Windows
+  if (process.platform !== 'win32') return;
   try {
     const { uIOhook, UiohookKey: K } = require('uiohook-napi');
     const d = screen.getPrimaryDisplay().bounds;

@@ -1,6 +1,6 @@
 {
   "name": "mib-client",
-  "version": "0.41.0",
+  "version": "0.42.0",
   "description": "MiB Client - darmowy launcher Minecraft PvP",
   "main": "main.js",
   "author": "MiB",
@@ -52,6 +52,35 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
     },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "icon.png",
+      "category": "public.app-category.games",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "artifactName": "MiB-Client-${version}-mac.${ext}",
+      "files": [
+        "!node_modules/uiohook-napi{,/**/*}"
+      ]
+    },
+    "dmg": {
+      "artifactName": "MiB-Client-mac.dmg",
+      "title": "MiB Client"
+    },
     "publish": [
       {
         "provider": "github",
@@ -72,7 +101,8 @@
     "asarUnpack": [
       "node_modules/uiohook-napi/**",
       "node_modules/node-gyp-build/**"
-    ]
+    ],
+    "afterPack": "build/adhoc.js"
   },
   "dependencies": {
     "@fontsource/pixelify-sans": "^5.2.5",

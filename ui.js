@@ -351,15 +351,16 @@ $('s-con').checked=localStorage.getItem('mibcon')!=='0';$('s-con').onchange=()=>
 function ramLbl(){$('s-ram-v').textContent=String(Math.round(+$('s-ram').value/1024*10)/10).replace('.',LANG==='en'?'.':',')+' GB'}
 $('s-ram').addEventListener('input',ramLbl);
 mib.call('sys:mem').then(m=>{if(!m)return;$('s-ram').max=String(Math.max(2048,Math.floor((m-1024)/512)*512,+S.ram||0));$('s-ram-sys').textContent='System: '+m.toLocaleString(LANG==='en'?'en-GB':'pl-PL')+' MB';$('s-ram').value=String(S.ram||2048);ramLbl()}).catch(()=>{});
-// skróty Ctrl + klawisz do stron launchera (zapamiętane w localStorage)
+// skróty Ctrl + klawisz do stron launchera (zapamiętane w localStorage); na Macu Cmd (⌘) + klawisz
+const MACK=/Mac/.test(navigator.platform);
 const KEYS_DEF={home:'1',cos:'2',shop:'3',hub:'4',friends:'5',ideas:'6',set:','},KEY_PAGES=[['home','Strona główna'],['cos','Kosmetyki'],['shop','Sklep'],['hub','Mody'],['friends','Znajomi'],['ideas','Pomysły'],['set','Ustawienia']];
 const keysGet=()=>{try{return{...KEYS_DEF,...JSON.parse(localStorage.getItem('mibkeys')||'{}')}}catch{return{...KEYS_DEF}}};
 const navOf=k=>document.querySelector(k==='shop'?'#side .nav[data-tab="shop"]':'#side .nav[data-p="'+k+'"]');
 function keysRender(){const k=keysGet(),opts=['1','2','3','4','5','6','7','8','9',','];
- $('s-keys').innerHTML=KEY_PAGES.map(([id,l])=>`<label class="krow"><span>${esc(l)}</span><select data-k="${id}"><option value="">Brak</option>${opts.map(o=>`<option value="${o}"${k[id]===o?' selected':''}>Ctrl ${o}</option>`).join('')}</select></label>`).join('');
+ $('s-keys').innerHTML=KEY_PAGES.map(([id,l])=>`<label class="krow"><span>${esc(l)}</span><select data-k="${id}"><option value="">Brak</option>${opts.map(o=>`<option value="${o}"${k[id]===o?' selected':''}>${MACK?'⌘':'Ctrl'} ${o}</option>`).join('')}</select></label>`).join('');
  $('s-keys').querySelectorAll('select').forEach(sl=>sl.onchange=()=>{const k=keysGet();for(const id in k)if(k[id]===sl.value&&id!==sl.dataset.k)k[id]='';k[sl.dataset.k]=sl.value;localStorage.setItem('mibkeys',JSON.stringify(k));keysRender()})}
 $('s-keys-reset').onclick=()=>{localStorage.removeItem('mibkeys');keysRender()};keysRender();
-document.addEventListener('keydown',e=>{if(!e.ctrlKey||e.altKey||e.shiftKey||e.metaKey)return;const k=keysGet();for(const id in k)if(k[id]&&k[id]===e.key){const n=navOf(id);if(n&&!n.hidden){e.preventDefault();n.click()}return}});
+document.addEventListener('keydown',e=>{if(!(MACK?e.metaKey&&!e.ctrlKey:e.ctrlKey&&!e.metaKey)||e.altKey||e.shiftKey)return;const k=keysGet();for(const id in k)if(k[id]&&k[id]===e.key){const n=navOf(id);if(n&&!n.hidden){e.preventDefault();n.click()}return}});
 // karta wersji w Ustawieniach: wersja z listy na stronie głównej, „Zmień wersję” otwiera tę listę
 const verSync=()=>{$('s-ver').textContent=$('sel').value};
 $('sel').addEventListener('change',verSync);new MutationObserver(verSync).observe($('sel'),{childList:true});

@@ -1,4 +1,5 @@
-# Buduje instalator Windows i wrzuca go razem z latest.yml do szkicu wydania v<wersja z package.json>.
+# Buduje instalator Windows i wrzuca go razem z latest.yml do szkicu wydania v<wersja z package.json>, potem launcher
+# na Maca (dmg i zip) do tego samego szkicu.
 # Szkic nie trafia do graczy, dopóki ktoś nie kliknie "Publish release" na GitHubie.
 name: Zbuduj wydanie
 
@@ -86,5 +87,34 @@ jobs:
       - name: Opis na stronie wydania
         shell: bash
         run: gh release edit "v$(node -p "require('./package.json').version")" --notes-file build/release-notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Launcher na Maca (od 0.42.0, Intel + Apple, podpis ad-hoc bez konta Apple Developer) do tego samego szkicu:
+  # MiB-Client-mac.dmg (stały link na stronę MiB: releases/latest/download/MiB-Client-mac.dmg) i
+  # MiB-Client-<wersja>-mac.zip (z niego launcher na Macu sam się aktualizuje). Po Windows, żeby szkic już istniał.
+  mac:
+    needs: [mod, build]
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: mod-*
+          merge-multiple: true
+          path: mod-dist
+      - name: Zbuduj dmg i zip
+        run: npx electron-builder --mac --universal --publish never || { sleep 15; npx electron-builder --mac --universal --publish never; }
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Do szkicu wydania
+        run: |
+          v=$(node -p "require('./package.json').version")
+          gh release upload "v$v" dist/MiB-Client-mac.dmg "dist/MiB-Client-$v-mac.zip" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
