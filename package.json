@@ -81,6 +81,21 @@
       "artifactName": "MiB-Client-mac.dmg",
       "title": "MiB Client"
     },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.png",
+      "category": "Game",
+      "artifactName": "MiB-Client-linux.${ext}",
+      "synopsis": "Darmowy launcher Minecraft PvP",
+      "executableName": "mib-client"
+    },
     "publish": [
       {
         "provider": "github",
@@ -102,7 +117,7 @@
       "node_modules/uiohook-napi/**",
       "node_modules/node-gyp-build/**"
     ],
-    "afterPack": "build/adhoc.js"
+    "afterPack": "build/afterpack.js"
   },
   "dependencies": {
     "@fontsource/pixelify-sans": "^5.2.5",

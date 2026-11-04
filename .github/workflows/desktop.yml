@@ -1,0 +1,47 @@
+# Launcher na Maca (od 0.42.0) i Linuksa (od 0.43.0): testy logiki, budowanie i test zbudowanej aplikacji na prawdziwym
+# systemie (test/e2e/dist.e2e.js): launcher startuje, aktualizacje, Java pobiera się na ten system, Minecraft startuje.
+# Mac: dmg i zip (Intel + Apple w jednej aplikacji, podpis ad-hoc bez konta Apple Developer), Mac z procesorem Apple.
+# Linux: AppImage z latest-linux.yml. Wyniki w adnotacjach przebiegu.
+name: Launcher na Maca i Linuksa
+
+on:
+  push:
+    paths: ['*.js', '*.html', '*.css', 'lib/**', 'package.json', 'package-lock.json', 'build/afterpack.js', 'test/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+jobs:
+  mac:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # druga próba po chwilowym błędzie obrazu dmg (hdiutil: Resource busy)
+      - name: Zbuduj dmg i zip
+        run: npx electron-builder --mac --universal --publish never || { sleep 15; npx electron-builder --mac --universal --publish never; }
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - run: npm i -g playwright@1.56.1
+      - name: Test na Macu
+        run: node test/e2e/dist.e2e.js
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Zbuduj AppImage
+        run: npx electron-builder --linux AppImage --x64 --publish never
+      - run: npm i -g playwright@1.56.1
+      - name: Test na Linuksie
+        run: xvfb-run -a node test/e2e/dist.e2e.js

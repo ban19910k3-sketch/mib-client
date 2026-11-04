@@ -1,18 +1,23 @@
-// Test launchera na Macu (od 0.42.0, GitHub Actions macos-14 — Mac z procesorem Apple). Po zbudowaniu:
-//   npx electron-builder --mac --universal --publish never && node test/e2e/mac.e2e.js
-// Sprawdza: dmg i zip, aplikacja dla Intela i Apple z podpisem ad-hoc, zbudowany launcher się uruchamia, aktualizacja
-// z zipa podmienia aplikację w „Aplikacjach”, Java pobiera się na Maca (też 8 — wersja na Intela przez Rosettę),
-// a najnowszy Minecraft z listy MiB startuje z tą Javą (do załadowania LWJGL, bez karty graficznej dalej nie trzeba).
-const path = require('path'), fs = require('fs'), os = require('os'), { execFileSync, execSync, spawn } = require('child_process');
+// Test zbudowanego launchera na Macu (od 0.42.0, GitHub Actions macos-14 — Mac z procesorem Apple) i na Linuksie (od 0.43.0).
+// Po zbudowaniu:
+//   Mac:   npx electron-builder --mac --universal --publish never && node test/e2e/dist.e2e.js
+//   Linux: npx electron-builder --linux AppImage --x64 --publish never && xvfb-run -a node test/e2e/dist.e2e.js
+// Mac: dmg i zip, aplikacja dla Intela i Apple z podpisem ad-hoc, aktualizacja z zipa podmienia aplikację w „Aplikacjach”.
+// Linux: AppImage z latest-linux.yml (aktualizacje jak na Windows), skrypt startowy z --no-sandbox tam, gdzie system
+// blokuje sandbox. Wszędzie: zbudowany launcher się uruchamia, Java pobiera się na ten system (na Macu z procesorem Apple
+// Java 8 w wersji na Intela przez Rosettę), a najnowszy Minecraft z listy MiB startuje z tą Javą (do załadowania LWJGL).
+const path = require('path'), fs = require('fs'), os = require('os'), crypto = require('crypto'), { execFileSync, execSync, spawn } = require('child_process');
 const assert = require('node:assert/strict');
 const macUp = require('../../lib/macupdate'), { ensureJava } = require('../../lib/java');
 
 const ROOT = path.join(__dirname, '..', '..'), DIST = path.join(ROOT, 'dist');
+const MAC = process.platform === 'darwin', SYS = MAC ? 'Maca' : 'Linuksa';
 const VERSION = require('../../package.json').version, NAME = 'MiB Client.app';
 const APP = path.join(DIST, 'mac-universal', NAME), ZIP = path.join(DIST, 'MiB-Client-' + VERSION + '-mac.zip');
-const TMP = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'mib-mac-')));
+const IMAGE = path.join(DIST, 'MiB-Client-linux.AppImage');
+const TMP = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'mib-dist-')));
 const ok = m => console.log('::notice::PASS ' + m);
-const sh = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+const sh = (cmd, args, o = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...o });
 const shAll = (cmd, args) => { const r = require('child_process').spawnSync(cmd, args, { encoding: 'utf8' }); return (r.stdout || '') + (r.stderr || ''); };
 const plist = (app, key) => sh('/usr/libexec/PlistBuddy', ['-c', 'Print :' + key, path.join(app, 'Contents', 'Info.plist')]).trim();
 
@@ -21,7 +26,7 @@ async function step(name, f) {
 }
 
 (async () => {
-  await step('dmg i zip, aplikacja na Intela i Apple, podpis ad-hoc', () => {
+  if (MAC) await step('dmg i zip, aplikacja na Intela i Apple, podpis ad-hoc', () => {
     assert.ok(fs.existsSync(path.join(DIST, 'MiB-Client-mac.dmg')), 'brak dmg');
     assert.ok(fs.existsSync(ZIP), 'brak zipa');
     const archs = sh('lipo', ['-archs', path.join(APP, 'Contents', 'MacOS', 'MiB Client')]);
@@ -32,12 +37,38 @@ async function step(name, f) {
     assert.ok(!fs.existsSync(path.join(APP, 'Contents', 'Resources', 'app.asar.unpacked', 'node_modules', 'uiohook-napi')), 'uiohook (tylko Windows) nie trafia na Maca');
   });
 
-  await step('zbudowany launcher startuje (okno, logowanie, wersja)', async () => {
+  // AppImage rozpakowany (bez FUSE): w środku skrypt startowy i właściwy program
+  const SQ = path.join(TMP, 'squashfs-root');
+  if (!MAC) await step('AppImage z latest-linux.yml, skrypt startowy z --no-sandbox przy blokadzie sandboxa', () => {
+    assert.ok(fs.statSync(IMAGE).mode & 0o111, 'AppImage wykonywalny');
+    const yml = fs.readFileSync(path.join(DIST, 'latest-linux.yml'), 'utf8');
+    assert.match(yml, new RegExp('^version: ' + VERSION.replace(/\./g, '\\.') + '$', 'm'));
+    assert.match(yml, /^path: MiB-Client-linux\.AppImage$/m);
+    const sha = crypto.createHash('sha512').update(fs.readFileSync(IMAGE)).digest('base64');
+    assert.ok(yml.includes('sha512: ' + sha), 'skrót AppImage w latest-linux.yml');
+    sh(IMAGE, ['--appimage-extract'], { cwd: TMP });
+    const run = fs.readFileSync(path.join(SQ, 'mib-client'), 'utf8');
+    assert.equal(run, require('../../build/afterpack').LINUX_RUN);
+    assert.match(sh('file', [path.join(SQ, 'mib-client.bin')]), /ELF 64-bit/);
+    // skrypt: --no-sandbox tylko przy blokadzie (albo dla roota)
+    const fake = path.join(TMP, 'fake'); fs.mkdirSync(fake);
+    fs.writeFileSync(path.join(fake, 'mib-client'), run, { mode: 0o755 });
+    fs.writeFileSync(path.join(fake, 'mib-client.bin'), '#!/bin/sh\necho "$@"\n', { mode: 0o755 });
+    const rd = f => { try { return fs.readFileSync(f, 'utf8').trim(); } catch { return ''; } };
+    const blocked = rd('/proc/sys/kernel/apparmor_restrict_unprivileged_userns') === '1' || rd('/proc/sys/kernel/unprivileged_userns_clone') === '0';
+    const args = sh(path.join(fake, 'mib-client'), ['--x', 'a b']).trim();
+    console.log('blokada sandboxa:', blocked, '| root:', process.getuid() === 0, '| argumenty:', args);
+    assert.equal(args, (blocked || process.getuid() === 0 ? '--no-sandbox ' : '') + '--x a b');
+  });
+
+  await step('zbudowany launcher startuje na ' + SYS + ' (okno, logowanie, wersja)', async () => {
     const { _electron } = require(execSync('npm root -g').toString().trim() + '/playwright');
-    const app = await _electron.launch({ executablePath: path.join(APP, 'Contents', 'MacOS', 'MiB Client'), env: { ...process.env, MIB_SUPA_URL: 'http://127.0.0.1:9' } });
+    // Linux: przez AppRun z AppImage, jak po dwukliku (APPDIR ustawia normalnie AppImage)
+    const app = await _electron.launch({ executablePath: MAC ? path.join(APP, 'Contents', 'MacOS', 'MiB Client') : path.join(SQ, 'AppRun'),
+      env: { ...process.env, MIB_SUPA_URL: 'http://127.0.0.1:9', XDG_CONFIG_HOME: path.join(TMP, 'config'), ...(MAC ? {} : { APPDIR: SQ }) } });
     try {
       const info = await app.evaluate(({ app: a }) => ({ packaged: a.isPackaged, platform: process.platform, arch: process.arch, user: a.getPath('userData') }));
-      assert.equal(info.packaged, true); assert.equal(info.platform, 'darwin');
+      assert.equal(info.packaged, true); assert.equal(info.platform, process.platform);
       console.log('launcher:', JSON.stringify(info));
       const w = await app.firstWindow(), errors = [];
       w.on('pageerror', e => errors.push(e.message));
@@ -52,7 +83,7 @@ async function step(name, f) {
     } finally { await app.close().catch(() => {}); }
   });
 
-  await step('aktualizacja: zip → podmiana aplikacji w Aplikacjach po zamknięciu launchera', () => {
+  if (MAC) await step('aktualizacja: zip → podmiana aplikacji w Aplikacjach po zamknięciu launchera', () => {
     const apps = path.join(TMP, 'Applications'), cur = path.join(apps, NAME), out = path.join(TMP, 'upd');
     fs.mkdirSync(apps); fs.mkdirSync(out);
     sh('ditto', [APP, cur]);
@@ -74,7 +105,7 @@ async function step(name, f) {
     try { execSync('sleep 3; pkill -f "' + apps + '"'); } catch {}
   });
 
-  await step('aktualizacja: najnowsze wydanie z GitHuba (bez zipa na Maca — brak aktualizacji)', async () => {
+  if (MAC) await step('aktualizacja: najnowsze wydanie z GitHuba (bez zipa na Maca — brak aktualizacji)', async () => {
     const r = await macUp.latest(fetch);
     console.log('najnowsze wydanie:', JSON.stringify(r && { version: r.version, zip: r.zip }));
     if (r) { assert.match(r.zip, /\/releases\/download\/v[\d.]+\/MiB-Client-[\d.]+-mac\.zip$/); assert.equal((await fetch(r.zip, { method: 'HEAD' })).ok, true); }
@@ -82,19 +113,20 @@ async function step(name, f) {
 
   let java21 = null;
   for (const major of [21, 25, 8]) {
-    await step('Java ' + major + ' na Maca', async () => {
+    await step('Java ' + major + ' na ' + SYS, async () => {
       const p = await ensureJava({ base: path.join(TMP, 'java', String(major)), major, fetch, log: m => console.log(m) });
       const v = shAll(p, ['-version']), file = sh('file', [fs.realpathSync(p)]);
       console.log(major + ':', p, '|', v.split('\n')[0], '|', file.trim());
       assert.match(v, major === 8 ? /version "1\.8/ : new RegExp('version "' + major));
-      assert.match(file, major === 8 ? /x86_64/ : /arm64/, 'Java 8 na Intela (Rosetta), nowsze na Apple');
+      if (MAC) assert.match(file, major === 8 ? /x86_64/ : /arm64/, 'Java 8 na Intela (Rosetta), nowsze na Apple');
+      else assert.match(file, /ELF 64-bit.*x86-64/);
       if (major === 21) java21 = p;
       // drugi raz bez pobierania
       assert.equal(await ensureJava({ base: path.join(TMP, 'java', String(major)), major, fetch: () => { throw new Error('pobiera drugi raz'); } }), p);
     });
   }
 
-  await step('Minecraft startuje na Macu (LWJGL)', async () => {
+  await step('Minecraft startuje na ' + SYS + ' (LWJGL)', async () => {
     const { Client, Authenticator } = require('minecraft-launcher-core');
     const VERSIONS = require('../../lib/mibmod').VERSIONS || [];
     const manifest = await (await fetch('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json')).json();
@@ -108,7 +140,7 @@ async function step(name, f) {
       c.on('data', d => { log.push(String(d).trim()); if (/Backend library: LWJGL/.test(d)) { clearTimeout(t); res(String(d).trim()); } });
       c.on('close', code => { clearTimeout(t); rej(new Error('gra zamknięta (kod ' + code + '):\n' + log.slice(-40).join('\n'))); });
     });
-    const proc = await c.launch({ authorization: await Authenticator.getAuth('MiBMacTest'), root: path.join(TMP, 'mc'), version: { number: ver, type: 'release' },
+    const proc = await c.launch({ authorization: await Authenticator.getAuth('MiBTest'), root: path.join(TMP, 'mc'), version: { number: ver, type: 'release' },
       javaPath, memory: { max: '2G', min: '512M' } });
     assert.ok(proc, 'MCLC nie uruchomił gry');
     try { console.log('Minecraft ' + ver + ' (Java ' + major + '):', await ready); }

@@ -1,5 +1,5 @@
 # Buduje instalator Windows i wrzuca go razem z latest.yml do szkicu wydania v<wersja z package.json>, potem launcher
-# na Maca (dmg i zip) do tego samego szkicu.
+# na Maca (dmg i zip) i na Linuksa (AppImage z latest-linux.yml) do tego samego szkicu.
 # Szkic nie trafia do graczy, dopóki ktoś nie kliknie "Publish release" na GitHubie.
 name: Zbuduj wydanie
 
@@ -116,5 +116,28 @@ jobs:
         run: |
           v=$(node -p "require('./package.json').version")
           gh release upload "v$v" dist/MiB-Client-mac.dmg "dist/MiB-Client-$v-mac.zip" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Launcher na Linuksa (od 0.43.0): MiB-Client-linux.AppImage (stały link na stronę MiB:
+  # releases/latest/download/MiB-Client-linux.AppImage) i latest-linux.yml — z niego aktualizacje jak na Windows
+  linux:
+    needs: [mod, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: mod-*
+          merge-multiple: true
+          path: mod-dist
+      - run: npx electron-builder --linux AppImage --x64 --publish never
+      - name: Do szkicu wydania
+        run: gh release upload "v$(node -p "require('./package.json').version")" dist/MiB-Client-linux.AppImage dist/latest-linux.yml --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
