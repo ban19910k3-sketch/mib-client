@@ -69,6 +69,8 @@ public final class Cosmetics {
 	public static final class Item {
 		public final String id, name, type, png;
 		public final boolean equipped;
+		/** Miniatura z launchera (plik w mib/thumbs) albo null (od 0.40.0). */
+		public String thumb;
 
 		public Item(String id, String name, String type, boolean equipped, String png) {
 			this.id = id;

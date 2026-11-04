@@ -136,6 +136,11 @@ public final class FabricCanvas implements Canvas {
 	}
 
 	@Override
+	public void image(Object handle, int x, int y, int w, int h) {
+		if (handle instanceof MibId id && w > 0 && h > 0) blit(g, id, x, y, 0, 0, w, h, w, h, 0xFFFFFFFF);
+	}
+
+	@Override
 	public void item(Object stack, int x, int y) {
 		if (!(stack instanceof ItemStack s) || s.isEmpty()) return;
 		//#if MC >= 26.1

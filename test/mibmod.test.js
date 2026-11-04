@@ -474,3 +474,36 @@ test('most: party w menu gry (wpis „Party”, czat party), powiadomienie „pa
   assert.equal(pl.players[0].party, true);
   assert.equal('party' in pl.players[1], false, 'tylko prawdziwe true');
 });
+
+test('główki znajomych do menu gry: mc w friends.json, ensureHeads pobiera brakujące i stare (0.40.0)', async () => {
+  const dir = path.join(tmp(), 'mib'), asked = [];
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(20)]);
+  const fetch = async url => { asked.push(url); return url.includes('Zly') ? { ok: true, arrayBuffer: async () => Buffer.from('<html>') } : { ok: true, arrayBuffer: async () => png }; };
+  assert.equal(await m.ensureHeads({ dir, names: ['Kolega_MC', 'kolega_mc', 'zła nazwa', null, 'ZlyHost'], fetch, now: 1e12 }), 1);
+  assert.deepStrictEqual(asked, ['https://mc-heads.net/avatar/Kolega_MC/16', 'https://mc-heads.net/avatar/ZlyHost/16'], 'ta sama główka raz, złe nazwy bez pytania');
+  assert.ok(fs.existsSync(path.join(dir, 'heads', 'kolega_mc.png')), 'plik małymi literami');
+  assert.ok(!fs.existsSync(path.join(dir, 'heads', 'zlyhost.png')), 'odpowiedź bez PNG pominięta');
+  asked.length = 0;
+  const t = fs.statSync(path.join(dir, 'heads', 'kolega_mc.png')).mtimeMs;
+  assert.equal(await m.ensureHeads({ dir, names: ['Kolega_MC'], fetch, now: t + 1000 }), 0, 'świeża główka zostaje');
+  assert.equal(asked.length, 0);
+  assert.equal(await m.ensureHeads({ dir, names: ['Kolega_MC'], fetch, now: t + 2 * 864e5 }), 1, 'po dobie pobiera od nowa');
+  const b = m.createBridge({ dir, accounts: () => ({ list: [], active: null }), onSwitch: async () => {},
+    friends: async () => ({ loggedIn: true, list: [{ id: 'a', nick: 'Kolega', status: 'game', server: null, unread: 0, mc: 'Kolega_MC' }, { id: 'b', nick: 'Zly', mc: 'zła nazwa' }] }) });
+  await b.pollOnce();
+  const fj = JSON.parse(fs.readFileSync(path.join(dir, 'friends.json'), 'utf8')).list;
+  assert.equal(fj[0].mc, 'Kolega_MC');
+  assert.equal('mc' in fj[1], false);
+});
+
+test('miniatury kosmetyków dla menu gry: nazwa z skrótu tekstury i pole thumb w cosmetics.json (0.40.0)', () => {
+  const tex = 'data:image/png;base64,QUJD';
+  const n = m.thumbName({ id: 'cape_1k', texture: tex });
+  assert.match(n, /^cape_1k-[0-9a-f]{8}\.png$/);
+  assert.notEqual(m.thumbName({ id: 'cape_1k', texture: tex + 'x' }), n, 'nowa tekstura, nowy plik');
+  assert.equal(m.thumbName({ id: '../zle', texture: tex }), null);
+  assert.equal(m.thumbName({ id: 'cape_1k', texture: null }), null);
+  const p = JSON.parse(m.cosmeticsPayload({ loggedIn: true, items: [{ id: 'cape_1k', name: 'P', type: 'cape', texture: tex, thumb: n }, { id: 'h', name: 'H', type: 'hat', thumb: '../../x.png' }] }));
+  assert.equal(p.items[0].thumb, n);
+  assert.equal('thumb' in p.items[1], false, 'zła nazwa nie trafia do gry');
+});

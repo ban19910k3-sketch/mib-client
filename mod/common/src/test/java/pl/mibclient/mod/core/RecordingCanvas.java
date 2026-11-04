@@ -20,6 +20,13 @@ public class RecordingCanvas implements Canvas {
 	public final List<int[]> fills = new ArrayList<int[]>();
 	public final List<Text> texts = new ArrayList<Text>();
 	public final List<String> items = new ArrayList<String>();
+	/** Obrazki od launchera: uchwyt i prostokąt (od 0.40.0). */
+	public final List<String> images = new ArrayList<String>();
+
+	@Override
+	public void image(Object handle, int x, int y, int w, int h) {
+		images.add(handle + "@" + w + "x" + h);
+	}
 	/** Ile razy narysowano postać gracza (podgląd w menu). */
 	public int players;
 	public int pushes, pops;
@@ -73,6 +80,7 @@ public class RecordingCanvas implements Canvas {
 	}
 
 	public void clear() {
+		images.clear();
 		fills.clear();
 		texts.clear();
 		items.clear();

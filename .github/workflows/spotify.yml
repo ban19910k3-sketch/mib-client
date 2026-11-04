@@ -1,0 +1,16 @@
+name: Spotify (Windows)
+on:
+  push:
+    paths: ['lib/spotify.js', 'test/spotify-win.js', '.github/workflows/spotify.yml']
+  workflow_dispatch:
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Skrypt Spotify (sesje multimediów Windows)
+        run: node test/spotify-win.js

@@ -7,11 +7,13 @@ import org.junit.jupiter.api.Test;
 class MenuLayoutTest {
 	@Test
 	void scaleFollowsWindow() {
-		assertEquals(3, MenuLayout.scale(1920, 1080));
+		assertEquals(2, MenuLayout.scale(1920, 1080), "od 0.40.0 mniejsze menu na dużych ekranach");
+		assertEquals(3, MenuLayout.scale(2560, 1440));
+		assertEquals(2, MenuLayout.scale(1600, 900));
 		assertEquals(2, MenuLayout.scale(1280, 720));
 		assertEquals(1, MenuLayout.scale(854, 480));
 		assertEquals(1, MenuLayout.scale(320, 240));
-		assertEquals(6, MenuLayout.scale(7680, 4320));
+		assertEquals(5, MenuLayout.scale(7680, 4320));
 	}
 
 	@Test

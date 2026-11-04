@@ -10,6 +10,7 @@ const { diagnoseCrash } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
 const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText, THEME_IDS, mcProfileAction, partyPlay, partyEntry, partyChatRows } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
+const { createSpotify } = require('./lib/spotify');
 const serverList = require('./lib/servers');
 const { createMibPresence, joinMojang, helloMessage } = require('./lib/presence');
 const skinApi = require('./lib/skin');
@@ -132,6 +133,23 @@ async function watchMessages() {
 setInterval(() => watchMessages().catch(() => {}), 10000);
 setTimeout(() => watchMessages().catch(() => {}), 6000);
 ipcMain.handle('chat:check', () => watchMessages().catch(() => {}));
+// Miniatury kosmetyków dla menu gry (0.40.0): okno launchera rysuje PNG (te same co w Kosmetykach), tu zapis do mib/thumbs;
+// stara miniatura tego samego kosmetyku (inna tekstura) znika
+let thumbDir = null;
+const thumbAsked = new Set();
+ipcMain.handle('thumbs:save', (_, { name, data } = {}) => {
+  if (!thumbDir || typeof name !== 'string' || !mibmod.THUMB_RE.test(name) || typeof data !== 'string' || !data.startsWith('data:image/png;base64,')) return false;
+  const b = Buffer.from(data.slice(22), 'base64');
+  if (b.length > 256 * 1024) return false;
+  try {
+    fs.mkdirSync(thumbDir, { recursive: true });
+    const id = name.replace(/-[0-9a-f]{8}\.png$/, '');
+    for (const f of fs.readdirSync(thumbDir)) if (f !== name && f.replace(/-[0-9a-f]{8}\.png$/, '') === id) fs.unlinkSync(path.join(thumbDir, f));
+    fs.writeFileSync(path.join(thumbDir, name), b);
+    return true;
+  } catch { return false; }
+});
+ipcMain.handle('thumbs:done', () => { if (bridge) bridge.refreshCosmetics().catch(() => {}); });
 // Party (0.38.0): co 15 s zaproszenia, „Lider gra na X — Dołącz” (gdy lider zmieni serwer albo wersję) i nowe wiadomości
 // czatu party; launcher dostaje stan (party:changed), menu gry wpis „Party” na liście znajomych, nicki członków ikonkę party
 let partyNow = null, partyInvSeen = null, partyPlayKey = null, partyMsgSeen = null, partyUnread = 0, partyChatOpen = false;
@@ -829,8 +847,37 @@ async function ensureForge(root, mc) {
 // ---- Nakładka HUD (Right Shift) ----
 // Z modem MiB menu jest w samej grze: launcher tylko obsługuje zmianę konta przez pliki w <gra>/mib (bez starej nakładki)
 let ov = null, fgProc = null, menuOpen = false, fg = true, hooked = false, bridge = null;
+// Spotify z komputera dla menu w grze (0.40.0): stan z lib/spotify.js, okładka jako PNG 64×64 w <gra>/mib/spotify
+let spotifyNow = null, spotifyCover = null, spotifyKey = '', spotifyDir = null;
+const spotifyWatch = createSpotify({ log: t => send('log', t), onState: s => {
+  const key = s.title ? s.title + '|' + s.artist : '';
+  if (key !== spotifyKey) { spotifyKey = key; spotifyCover = null; }
+  if (s.cover && spotifyDir) {
+    try {
+      const img = nativeImage.createFromBuffer(Buffer.from(s.cover, 'base64'));
+      if (!img.isEmpty()) {
+        const png = img.resize({ width: 64, height: 64, quality: 'good' }).toPNG(), name = 'cover-' + crypto.createHash('sha1').update(png).digest('hex').slice(0, 8) + '.png';
+        fs.mkdirSync(spotifyDir, { recursive: true });
+        for (const f of fs.readdirSync(spotifyDir)) if (f !== name && /^cover-[0-9a-f]{8}\.png$/.test(f)) fs.unlinkSync(path.join(spotifyDir, f));
+        fs.writeFileSync(path.join(spotifyDir, name), png);
+        spotifyCover = name;
+      }
+    } catch {}
+  }
+  delete s.cover;
+  spotifyNow = s;
+} });
+// „Otwórz Spotify” z gry: aplikacja Spotify (gdy jest zainstalowana — protokół spotify: w rejestrze), inaczej strona pobierania
+function openSpotify() {
+  if (process.platform !== 'win32') return shell.openExternal('https://open.spotify.com');
+  require('child_process').execFile('reg', ['query', 'HKCU\\Software\\Classes\\spotify'], { timeout: 5000, windowsHide: true }, err => {
+    shell.openExternal(err ? 'https://www.spotify.com/pl/download/windows/' : 'spotify:').catch(() => {});
+  });
+}
 function startHud(pid, mibDir, gameAcc) {
   if (mibDir) {
+    spotifyDir = path.join(mibDir, 'spotify'); spotifyNow = null; spotifyCover = null; spotifyKey = '';
+    spotifyWatch.start();
     // „aktywne” dla menu w grze to konto, na którym gra działa (nie to wybrane później w oknie launchera)
     try {
       bridge = mibmod.createBridge({ dir: mibDir, accounts: () => { const a = accLoad(); return { ...a, list: tempAcc ? [{ id: tempAcc.id, name: tempAcc.name }, ...a.list] : a.list, active: gameAcc }; }, onSwitch: relaunchWithAccount,
@@ -840,7 +887,13 @@ function startHud(pid, mibDir, gameAcc) {
           if (!st || st.offline) return null; // bez sieci: zostaje poprzednia lista
           if (!st.loggedIn) return { loggedIn: false, items: [] };
           const [l, g, pt] = await Promise.all([prof.cosmetics(), prof.gifts(), prof.pet()]);
-          return Array.isArray(l) ? { loggedIn: true, items: l, gifts: Array.isArray(g) ? g : [], pet: pt && !pt.error ? pt : null } : null;
+          if (!Array.isArray(l)) return null;
+          // miniatury do kafelków w grze (0.40.0): gotowe z mib/thumbs, brakujące rysuje okno launchera (thumbs:make)
+          thumbDir = path.join(mibDir, 'thumbs');
+          const items = l.map(x => { const n = mibmod.thumbName(x); return n && fs.existsSync(path.join(thumbDir, n)) ? { ...x, thumb: n } : x; });
+          const miss = l.filter(x => { const n = mibmod.thumbName(x); return n && !thumbAsked.has(n) && !fs.existsSync(path.join(thumbDir, n)); });
+          if (miss.length) { miss.forEach(x => thumbAsked.add(mibmod.thumbName(x))); send('thumbs:make', miss.map(x => ({ name: mibmod.thumbName(x), type: x.type, imageUrl: x.texture }))); }
+          return { loggedIn: true, items, gifts: Array.isArray(g) ? g : [], pet: pt && !pt.error ? pt : null };
         },
         // „Odbierz” prezent w menu gry
         onClaim: async id => { const r = await prof.claimGift({ id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się odebrać prezentu.'); watchGifts().catch(() => {}); },
@@ -862,8 +915,10 @@ function startHud(pid, mibDir, gameAcc) {
           if (!Array.isArray(l)) return l && l.error === 'not_logged_in' ? { loggedIn: false, list: [] } : null;
           const un = {};
           for (const u of unreadRows) un[u.from_id] = Number(u.unread) || 0;
-          const party = partyEntry(partyNow, partyUnread);
-          return { loggedIn: true, list: [...(party ? [party] : []), ...l.filter(f => f.state === 'friend').map(f => ({ id: f.id, nick: f.nick, status: f.status, server: f.server, unread: un[f.id] || 0 }))] };
+          const party = partyEntry(partyNow, partyUnread), fr = l.filter(f => f.state === 'friend');
+          // główki skinów znajomych do menu gry (0.40.0), w tle
+          mibmod.ensureHeads({ dir: mibDir, names: fr.map(f => f.mc_name), fetch: (...a) => fetch(...a) }).then(n => { if (n && bridge) bridge.friendsChanged(); }).catch(() => {});
+          return { loggedIn: true, list: [...(party ? [party] : []), ...fr.map(f => ({ id: f.id, nick: f.nick, status: f.status, server: f.server, unread: un[f.id] || 0, mc: f.mc_name || null }))] };
         },
         chat: async id => {
           // czat party (0.38.0): cudze wiadomości z nickiem na początku, otwarta rozmowa zeruje licznik
@@ -878,6 +933,9 @@ function startHud(pid, mibDir, gameAcc) {
           if (l.some(m => !m.mine && !m.read)) { await prof.chatRead({ id }); watchMessages().catch(() => {}); }
           return l.map(m => (m.mine ? m : { ...m, body: clean(m.body) }));
         },
+        // Spotify z komputera (0.40.0): stan dla menu w grze i polecenia (poprzedni, pauza, następny, otwórz Spotify)
+        spotify: () => (spotifyNow ? { state: spotifyNow, cover: spotifyCover } : null),
+        onSpotify: async cmd => { if (cmd === 'open') openSpotify(); else spotifyWatch.send(cmd); },
         onSend: async (id, body) => { const r = id === 'party' ? await prof.partySend({ body }) : await prof.chatSend({ id, body }); if (r && r.error) throw new Error(r.error); if (id === 'party') watchParty().catch(() => {}); } }); bridge.start(); send('log', 'Mod MiB w grze: menu pod prawym Shiftem.'); }
     catch (e) { send('log', 'Zmiana konta z gry niedostępna: ' + e.message); }
     return;
@@ -902,6 +960,7 @@ function startHud(pid, mibDir, gameAcc) {
 function toggleMenu() { menuOpen = !menuOpen; if (!ov || ov.isDestroyed()) return; ov.setIgnoreMouseEvents(!menuOpen); ov.webContents.send('menu', menuOpen); }
 function stopHud() {
   if (bridge) { bridge.stop(); bridge = null; }
+  spotifyWatch.stop(); spotifyNow = null;
   try { if (hooked) { require('uiohook-napi').uIOhook.stop(); hooked = false; } } catch {}
   try { if (fgProc) fgProc.kill(); } catch {} fgProc = null; menuOpen = false;
   if (ov && !ov.isDestroyed()) ov.close(); ov = null;

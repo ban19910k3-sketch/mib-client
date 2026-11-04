@@ -440,6 +440,39 @@
     if (png && c.type === 'wings') return wingsThumb(c.imageUrl);
     return c.imageUrl ? h('img', { src: c.imageUrl, alt: '' }) : GLYPH[c.type] || '◆';
   };
+  // Miniatury kosmetyków do menu w grze (0.40.0): te same co w Kosmetykach launchera, jako PNG 64×64. main.js prosi
+  // o brakujące (thumbs:make), a gotowe zapisuje do <gra>/mib/thumbs (thumbs:save); mod rysuje je na kafelkach.
+  async function thumbPng(c) {
+    const url = c.imageUrl;
+    if (typeof url !== 'string' || !url.startsWith('data:image/png')) return null;
+    const img = await loadImg(url).catch(() => null);
+    if (!img) return null;
+    const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    const x = cv.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    if (c.type === 'cape') { // zewnętrzna strona peleryny (10×16 od 1,1) z pierwszej klatki, 3 razy większa
+      const u = img.width / 64;
+      x.drawImage(img, u, u, 10 * u, 16 * u, 17, 8, 30, 48);
+      return cv.toDataURL('image/png');
+    }
+    const el = itemImage(c, 4);
+    if (!el || !el.nodeType) return null;
+    await new Promise(r => setTimeout(r, 80)); // miniatury rysują się po loadImg (obrazek jest już wczytany)
+    const src = el.tagName === 'CANVAS' ? el : el.tagName === 'IMG' ? await loadImg(el.src).catch(() => null) : null;
+    if (!src || !src.width || !src.height) return null;
+    let k = Math.min(S / src.width, S / src.height);
+    if (k >= 1) k = Math.floor(k); else x.imageSmoothingEnabled = true; // piksele bez rozmycia, duże modele pomniejszone gładko
+    const w = Math.round(src.width * k), hh = Math.round(src.height * k);
+    x.drawImage(src, Math.floor((S - w) / 2), Math.floor((S - hh) / 2), w, hh);
+    return cv.toDataURL('image/png');
+  }
+  mib.on('thumbs:make', async list => {
+    for (const t of Array.isArray(list) ? list : []) {
+      const data = await thumbPng(t).catch(() => null);
+      if (data) await mib.call('thumbs:save', { name: t.name, data });
+    }
+    mib.call('thumbs:done');
+  });
   // ===== Skin konta Minecraft (na górze strony Kosmetyki; wystarczy konto Microsoft) =====
   let skinViewer = null;
   const skinCanvas = h('canvas', { width: 200, height: 260, class: 'skin3d', id: 'skin3d' });

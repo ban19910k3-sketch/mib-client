@@ -8,8 +8,9 @@ const assert = require('node:assert/strict');
 const ROOT = path.join(__dirname, '..', '..'), OUT = process.argv[2] || fs.mkdtempSync(path.join(os.tmpdir(), 'mib-shots-'));
 const ok = m => console.log('PASS', m);
 // czeka, aż warunek po stronie atrapy (proces testu) będzie spełniony
+// czeka, aż f() (także async) da prawdę
 async function until(f, ms = 8000) {
-  for (const end = Date.now() + ms; !f(); await new Promise(r => setTimeout(r, 50))) if (Date.now() > end) throw new Error('until: ' + f);
+  for (const end = Date.now() + ms; !(await f()); await new Promise(r => setTimeout(r, 50))) if (Date.now() > end) throw new Error('until: ' + f);
 }
 // Skin 64×64 (fioletowy) jako PNG do atrapy Mojanga
 const pngSkin = () => png(64, 64, x => [124 + (x % 8) * 8, 58, 237, 255]);
@@ -775,6 +776,22 @@ function png(w, h, px) {
     assert.equal(await w.evaluate(() => localStorage.getItem('mib-founder-cape-' + document.getElementById('plsub').textContent.match(/MIB-\d+/)[0])), '1', 'efekt tylko raz');
     delete fake.cosmetics.cape_1k; fake.st.owned = fake.st.owned.filter(o => o.cosmetic !== 'cape_1k');
     ok('(aw) peleryna 1000 graczy od razu po założeniu profilu, z efektem „Nowy przedmiot”');
+
+    // Miniatury kosmetyków dla menu gry (0.40.0): okno launchera rysuje PNG 64×64 i oddaje je do zapisu
+    await app.evaluate(({ ipcMain, BrowserWindow }, tex) => {
+      global.thumbs = []; ipcMain.removeHandler('thumbs:save'); ipcMain.handle('thumbs:save', (_, t) => { global.thumbs.push(t); return true; });
+      ipcMain.removeHandler('thumbs:done'); ipcMain.handle('thumbs:done', () => { global.thumbsDone = true; });
+      BrowserWindow.getAllWindows()[0].webContents.send('thumbs:make', [{ name: 'cape_t-0a1b2c3d.png', type: 'cape', imageUrl: tex }, { name: 'hat_t-0a1b2c3d.png', type: 'hat', imageUrl: tex }, { name: 'zle-0a1b2c3d.png', type: 'cape', imageUrl: null }]);
+    }, 'data:image/png;base64,' + png(64, 32, (x, y) => (x < 22 && y < 17 ? [157, 78, 221, 255] : [255, 210, 74, 255])).toString('base64'));
+    await until(async () => await app.evaluate(() => !!global.thumbsDone));
+    const th = await app.evaluate(() => global.thumbs);
+    assert.deepEqual(th.map(t => t.name), ['cape_t-0a1b2c3d.png', 'hat_t-0a1b2c3d.png'], 'bez tekstury nie ma miniatury');
+    for (const t of th) {
+      assert.match(t.data, /^data:image\/png;base64,/);
+      const b = Buffer.from(t.data.slice(22), 'base64');
+      assert.deepEqual([b.readUInt32BE(16), b.readUInt32BE(20)], [64, 64], 'PNG 64×64');
+    }
+    ok('(ay) miniatury kosmetyków dla menu w grze rysuje okno launchera');
 
     // Panel admina: Sierota_1 ma numer 2 (MIB-000002)
     await w.waitForSelector('.nav[data-p="admin"]:not([hidden])');

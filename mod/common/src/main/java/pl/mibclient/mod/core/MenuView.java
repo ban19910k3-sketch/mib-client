@@ -19,7 +19,7 @@ import pl.mibclient.mod.core.modules.Waypoints;
  */
 public final class MenuView {
 	/** HUB (od 0.39.0): mały panel startowy pod prawym Shiftem; pozostałe strony to pełne menu. */
-	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS, FRIENDS, CHAT, HUB }
+	public enum Page { GRID, SETTINGS, ACCOUNTS, COSMETICS, FRIENDS, CHAT, HUB, SPOTIFY }
 
 	public static final int KEY_ESCAPE = 256, KEY_BACKSPACE = 259, KEY_ENTER = 257;
 	private static final int FAINT = Theme.FAINT, WHITE = 0xFFFFFFFF;
@@ -214,6 +214,7 @@ public final class MenuView {
 		} else if (page == Page.ACCOUNTS) accounts(c, mx, my);
 		else if (page == Page.COSMETICS) cosmetics(c, mx, my);
 		else if (page == Page.FRIENDS) friends(c, mx, my);
+		else if (page == Page.SPOTIFY) spotify(c, mx, my);
 		else chat(c, mx, my);
 		if (tip != null) {
 			int tw = c.textWidth(tip) + 12, x = Math.max(2, Math.min(tipAt[0], w - tw - 2));
@@ -253,6 +254,8 @@ public final class MenuView {
 		if (fs != null) tabs.add(new Tab("friends", "message", Lang.t("menu.friends") + (fs.unread() > 0 ? " (" + fs.unread() + ")" : ""), Page.FRIENDS,
 				fs.unread() > 0 && page != Page.FRIENDS && page != Page.CHAT, "users", Lang.t("menu.friends")));
 		if (!actions.accounts().isEmpty()) tabs.add(new Tab("accounts", "users", Lang.t("menu.tab_accounts"), Page.ACCOUNTS, false, "user", Lang.t("menu.tab_accounts")));
+		// Spotify z komputera (0.40.0): gdy gra działa z launchera; ikona to logo Spotify rysowane przez spotifyLogo
+		if (actions.spotify() != null) tabs.add(new Tab("spotify", null, "Spotify", Page.SPOTIFY, false, null, "Spotify"));
 		return tabs;
 	}
 
@@ -268,9 +271,10 @@ public final class MenuView {
 			".###....#####....###.",
 			".###....#####....###.",
 			"###......###......###"};
-	private static final int HUB_S = 46, HUB_G = 8, HUB_P = 12, HUB_LOGO = 3, HUB_EDIT = 32;
+	// od 0.40.0 mniejszy panel (był za duży), mieści 5 kwadratów razem ze Spotify
+	private static final int HUB_S = 36, HUB_G = 6, HUB_P = 10, HUB_LOGO = 2, HUB_EDIT = 26;
 	/** Powiększenie napisów w panelu startowym (EDYTUJ HUD, nazwa pod kursorem). */
-	private static final float HUB_TEXT = 1.3f;
+	private static final float HUB_TEXT = 1.15f;
 
 	private static void logo(Canvas c, int x, int y, int k) {
 		for (int j = 0; j < LOGO.length; j++) {
@@ -295,12 +299,12 @@ public final class MenuView {
 		List<Tab> tabs = tabs();
 		int n = tabs.size(), cols = Math.max(n, 3);
 		int inner = cols * HUB_S + (cols - 1) * HUB_G, logoH = LOGO.length * HUB_LOGO;
-		int cw = inner + 2 * HUB_P, ch = HUB_P + logoH + 14 + HUB_S + HUB_G + HUB_EDIT + HUB_P;
+		int cw = inner + 2 * HUB_P, ch = HUB_P + logoH + 10 + HUB_S + HUB_G + HUB_EDIT + HUB_P;
 		int x = (w - cw) / 2, y = (h - ch) / 2;
 		Shapes.round(c, x, y, cw, ch, rad(7), pixels, Theme.alpha(Theme.SLAB, 0xEE), LINE);
 		logo(c, x + (cw - LOGO[0].length() * HUB_LOGO) / 2, y + HUB_P, HUB_LOGO);
 
-		int[] close = {x + cw - HUB_P - 14, y + HUB_P - 4, 18, 18};
+		int[] close = {x + cw - HUB_P - 15, y + HUB_P - 5, 18, 18};
 		boolean ch0 = in(close, mx, my);
 		Shapes.round(c, close[0], close[1], close[2], close[3], rad(9), pixels, ch0 ? BOX_HOVER : 0, 0);
 		Shapes.icon(c, "shrink", close[0] + 3, close[1] + 3, ch0 ? WHITE : Theme.MUTED);
@@ -312,16 +316,19 @@ public final class MenuView {
 		}));
 		String label = ch0 ? Lang.t("menu.collapse") : null;
 
-		int sy = y + HUB_P + logoH + 14, sx = x + HUB_P + (inner - (n * HUB_S + (n - 1) * HUB_G)) / 2;
+		int sy = y + HUB_P + logoH + 10, sx = x + HUB_P + (inner - (n * HUB_S + (n - 1) * HUB_G)) / 2;
 		for (Tab tb : tabs) {
 			int[] r = {sx, sy, HUB_S, HUB_S};
 			boolean hover = in(r, mx, my);
 			Shapes.round(c, r[0], r[1], r[2], r[3], rad(5), pixels, hover ? Theme.alpha(Theme.mix(Theme.SLAB2, Theme.AM_LO, 0.45), 0xF4) : BOX,
 					hover ? Theme.AM : LINE);
 			int ix = r[0] + (HUB_S - 24) / 2, iy = r[1] + (HUB_S - 24) / 2;
-			c.push(2, ix, iy);
-			Shapes.icon(c, tb.hubIcon, ix, iy, hover ? WHITE : Theme.TEXT);
-			c.pop();
+			if (tb.hubIcon == null) spotifyLogo(c, ix, iy, 24);
+			else {
+				c.push(2, ix, iy);
+				Shapes.icon(c, tb.hubIcon, ix, iy, hover ? WHITE : Theme.TEXT);
+				c.pop();
+			}
 			if (tb.alert) Shapes.round(c, r[0] + r[2] - 9, r[1] + 3, 6, 6, rad(3), pixels, Theme.AM_HI, 0);
 			if (hover) label = tb.hubLabel;
 			final Page target = tb.page;
@@ -398,17 +405,28 @@ public final class MenuView {
 		int langX = language(c, close[0] - 6, t[1], t[3], mx, my);
 
 		List<Tab> tabs = tabs();
-		int x = lg[0] + lg[2] + MenuLayout.GAP, room = langX - 6 - x;
-		int each = Math.min(110, (room - (tabs.size() - 1) * 6) / Math.max(1, tabs.size()));
+		// zakładka bez ikony z PixelIcons (Spotify, od 0.40.0) to samo logo w kwadracie; reszta dzieli resztę miejsca
+		int x = lg[0] + lg[2] + MenuLayout.GAP, room = langX - 6 - x, named = 0;
+		for (Tab tb : tabs) if (tb.icon != null) named++;
+		room -= (tabs.size() - named) * (t[3] + 6);
+		int each = Math.min(110, (room - (named - 1) * 6) / Math.max(1, named));
 		for (Tab tb : tabs) {
-			int[] r = {x, t[1], Math.max(each, 40), t[3]};
+			int[] r = {x, t[1], tb.icon == null ? t[3] : Math.max(each, 40), t[3]};
 			boolean on = tb.page == Page.GRID ? modulesTab() : tb.page == Page.FRIENDS ? page == Page.FRIENDS || page == Page.CHAT : page == tb.page;
 			boolean hover = in(r, mx, my);
 			box(c, r[0], r[1], r[2], r[3], on ? ACCENT_BG : hover ? BOX_HOVER : BOX, on ? Theme.AM : hover ? Theme.EDGE2 : LINE);
-			String label = Shapes.ellipsize(c, tb.label, r[2] - 32, false);
-			int lw = 16 + c.textWidth(label), sx = r[0] + (r[2] - lw) / 2;
-			Shapes.icon(c, tb.icon, sx, r[1] + (r[3] - 12) / 2, on ? Theme.AM_HI : tb.alert ? Theme.AM : Theme.MUTED);
-			c.text(label, sx + 16, r[1] + (r[3] - 8) / 2, on ? WHITE : tb.alert ? Theme.AM_HI : hover ? Theme.TEXT : Theme.MUTED, false);
+			if (tb.icon == null) {
+				spotifyLogo(c, r[0] + (r[2] - 12) / 2, r[1] + (r[3] - 12) / 2, 12);
+				if (hover) {
+					tip = tb.label;
+					tipAt = new int[] {r[0], r[1] + r[3] + 3};
+				}
+			} else {
+				String label = Shapes.ellipsize(c, tb.label, r[2] - 32, false);
+				int lw = 16 + c.textWidth(label), sx = r[0] + (r[2] - lw) / 2;
+				Shapes.icon(c, tb.icon, sx, r[1] + (r[3] - 12) / 2, on ? Theme.AM_HI : tb.alert ? Theme.AM : Theme.MUTED);
+				c.text(label, sx + 16, r[1] + (r[3] - 8) / 2, on ? WHITE : tb.alert ? Theme.AM_HI : hover ? Theme.TEXT : Theme.MUTED, false);
+			}
 			final Page target = tb.page;
 			hits.add(new Hit(tb.name, r, new Runnable() {
 				@Override
@@ -980,10 +998,6 @@ public final class MenuView {
 			return;
 		}
 		c.text(Lang.t("cos.hint"), ct[0], ct[1] + 22, Theme.MUTED, false);
-		// peleryny na górze, potem czapki i skrzydła; lista przewijana kółkiem
-		List<Cosmetics.Item> items = new ArrayList<Cosmetics.Item>();
-		for (Cosmetics.Item it : cs.items) if ("cape".equals(it.type)) items.add(it);
-		for (Cosmetics.Item it : cs.items) if (!"cape".equals(it.type)) items.add(it);
 		String msg = actions.cosmeticMessage();
 		y = petRows(c, cs, ct, y, mx, my);
 		int top = y, bottom = ct[1] + ct[3] - (msg != null ? 22 : 2);
@@ -994,19 +1008,59 @@ public final class MenuView {
 			int size = Math.max(20, Math.min(pw * 2 / 5, (bottom - top) * 2 / 7));
 			c.playerTurned(ct[0] + 2, top + 2, ct[0] + pw - 2, bottom - 2, size, (System.currentTimeMillis() / 20) % 360);
 		}
-		maxCosScroll = Math.max(0, (cs.gifts.size() + items.size()) * 24 - 4 - (bottom - top));
+		// kategorie (od 0.40.0): Wszystko i rodzaje, które gracz ma, z liczbą przedmiotów
+		List<String> kinds = new ArrayList<String>();
+		for (String k : COS_KINDS) for (Cosmetics.Item it : cs.items) if (k.equals(kindOf(it))) {
+			kinds.add(k);
+			break;
+		}
+		if (cosKind != null && !kinds.contains(cosKind)) cosKind = null;
+		int cx = lx, cy = top;
+		for (int i = -1; i < kinds.size(); i++) {
+			final String k = i < 0 ? null : kinds.get(i);
+			int n = 0;
+			for (Cosmetics.Item it : cs.items) if (k == null || k.equals(kindOf(it))) n++;
+			String t = Lang.t(k == null ? "cos.kinds.all" : "cos.kinds." + k) + " " + n;
+			int[] r = {cx, cy, c.textWidth(t) + 14, 16};
+			if (r[0] + r[2] > lx + lw && cx > lx) {
+				cx = lx;
+				cy += 20;
+				r[0] = cx;
+				r[1] = cy;
+			}
+			boolean on = k == null ? cosKind == null : k.equals(cosKind), hover = in(r, mx, my);
+			box(c, r[0], r[1], r[2], r[3], on ? ACCENT_BG : hover ? BOX_HOVER : BOX, on ? Theme.AM : hover ? Theme.EDGE2 : LINE);
+			c.text(t, r[0] + 7, r[1] + 4, on ? WHITE : hover ? Theme.TEXT : Theme.MUTED, false);
+			hits.add(new Hit("kind:" + (k == null ? "all" : k), r, new Runnable() {
+				@Override
+				public void run() {
+					cosKind = k;
+					cosScroll = 0;
+				}
+			}));
+			cx += r[2] + 4;
+		}
+		int listTop = cy + 22;
+		// kafelki: peleryny na początku, potem reszta; tylko wybrany rodzaj
+		List<Cosmetics.Item> items = new ArrayList<Cosmetics.Item>();
+		for (Cosmetics.Item it : cs.items) if ("cape".equals(it.type) && (cosKind == null || cosKind.equals(kindOf(it)))) items.add(it);
+		for (Cosmetics.Item it : cs.items) if (!"cape".equals(it.type) && (cosKind == null || cosKind.equals(kindOf(it)))) items.add(it);
+		int cols = Math.max(1, (lw + TILE_GAP) / (TILE_W + TILE_GAP)), tw = (lw - TILE_GAP * (cols - 1)) / cols;
+		int rows = (items.size() + cols - 1) / cols;
+		int contentH = cs.gifts.size() * 24 + (rows == 0 ? 0 : rows * (TILE_H + TILE_GAP) - TILE_GAP);
+		maxCosScroll = Math.max(0, contentH - (bottom - listTop));
 		cosScroll = Math.max(0, Math.min(maxCosScroll, cosScroll));
-		c.scissor(lx, top, lx + lw, bottom);
-		y = top - cosScroll;
+		c.scissor(lx, listTop, lx + lw, bottom);
+		y = listTop - cosScroll;
 		for (final Cosmetics.Gift g : cs.gifts) {
-			if (y + 20 > top && y < bottom) {
+			if (y + 20 > listTop && y < bottom) {
 				box(c, lx, y, lw, 20, BOX, Theme.AM);
 				Shapes.icon(c, "archive", lx + 6, y + 4, Theme.AM_HI);
 				String t = Lang.t("cos.claim");
 				int[] b = {lx + lw - 4 - (c.textWidth(t) + 16), y + 2, c.textWidth(t) + 16, 16};
 				c.text(Shapes.ellipsize(c, Lang.t("cos.gift", g.name), b[0] - lx - 30, false), lx + 22, y + 6, Theme.AM_HI, false);
 				button(c, b, null, t, true, in(b, mx, my));
-				if (y >= top && y + 20 <= bottom) hits.add(new Hit("gift:" + g.id, b, new Runnable() {
+				if (y >= listTop && y + 20 <= bottom) hits.add(new Hit("gift:" + g.id, b, new Runnable() {
 					@Override
 					public void run() {
 						actions.claimGift(g.id);
@@ -1015,40 +1069,10 @@ public final class MenuView {
 			}
 			y += 24;
 		}
-		for (final Cosmetics.Item it : items) {
-			if (y + 20 <= top || y >= bottom) {
-				y += 24;
-				continue;
-			}
-			boolean clickable = y >= top && y + 20 <= bottom;
-			final boolean trying = it.id.equals(actions.tryingOn(it.type));
-			box(c, lx, y, lw, 20, BOX, it.equipped ? Theme.AM_LO : trying ? Theme.AM_HI : LINE);
-			String kind = Lang.t("cos." + (java.util.Arrays.asList("hat", "mask", "wings", "aura", "pet", "tail", "back").contains(it.type) ? it.type : "cape"));
-			c.text(Shapes.ellipsize(c, it.name, lw - 150, false), lx + 8, y + 6, Theme.TEXT, false);
-			// przymiarka: cały wiersz (przycisk niżej ma pierwszeństwo, bo sprawdzany jest od końca)
-			if (clickable && it.png != null && !it.equipped) hits.add(new Hit("try:" + it.id, new int[] {lx, y, lw, 20}, new Runnable() {
-				@Override
-				public void run() {
-					actions.tryOn(it.type, trying ? null : it.id);
-				}
-			}));
-			{
-				String t = Lang.t(it.equipped ? "cos.unequip" : "cos.equip");
-				int[] b = {lx + lw - 4 - (c.textWidth(t) + 16), y + 2, c.textWidth(t) + 16, 16};
-				button(c, b, null, t, !it.equipped, in(b, mx, my));
-				String label = it.equipped ? Lang.t("cos.on") : trying ? Lang.t("cos.trying") : null;
-				if (label != null) c.text(label, b[0] - 6 - c.textWidth(label), y + 6, Theme.AM_HI, false);
-				// rodzaj przedmiotu przed napisem „Założona” / „Przymierzasz” (szerokość zależy od czcionki)
-				c.text(kind, (label != null ? b[0] - 6 - c.textWidth(label) : b[0]) - 14 - c.textWidth(kind), y + 6, FAINT, false);
-				if (clickable) hits.add(new Hit("cos:" + it.id, b, new Runnable() {
-					@Override
-					public void run() {
-						if (trying) actions.tryOn(it.type, null);
-						actions.equip(it.type, it.equipped ? null : it.id);
-					}
-				}));
-			}
-			y += 24;
+		for (int i = 0; i < items.size(); i++) {
+			int tx = lx + (i % cols) * (tw + TILE_GAP), ty = y + (i / cols) * (TILE_H + TILE_GAP);
+			if (ty + TILE_H <= listTop || ty >= bottom) continue;
+			tile(c, items.get(i), new int[] {tx, ty, tw, TILE_H}, ty >= listTop && ty + TILE_H <= bottom, mx, my);
 		}
 		c.unscissor();
 		y = bottom + 2;
@@ -1056,6 +1080,62 @@ public final class MenuView {
 			c.text(l, ct[0], y, msg.equals(Lang.t("cos.working")) ? Theme.AM_HI : Theme.BAD, false);
 			y += 10;
 		}
+	}
+
+	/** Rodzaje kosmetyków w kolejności kategorii (od 0.40.0); nieznany rodzaj liczy się jako peleryna. */
+	private static final String[] COS_KINDS = {"cape", "hat", "mask", "wings", "aura", "pet", "tail", "back"};
+	/** Ikona zastępcza kafelka, gdy launcher nie dał jeszcze miniatury. */
+	private static final String[][] COS_ICONS = {{"cape", "flag"}, {"hat", "crown"}, {"mask", "smile"}, {"wings", "feather"}, {"aura", "zap"},
+			{"pet", "heart"}, {"tail", "move"}, {"back", "backpack"}};
+	private static final int TILE_W = 84, TILE_H = 100, TILE_GAP = 6;
+	/** Wybrana kategoria kosmetyków (null = wszystko). */
+	private String cosKind;
+
+	private static String kindOf(Cosmetics.Item it) {
+		return java.util.Arrays.asList(COS_KINDS).contains(it.type) ? it.type : "cape";
+	}
+
+	/**
+	 * Kafelek kosmetyku (od 0.40.0): miniatura z launchera (jak w sklepie launchera; bez niej ikona rodzaju), nazwa, stan
+	 * (Założona / Przymierzasz albo rodzaj) i Załóż/Zdejmij. Klik w kafelek przymierza (gdy jest tekstura), w przycisk zakłada.
+	 */
+	private void tile(Canvas c, final Cosmetics.Item it, int[] r, boolean clickable, int mx, int my) {
+		final boolean trying = it.id.equals(actions.tryingOn(it.type));
+		boolean hover = clickable && in(r, mx, my);
+		box(c, r[0], r[1], r[2], r[3], hover ? CARD_HOVER : CARD, it.equipped ? Theme.AM : trying ? Theme.AM_HI : hover ? Theme.EDGE2 : LINE);
+		int ts = 48, ix = r[0] + (r[2] - ts) / 2, iy = r[1] + 5;
+		box(c, ix, iy, ts, ts, INSET, 0);
+		Object img = it.thumb == null ? null : actions.image("thumbs", it.thumb);
+		if (img != null) c.image(img, ix, iy, ts, ts);
+		else {
+			String icon = "flag";
+			for (String[] p : COS_ICONS) if (p[0].equals(kindOf(it))) icon = p[1];
+			c.push(2, ix + 12, iy + 12);
+			Shapes.icon(c, icon, ix + 12, iy + 12, it.equipped ? Theme.AM_HI : Theme.MUTED);
+			c.pop();
+		}
+		String name = Shapes.ellipsize(c, it.name, r[2] - 8, false);
+		c.text(name, r[0] + (r[2] - c.textWidth(name)) / 2, r[1] + 57, WHITE, false);
+		String st = it.equipped ? Lang.t("cos.on") : trying ? Lang.t("cos.trying") : Lang.t("cos." + kindOf(it));
+		st = Shapes.ellipsize(c, st, r[2] - 8, false);
+		c.text(st, r[0] + (r[2] - c.textWidth(st)) / 2, r[1] + 67, it.equipped || trying ? Theme.AM_HI : FAINT, false);
+		// przymiarka: cały kafelek (przycisk niżej ma pierwszeństwo, bo sprawdzany jest od końca)
+		if (clickable && it.png != null && !it.equipped) hits.add(new Hit("try:" + it.id, r, new Runnable() {
+			@Override
+			public void run() {
+				actions.tryOn(it.type, trying ? null : it.id);
+			}
+		}));
+		String t = Lang.t(it.equipped ? "cos.unequip" : "cos.equip");
+		int[] b = {r[0] + 5, r[1] + r[3] - 21, r[2] - 10, 16};
+		button(c, b, null, t, !it.equipped, clickable && in(b, mx, my));
+		if (clickable) hits.add(new Hit("cos:" + it.id, b, new Runnable() {
+			@Override
+			public void run() {
+				if (trying) actions.tryOn(it.type, null);
+				actions.equip(it.type, it.equipped ? null : it.id);
+			}
+		}));
 	}
 
 	/**
@@ -1102,6 +1182,113 @@ public final class MenuView {
 		return y + 26;
 	}
 
+	private static final int SPOTIFY_GREEN = 0xFF1ED760, SPOTIFY_DARK = 0xFF121212;
+	/** Komunikat po „Otwórz Spotify” (do następnego wejścia na stronę). */
+	private String spotifyMsg;
+
+	/** Logo Spotify: zielone koło z trzema łukami (każdy łuk z trzech odcinków, środek wyżej), rozmiar s jednostek. */
+	private void spotifyLogo(Canvas c, int x, int y, int s) {
+		Shapes.round(c, x, y, s, s, rad(s / 2.0), pixels, SPOTIFY_GREEN, 0);
+		int t = Math.max(1, s / 10);
+		for (int i = 0; i < 3; i++) {
+			int w = (int) Math.round(s * (0.60 - 0.09 * i)), x0 = x + (s - w) / 2, ym = y + (int) Math.round(s * (0.27 + 0.18 * i)), q = Math.max(1, w / 4);
+			c.fill(x0, ym + t / 2 + 1, x0 + q, ym + t / 2 + 1 + t, SPOTIFY_DARK);
+			c.fill(x0 + q, ym, x0 + w - q, ym + t, SPOTIFY_DARK);
+			c.fill(x0 + w - q, ym + t / 2 + 1, x0 + w, ym + t / 2 + 1 + t, SPOTIFY_DARK);
+		}
+	}
+
+	/**
+	 * Spotify z komputera (od 0.40.0): odtwarzacz (okładka, tytuł, wykonawca, pasek postępu, poprzedni / graj-pauza /
+	 * następny) albo okno „Zaloguj się w Spotify” z przyciskiem, który otwiera Spotify na komputerze.
+	 */
+	private void spotify(Canvas c, int mx, int my) {
+		int[] ct = layout.content;
+		header(c, "Spotify", mx, my);
+		Spotify sp = actions.spotify();
+		if (sp == null) sp = Spotify.OFF;
+		if (!sp.ready()) {
+			int w = Math.min(320, ct[2]), h = sp.unsupported() ? 110 : 142, x = ct[0] + (ct[2] - w) / 2, y = ct[1] + 30 + Math.max(0, (ct[3] - 30 - h) / 2);
+			box(c, x, y, w, h, BOX, LINE);
+			spotifyLogo(c, x + (w - 36) / 2, y + 14, 36);
+			c.font(Canvas.BOLD);
+			String t = Lang.t(sp.unsupported() ? "spotify.unsupported" : "spotify.login");
+			c.text(t, x + (w - c.textWidth(t)) / 2, y + 60, WHITE, false);
+			c.font(Canvas.UI);
+			int ty = y + 76;
+			for (String l : Shapes.wrap(c, Lang.t(sp.unsupported() ? "spotify.unsupported_body" : "spotify.login_body"), w - 28, 3)) {
+				c.text(l, x + (w - c.textWidth(l)) / 2, ty, Theme.MUTED, false);
+				ty += 10;
+			}
+			if (!sp.unsupported()) {
+				String bt = Lang.t("spotify.open");
+				int[] b = {x + (w - (c.textWidth(bt) + 40)) / 2, y + h - 30, c.textWidth(bt) + 40, 20};
+				boolean hover = in(b, mx, my);
+				Shapes.round(c, b[0], b[1], b[2], b[3], rad(10), pixels, hover ? 0xFF3BE477 : SPOTIFY_GREEN, 0);
+				c.font(Canvas.BOLD);
+				c.text(bt, b[0] + (b[2] - c.textWidth(bt)) / 2, b[1] + 6, SPOTIFY_DARK, false);
+				c.font(Canvas.UI);
+				hits.add(new Hit("spotify:open", b, new Runnable() {
+					@Override
+					public void run() {
+						actions.spotifyCommand("open");
+						spotifyMsg = Lang.t("spotify.opening");
+					}
+				}));
+			}
+			if (spotifyMsg != null) c.text(spotifyMsg, x + (w - c.textWidth(spotifyMsg)) / 2, y + h + 8, Theme.AM_HI, false);
+			return;
+		}
+		spotifyMsg = null;
+		int cs = Math.min(112, ct[3] - 60), x = ct[0], y = ct[1] + 32;
+		box(c, x, y, cs, cs, INSET, LINE);
+		Object cover = sp.cover == null ? null : actions.image("spotify", sp.cover);
+		if (cover != null) c.image(cover, x + 1, y + 1, cs - 2, cs - 2);
+		else spotifyLogo(c, x + (cs - 40) / 2, y + (cs - 40) / 2, 40);
+		int tx = x + cs + 16, tw = ct[0] + ct[2] - tx;
+		spotifyLogo(c, tx, y + 2, 12);
+		c.text(Lang.t(sp.playing() ? "spotify.playing" : "spotify.paused"), tx + 17, y + 4, sp.playing() ? SPOTIFY_GREEN : Theme.MUTED, false);
+		c.font(Canvas.TITLE);
+		c.push(1.4f, tx, y + 22);
+		c.text(Shapes.ellipsize(c, sp.title == null ? "—" : sp.title, (int) (tw / 1.4f), false), tx, y + 22, WHITE, false);
+		c.pop();
+		c.font(Canvas.UI);
+		if (sp.artist != null) c.text(Shapes.ellipsize(c, sp.artist, tw, false), tx, y + 40, Theme.TEXT, false);
+		if (sp.album != null) c.text(Shapes.ellipsize(c, sp.album, tw, false), tx, y + 52, FAINT, false);
+		// pasek postępu i czasy
+		long now = System.currentTimeMillis(), pos = sp.positionAt(now);
+		int by = y + 70;
+		Shapes.round(c, tx, by, tw, 4, rad(2), pixels, Theme.alpha(Theme.EDGE2, 0xC0), 0);
+		if (sp.duration > 0) Shapes.round(c, tx, by, Math.max(4, (int) (tw * Math.min(1.0, pos / (double) sp.duration))), 4, rad(2), pixels, SPOTIFY_GREEN, 0);
+		String a = Spotify.time(pos), d = sp.duration > 0 ? Spotify.time(sp.duration) : "";
+		c.text(a, tx, by + 8, FAINT, false);
+		c.text(d, tx + tw - c.textWidth(d), by + 8, FAINT, false);
+		// przyciski: poprzedni, graj/pauza (większy, zielony), następny
+		int cy = by + 22, mid = tx + tw / 2;
+		spotifyButton(c, "spotify:prev", "skip-prev", new int[] {mid - 62, cy + 4, 28, 28}, false, mx, my, "prev");
+		spotifyButton(c, "spotify:toggle", sp.playing() ? "pause" : "play", new int[] {mid - 18, cy, 36, 36}, true, mx, my, "toggle");
+		spotifyButton(c, "spotify:next", "skip-next", new int[] {mid + 34, cy + 4, 28, 28}, false, mx, my, "next");
+	}
+
+	private void spotifyButton(Canvas c, String name, String icon, int[] r, boolean main, int mx, int my, final String cmd) {
+		boolean hover = in(r, mx, my);
+		Shapes.round(c, r[0], r[1], r[2], r[3], rad(r[2] / 2.0), pixels, main ? (hover ? 0xFF3BE477 : SPOTIFY_GREEN) : hover ? BOX_HOVER : BOX, main ? 0 : hover ? Theme.EDGE2 : LINE);
+		int k = main ? 2 : 1, ix = r[0] + (r[2] - 12 * k) / 2, iy = r[1] + (r[3] - 12 * k) / 2;
+		c.push(k, ix, iy);
+		Shapes.icon(c, icon, ix, iy, main ? SPOTIFY_DARK : hover ? WHITE : Theme.TEXT);
+		c.pop();
+		if (hover) {
+			tip = Lang.t("spotify." + cmd);
+			tipAt = new int[] {r[0], r[1] + r[3] + 3};
+		}
+		hits.add(new Hit(name, r, new Runnable() {
+			@Override
+			public void run() {
+				actions.spotifyCommand(cmd);
+			}
+		}));
+	}
+
 	/** Znajomi: lista (najpierw w grze, potem w launcherze, offline), klik otwiera rozmowę; licznik nowych wiadomości. */
 	private void friends(Canvas c, int mx, int my) {
 		int[] ct = layout.content;
@@ -1137,9 +1324,15 @@ public final class MenuView {
 			final int[] r = {ct[0], y, ct[2], 20};
 			boolean clickable = y >= top && y + 20 <= bottom, hover = clickable && in(r, mx, my);
 			box(c, r[0], y, r[2], 20, hover ? BOX_HOVER : BOX, f.unread > 0 ? Theme.AM : hover ? Theme.EDGE2 : LINE);
-			// party (od 0.38.0): ikonka grupy zamiast kropki statusu, członkowie zamiast statusu
+			// party (od 0.38.0): ikonka grupy zamiast kropki statusu, członkowie zamiast statusu; od 0.40.0 główka skina
+			// znajomego z kropką statusu w rogu (bez konta Minecraft albo zanim launcher ją pobierze — sama kropka)
+			int dot = "game".equals(f.status) ? Theme.GOOD : "launcher".equals(f.status) ? Theme.AM : Theme.OFF;
+			Object head = f.party ? null : actions.image("heads", f.headFile());
 			if (f.party) Shapes.icon(c, "users", r[0] + 4, y + 4, "game".equals(f.status) ? Theme.GOOD : Theme.AM_HI);
-			else Shapes.round(c, r[0] + 7, y + 7, 6, 6, rad(3), pixels, "game".equals(f.status) ? Theme.GOOD : "launcher".equals(f.status) ? Theme.AM : Theme.OFF, 0);
+			else if (head != null) {
+				c.image(head, r[0] + 3, y + 4, 12, 12);
+				Shapes.round(c, r[0] + 11, y + 12, 6, 6, rad(3), pixels, dot, Theme.alpha(Theme.SLAB, 0xFF));
+			} else Shapes.round(c, r[0] + 7, y + 7, 6, 6, rad(3), pixels, dot, 0);
 			String right = f.unread > 0 ? Lang.t("friends.new", f.unread) : null;
 			int rw = right != null ? c.textWidth(right) + 12 : 16;
 			String nick = Shapes.ellipsize(c, f.nick, Math.min(110, r[2] / 3), false);

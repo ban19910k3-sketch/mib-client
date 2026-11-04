@@ -128,6 +128,9 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	public static volatile Cosmetics testCosmetics;
 	/** Znajomi i rozmowa podane przez test gry (bez launchera); null = z launchera. */
 	public static volatile Friends testFriends;
+	/** Test gry (0.40.0): Spotify bez launchera i polecenia, które menu wysłało. */
+	public static volatile pl.mibclient.mod.core.Spotify testSpotify;
+	public static final java.util.List<String> testSpotifyCalls = new java.util.concurrent.CopyOnWriteArrayList<>();
 	public static volatile Friends.Chat testChat;
 	/** Znajomi z launchera (czytani najwyżej co sekundę), otwarta rozmowa i wiadomości w drodze do launchera. */
 	private Friends friendsCache;
@@ -932,6 +935,55 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	}
 
 	// ===== Znajomi i rozmowy (MenuActions) =====
+
+	@Override
+	@Override
+	public pl.mibclient.mod.core.Spotify spotify() {
+		if (testSpotify != null) return testSpotify;
+		if (bridge == null) return null;
+		pl.mibclient.mod.core.Spotify s = bridge.spotify(System.currentTimeMillis());
+		return s == null ? pl.mibclient.mod.core.Spotify.OFF : s;
+	}
+
+	@Override
+	public void spotifyCommand(String cmd) {
+		if (testSpotify != null) {
+			testSpotifyCalls.add(cmd);
+			return;
+		}
+		if (bridge != null) bridge.requestSpotify(cmd);
+		hooks.add("spotify_" + cmd);
+	}
+
+	/** Obrazki od launchera (główki, miniatury, okładki): tekstura i data pliku; sprawdzane najwyżej co 2 s. */
+	private final java.util.Map<String, Object[]> images = new java.util.HashMap<>();
+
+	@Override
+	public Object image(String dir, String file) {
+		if (bridge == null || file == null) return null;
+		String key = dir + "/" + file;
+		Object[] e = images.get(key);
+		long now = System.currentTimeMillis();
+		if (e != null && now - (Long) e[2] < 2000) return e[0];
+		java.io.File f = bridge.imageFile(dir, file);
+		long mod = f == null ? -1 : f.lastModified();
+		if (e != null && e[1].equals(mod)) {
+			e[2] = now;
+			return e[0];
+		}
+		if (e != null && e[0] != null) releaseTextures(new MibId[] {(MibId) e[0]});
+		MibId tex = null;
+		if (f != null) {
+			try {
+				tex = registerTexture("img/" + dir + "/" + file.replace('.', '_'), java.nio.file.Files.readAllBytes(f.toPath()));
+			} catch (Exception ex) {
+				tex = null;
+			}
+			if (tex != null) hooks.add("image_" + dir);
+		}
+		images.put(key, new Object[] {tex, mod, now});
+		return tex;
+	}
 
 	@Override
 	public Friends friends() {

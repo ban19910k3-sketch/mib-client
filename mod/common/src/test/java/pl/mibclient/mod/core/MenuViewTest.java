@@ -30,6 +30,9 @@ class MenuViewTest {
 	Friends.Chat chat;
 	String chatErr;
 	GameInfo info;
+	/** Obrazki od launchera, które „są na dysku” (dir/plik). */
+	final java.util.Set<String> images = new java.util.HashSet<String>();
+	Spotify spotify;
 
 	@BeforeEach
 	void setUp() {
@@ -119,6 +122,21 @@ class MenuViewTest {
 			@Override
 			public int[] playerBlockPos() {
 				return pos;
+			}
+
+			@Override
+			public Spotify spotify() {
+				return spotify;
+			}
+
+			@Override
+			public void spotifyCommand(String cmd) {
+				calls.add("spotify:" + cmd);
+			}
+
+			@Override
+			public Object image(String dir, String file) {
+				return images.contains(dir + "/" + file) ? dir + "/" + file : null;
 			}
 
 			@Override
@@ -676,5 +694,76 @@ class MenuViewTest {
 		int[] a = v.hitRect("modules"), d = v.hitRect("accounts"), e = v.hitRect("edit_hud");
 		assertEquals(a[0], e[0], "rząd kwadratów tak szeroki jak Edytuj HUD");
 		assertEquals(d[0] + d[2], e[0] + e[2]);
+	}
+
+	@Test
+	void friendsListShowsSkinHeads() {
+		Friends.Friend a = new Friends.Friend("a", "Kolega", "game", null, 0), b = new Friends.Friend("b", "Bez_konta", "offline", null, 0);
+		a.mc = "Kolega_MC";
+		friends = new Friends(true, Arrays.asList(a, b));
+		images.add("heads/kolega_mc.png");
+		click("friends");
+		render();
+		assertEquals(Arrays.asList("heads/kolega_mc.png@12x12"), c.images, "główka Kolegi (mała litera w pliku), bez konta Minecraft — sama kropka");
+		assertEquals("kolega_mc.png", a.headFile());
+		assertNull(b.headFile());
+	}
+
+	@Test
+	void cosmeticsAreTilesWithThumbsAndKinds() {
+		Cosmetics.Item c1 = new Cosmetics.Item("c1", "Fiolet", "cape", true, "QUJD"), h1 = new Cosmetics.Item("h1", "Korona", "hat", false, "REVG");
+		c1.thumb = "c1-0a1b2c3d.png";
+		cosmetics = new Cosmetics(true, Arrays.asList(c1, h1, new Cosmetics.Item("p1", "Kotek", "pet", false, null)));
+		images.add("thumbs/c1-0a1b2c3d.png");
+		click("cosmetics");
+		render();
+		assertEquals(Arrays.asList("thumbs/c1-0a1b2c3d.png@48x48"), c.images, "miniatura z launchera; bez niej ikona rodzaju");
+		for (String k : new String[] {"kind:all", "kind:cape", "kind:hat", "kind:pet"}) assertNotNull(v.hitRect(k), k);
+		assertNull(v.hitRect("kind:wings"), "rodzaje tylko takie, jakie gracz ma");
+		assertTrue(c.hasText("Wszystko 3") && c.hasText("Czapki 1"));
+		int[] a = v.hitRect("cos:c1"), b = v.hitRect("cos:h1");
+		assertEquals(a[1], b[1], "kafelki w jednym rzędzie");
+		assertTrue(b[0] > a[0]);
+		click("kind:hat");
+		render();
+		assertNull(v.hitRect("cos:c1"), "tylko czapki");
+		assertNotNull(v.hitRect("cos:h1"));
+		click("try:h1");
+		click("cos:h1");
+		assertEquals(Arrays.asList("try:hat:h1", "try:hat:null", "equip:hat:h1"), calls.subList(calls.size() - 3, calls.size()), "założenie kończy przymiarkę");
+		click("kind:all");
+		render();
+		assertNotNull(v.hitRect("cos:c1"));
+	}
+
+	@Test
+	void spotifyLoginWindowAndPlayer() {
+		v.openHub();
+		render();
+		assertNull(v.hitRect("spotify"), "bez launchera nie ma Spotify");
+		spotify = Spotify.OFF;
+		v.openHub();
+		click("spotify");
+		assertEquals(MenuView.Page.SPOTIFY, v.page());
+		render();
+		assertTrue(c.hasText("Zaloguj się w Spotify") && c.hasText("Otwórz Spotify"), "okno logowania, gdy Spotify nie gra");
+		assertNull(v.hitRect("spotify:toggle"));
+		click("spotify:open");
+		assertEquals(Arrays.asList("spotify:open"), calls);
+		render();
+		assertTrue(c.hasText("Otwieram Spotify na komputerze…"));
+		spotify = new Spotify("playing", "Nowa piosenka", "Wykonawca", "Album", 30000, 200000, System.currentTimeMillis(), "cover-0a1b2c3d.png");
+		images.add("spotify/cover-0a1b2c3d.png");
+		render();
+		assertTrue(c.hasText("Nowa piosenka") && c.hasText("Wykonawca") && c.hasText("Teraz gra") && c.hasText("3:20"));
+		assertTrue(c.images.stream().anyMatch(x -> x.startsWith("spotify/cover-0a1b2c3d.png")), "okładka utworu");
+		click("spotify:prev");
+		click("spotify:toggle");
+		click("spotify:next");
+		assertEquals(Arrays.asList("spotify:open", "spotify:prev", "spotify:toggle", "spotify:next"), calls);
+		spotify = new Spotify("unsupported", null, null, null, 0, 0, 0, null);
+		render();
+		assertTrue(c.hasText("Spotify działa na Windows"));
+		assertNull(v.hitRect("spotify:open"));
 	}
 }

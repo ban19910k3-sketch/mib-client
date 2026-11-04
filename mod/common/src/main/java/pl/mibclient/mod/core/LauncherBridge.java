@@ -91,8 +91,11 @@ public final class LauncherBridge {
 			if (!(o instanceof Map)) continue;
 			Map<?, ?> x = (Map<?, ?>) o;
 			if (!(x.get("id") instanceof String) || !(x.get("name") instanceof String) || !(x.get("type") instanceof String)) continue;
-			out.add(new Cosmetics.Item((String) x.get("id"), (String) x.get("name"), (String) x.get("type"), Boolean.TRUE.equals(x.get("equipped")),
-					x.get("png") instanceof String ? (String) x.get("png") : null));
+			Cosmetics.Item it = new Cosmetics.Item((String) x.get("id"), (String) x.get("name"), (String) x.get("type"), Boolean.TRUE.equals(x.get("equipped")),
+					x.get("png") instanceof String ? (String) x.get("png") : null);
+			// miniatura z launchera (od 0.40.0): ta sama co w sklepie launchera, plik w mib/thumbs
+			if (x.get("thumb") instanceof String && validImageName((String) x.get("thumb"))) it.thumb = (String) x.get("thumb");
+			out.add(it);
 		}
 		List<Cosmetics.Gift> gifts = new ArrayList<Cosmetics.Gift>();
 		if (m.get("gifts") instanceof List) for (Object o : (List<?>) m.get("gifts")) {
@@ -143,6 +146,45 @@ public final class LauncherBridge {
 		playersBytes = b;
 		playersParsed = b == null ? MibPlayers.NONE : MibPlayers.parse(new String(b, StandardCharsets.UTF_8));
 		return playersParsed;
+	}
+
+	private byte[] spotifyBytes;
+	private Spotify spotifyParsed;
+
+	/** Spotify z spotify.json (od 0.40.0) albo null, gdy launcher go nie zapisał; stary plik to Spotify.OFF. */
+	public Spotify spotify(long now) {
+		byte[] b = bytes("spotify.json");
+		if (b == null) return null;
+		if (!java.util.Arrays.equals(b, spotifyBytes) || spotifyParsed == null) {
+			spotifyBytes = b;
+			spotifyParsed = Spotify.parse(new String(b, StandardCharsets.UTF_8), now);
+		}
+		if (spotifyParsed != null && Math.abs(now - spotifyParsed.at) > Spotify.STALE_MS) return Spotify.OFF;
+		return spotifyParsed;
+	}
+
+	/** Polecenie dla Spotify (toggle, next, prev, open) przez launcher. */
+	public void requestSpotify(String cmd) {
+		if (!java.util.Arrays.asList("toggle", "next", "prev", "open").contains(cmd)) return;
+		Map<String, Object> m = new LinkedHashMap<String, Object>();
+		m.put("cmd", cmd);
+		m.put("at", System.currentTimeMillis());
+		write("spotify-request.json", m);
+	}
+
+	/** Katalogi z obrazkami od launchera (od 0.40.0): główki znajomych, miniatury kosmetyków, okładki Spotify. */
+	public static final java.util.List<String> IMAGE_DIRS = java.util.Arrays.asList("heads", "thumbs", "spotify");
+
+	/** Bezpieczna nazwa pliku obrazka od launchera: małe litery, cyfry, _ . - i końcówka .png. */
+	public static boolean validImageName(String file) {
+		return file != null && file.matches("[a-z0-9_.-]{1,96}\\.png") && !file.startsWith(".");
+	}
+
+	/** Obrazek od launchera mib/&lt;dir&gt;/&lt;file&gt; albo null (zły katalog, zła nazwa, brak pliku). */
+	public File imageFile(String sub, String file) {
+		if (!IMAGE_DIRS.contains(sub) || !validImageName(file)) return null;
+		File f = new File(new File(dir, sub), file);
+		return f.isFile() ? f : null;
 	}
 
 	/** Tekstura peleryny innego gracza MiB (PNG pobrany przez launcher) albo null. */

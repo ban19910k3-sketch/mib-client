@@ -13,9 +13,13 @@ public final class MenuLayout {
 	public static final int MARGIN = 10, TOP_H = 22, GAP = 8, SIDEBAR = 112, PAD = 12, MAX_W = 900, MAX_H = 520;
 	public static final int SEARCH_W = 150, SEARCH_H = 18, HEAD_H = 34, CARD_H = 116, CARD_MIN_W = 104, CARD_GAP = 6, ROW_H = 20;
 
-	/** Ile pikseli okna przypada na jednostkę menu: całkowita, żeby ikony były ostre. */
+	/**
+	 * Ile pikseli okna przypada na jednostkę menu: całkowita, żeby ikony były ostre. Od 0.40.0 na dużych ekranach o stopień
+	 * mniej (1920×1080: 2 zamiast 3, 2560×1440: 3 zamiast 4) — menu było za duże; do 1600×900 bez zmian.
+	 */
 	public static int scale(int windowW, int windowH) {
-		return Math.max(1, Math.min(6, Math.min(windowW / 540, windowH / 320)));
+		int s = Math.max(1, Math.min(6, Math.min(windowW / 540, windowH / 320)));
+		return s >= 3 ? Math.max(2, Math.round(s * 0.75f)) : s;
 	}
 
 	/**

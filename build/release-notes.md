@@ -1,5 +1,9 @@
-<!-- 0.39.0 -->
+<!-- 0.40.0 -->
 ## Dodane
-- Nowy panel pod prawym Shiftem: małe okno z logo MiB, dużymi przyciskami Moduły, Kosmetyki, Znajomi i Konta oraz „Edytuj HUD”. Nazwa przycisku pokazuje się przy kursorze.
-- Pisanie w panelu od razu otwiera Moduły z wyszukiwarką.
-- Kliknięcie logo MiB w pełnym menu wraca do panelu.
+- Spotify w menu pod prawym Shiftem: utwór, okładka, pasek postępu i przyciski poprzedni / pauza / następny. Muzyka idzie z aplikacji Spotify na komputerze (Windows), działa też z darmowym kontem.
+- Gdy Spotify nie gra albo nie jesteś zalogowany, kliknięcie logo Spotify pokazuje okno „Zaloguj się w Spotify” z przyciskiem, który otwiera Spotify.
+- Kosmetyki w grze jako kafelki z podglądem, takim jak w launcherze, i z podziałem na kategorie: Peleryny, Czapki, Maski, Skrzydła, Aury, Pety, Ogony, Plecaki.
+- Główki skinów przy nickach znajomych w menu gry.
+
+## Zmienione
+- Menu pod prawym Shiftem jest mniejsze: mniejszy panel startowy, a na dużych ekranach (od 1920×1080) całe menu.

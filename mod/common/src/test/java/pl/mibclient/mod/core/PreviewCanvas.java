@@ -209,6 +209,11 @@ public class PreviewCanvas implements Canvas {
 	}
 
 	@Override
+	public void image(Object handle, int x, int y, int w, int h) {
+		if (handle instanceof java.awt.image.BufferedImage) g.drawImage((java.awt.image.BufferedImage) handle, x, y, w, h, null);
+	}
+
+	@Override
 	public void item(Object stack, int x, int y) {
 		fill(x + 2, y + 2, x + 14, y + 14, 0xFF8B8B8B);
 		fill(x + 4, y + 4, x + 12, y + 12, 0xFFC6C6C6);

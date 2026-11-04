@@ -1,0 +1,70 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
+const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+const S = require('../lib/spotify');
+const m = require('../lib/mibmod');
+
+test('Spotify: linie od PowerShell, pozycja utworu i spotify.json dla moda', () => {
+  assert.deepEqual(S.parseLine('{"state":"off"}'), { state: 'off' });
+  assert.deepEqual(S.parseLine('{"state":"unsupported","error":"x"}'), { state: 'unsupported' });
+  assert.equal(S.parseLine('nie json'), null);
+  assert.equal(S.parseLine('{"state":"hack"}'), null);
+  const p = S.parseLine(JSON.stringify({ state: 'playing', title: 'Utwór §cz\u0007kolorem', artist: 'Ktoś', album: 'Płyta', position: 61000, duration: 180000, updated: 1000, cover: 'QUJDREVGR0hJSktMTU5PUA==' }));
+  assert.deepEqual(p, { state: 'playing', title: 'Utwór czkolorem', artist: 'Ktoś', album: 'Płyta', position: 61000, duration: 180000, updated: 1000, cover: 'QUJDREVGR0hJSktMTU5PUA==' });
+  assert.equal(S.positionAt(p, 3000), 63000, 'przy odtwarzaniu dolicza czas od aktualizacji');
+  assert.equal(S.positionAt({ ...p, state: 'paused' }, 3000), 61000, 'pauza stoi');
+  assert.equal(S.positionAt(p, 1e9), 180000, 'nie dalej niż koniec utworu');
+  const j = JSON.parse(S.spotifyPayload(p, 'cover-0a1b2c3d.png', 3000));
+  assert.deepEqual(j, { state: 'playing', title: 'Utwór czkolorem', artist: 'Ktoś', album: 'Płyta', position: 63000, duration: 180000, at: 3000, cover: 'cover-0a1b2c3d.png' });
+  assert.deepEqual(JSON.parse(S.spotifyPayload({ state: 'off' }, null, 5)), { state: 'off', at: 5 });
+  assert.equal(S.readSpotifyRequest('{"cmd":"toggle","at":1}'), 'toggle');
+  assert.equal(S.readSpotifyRequest('{"cmd":"open"}'), 'open');
+  assert.equal(S.readSpotifyRequest('{"cmd":"rm -rf"}'), null);
+  assert.equal(S.readSpotifyRequest('zły'), null);
+  assert.ok(S.SCRIPT.includes("IAsyncOperation`1") && S.SCRIPT.includes('Spotify') && S.SCRIPT.includes('OutputEncoding'), 'skrypt WinRT');
+});
+
+test('Spotify: proces PowerShell tylko na Windows, polecenia na wejście, linie na stan', () => {
+  const states = [];
+  const off = S.createSpotify({ platform: 'linux', spawn: () => { throw new Error('bez procesu'); }, onState: s => states.push(s) });
+  off.start();
+  assert.deepEqual(states, [{ state: 'unsupported' }]);
+  const written = [], args = [];
+  const proc = new EventEmitter();
+  proc.stdout = new EventEmitter(); proc.stdout.setEncoding = () => {};
+  proc.stderr = new EventEmitter();
+  proc.stdin = { write: t => written.push(t), end: () => {} };
+  proc.kill = () => proc.emit('exit');
+  const sp = S.createSpotify({ platform: 'win32', spawn: (cmd, a) => { args.push(cmd, a); return proc; }, onState: s => states.push(s) });
+  sp.start();
+  assert.equal(args[0], 'powershell.exe');
+  assert.ok(args[1].includes('-EncodedCommand'), 'skrypt bez pliku na dysku');
+  proc.stdout.emit('data', '{"state":"pla');
+  proc.stdout.emit('data', 'ying","title":"A","artist":"B","position":1,"duration":2}\n{"state":"off"}\n');
+  assert.deepEqual(states.slice(1).map(s => s.state), ['playing', 'off'], 'linie sklejone z kawałków');
+  assert.ok(sp.send('next'));
+  assert.equal(sp.send('format c:'), false);
+  assert.deepEqual(written, ['next\n']);
+  sp.stop();
+  assert.equal(sp.running, false);
+});
+
+test('most: spotify.json co odpytanie i polecenia moda ze spotify-request.json (0.40.0)', async () => {
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mib-sp-')), 'mib'), cmds = [];
+  let st = { state: { state: 'paused', title: 'A', artist: 'B', album: '', position: 5000, duration: 9000, updated: 0 }, cover: null };
+  const b = m.createBridge({ dir, accounts: () => ({ list: [], active: null }), onSwitch: async () => {}, now: () => 777, spotify: () => st, onSpotify: async c => cmds.push(c) });
+  fs.mkdirSync(dir, { recursive: true });
+  await b.pollOnce();
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'spotify.json'), 'utf8')), { state: 'paused', title: 'A', artist: 'B', album: '', position: 5000, duration: 9000, at: 777 });
+  fs.writeFileSync(path.join(dir, 'spotify-request.json'), '{"cmd":"toggle","at":777}');
+  await b.pollOnce();
+  fs.writeFileSync(path.join(dir, 'spotify-request.json'), '{"cmd":"zły"}');
+  await b.pollOnce();
+  assert.deepEqual(cmds, ['toggle']);
+  assert.ok(!fs.existsSync(path.join(dir, 'spotify-request.json')), 'prośba zabrana');
+  st = null;
+  fs.unlinkSync(path.join(dir, 'spotify.json'));
+  await b.pollOnce();
+  assert.ok(!fs.existsSync(path.join(dir, 'spotify.json')), 'bez Spotify w launcherze nie ma pliku');
+});

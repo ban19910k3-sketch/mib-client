@@ -47,6 +47,13 @@ public final class Friends {
 		public final String id, nick, status, server, members;
 		public final int unread;
 		public final boolean party;
+		/** Nazwa konta Minecraft (od 0.40.0): główka skina przy nicku z mib/heads/&lt;mc&gt;.png; null = bez konta Minecraft. */
+		public String mc;
+
+		/** Plik główki od launchera (małe litery) albo null. */
+		public String headFile() {
+			return mc == null ? null : mc.toLowerCase(java.util.Locale.ROOT) + ".png";
+		}
 
 		public Friend(String id, String nick, String status, String server, int unread) {
 			this(id, nick, status, server, unread, false, null);
@@ -116,8 +123,10 @@ public final class Friends {
 			if (!(o instanceof Map)) continue;
 			Map<?, ?> x = (Map<?, ?>) o;
 			if (!(x.get("id") instanceof String) || !(x.get("nick") instanceof String)) continue;
-			out.add(new Friend((String) x.get("id"), (String) x.get("nick"), str(x.get("status")), str(x.get("server")), num(x.get("unread")),
-					Boolean.TRUE.equals(x.get("party")), str(x.get("members"))));
+			Friend f = new Friend((String) x.get("id"), (String) x.get("nick"), str(x.get("status")), str(x.get("server")), num(x.get("unread")),
+					Boolean.TRUE.equals(x.get("party")), str(x.get("members")));
+			if (x.get("mc") instanceof String && ((String) x.get("mc")).matches("[A-Za-z0-9_]{1,16}")) f.mc = (String) x.get("mc");
+			out.add(f);
 		}
 		return new Friends(true, out);
 	}

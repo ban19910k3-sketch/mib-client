@@ -20,8 +20,16 @@ class PreviewTest {
 		return new File(p);
 	}
 
+	/** Spotify w podglądach (0.40.0): null = bez Spotify. */
+	static Spotify previewSpotify;
+
 	private static MenuActions actions(final List<Account> accounts) {
 		return new MenuActions() {
+			@Override
+			public Spotify spotify() {
+				return previewSpotify;
+			}
+
 			@Override
 			public void openHudEditor(String moduleId) {
 			}
@@ -42,13 +50,32 @@ class PreviewTest {
 
 			@Override
 			public Cosmetics cosmetics() {
-				return new Cosmetics(true, Arrays.asList(new Cosmetics.Item("c1", "Peleryna Founder", "cape", true, null),
-						new Cosmetics.Item("c2", "Peleryna Fiolet", "cape", false, null), new Cosmetics.Item("h1", "Korona MiB", "hat", false, null)));
+				Cosmetics.Item c1 = new Cosmetics.Item("c1", "Peleryna Founder", "cape", true, null), c2 = new Cosmetics.Item("c2", "Peleryna Fiolet", "cape", false, null),
+						h1 = new Cosmetics.Item("h1", "Korona MiB", "hat", false, null);
+				c1.thumb = "c1-00000000.png";
+				c2.thumb = "c2-00000000.png";
+				h1.thumb = "h1-00000000.png";
+				return new Cosmetics(true, Arrays.asList(c1, c2, h1, new Cosmetics.Item("p1", "Kotek", "pet", false, null), new Cosmetics.Item("w1", "Skrzydła nocy", "wings", false, null)));
+			}
+
+			@Override
+			public Object image(String dir, String file) {
+				// próbne obrazki (od 0.40.0): główka i miniatury kosmetyków w kolorach rodzaju
+				java.awt.image.BufferedImage im = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+				int col = "heads".equals(dir) ? 0xFFC8946E : file.startsWith("c") ? 0xFF8B3FD9 : 0xFFE0B040;
+				for (int x = 0; x < 16; x++) for (int y = 0; y < 16; y++) {
+					boolean edge = x < 2 || y < 2 || x > 13 || y > 13, eye = "heads".equals(dir) && y >= 7 && y <= 8 && (x == 4 || x == 5 || x == 10 || x == 11);
+					if ("heads".equals(dir)) im.setRGB(x, y, eye ? 0xFF2A1A6E : y < 5 ? 0xFF4A2E14 : col);
+					else if (!edge && (x + y) % 5 != 0) im.setRGB(x, y, col);
+				}
+				return im;
 			}
 
 			@Override
 			public Friends friends() {
-				return new Friends(true, Arrays.asList(new Friends.Friend("a", "Kolega", "game", "play.mib.pl", 2),
+				Friends.Friend k = new Friends.Friend("a", "Kolega", "game", "play.mib.pl", 2);
+				k.mc = "Kolega";
+				return new Friends(true, Arrays.asList(k,
 						new Friends.Friend("b", "Ziomek", "launcher", null, 0), new Friends.Friend("c", "Dawny_Kumpel", "offline", null, 0)));
 			}
 
@@ -112,6 +139,18 @@ class PreviewTest {
 		Lang.setGame("en_us");
 		menu(out, "hub-en", 1920, 1080, v);
 		Lang.setGame("pl_pl");
+		// Spotify (0.40.0): kwadrat w panelu, okno logowania i odtwarzacz
+		previewSpotify = Spotify.OFF;
+		v.openHub();
+		menu(out, "hub-spotify", 1280, 720, v);
+		v.render(new RecordingCanvas(), 640, 360, -1, -1);
+		int[] r = v.hitRect("spotify");
+		v.mouseClicked(r[0] + 1, r[1] + 1, 0);
+		menu(out, "spotify-login", 1280, 720, v);
+		previewSpotify = new Spotify("playing", "Blinding Lights", "The Weeknd", "After Hours", 83000, 200000, System.currentTimeMillis(), "cover-00000000.png");
+		menu(out, "spotify-player", 1280, 720, v);
+		menu(out, "spotify-player-1080", 1920, 1080, v);
+		previewSpotify = null;
 	}
 
 	@Test
