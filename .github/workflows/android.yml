@@ -36,6 +36,19 @@ jobs:
             8
             25
             21
+      # klucz podpisu od razu: brak sekretu albo złe hasło wychodzi przed długim budowaniem
+      - name: Klucz podpisu
+        env:
+          MIB_KEY_PASSWORD: ${{ secrets.MIB_KEY_PASSWORD }}
+          RELEASE: ${{ inputs.release }}
+        run: |
+          if [ -z "$MIB_KEY_PASSWORD" ]; then
+            if [ "$RELEASE" = true ]; then echo "::error::Brak sekretu MIB_KEY_PASSWORD (Settings → Secrets and variables → Actions) — APK na Androida nie zostanie wydany"; exit 1; fi
+            exit 0
+          fi
+          keytool -list -keystore android/mib.p12 -storetype PKCS12 -storepass "$MIB_KEY_PASSWORD" -alias mib > /dev/null \
+            || { echo "::error::Sekret MIB_KEY_PASSWORD nie pasuje do klucza android/mib.p12 (sprawdź, czy wklejone bez spacji)"; exit 1; }
+          echo "::notice::Klucz podpisu MiB działa"
       - uses: gradle/actions/setup-gradle@v6
       - name: Mod MiB
         working-directory: mod
