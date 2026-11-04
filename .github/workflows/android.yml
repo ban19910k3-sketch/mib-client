@@ -78,10 +78,14 @@ jobs:
           if [ -n "$MIB_KEY_PASSWORD" ]; then export MIB_KEYSTORE="$GITHUB_WORKSPACE/android/mib.p12"
           elif [ "$RELEASE" = true ]; then echo "::error::Brak sekretu MIB_KEY_PASSWORD (hasło klucza android/mib.p12) — APK na Androida nie zostanie wydany"; exit 1
           else echo "::warning::Brak sekretu MIB_KEY_PASSWORD — APK testowy podpisany kluczem debug"; fi
+          set -o pipefail
           ./scripts/languagelist_updater.sh
-          gradle :app_pojavlauncher:assembleRelease
+          gradle :app_pojavlauncher:assembleRelease --stacktrace 2>&1 | tee ../build.log
           mkdir -p ../out && mv app_pojavlauncher/build/outputs/apk/release/app_pojavlauncher-release.apk ../out/MiB-Client-android.apk
           ls -la ../out
+      - name: Błędy jako adnotacje
+        if: failure()
+        run: '[ -f build.log ] && bash .github/workflows/annotate.sh build.log'
       - uses: actions/upload-artifact@v7
         with:
           name: android-apk
