@@ -356,6 +356,17 @@ body{background:var(--bg) linear-gradient(var(--bg),var(--bg))}
 .dc-ic svg{width:44px;height:44px}
 .dc>div{flex:1;min-width:240px;display:flex;flex-direction:column;gap:10px}
 .dc p{margin:0}
+
+.osw{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.osw button{display:flex;align-items:center;gap:10px;min-height:52px;padding:0 14px;border:0;background:var(--card2);color:var(--ink2);box-shadow:inset 0 0 0 2px var(--line2);clip-path:var(--px);cursor:pointer;font-weight:550;text-align:left}
+.osw button svg{width:20px;height:20px;flex:none;color:var(--mut)}
+.osw button small{color:var(--mut);font-weight:400}
+.osw button[aria-checked="true"]{box-shadow:inset 0 0 0 2px var(--ac);color:#fff;background:var(--ac-soft)}
+.osw button[aria-checked="true"] svg{color:var(--ac-hi)}
+@media (max-width:480px){.osw{grid-template-columns:1fr}}
+.machelp{margin:-4px 0 0;padding:0 0 0 20px;display:flex;flex-direction:column;gap:8px;color:var(--mut);font-size:14px;line-height:1.5}
+.machelp li::marker{color:var(--ac-hi);font-weight:600}
+.os svg+svg{margin-left:-4px}
 /* ===== Wygląd MiB Client (jak launcher: czerń, ametyst, pikselowe ramki) — nadpisuje jasne style ===== */
 :root{
  --bg:#07020c;--bg2:#100618;--card:#100618;--card2:#190c25;--ink:#eee6f8;--ink2:#d6cbe6;--mut:#9a88ad;--mut2:#76678a;--line:#24133a;--line2:#3a2256;
@@ -511,7 +522,7 @@ select.inp{background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap bar"><a class="brand" href="index.html" aria-label="MiB Client"><img src="img/icon.png" alt="" width="34" height="34"><span>MiB Client</span><span class="tag">0.29.0</span></a><nav class="nav" aria-label="Sekcje"><a href="#start" data-en="Launcher">Launcher</a><a href="#moduly" data-en="Modules">Moduły</a><a href="#kosmetyki" data-en="Cosmetics">Kosmetyki</a><a href="#pytania" data-en="FAQ">Pytania</a><a href="sklep.html" data-en="Shop">Sklep</a></nav><div class="bar-r"><a class="btn discord" href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.6 5.4A16.6 16.6 0 0 0 15.5 4l-.5 1a15 15 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.4C1.8 9.3 1.1 13.1 1.4 16.8a16.7 16.7 0 0 0 5 2.6l1.1-1.7a10.6 10.6 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.6 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.6 16.6 0 0 0 5-2.6c.4-4.3-.6-8-3.1-11.4ZM8.6 14.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg><span>Discord</span></a><div class="lang" role="group" aria-label="Język / Language"><button type="button" data-l="pl" aria-pressed="true">PL</button><button type="button" data-l="en" aria-pressed="false">EN</button></div><a class="btn pri" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.29.0/MiB-Client-Setup-0.29.0.exe" data-dl><span data-en="Download">Pobierz</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a><button type="button" class="menu-btn" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div></div></header>
+<header class="top"><div class="wrap bar"><a class="brand" href="index.html" aria-label="MiB Client"><img src="img/icon.png" alt="" width="34" height="34"><span>MiB Client</span><span class="tag">0.42.0</span></a><nav class="nav" aria-label="Sekcje"><a href="#start" data-en="Launcher">Launcher</a><a href="#moduly" data-en="Modules">Moduły</a><a href="#kosmetyki" data-en="Cosmetics">Kosmetyki</a><a href="#pytania" data-en="FAQ">Pytania</a><a href="sklep.html" data-en="Shop">Sklep</a></nav><div class="bar-r"><a class="btn discord" href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.6 5.4A16.6 16.6 0 0 0 15.5 4l-.5 1a15 15 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.4C1.8 9.3 1.1 13.1 1.4 16.8a16.7 16.7 0 0 0 5 2.6l1.1-1.7a10.6 10.6 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.6 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.6 16.6 0 0 0 5-2.6c.4-4.3-.6-8-3.1-11.4ZM8.6 14.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg><span>Discord</span></a><div class="lang" role="group" aria-label="Język / Language"><button type="button" data-l="pl" aria-pressed="true">PL</button><button type="button" data-l="en" aria-pressed="false">EN</button></div><a class="btn pri" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.42.0/MiB-Client-Setup-0.42.0.exe" data-dl="auto"><span data-en="Download">Pobierz</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a><button type="button" class="menu-btn" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div></div></header>
 <main>
 
 <!-- ===== Start: launcher przechyla się, a przy przewijaniu wjeżdża na środek ===== -->
@@ -523,10 +534,10 @@ select.inp{background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://
     <h1 class="h1"><span data-en="You click PLAY.">Klikasz GRAJ.</span><br><span class="ac" data-en="We handle the rest.">Reszta to nasz problem.</span></h1>
     <p class="lead" data-en="A Minecraft launcher that installs Fabric, Sodium and the MiB mod for you. Sign in with Microsoft, pick a version and play.">Launcher do Minecrafta, który sam instaluje Fabric, Sodium i mod MiB. Logujesz się kontem Microsoft, wybierasz wersję i grasz.</p>
     <div class="cta">
-     <a class="btn pri lg" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.29.0/MiB-Client-Setup-0.29.0.exe" data-dl><span data-en="Download MiB Client">Pobierz MiB Client</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
+     <a class="btn pri lg" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.42.0/MiB-Client-Setup-0.42.0.exe" data-dl="auto"><span data-en="Download MiB Client">Pobierz MiB Client</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
      <a class="btn lg" href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.6 5.4A16.6 16.6 0 0 0 15.5 4l-.5 1a15 15 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.4C1.8 9.3 1.1 13.1 1.4 16.8a16.7 16.7 0 0 0 5 2.6l1.1-1.7a10.6 10.6 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.6 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.6 16.6 0 0 0 5-2.6c.4-4.3-.6-8-3.1-11.4ZM8.6 14.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg><span>Discord</span></a>
     </div>
-    <p class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM12 4.3 21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z"/></svg><span data-en="Windows 10 and 11 · .exe installer">Windows 10 i 11 · instalator .exe</span></p>
+    <p class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM12 4.3 21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z"/></svg><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.9C6.9 7.3 5 8.6 5 11.4c0 1.7.6 3.5 1.4 4.7.7 1 1.5 2.1 2.6 2.1 1 0 1.4-.7 2.7-.7s1.6.7 2.7.7c1.1 0 1.8-1 2.5-2 .8-1.1 1.1-2.2 1.1-2.3 0 0-2.6-1-2.6-3.3ZM14.2 5.8c.6-.7 1-1.6.9-2.6-.8 0-1.8.6-2.4 1.3-.5.6-1 1.6-.9 2.5.9.1 1.8-.5 2.4-1.2Z"/></svg><span data-en="Windows 10 and 11 · macOS (Intel and Apple)">Windows 10 i 11 · macOS (Intel i Apple)</span></p>
     <div class="chips">
      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg><span data-en="Mods install themselves">Mody instalują się same</span></span>
      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></svg><span data-en="Menu under right Shift">Menu pod prawym Shiftem</span></span>
@@ -689,7 +700,7 @@ select.inp{background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://
    <h2 class="h2" data-reveal><span data-en="Start">Zacznij</span><br><span data-en="with MiB Client.">od MiB Client.</span></h2>
    <p class="lead" data-reveal="2" data-en="Download the installer, sign in and play. Your MiB profile sets itself up.">Pobierasz instalator, logujesz się i grasz. Profil MiB zakłada się sam.</p>
    <ol class="steps" data-reveal="3">
-    <li><i>01</i><span><b data-en="Install the launcher">Zainstaluj launcher</b><small data-en="Run the downloaded .exe file.">Uruchom pobrany plik .exe.</small></span></li>
+    <li><i>01</i><span><b data-en="Install the launcher">Zainstaluj launcher</b><small data-en="The .exe file on Windows, the .dmg file on a Mac.">Plik .exe na Windows, plik .dmg na Macu.</small></span></li>
     <li><i>02</i><span><b data-en="Sign in with Microsoft">Zaloguj się kontem Microsoft</b><small data-en="The account that owns Minecraft Java Edition. Your MiB profile is created for you.">Tym, na którym masz Minecraft Java Edition. Profil MiB założy się sam.</small></span></li>
     <li><i>03</i><span><b data-en="Pick a version and play">Wybierz wersję i graj</b><small data-en="Right Shift in game opens the MiB menu.">Prawy Shift w grze otwiera menu MiB.</small></span></li>
    </ol>
@@ -697,11 +708,24 @@ select.inp{background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://
   <div class="dl card" data-reveal="2">
    <span class="eyebrow ink" data-en="Your next world is waiting">Twój następny świat czeka</span>
    <div class="dl-h"><img src="img/icon.png" alt="" width="56" height="56"><span><b data-en="MiB Client installer">Instalator MiB Client</b><small>Minecraft Java Edition</small></span></div>
-   <div class="fld"><span data-en="System">System</span><div class="inp sysbox"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM12 4.3 21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z"/></svg><span>Windows 10 / 11 · 64-bit</span></div></div>
-   <p class="note-box" id="os-note" data-en="We picked the version for your system: Windows. Playing on another computer? Download it there.">Wybraliśmy wersję dla Twojego systemu: Windows. Grasz na innym komputerze? Pobierz ją tam.</p>
-   <p class="ver" id="dl-ver" data-en="Version 0.29.0 · 90 MB">Wersja 0.29.0 · 90 MB</p>
-   <a class="btn pri lg wide" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.29.0/MiB-Client-Setup-0.29.0.exe" data-dl><span data-en="Download for Windows">Pobierz na Windows</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
-   <p class="hint" data-en="If Windows shows a warning, click “More info”, then “Run anyway”.">Jeśli Windows pokaże ostrzeżenie, kliknij „Więcej informacji”, a potem „Uruchom mimo to”.</p>
+   <div class="fld"><span data-en="System">System</span>
+    <div class="osw" role="radiogroup" aria-label="System">
+     <button type="button" role="radio" data-os="win" aria-checked="true"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM12 4.3 21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z"/></svg><span>Windows 10 / 11</span></button>
+     <button type="button" role="radio" data-os="mac" aria-checked="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.9C6.9 7.3 5 8.6 5 11.4c0 1.7.6 3.5 1.4 4.7.7 1 1.5 2.1 2.6 2.1 1 0 1.4-.7 2.7-.7s1.6.7 2.7.7c1.1 0 1.8-1 2.5-2 .8-1.1 1.1-2.2 1.1-2.3 0 0-2.6-1-2.6-3.3ZM14.2 5.8c.6-.7 1-1.6.9-2.6-.8 0-1.8.6-2.4 1.3-.5.6-1 1.6-.9 2.5.9.1 1.8-.5 2.4-1.2Z"/></svg><span>macOS <small data-en="(Intel and Apple)">(Intel i Apple)</small></span></button>
+    </div>
+   </div>
+   <p class="note-box" id="note-auto" data-en="We picked the version for your system. Playing on another computer? Choose its system above.">Wybraliśmy wersję dla Twojego systemu. Grasz na innym komputerze? Wybierz jego system wyżej.</p>
+   <p class="note-box warn" id="note-other" hidden data-en="MiB Client runs on Windows and macOS. On Linux it doesn’t work yet.">MiB Client działa na Windows i macOS. Na Linuksie jeszcze nie działa.</p>
+   <p class="ver" data-for="win" id="ver-win" data-en="Version 0.42.0 · 96 MB">Wersja 0.42.0 · 96 MB</p>
+   <p class="ver" data-for="mac" id="ver-mac" hidden data-en="Version 0.42.0 · 192 MB">Wersja 0.42.0 · 192 MB</p>
+   <a class="btn pri lg wide" data-for="win" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.42.0/MiB-Client-Setup-0.42.0.exe" data-dl="win"><span data-en="Download for Windows">Pobierz na Windows</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
+   <a class="btn pri lg wide" data-for="mac" hidden href="https://github.com/ban19910k3-sketch/mib-client/releases/latest/download/MiB-Client-mac.dmg" data-dl="mac"><span data-en="Download for Mac">Pobierz na Maca</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
+   <p class="hint" data-for="win" data-en="If Windows shows a warning, click “More info”, then “Run anyway”.">Jeśli Windows pokaże ostrzeżenie, kliknij „Więcej informacji”, a potem „Uruchom mimo to”.</p>
+   <ol class="machelp" data-for="mac" hidden>
+    <li data-en="Open the downloaded file and drag MiB Client into the Applications folder.">Otwórz pobrany plik i przeciągnij MiB Client do folderu Aplikacje.</li>
+    <li data-en="First launch on macOS 15 or newer: try to open it, then go to System Settings → Privacy &amp; Security → “Open Anyway”. On older macOS: right-click the app → Open → Open.">Pierwsze uruchomienie na macOS 15 i nowszym: spróbuj otworzyć aplikację, potem wejdź w Ustawienia systemowe → Prywatność i ochrona → „Otwórz mimo to”. Na starszym macOS: prawy przycisk na aplikacji → Otwórz → Otwórz.</li>
+    <li data-en="After that it opens normally, and updates install themselves while the app is in Applications.">Potem uruchamia się normalnie, a aktualizacje instalują się same, gdy aplikacja jest w folderze Aplikacje.</li>
+   </ol>
   </div>
  </div>
 </section>
@@ -719,7 +743,7 @@ select.inp{background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://
    <details data-reveal><summary><span data-en="How much does it cost?">Ile to kosztuje?</span><i></i></summary><p data-en="The launcher and the mod are free. Only cosmetics cost MiB Coins, and nobody has to buy them.">Launcher i mod są za darmo. Płatne są tylko kosmetyki za MiB Coins, a nikt nie musi ich kupować.</p></details>
    <details data-reveal="2"><summary><span data-en="How do I get a MiB profile?">Jak założyć profil MiB?</span><i></i></summary><p data-en="You don't have to do anything. When you sign in with Microsoft in the launcher, your profile is created for you.">Nic nie musisz robić. Kiedy zalogujesz się w launcherze kontem Microsoft, profil założy się sam.</p></details>
    <details data-reveal><summary><span data-en="Can I buy MiB Coins?">Czy mogę kupić MiB Coins?</span><i></i></summary><p data-en="In the shop you pick the player (MIB number or nick) and a pack, no signing in. Payments go live soon. Until then you get coins from the daily reward in the launcher.">W sklepie wybierasz gracza (numer MIB albo nick) i pakiet, bez logowania. Płatności uruchomimy wkrótce. Do tego czasu monety dostajesz za codzienną nagrodę w launcherze.</p></details>
-   <details data-reveal="2"><summary><span data-en="Does it work on macOS or Linux?">Czy działa na macOS albo Linuksie?</span><i></i></summary><p data-en="Not yet. For now the launcher is Windows only.">Jeszcze nie. Na razie launcher jest tylko na Windows.</p></details>
+   <details data-reveal="2"><summary><span data-en="Does it work on a Mac?">Czy działa na Macu?</span><i></i></summary><p data-en="Yes, on Macs with Intel and Apple chips (M1 and newer). Download the .dmg file. On Linux it doesn’t work yet.">Tak, na Macach z procesorem Intel i Apple (M1 i nowsze). Pobierz plik .dmg. Na Linuksie jeszcze nie działa.</p></details>
   </div>
   <div class="dc card" data-reveal>
    <span class="dc-ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.6 5.4A16.6 16.6 0 0 0 15.5 4l-.5 1a15 15 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.4C1.8 9.3 1.1 13.1 1.4 16.8a16.7 16.7 0 0 0 5 2.6l1.1-1.7a10.6 10.6 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.6 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.6 16.6 0 0 0 5-2.6c.4-4.3-.6-8-3.1-11.4ZM8.6 14.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg></span>
@@ -805,30 +829,38 @@ const MIB = (() => {
     else location.href = 'sklep.html#admin';
   });
 
-  // Pobieranie: zawsze plik .exe z najnowszego wydania, z numerem wersji i rozmiarem
-  const links = [...document.querySelectorAll('a[data-dl]')];
-  if (links.length && window.fetch) {
+  // Pobieranie: Windows (.exe) albo Mac (.dmg) z najnowszego wydania; system gracza wybieramy sami
+  const ua = navigator.userAgent, plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+  const myOs = /Win/i.test(plat + ua) ? 'win' : /Mac/i.test(plat + ua) && !/iPhone|iPad|iPod/i.test(ua) ? 'mac' : 'other';
+  const setText = (n, pl, en) => { n.dataset.en = en; const t = texts.find(x => x[0] === n); if (t) t[1] = pl; n.innerHTML = isEN() ? en : pl; };
+  function showOs(os) {
+    document.querySelectorAll('.osw [data-os]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.os === os)));
+    document.querySelectorAll('[data-for]').forEach(n => { n.hidden = n.dataset.for !== os; });
+  }
+  document.querySelectorAll('.osw [data-os]').forEach(b => b.addEventListener('click', () => showOs(b.dataset.os)));
+  if (document.querySelector('.osw')) {
+    showOs(myOs === 'mac' ? 'mac' : 'win');
+    if (myOs === 'other') { $('note-auto').hidden = true; $('note-other').hidden = false; }
+  }
+  const auto = [...document.querySelectorAll('a[data-dl="auto"]')];
+  const pick = { win: [...document.querySelectorAll('a[data-dl="win"]')], mac: [...document.querySelectorAll('a[data-dl="mac"]')] };
+  const MAC = 'https://github.com/ban19910k3-sketch/mib-client/releases/latest/download/MiB-Client-mac.dmg';
+  if (myOs === 'mac') auto.forEach(l => { l.href = MAC; });
+  if (window.fetch && (auto.length || pick.win.length)) {
     fetch('https://api.github.com/repos/ban19910k3-sketch/mib-client/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
       .then(r => (r.ok ? r.json() : null)).then(d => {
-        const a = d && (d.assets || []).find(x => /\.exe$/i.test(x.name));
-        if (!a) return;
-        links.forEach(l => { l.href = a.browser_download_url; });
-        const v = $('dl-ver');
-        if (v) {
-          const ver = String(d.tag_name || '').replace(/^v/, ''), mb = Math.round(a.size / 1048576);
-          const pl = 'Wersja ' + ver + ' · ' + mb + ' MB', en = 'Version ' + ver + ' · ' + mb + ' MB';
-          v.dataset.en = en; const t = texts.find(x => x[0] === v); if (t) t[1] = pl;
-          v.textContent = isEN() ? en : pl;
-        }
+        if (!d) return;
+        const ver = String(d.tag_name || '').replace(/^v/, '');
+        const exe = (d.assets || []).find(x => /\.exe$/i.test(x.name)), dmg = (d.assets || []).find(x => /\.dmg$/i.test(x.name));
+        const fill = (a, os) => {
+          if (!a) return;
+          pick[os].forEach(l => { l.href = a.browser_download_url; });
+          if (myOs === os || (os === 'win' && myOs === 'other')) auto.forEach(l => { l.href = a.browser_download_url; });
+          const v = $('ver-' + os), mb = Math.round(a.size / 1048576);
+          if (v) setText(v, 'Wersja ' + ver + ' · ' + mb + ' MB', 'Version ' + ver + ' · ' + mb + ' MB');
+        };
+        fill(exe, 'win'); fill(dmg, 'mac');
       }).catch(() => {});
-  }
-  // Inny system niż Windows: uprzedzamy, zanim ktoś pobierze
-  const note = $('os-note');
-  if (note && !/Windows/i.test(navigator.userAgent)) {
-    note.classList.add('warn');
-    note.dataset.en = 'MiB Client runs on Windows only for now. Download it on a Windows PC.';
-    const t = texts.find(x => x[0] === note); if (t) t[1] = 'MiB Client działa na razie tylko na Windows. Pobierz go na komputerze z Windows.';
-    note.innerHTML = isEN() ? note.dataset.en : t[1];
   }
 
   return { $, T, esc, isEN, store, paused, setLang };
