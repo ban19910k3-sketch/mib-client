@@ -8,6 +8,10 @@ on:
   push:
     paths: ['android/**', '.github/workflows/android.yml']
   workflow_dispatch:
+    inputs:
+      apk_run:
+        description: 'Numer przebiegu z gotowym APK — wtedy tylko test w emulatorze'
+        required: false
   workflow_call:
     inputs:
       release:
@@ -20,6 +24,7 @@ env:
 
 jobs:
   apk:
+    if: ${{ !inputs.apk_run }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
@@ -102,13 +107,15 @@ jobs:
   # emulator: aplikacja startuje, profil MiB z modem gotowy, bez awarii; zrzut ekranu w adnotacji (mały JPEG w base64)
   emulator:
     needs: apk
-    if: ${{ !inputs.release }}
+    if: ${{ !cancelled() && !inputs.release && (needs.apk.result == 'success' || inputs.apk_run) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: android-apk
+          run-id: ${{ inputs.apk_run || github.run_id }}
+          github-token: ${{ github.token }}
       - name: KVM i skrypt testu
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -117,21 +124,33 @@ jobs:
           cat > test.sh <<'EOF'
           set -u
           P=pl.mibclient.android
-          adb install -r MiB-Client-android.apk
+          note() { printf '%s' "$2" | cut -c1-3900 | sed -e 's/%/%25/g' | awk -v t="$1" 'BEGIN{ORS="%0A"} NR==1{printf "::notice title=%s::", t} {print}'; echo; }
+          shot() { adb exec-out screencap -p > "$1.png"; python3 - "$1" <<'PY'
+          import base64, io, sys
+          from PIL import Image
+          im = Image.open(sys.argv[1] + '.png').convert('RGB'); im.thumbnail((300, 300))
+          b = io.BytesIO(); im.save(b, 'JPEG', quality=40); d = base64.b64encode(b.getvalue()).decode()
+          parts = [d[i:i + 3900] for i in range(0, len(d), 3900)]
+          for i, p in enumerate(parts): print(f'::notice title={sys.argv[1]}-{i + 1}-{len(parts)}::{p}')
+          PY
+          }
+          adb logcat -G 16M || true
+          note install "$(adb install -r MiB-Client-android.apk 2>&1)"
           adb shell pm grant $P android.permission.POST_NOTIFICATIONS || true
           adb logcat -c
-          adb shell am start -W -n $P/net.kdt.pojavlaunch.TestStorageActivity
-          sleep 45
-          adb exec-out screencap -p > shot.png
+          note start "$(adb shell am start -W -n $P/net.kdt.pojavlaunch.TestStorageActivity 2>&1)"
+          sleep 60
+          shot zrzut
           adb logcat -d > logcat.txt || true
-          python3 -c "import base64,io;from PIL import Image;im=Image.open('shot.png').convert('RGB');im.thumbnail((400,400));b=io.BytesIO();im.save(b,'JPEG',quality=50);print('::notice title=zrzut-android::'+base64.b64encode(b.getvalue()).decode())"
-          pid=$(adb shell pidof $P || true); echo "pid: $pid"
-          mods=$(adb shell ls /sdcard/Android/data/$P/files/custom_instances/mib/mods || true); echo "mody: $mods"
-          grep -E " (MiB|AndroidRuntime)" logcat.txt | tail -40 || true
+          ps=$(adb shell ps -A | grep -i mibclient || true)
+          mods=$(adb shell ls -la /sdcard/Android/data/$P/files/custom_instances/mib/mods 2>&1 || true)
+          note proces "$ps"
+          note mody "$mods"
+          note logi-mib "$(grep -E ' (MiB|AndroidRuntime|DEBUG) *:' logcat.txt | tail -40)"
           ok=1
-          [ -n "$pid" ] || { echo "::error::MiB Client nie działa po starcie"; ok=0; }
-          if grep -q "FATAL EXCEPTION" logcat.txt; then echo "::error::awaria: $(grep -A8 'FATAL EXCEPTION' logcat.txt | tr '\n' ' ' | cut -c1-1500)"; ok=0; fi
-          grep -q "profil MiB gotowy" logcat.txt || { echo "::error::brak profilu MiB: $(grep -E ' MiB|Exception' logcat.txt | tail -15 | tr '\n' ' ' | cut -c1-1500)"; ok=0; }
+          [ -n "$ps" ] || { echo "::error::MiB Client nie działa po starcie"; ok=0; }
+          if grep -q "FATAL EXCEPTION" logcat.txt; then echo "::error::awaria: $(grep -A10 'FATAL EXCEPTION' logcat.txt | tr '\n' ' ' | cut -c1-3500)"; ok=0; fi
+          grep -q "profil MiB gotowy" logcat.txt || { echo "::error::brak wpisu 'profil MiB gotowy' w logu"; ok=0; }
           echo "$mods" | grep -q mib-client-mod.jar || { echo "::error::brak moda MiB w folderze gry"; ok=0; }
           echo "$mods" | grep -q "fabric-api-" || { echo "::error::brak Fabric API w folderze gry"; ok=0; }
           [ $ok = 1 ] && echo "::notice::PASS Android: aplikacja startuje, profil MiB z modem i Fabric API"
