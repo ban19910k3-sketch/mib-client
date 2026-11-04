@@ -20,7 +20,7 @@ env:
 
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v6
@@ -28,6 +28,7 @@ jobs:
         with:
           distribution: temurin
           java-version: |
+            8
             25
             21
       - uses: gradle/actions/setup-gradle@v6
@@ -50,7 +51,8 @@ jobs:
           git init -q amethyst && cd amethyst
           git fetch -q --depth 1 https://github.com/AngelAuraMC/Amethyst-Android "$AMETHYST" && git checkout -q FETCH_HEAD
           git submodule update --init --recursive
-      # Java 8 do paczki (jak w Amethyst); Javę 17/21/25 aplikacja pobiera sama, gdy gra jej potrzebuje
+      # Java 8 do paczki (jak w Amethyst); Javę 17/21/25 aplikacja pobiera sama, gdy gra jej potrzebuje. (Część Amethyst
+      # buduje się Javą 8 — stąd 8 w setup-java i org.gradle.java.installations.fromEnv.)
       - uses: dawidd6/action-download-artifact@v9
         with:
           workflow: build.yml
@@ -80,7 +82,7 @@ jobs:
           else echo "::warning::Brak sekretu MIB_KEY_PASSWORD — APK testowy podpisany kluczem debug"; fi
           set -o pipefail
           ./scripts/languagelist_updater.sh
-          gradle :app_pojavlauncher:assembleRelease --stacktrace 2>&1 | tee ../build.log
+          gradle :app_pojavlauncher:assembleRelease --stacktrace -Porg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64,JAVA_HOME_21_X64 2>&1 | tee ../build.log
           mkdir -p ../out && mv app_pojavlauncher/build/outputs/apk/release/app_pojavlauncher-release.apk ../out/MiB-Client-android.apk
           ls -la ../out
       - name: Błędy jako adnotacje
