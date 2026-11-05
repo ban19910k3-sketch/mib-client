@@ -278,6 +278,20 @@ select.inp{appearance:none;background:var(--card) url("data:image/svg+xml,%3Csvg
 .hist li small{color:var(--mut2)}
 .plus{color:var(--ok);font-weight:600}.minus{color:var(--bad);font-weight:600}
 .adminlink{border:0;background:none;color:var(--mut);font-size:15px;cursor:pointer;padding:0}
+
+.th-list{display:flex;flex-direction:column;gap:10px;max-width:980px}
+.th-row{display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--card);box-shadow:inset 0 0 0 2px var(--line);clip-path:var(--px4)}
+.th-row.on{box-shadow:inset 0 0 0 2px var(--ac)}
+.th-row .tx{display:flex;flex-direction:column;flex:1;min-width:0}
+.th-row b{font-weight:600}
+.th-row small{color:var(--mut);font-size:13px}
+.th-dot{width:10px;height:10px;flex:none;background:var(--mut2);clip-path:var(--px)}
+.th-dot.now{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.th-dot.off{background:var(--bad)}
+.th-form{margin:-4px 0 6px}
+.th-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 14px;max-height:260px;overflow:auto;padding:10px;background:var(--card2);box-shadow:inset 0 0 0 2px var(--line2);clip-path:var(--px)}
+.th-items .ck{font-size:14px}
+@media (max-width:640px){.th-row{flex-wrap:wrap}}
 /* ===== Wygląd MiB Client (jak launcher: czerń, ametyst, pikselowe ramki) — nadpisuje jasne style ===== */
 :root{
  --bg:#07020c;--bg2:#100618;--card:#100618;--card2:#190c25;--ink:#eee6f8;--ink2:#d6cbe6;--mut:#9a88ad;--mut2:#76678a;--line:#24133a;--line2:#3a2256;
@@ -757,12 +771,17 @@ const MibHoliday = (() => {
   }
   const pick = () => (q === 'brak' ? '' : q && IDS.includes(q) ? q : now(themes));
   apply(pick());
-  fetch(SUPA + '/rest/v1/themes?select=id,starts,ends,enabled,forced,sort', { headers: { apikey: KEY } })
-    .then(r => (r.ok ? r.json() : null)).then(l => { if (Array.isArray(l) && l.length) { themes = l; try { localStorage.setItem('mib-themes', JSON.stringify(l)); } catch {} apply(pick()); } }).catch(() => {});
+  setTimeout(() => load(), 0);
   addEventListener('mib-motion', run);
   document.addEventListener('mib-lang', () => { const c = current; current = null; apply(c); });
-  setInterval(() => apply(pick()), 600000);
-  return { now, get id() { return current; }, names: NAMES };
+  function load(list) {
+    if (Array.isArray(list) && list.length) { themes = list; try { localStorage.setItem('mib-themes', JSON.stringify(list)); } catch {} apply(pick()); return Promise.resolve(); }
+    return fetch(SUPA + '/rest/v1/themes?select=id,starts,ends,enabled,forced,sort', { headers: { apikey: KEY }, cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null)).then(l => { if (Array.isArray(l) && l.length) { themes = l; try { localStorage.setItem('mib-themes', JSON.stringify(l)); } catch {} } apply(pick()); }).catch(() => {});
+  }
+  setInterval(() => load(), 600000);
+  addEventListener('focus', () => load());
+  return { now, span, isOn: on, defaults: DEFAULT, reload: load, get id() { return current; }, names: NAMES };
 })();
 
 /* ===== Kosmetyki na postaci 3D (skinview3d) i miniatury — liczone tak samo jak w launcherze (dress w profile-ui.js) ===== */
@@ -984,6 +1003,10 @@ const MibTry = (() => {
     aura_id_invalid: ['Wybierz ruch cząsteczek aury.', 'Pick how the aura particles move.'],
     cosmetic_in_use: ['Tego przedmiotu nie można usunąć: mają go gracze, są do niego kody albo jest w ofercie.', "You can't delete this item: players own it, codes exist or it's in an offer."],
     cosmetic_missing: ['Nie ma takiego przedmiotu.', 'No such item.'],
+    theme_date_invalid: ['Zła data. Wpisz MM-DD (np. 12-01) albo E-7 / E+2 dla dni od Wielkanocy.', 'Bad date. Use MM-DD (e.g. 12-01) or E-7 / E+2 for days from Easter.'],
+    theme_bonus_invalid: ['Dodatek do nagrody dziennej: od 0 do 1000.', 'Daily bonus: 0 to 1000.'],
+    theme_items_invalid: ['W kolekcji jest przedmiot, którego nie ma w katalogu.', 'The collection has an item that is not in the catalogue.'],
+    theme_missing: ['Nie ma takiego motywu.', 'No such theme.'],
     coins_amount: ['Wpisz liczbę monet inną niż 0 (najwyżej milion). Minus zabiera monety.', 'Enter a coin amount other than 0 (a million at most). A minus takes coins away.'],
     coins_not_enough: ['Gracz nie ma tylu monet, żeby je zabrać.', "The player doesn't have that many coins to take away."],
     player_missing: ['Nie ma takiego gracza.', 'No such player.'],
@@ -1258,13 +1281,13 @@ const MibTry = (() => {
   }
   function renderAdmin() {
     adm.innerHTML = '<div class="adm-top"><div class="wrap"><h2>' + esc(T('Panel admina', 'Admin panel')) + '</h2>' +
-      '<div class="adm-tabs" role="tablist"><button type="button" data-atab="items" aria-selected="' + (admTab === 'items') + '">' + esc(T('Przedmioty', 'Items')) + '</button><button type="button" data-atab="coins" aria-selected="' + (admTab === 'coins') + '">MiB Coins</button></div>' +
+      '<div class="adm-tabs" role="tablist"><button type="button" data-atab="items" aria-selected="' + (admTab === 'items') + '">' + esc(T('Przedmioty', 'Items')) + '</button><button type="button" data-atab="coins" aria-selected="' + (admTab === 'coins') + '">MiB Coins</button><button type="button" data-atab="themes" aria-selected="' + (admTab === 'themes') + '">' + esc(T('Motywy', 'Themes')) + '</button></div>' +
       '<div class="sp"><button type="button" class="btn sm" data-alogout>' + esc(T('Wyloguj', 'Sign out')) + '</button><button type="button" class="btn sm pri" data-aclose>' + esc(T('Wróć do sklepu', 'Back to shop')) + '</button></div></div></div>' +
-      '<div class="adm-body"><div class="wrap">' + (admTab === 'items' ? itemsView() : coinsView()) + '</div></div>';
+      '<div class="adm-body"><div class="wrap">' + (admTab === 'items' ? itemsView() : admTab === 'coins' ? coinsView() : themesView()) + '</div></div>';
     adm.querySelector('[data-aclose]').onclick = closeAdmin;
     adm.querySelector('[data-alogout]').onclick = () => { if (mode !== 'demo' && session) token().then(tk => req('/auth/v1/logout?scope=local', { method: 'POST', token: tk })).catch(() => {}); session = null; saveRT(); admReady = false; closeAdmin(); footerLink(); };
     adm.querySelectorAll('[data-atab]').forEach(b => { b.onclick = () => { admTab = b.dataset.atab; admMsg = ''; renderAdmin(); }; });
-    if (admTab === 'items') wireItems(); else wireCoins();
+    if (admTab === 'items') wireItems(); else if (admTab === 'coins') wireCoins(); else wireThemes();
   }
   function itemsView() {
     if (!form) form = blank();
@@ -1398,6 +1421,88 @@ const MibTry = (() => {
     return '<div class="cbox"><div><form id="s-f" class="aact" style="flex-wrap:nowrap;margin-bottom:12px"><input class="inp" id="s-q" placeholder="' + esc(T('Nick, MIB-000127 albo e-mail', 'Nick, MIB-000127 or email')) + '"><button class="btn" type="submit">' + esc(T('Szukaj', 'Search')) + '</button></form><div class="alist">' + rows + '</div>' +
       '<div class="card" style="padding:18px;margin-top:20px;display:flex;flex-direction:column;gap:10px"><b>' + esc(T('Przycisk „Kup MiB Coins” w launcherze', '“Buy MiB Coins” button in the launcher')) + '</b><span class="mut" style="font-size:14px">' + esc(linkOk ? T('Prowadzi do tego sklepu.', 'Points to this shop.') : shopUrl ? T('Teraz prowadzi do: ', 'Now points to: ') + shopUrl : T('Jeszcze nie ustawiony.', 'Not set yet.')) + '</span>' +
       (linkOk || !/^https:/.test(here) ? '' : '<button type="button" class="btn sm" id="set-url">' + esc(T('Ustaw na ten sklep', 'Point it to this shop')) + '</button>') + '</div></div><div>' + right + '</div></div>';
+  }
+  // ===== Motywy świąteczne: te same co w panelu launchera (public.themes, admin_list_themes, admin_save_theme) =====
+  let themeList = null, themeOpen = null, themeMsg = '';
+  const fmtDay = d => (d ? new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString(isEN() ? 'en-GB' : 'pl-PL', { day: 'numeric', month: 'long' }) : '—');
+  const isoDay = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  function demoThemes() {
+    const today = new Date();
+    return MibHoliday.defaults.map(t => {
+      const sp = MibHoliday.span(t, today);
+      return Object.assign({}, t, { name: MibHoliday.names[t.id][0], gift_coins: t.id === 'boze' ? 100 : 0, gift_cosmetic: null, gift_name: null, daily_bonus: t.id === 'boze' ? 5 : 0,
+        items: COS.filter(r => r[0].startsWith(t.id === 'boze' ? 'zima_' : t.id + '_')).map(r => r[0]), active: MibHoliday.isOn(t, today), d_from: sp && isoDay(sp.from), d_to: sp && isoDay(sp.to), claims: 0 });
+    });
+  }
+  async function loadThemes() {
+    try { themeList = mode === 'demo' ? (themeList || demoThemes()) : await rpc('admin_list_themes'); } catch (e) { themeList = []; themeMsg = errText(e); }
+  }
+  function themeState(t) {
+    if (!t.enabled) return [T('wyłączony', 'off'), 'off'];
+    if (t.forced) return [T('włączony teraz ręcznie', 'on now (manual)'), 'now'];
+    if (t.active) return [T('trwa do ', 'on until ') + fmtDay(t.d_to), 'now'];
+    return [T('od ', 'from ') + fmtDay(t.d_from) + T(' do ', ' to ') + fmtDay(t.d_to), ''];
+  }
+  function themesView() {
+    if (!themeList) return '<p class="mut">' + esc(T('Wczytuję motywy…', 'Loading themes…')) + '</p>';
+    const cos = all.length ? all : COS.map(r => ({ id: r[0], name: r[1], type: r[2], price: r[4] }));
+    const tname = c => esc(T(TYPES[c.type] ? TYPES[c.type][0] : c.type, TYPES[c.type] ? TYPES[c.type][1] : c.type));
+    const opt = sel => '<option value="">' + esc(T('bez przedmiotu', 'no item')) + '</option>' + cos.map(c => '<option value="' + esc(c.id) + '"' + (c.id === sel ? ' selected' : '') + '>' + esc(c.name) + ' (' + tname(c) + ')</option>').join('');
+    const rows = themeList.map(t => {
+      const [st, cls] = themeState(t), open = themeOpen === t.id;
+      const gift = t.gift_coins ? t.gift_coins + ' MiB Coins' + (t.gift_name ? T(' i ', ' and ') + t.gift_name : '') : t.gift_name || T('brak', 'none');
+      const head = '<div class="th-row' + (open ? ' on' : '') + '"><span class="th-dot ' + cls + '"></span><span class="tx"><b>' + esc(t.name) + '</b><small>' + esc(st) + ' · ' + esc(T('nagroda: ', 'gift: ') + gift) +
+        (t.claims ? esc(T(' (odebrało ', ' (claimed by ') + t.claims + ')') : '') + ' · ' + esc(T('kolekcja: ', 'collection: ') + t.items.length) + (t.daily_bonus ? ' · ' + esc(T('dzienna +', 'daily +') + t.daily_bonus) : '') + '</small></span>' +
+        '<a class="btn sm" href="index.html?motyw=' + esc(t.id) + '" target="_blank" rel="noopener">' + esc(T('Podgląd', 'Preview')) + '</a><button type="button" class="btn sm' + (open ? ' pri' : '') + '" data-thopen="' + esc(t.id) + '">' + esc(open ? T('Zwiń', 'Close') : T('Edytuj', 'Edit')) + '</button></div>';
+      if (!open) return head;
+      return head + '<form class="aform th-form" id="th-f" novalidate>' +
+        '<label class="fld"><span>' + esc(T('Od', 'From')) + '</span><input class="inp" id="th-starts" maxlength="5" value="' + esc(t.starts) + '"></label>' +
+        '<label class="fld"><span>' + esc(T('Do', 'To')) + '</span><input class="inp" id="th-ends" maxlength="5" value="' + esc(t.ends) + '"></label>' +
+        '<p class="full mut" style="margin:-8px 0 0;font-size:13.5px">' + esc(T('MM-DD, np. 12-01. Wielkanoc: E-7 to 7 dni przed, E+2 to 2 dni po (liczona co roku). Koniec wcześniej niż początek = przez Nowy Rok.', 'MM-DD, e.g. 12-01. Easter: E-7 is 7 days before, E+2 is 2 days after (worked out every year). An end before the start = across New Year.')) + '</p>' +
+        '<label class="ck full"><input type="checkbox" id="th-en"' + (t.enabled ? ' checked' : '') + '>' + esc(T('Włączony (w swoich datach)', 'Enabled (in its dates)')) + '</label>' +
+        '<label class="ck full"><input type="checkbox" id="th-forced"' + (t.forced ? ' checked' : '') + '>' + esc(T('Włącz teraz, niezależnie od dat (tylko jeden motyw naraz)', 'Turn on now, whatever the dates (only one theme at a time)')) + '</label>' +
+        '<label class="fld"><span>' + esc(T('Nagroda świąteczna: MiB Coins', 'Holiday gift: MiB Coins')) + '</span><input class="inp" id="th-coins" type="number" min="0" max="100000" value="' + (t.gift_coins || 0) + '"></label>' +
+        '<label class="fld"><span>' + esc(T('…i przedmiot', '…and item')) + '</span><select class="inp" id="th-gift">' + opt(t.gift_cosmetic) + '</select></label>' +
+        '<p class="full mut" style="margin:-8px 0 0;font-size:13.5px">' + esc(T('Każdy gracz odbiera ją raz w roku na stronie głównej launchera. 0 i bez przedmiotu = bez nagrody.', 'Every player claims it once a year on the launcher home page. 0 and no item = no gift.')) + '</p>' +
+        '<label class="fld full"><span>' + esc(T('Dodatek do nagrody dziennej', 'Daily reward bonus')) + ' <small>' + esc(T('(coinsy do codziennych 10 w czasie święta)', '(coins on top of the daily 10 during the holiday)')) + '</small></span><input class="inp" id="th-bonus" type="number" min="0" max="1000" value="' + (t.daily_bonus || 0) + '"></label>' +
+        '<div class="fld full"><span>' + esc(T('Kolekcja w sklepie', 'Shop collection')) + ' <small>' + esc(T('(te przedmioty z ceną są w sklepie tylko w czasie święta)', '(these priced items are in the shop only during the holiday)')) + '</small></span>' +
+        '<input class="inp" id="th-q" placeholder="' + esc(T('Szukaj przedmiotu…', 'Search items…')) + '" style="margin-bottom:8px"><div class="th-items" id="th-items">' +
+        cos.map(c => '<label class="ck"><input type="checkbox" value="' + esc(c.id) + '"' + (t.items.includes(c.id) ? ' checked' : '') + '><span>' + esc(c.name) + (c.price != null ? ' <small class="mut">· ' + fmt(c.price) + ' MC</small>' : '') + '</span></label>').join('') + '</div></div>' +
+        '<p class="full ' + (themeMsg && themeMsg.ok ? 'ok' : 'err') + '" aria-live="polite">' + esc(themeMsg) + '</p>' +
+        '<div class="aact full"><button class="btn pri" type="submit">' + esc(T('Zapisz motyw', 'Save theme')) + '</button><button class="btn" type="button" data-thopen="' + esc(t.id) + '">' + esc(T('Anuluj', 'Cancel')) + '</button>' +
+        '<span class="mut" style="font-size:13.5px">' + esc(T('Te same ustawienia widzi panel w launcherze. Strona zmienia wygląd od razu, launchery graczy przy następnym uruchomieniu albo w ciągu godziny.', 'The launcher panel uses the same settings. The site changes right away, players’ launchers on next start or within an hour.')) + '</span></div></form>';
+    }).join('');
+    return '<div class="th-wrap"><p class="mut" style="margin:0 0 16px">' + esc(T('Daty świąt są wspólne dla launchera, gry i strony. Zmiana tutaj albo w panelu launchera działa wszędzie.', 'Holiday dates are shared by the launcher, the game and the site. A change here or in the launcher panel works everywhere.')) + '</p>' +
+      (themeMsg && !themeOpen ? '<p class="' + (themeMsg.ok ? 'ok' : 'err') + '">' + esc(themeMsg) + '</p>' : '') + '<div class="th-list">' + rows + '</div></div>';
+  }
+  function wireThemes() {
+    if (!themeList) { loadThemes().then(renderAdmin); return; }
+    adm.querySelectorAll('[data-thopen]').forEach(b => { b.onclick = () => { themeOpen = themeOpen === b.dataset.thopen ? null : b.dataset.thopen; themeMsg = ''; renderAdmin(); }; });
+    const q = $('th-q'); if (q) q.oninput = () => { const v = q.value.toLowerCase(); $('th-items').querySelectorAll('label').forEach(l => { l.hidden = !!v && !l.textContent.toLowerCase().includes(v); }); };
+    const f = $('th-f'); if (!f) return;
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const t = themeList.find(x => x.id === themeOpen), btn = f.querySelector('[type=submit]'); btn.disabled = true;
+      const args = { p_id: t.id, p_starts: $('th-starts').value.trim(), p_ends: $('th-ends').value.trim(), p_enabled: $('th-en').checked, p_forced: $('th-forced').checked,
+        p_gift_coins: Number($('th-coins').value) || 0, p_gift_cosmetic: $('th-gift').value || null, p_daily_bonus: Number($('th-bonus').value) || 0, p_items: [...$('th-items').querySelectorAll('input:checked')].map(x => x.value) };
+      try {
+        if (mode === 'demo') {
+          const ok = s2 => /^(\d\d-\d\d|E[+-]\d{1,2})$/.test(s2) && (s2[0] === 'E' || (+s2.slice(0, 2) >= 1 && +s2.slice(0, 2) <= 12 && +s2.slice(3) >= 1 && +s2.slice(3) <= 31));
+          if (!ok(args.p_starts) || !ok(args.p_ends)) throw mkErr('theme_date_invalid');
+          if (args.p_forced) themeList.forEach(x => { x.forced = false; });
+          Object.assign(t, { starts: args.p_starts, ends: args.p_ends, enabled: args.p_enabled || args.p_forced, forced: args.p_forced, gift_coins: args.p_gift_coins, gift_cosmetic: args.p_gift_cosmetic,
+            gift_name: (byId(args.p_gift_cosmetic) || {}).name || null, daily_bonus: args.p_daily_bonus, items: args.p_items });
+          const sp = MibHoliday.span(t, new Date()); t.active = MibHoliday.isOn(t, new Date()); t.d_from = sp && isoDay(sp.from); t.d_to = sp && isoDay(sp.to);
+        } else {
+          await rpc('admin_save_theme', args);
+          themeList = await rpc('admin_list_themes');
+        }
+        themeOpen = null;
+        themeMsg = Object.assign(new String(T('Motyw „', 'Theme “') + t.name + T('” zapisany.', '” saved.')), { ok: true });
+        MibHoliday.reload(mode === 'demo' ? themeList : null);
+      } catch (x) { themeMsg = errText(x); }
+      btn.disabled = false; renderAdmin();
+    };
   }
   const logLabel = l => ({ buy: T('Zakup: ', 'Bought: ') + (l.label || l.item), gift: T('Prezent dla ', 'Gift for ') + (l.friend || '?') + ': ' + (l.label || l.item), offer: T('Oferta: ', 'Offer: ') + (l.label || ''), daily: T('Nagroda dzienna', 'Daily reward') }[l.kind] || l.label || T('Od admina', 'From admin'));
   const DEMO_ADM = [{ id: 'd1', num: 127, nick: 'Gracz_MiB', email: 'gracz@przyklad.pl', coins: 500 }, { id: 'd2', num: 128, nick: 'Kumpel_PvP', email: 'kumpel@przyklad.pl', coins: 0 }];

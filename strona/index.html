@@ -1057,12 +1057,17 @@ const MibHoliday = (() => {
   }
   const pick = () => (q === 'brak' ? '' : q && IDS.includes(q) ? q : now(themes));
   apply(pick());
-  fetch(SUPA + '/rest/v1/themes?select=id,starts,ends,enabled,forced,sort', { headers: { apikey: KEY } })
-    .then(r => (r.ok ? r.json() : null)).then(l => { if (Array.isArray(l) && l.length) { themes = l; try { localStorage.setItem('mib-themes', JSON.stringify(l)); } catch {} apply(pick()); } }).catch(() => {});
+  setTimeout(() => load(), 0);
   addEventListener('mib-motion', run);
   document.addEventListener('mib-lang', () => { const c = current; current = null; apply(c); });
-  setInterval(() => apply(pick()), 600000);
-  return { now, get id() { return current; }, names: NAMES };
+  function load(list) {
+    if (Array.isArray(list) && list.length) { themes = list; try { localStorage.setItem('mib-themes', JSON.stringify(list)); } catch {} apply(pick()); return Promise.resolve(); }
+    return fetch(SUPA + '/rest/v1/themes?select=id,starts,ends,enabled,forced,sort', { headers: { apikey: KEY }, cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null)).then(l => { if (Array.isArray(l) && l.length) { themes = l; try { localStorage.setItem('mib-themes', JSON.stringify(l)); } catch {} } apply(pick()); }).catch(() => {});
+  }
+  setInterval(() => load(), 600000);
+  addEventListener('focus', () => load());
+  return { now, span, isOn: on, defaults: DEFAULT, reload: load, get id() { return current; }, names: NAMES };
 })();
 
 /* ===== Kosmetyki na postaci 3D (skinview3d) i miniatury — liczone tak samo jak w launcherze (dress w profile-ui.js) ===== */
