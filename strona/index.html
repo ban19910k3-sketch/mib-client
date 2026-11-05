@@ -156,6 +156,8 @@ body{background:var(--bg) linear-gradient(var(--bg),var(--bg))}
 .shot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .35s var(--ease)}
 .shot img.on{opacity:1}
 .hot{position:absolute;left:.8%;width:18%;top:calc(var(--y) - 2.8%);height:5.6%;border:0;border-radius:8px;background:transparent;cursor:pointer}
+.hot.tab{left:var(--x);width:var(--w);display:none}
+.shot[data-cur=hub] .hot.tab,.shot[data-cur=mods] .hot.tab{display:block}
 .hot:hover{background:rgba(255,255,255,.06)}
 .hot:focus-visible{outline:2px solid #c4a8ff;outline-offset:0}
 .launcher-preview figcaption{display:flex;align-items:center;gap:10px;margin-top:22px;color:var(--mut);font-size:15px;opacity:var(--caption-opacity,1)}
@@ -566,7 +568,7 @@ main,.foot{position:relative;z-index:1}
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap bar"><a class="brand" href="index.html" aria-label="MiB Client"><img src="img/icon.png" alt="" width="34" height="34"><span>MiB Client</span><span class="tag">0.42.0</span></a><nav class="nav" aria-label="Sekcje"><a href="#start" data-en="Launcher">Launcher</a><a href="#moduly" data-en="Modules">Moduły</a><a href="#kosmetyki" data-en="Cosmetics">Kosmetyki</a><a href="#pytania" data-en="FAQ">Pytania</a><a href="sklep.html" data-en="Shop">Sklep</a></nav><div class="bar-r"><a class="btn discord" href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.6 5.4A16.6 16.6 0 0 0 15.5 4l-.5 1a15 15 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.4C1.8 9.3 1.1 13.1 1.4 16.8a16.7 16.7 0 0 0 5 2.6l1.1-1.7a10.6 10.6 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.6 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.6 16.6 0 0 0 5-2.6c.4-4.3-.6-8-3.1-11.4ZM8.6 14.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg><span>Discord</span></a><div class="lang" role="group" aria-label="Język / Language"><button type="button" data-l="pl" aria-pressed="true">PL</button><button type="button" data-l="en" aria-pressed="false">EN</button></div><a class="btn pri" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.42.0/MiB-Client-Setup-0.42.0.exe" data-dl="auto"><span data-en="Download">Pobierz</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a><button type="button" class="menu-btn" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div></div></header>
+<header class="top"><div class="wrap bar"><a class="brand" href="index.html" aria-label="MiB Client"><img src="img/icon.png" alt="" width="34" height="34"><span>MiB Client</span><span class="tag">0.44.0</span></a><nav class="nav" aria-label="Sekcje"><a href="#start" data-en="Launcher">Launcher</a><a href="#moduly" data-en="Modules">Moduły</a><a href="#kosmetyki" data-en="Cosmetics">Kosmetyki</a><a href="#pytania" data-en="FAQ">Pytania</a><a href="sklep.html" data-en="Shop">Sklep</a></nav><div class="bar-r"><a class="btn discord" href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.6 5.4A16.6 16.6 0 0 0 15.5 4l-.5 1a15 15 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.4C1.8 9.3 1.1 13.1 1.4 16.8a16.7 16.7 0 0 0 5 2.6l1.1-1.7a10.6 10.6 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.6 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.6 16.6 0 0 0 5-2.6c.4-4.3-.6-8-3.1-11.4ZM8.6 14.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg><span>Discord</span></a><div class="lang" role="group" aria-label="Język / Language"><button type="button" data-l="pl" aria-pressed="true">PL</button><button type="button" data-l="en" aria-pressed="false">EN</button></div><a class="btn pri" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.44.0/MiB-Client-Setup-0.44.0.exe" data-dl="auto"><span data-en="Download">Pobierz</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a><button type="button" class="menu-btn" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div></div></header>
 <main>
 
 <!-- ===== Start: launcher przechyla się, a przy przewijaniu wjeżdża na środek ===== -->
@@ -579,7 +581,7 @@ main,.foot{position:relative;z-index:1}
     <h1 class="h1"><span data-en="You click PLAY.">Klikasz GRAJ.</span><br><span class="ac" data-en="We handle the rest.">Reszta to nasz problem.</span></h1>
     <p class="lead" data-en="A Minecraft launcher that installs Fabric, Sodium and the MiB mod for you. Sign in with Microsoft, pick a version and play.">Launcher do Minecrafta, który sam instaluje Fabric, Sodium i mod MiB. Logujesz się kontem Microsoft, wybierasz wersję i grasz.</p>
     <div class="cta">
-     <a class="btn pri lg" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.42.0/MiB-Client-Setup-0.42.0.exe" data-dl="auto"><span data-en="Download MiB Client">Pobierz MiB Client</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
+     <a class="btn pri lg" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.44.0/MiB-Client-Setup-0.44.0.exe" data-dl="auto"><span data-en="Download MiB Client">Pobierz MiB Client</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
      <a class="btn lg" href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.6 5.4A16.6 16.6 0 0 0 15.5 4l-.5 1a15 15 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.4C1.8 9.3 1.1 13.1 1.4 16.8a16.7 16.7 0 0 0 5 2.6l1.1-1.7a10.6 10.6 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.6 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.6 16.6 0 0 0 5-2.6c.4-4.3-.6-8-3.1-11.4ZM8.6 14.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg><span>Discord</span></a>
     </div>
     <p class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM12 4.3 21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z"/></svg><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.9C6.9 7.3 5 8.6 5 11.4c0 1.7.6 3.5 1.4 4.7.7 1 1.5 2.1 2.6 2.1 1 0 1.4-.7 2.7-.7s1.6.7 2.7.7c1.1 0 1.8-1 2.5-2 .8-1.1 1.1-2.2 1.1-2.3 0 0-2.6-1-2.6-3.3ZM14.2 5.8c.6-.7 1-1.6.9-2.6-.8 0-1.8.6-2.4 1.3-.5.6-1 1.6-.9 2.5.9.1 1.8-.5 2.4-1.2Z"/></svg><span data-en="Windows · macOS · Linux">Windows · macOS · Linux</span></p>
@@ -594,14 +596,19 @@ main,.foot{position:relative;z-index:1}
      <div class="screen-surface"></div>
      <div class="screen">
       <div class="shot">
-       <img src="img/l-home.jpg" alt="Launcher MiB Client: strona główna z przyciskiem GRAJ" data-en-alt="MiB Client launcher: home page with the PLAY button" width="1100" height="680" class="on" data-page="home">
-       <img src="img/l-hub.jpg" alt="MiB Hub: mody z Modrinth" data-en-alt="MiB Hub: mods from Modrinth" width="1100" height="680" data-page="hub" loading="lazy">
-       <img src="img/l-mods.jpg" alt="Moje mody: zainstalowane pliki .jar" data-en-alt="My mods: installed .jar files" width="1100" height="680" data-page="mods" loading="lazy">
+       <img src="img/l-home.jpg" alt="Launcher MiB Client: strona główna z przyciskiem GRAJ" data-en-alt="MiB Client launcher: home page with the PLAY button" width="1100" height="680" data-page="home" class="on">
+       <img src="img/l-shop.jpg" alt="Sklep w launcherze: kosmetyki za MiB Coins" data-en-alt="Launcher shop: cosmetics for MiB Coins" width="1100" height="680" data-page="shop" loading="lazy">
+       <img src="img/l-hub.jpg" alt="Mody: przeglądanie modów z Modrinth" data-en-alt="Mods: browsing mods from Modrinth" width="1100" height="680" data-page="hub" loading="lazy">
+       <img src="img/l-mods.jpg" alt="Mody: zainstalowane pliki .jar" data-en-alt="Mods: installed .jar files" width="1100" height="680" data-page="mods" loading="lazy">
+       <img src="img/l-news.jpg" alt="Aktualności MiB Client" data-en-alt="MiB Client news" width="1100" height="680" data-page="news" loading="lazy">
        <img src="img/l-set.jpg" alt="Ustawienia launchera" data-en-alt="Launcher settings" width="1100" height="680" data-page="set" loading="lazy">
-       <button type="button" class="hot" data-go="home" style="--y:14.1%" aria-label="Strona główna" data-en-label="Home"></button>
-       <button type="button" class="hot" data-go="hub" style="--y:20%" aria-label="MiB Hub" data-en-label="MiB Hub"></button>
-       <button type="button" class="hot" data-go="mods" style="--y:25.9%" aria-label="Moje mody" data-en-label="My mods"></button>
-       <button type="button" class="hot" data-go="set" style="--y:55.3%" aria-label="Ustawienia" data-en-label="Settings"></button>
+       <button type="button" class="hot" data-go="home" style="--y:13.2%" aria-label="Strona główna" data-en-label="Home"></button>
+       <button type="button" class="hot" data-go="shop" style="--y:25.3%" aria-label="Sklep" data-en-label="Shop"></button>
+       <button type="button" class="hot" data-go="hub" style="--y:31.3%" aria-label="Mody" data-en-label="Mods"></button>
+       <button type="button" class="hot tab" data-go="hub" style="--y:10.7%;--x:11.6%;--w:8.2%" aria-label="Mody: Przeglądaj" data-en-label="Mods: Browse"></button>
+       <button type="button" class="hot tab" data-go="mods" style="--y:10.7%;--x:16.6%;--w:9.2%" aria-label="Mody: Zainstalowane" data-en-label="Mods: Installed"></button>
+       <button type="button" class="hot" data-go="news" style="--y:49.4%" aria-label="Aktualności" data-en-label="News"></button>
+       <button type="button" class="hot" data-go="set" style="--y:61.5%" aria-label="Ustawienia" data-en-label="Settings"></button>
       </div>
      </div>
      <figcaption><span class="live"></span><span data-en="Click the menu on the left. These are screens from the real launcher.">Klikaj w menu po lewej. To ekrany z prawdziwego launchera.</span></figcaption>
@@ -761,9 +768,9 @@ main,.foot{position:relative;z-index:1}
     </div>
    </div>
    <p class="note-box" id="note-auto" data-en="We picked the version for your system. Playing on another computer? Choose its system above.">Wybraliśmy wersję dla Twojego systemu. Grasz na innym komputerze? Wybierz jego system wyżej.</p>
-   <p class="ver" data-for="win" id="ver-win" data-en="Version 0.42.0 · 96 MB">Wersja 0.42.0 · 96 MB</p>
-   <p class="ver" data-for="mac" id="ver-mac" hidden data-en="Version 0.42.0 · 192 MB">Wersja 0.42.0 · 192 MB</p>
-   <a class="btn pri lg wide" data-for="win" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.42.0/MiB-Client-Setup-0.42.0.exe" data-dl="win"><span data-en="Download for Windows">Pobierz na Windows</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
+   <p class="ver" data-for="win" id="ver-win" data-en="Version 0.44.0 · 96 MB">Wersja 0.44.0 · 96 MB</p>
+   <p class="ver" data-for="mac" id="ver-mac" hidden data-en="Version 0.44.0 · 192 MB">Wersja 0.44.0 · 192 MB</p>
+   <a class="btn pri lg wide" data-for="win" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.44.0/MiB-Client-Setup-0.44.0.exe" data-dl="win"><span data-en="Download for Windows">Pobierz na Windows</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
    <a class="btn pri lg wide" data-for="mac" hidden href="https://github.com/ban19910k3-sketch/mib-client/releases/latest/download/MiB-Client-mac.dmg" data-dl="mac"><span data-en="Download for Mac">Pobierz na Maca</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
    <p class="hint" data-for="win" data-en="If Windows shows a warning, click “More info”, then “Run anyway”.">Jeśli Windows pokaże ostrzeżenie, kliknij „Więcej informacji”, a potem „Uruchom mimo to”.</p>
    <ol class="machelp" data-for="mac" hidden>
@@ -1265,7 +1272,7 @@ const MibTry = (() => {
 
   // Podgląd launchera: menu po lewej przełącza zrzuty prawdziwych ekranów
   const shots = [...document.querySelectorAll('.shot img')];
-  document.querySelectorAll('.hot').forEach(b => b.addEventListener('click', () => shots.forEach(i => i.classList.toggle('on', i.dataset.page === b.dataset.go))));
+  document.querySelectorAll('.hot').forEach(b => b.addEventListener('click', () => { shots.forEach(i => i.classList.toggle('on', i.dataset.page === b.dataset.go)); b.closest('.shot').dataset.cur = b.dataset.go; }));
 
   // Świat za menu w grze: mały pikselowy krajobraz (noc, wzgórza z trawą, drzewa)
   (function world() {
