@@ -2651,6 +2651,73 @@ begin
   update private.advent_days set coins = coalesce(p_coins, 0), cosmetic_id = p_cosmetic where day = p_day;
 end $$;
 
+-- ===== Nagroda za grę na telefonie (od 0.44.0) =====
+-- Aplikacja MiB Client na Androida przed startem gry potwierdza konto Minecraft u Mojanga (jak mib_hello: token gry idzie
+-- tylko do Mojanga) i zgłasza grę: konto trafia do private.mobile_players, a profil MiB z tym kontem Minecraft dostaje raz
+-- w prezencie pelerynę „Zasięg” i peta „Telefonik” (okno „Masz prezent!” w launcherze na komputerze). Bez profilu nagroda
+-- czeka — daje ją wyzwalacz, gdy profil połączy się z tym kontem Minecraft. Kosmetyków nie ma w sklepie (bez ceny).
+insert into public.cosmetics (id, name, type, price, texture) values
+-- [telefon]
+  ('mobile_cape', 'Zasięg', 'cape', null, 'data:image/png;base64,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'),
+  ('mobile_pet', 'Telefonik', 'pet', null, 'data:image/png;base64,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')
+-- [/telefon]
+on conflict (id) do nothing;
+
+create table if not exists private.mobile_players (
+  mc_uuid uuid primary key,
+  name text not null,
+  first_at timestamptz not null default now(),
+  last_at timestamptz not null default now()
+);
+
+-- Prezenty za grę na telefonie dla profilu (raz: bez prezentu, gdy gracz już ma kosmetyk albo dostał go wcześniej);
+-- wynik: czy coś wysłano
+create or replace function private.mobile_reward(p_user uuid) returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_sent boolean := false;
+  c text;
+begin
+  foreach c in array array['mobile_cape', 'mobile_pet'] loop
+    if exists (select 1 from public.cosmetics where id = c)
+      and not exists (select 1 from public.owned_cosmetics where user_id = p_user and cosmetic_id = c)
+      and not exists (select 1 from private.gifts where user_id = p_user and cosmetic_id = c) then
+      insert into private.gifts (user_id, cosmetic_id, message) values (p_user, c, 'Nagroda za grę w MiB Client na telefonie');
+      v_sent := true;
+    end if;
+  end loop;
+  return v_sent;
+end $$;
+
+-- Gra na telefonie: {ok, profile, gift} albo {error} (jak mib_hello: name_invalid, server_id_invalid, busy, not_verified…)
+create or replace function public.mobile_hello(p_name text, p_server_id text) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v json := private.mojang_verify(p_name, p_server_id);
+  v_uuid uuid;
+  v_user uuid;
+begin
+  if v ->> 'error' is not null then return v; end if;
+  v_uuid := (v ->> 'uuid')::uuid;
+  insert into private.mobile_players (mc_uuid, name) values (v_uuid, v ->> 'name')
+    on conflict (mc_uuid) do update set name = excluded.name, last_at = now();
+  select id into v_user from public.profiles where mc_uuid = v_uuid;
+  if v_user is null then return json_build_object('ok', true, 'profile', false, 'gift', false); end if;
+  return json_build_object('ok', true, 'profile', true, 'gift', private.mobile_reward(v_user));
+end $$;
+
+-- Profil połączony z kontem Minecraft, które grało na telefonie, dostaje nagrodę od razu
+create or replace function private.mobile_from_mc() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.mc_uuid is not null and exists (select 1 from private.mobile_players where mc_uuid = new.mc_uuid) then
+    perform private.mobile_reward(new.id);
+  end if;
+  return new;
+end $$;
+drop trigger if exists profiles_mobile on public.profiles;
+create trigger profiles_mobile after insert or update of mc_uuid on public.profiles for each row execute function private.mobile_from_mc();
+
 -- ===== Uprawnienia do funkcji =====
 revoke all on function public.nick_available(text) from public, anon, authenticated;
 revoke all on function public.redeem_code(text) from public, anon, authenticated;
@@ -2663,6 +2730,9 @@ revoke all on function public.submit_idea(text, text) from public, anon, authent
 revoke all on function public.equip_cosmetic(text, text) from public, anon, authenticated;
 revoke all on function public.set_pet(text, text, text) from public, anon, authenticated;
 revoke all on function public.mib_hello(text, text) from public, anon, authenticated;
+revoke all on function public.mobile_hello(text, text) from public, anon, authenticated;
+revoke all on function private.mobile_reward(uuid) from public, anon, authenticated;
+revoke all on function private.mobile_from_mc() from public, anon, authenticated;
 revoke all on function private.mojang_verify(text, text) from public, anon, authenticated;
 revoke all on function private.mc_make_profile(uuid, uuid, text) from public, anon, authenticated;
 revoke all on function public.mc_account(uuid, text) from public, anon, authenticated;
@@ -2689,6 +2759,7 @@ grant execute on function public.submit_idea(text, text) to authenticated;
 grant execute on function public.equip_cosmetic(text, text) to authenticated;
 grant execute on function public.set_pet(text, text, text) to authenticated;
 grant execute on function public.mib_hello(text, text) to anon, authenticated;
+grant execute on function public.mobile_hello(text, text) to anon, authenticated;
 grant execute on function public.link_minecraft(text, text) to authenticated;
 -- mc_account wywołuje tylko funkcja mc-login kluczem serwisowym
 do $$ begin

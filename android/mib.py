@@ -123,6 +123,32 @@ def main():
     patch(os.path.join(main_dir, 'java/net/kdt/pojavlaunch/LauncherActivity.java'), [
         ('        super.onCreate(savedInstanceState);\n        setContentView(R.layout.activity_pojav_launcher);',
          '        super.onCreate(savedInstanceState);\n        pl.mibclient.android.Mib.start(this);\n        setContentView(R.layout.activity_pojav_launcher);')], 1)
+    # tylko oryginalny Minecraft: bez kont offline, gra kontem innym niż Microsoft prosi o zalogowanie (od 0.44.0)
+    patch(os.path.join(main_dir, 'java/net/kdt/pojavlaunch/fragments/SelectAuthFragment.java'), [
+        ('        mLocalButton.setOnClickListener(v -> hasNoOnlineProfileDialog(requireActivity(), () -> Tools.swapFragment(requireActivity(), LocalLoginFragment.class, LocalLoginFragment.TAG, null)));',
+         '        mLocalButton.setVisibility(View.GONE); // MiB: tylko oryginalny Minecraft (konto Microsoft)')], 1)
+    patch(os.path.join(main_dir, 'java/net/kdt/pojavlaunch/LauncherActivity.java'), [
+        ('''        if(mAccountSpinner.getSelectedAccount() == null){
+            Toast.makeText(this, R.string.no_saved_accounts, Toast.LENGTH_LONG).show();
+            ExtraCore.setValue(ExtraConstants.SELECT_AUTH_METHOD, true);
+            return false;
+        }''', '''        if(mAccountSpinner.getSelectedAccount() == null){
+            Toast.makeText(this, R.string.no_saved_accounts, Toast.LENGTH_LONG).show();
+            ExtraCore.setValue(ExtraConstants.SELECT_AUTH_METHOD, true);
+            return false;
+        }
+        if(!pl.mibclient.android.Mib.original(mAccountSpinner.getSelectedAccount())){
+            pl.mibclient.android.Mib.needMicrosoft(this);
+            return false;
+        }''')], 1)
+    # nagroda za grę na telefonie: zgłoszenie tuż przed startem gry
+    patch(os.path.join(main_dir, 'java/net/kdt/pojavlaunch/MainActivity.java'), [
+        ('        Tools.launchMinecraft(this, minecraftAccount, minecraftProfile, versionId, requiredJavaVersion);',
+         '        pl.mibclient.android.Mib.played(this, minecraftAccount);\n        Tools.launchMinecraft(this, minecraftAccount, minecraftProfile, versionId, requiredJavaVersion);')], 1)
+    # przycisk Discord: serwer MiB
+    patch(os.path.join(res, 'values/strings.xml'), [
+        ('<string name="discord_invite" translatable="false">https://discord.gg/5ptqkyZxEy</string>',
+         '<string name="discord_invite" translatable="false">https://discord.gg/33d6g9HuyN</string>')], 1)
     dst = os.path.join(main_dir, 'java/pl/mibclient/android')
     os.makedirs(dst, exist_ok=True)
     shutil.copy(os.path.join(HERE, 'Mib.java'), dst)

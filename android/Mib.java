@@ -4,6 +4,9 @@
 //   przy pierwszym uruchomieniu wybrany; po aktualizacji aplikacji pliki moda się odświeżają.
 // - aktualizacje jak na komputerze: przy starcie pyta GitHuba o najnowsze wydanie MiB; gdy jest nowsza wersja z plikiem
 //   na Androida — okno „Jest nowa wersja”, „Aktualizuj” pobiera APK i otwiera instalator Androida.
+// - od 0.44.0: tylko oryginalny Minecraft (konto Microsoft, bez kont offline) i nagroda za grę na telefonie: przed startem
+//   gry konto potwierdza się u Mojanga (token gry idzie tylko do Mojanga), a baza MiB (mobile_hello) daje profilowi MiB
+//   z tym kontem pelerynę „Zasięg” i peta „Telefonik”; przy następnym otwarciu launchera okno o nagrodzie.
 package pl.mibclient.android;
 
 import android.app.Activity;
@@ -21,7 +24,10 @@ import androidx.core.content.FileProvider;
 
 import net.kdt.pojavlaunch.BuildConfig;
 import net.kdt.pojavlaunch.Tools;
+import net.kdt.pojavlaunch.extra.ExtraConstants;
+import net.kdt.pojavlaunch.extra.ExtraCore;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
+import net.kdt.pojavlaunch.value.MinecraftAccount;
 import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles;
 import net.kdt.pojavlaunch.value.launcherprofiles.MinecraftProfile;
 
@@ -37,6 +43,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.Locale;
 
 public final class Mib {
@@ -47,6 +54,9 @@ public final class Mib {
     static final String PROFILE_KEY = "6d694200-c11e-4e7a-8000-000000000001";
     static final String GAME_DIR = "./custom_instances/mib";
     static final String MOD = "mib-client-mod.jar";
+    /** Baza MiB: adres i klucz publiczny (ten sam co w launcherze na komputerze; uprawnienia pilnuje baza). */
+    static final String SUPA_URL = "https://pijyremkmhmnyvjusrhu.supabase.co", SUPA_KEY = "sb_publishable_-Gfr_STF_qinPsxzdYFaDg_eXg4j1Al";
+    static final String REWARD_FILE = "mib-reward.json";
     private static boolean checked;
 
     private Mib() {}
@@ -54,6 +64,7 @@ public final class Mib {
     /** Z LauncherActivity.onCreate (przed listą profili): profil MiB od razu, aktualizacja w tle. */
     public static void start(Activity a) {
         try { setup(a); } catch (Throwable t) { Log.e(TAG, "setup", t); }
+        try { rewardDialog(a); } catch (Throwable t) { Log.w(TAG, "reward", t); }
         if (checked) return;
         checked = true;
         new Thread(() -> {
@@ -99,6 +110,82 @@ public final class Mib {
         if (created) LauncherPreferences.DEFAULT_PREF.edit().putString(LauncherPreferences.PREF_KEY_CURRENT_PROFILE, PROFILE_KEY).apply();
         p.edit().putString("installed", bundled).apply();
         Log.i(TAG, "profil MiB gotowy: " + id + " (MiB " + bundled + ")");
+    }
+
+    // ---------- tylko oryginalny Minecraft ----------
+
+    /** Czy konto to oryginalny Minecraft (konto Microsoft, nie konto offline). */
+    public static boolean original(MinecraftAccount acc) {
+        return acc != null && acc.isMicrosoft && !acc.isLocal();
+    }
+
+    /** Okno przy próbie gry bez konta Microsoft: „Dodaj konto” otwiera logowanie Microsoft. */
+    public static void needMicrosoft(Activity a) {
+        new AlertDialog.Builder(a)
+                .setTitle(t("Zaloguj się kontem Microsoft", "Sign in with Microsoft"))
+                .setMessage(t("MiB Client działa tylko z oryginalnym Minecraftem. Dodaj konto Microsoft, na którym masz kupionego Minecrafta (Java Edition).",
+                        "MiB Client works only with the original Minecraft. Add the Microsoft account that owns Minecraft (Java Edition)."))
+                .setPositiveButton(t("Dodaj konto", "Add account"), (d, w) -> ExtraCore.setValue(ExtraConstants.SELECT_AUTH_METHOD, true))
+                .setNegativeButton(t("Anuluj", "Cancel"), null)
+                .show();
+    }
+
+    // ---------- nagroda za grę na telefonie ----------
+
+    /** Z MainActivity tuż przed startem gry: zgłoszenie gry do MiB (najwyżej raz na 20 godzin na konto), w tle. */
+    public static void played(Context c, MinecraftAccount acc) {
+        if (!original(acc) || acc.profileId == null || acc.username == null) return;
+        String uuid = acc.profileId.replace("-", "");
+        if (!uuid.matches("[0-9a-fA-F]{32}") || !acc.username.matches("[A-Za-z0-9_]{1,16}")) return;
+        File stamp = new File(c.getFilesDir(), "mib-mobile-" + uuid);
+        if (stamp.isFile() && System.currentTimeMillis() - stamp.lastModified() < 20 * 3600 * 1000L) return;
+        final Context app = c.getApplicationContext();
+        final String token = acc.accessToken, name = acc.username;
+        new Thread(() -> {
+            try {
+                byte[] rnd = new byte[16];
+                new SecureRandom().nextBytes(rnd);
+                StringBuilder sid = new StringBuilder();
+                for (byte b : rnd) sid.append(String.format(Locale.ROOT, "%02x", b));
+                // 1) Mojang: potwierdzenie konta (token gry tylko tutaj)
+                JSONObject join = new JSONObject().put("accessToken", token).put("selectedProfile", uuid).put("serverId", sid.toString());
+                HttpURLConnection j = post("https://sessionserver.mojang.com/session/minecraft/join", join.toString(), null);
+                if (j.getResponseCode() != 204 && j.getResponseCode() != 200) throw new IOException("Mojang " + j.getResponseCode());
+                // 2) MiB: nick i serverId (bez tokenu); baza sama pyta Mojanga, czy to konto naprawdę dołączyło
+                JSONObject body = new JSONObject().put("p_name", name).put("p_server_id", sid.toString());
+                HttpURLConnection m = post(SUPA_URL + "/rest/v1/rpc/mobile_hello", body.toString(), SUPA_KEY);
+                if (m.getResponseCode() != 200) throw new IOException("MiB " + m.getResponseCode());
+                JSONObject r = new JSONObject(read(m.getInputStream()));
+                if (r.has("error")) throw new IOException("MiB: " + r.optString("error"));
+                if (!stamp.createNewFile()) stamp.setLastModified(System.currentTimeMillis());
+                if (r.optBoolean("gift") || !r.optBoolean("profile")) {
+                    r.put("name", name);
+                    Tools.write(new File(app.getFilesDir(), REWARD_FILE).getAbsolutePath(), r.toString());
+                }
+                Log.i(TAG, "gra na telefonie zgłoszona: " + r);
+            } catch (Exception e) {
+                Log.w(TAG, "nagroda za telefon", e);
+            }
+        }, "MiB-mobile").start();
+    }
+
+    /** Okno o nagrodzie po powrocie do launchera (raz). */
+    static void rewardDialog(Activity a) throws Exception {
+        File f = new File(a.getFilesDir(), REWARD_FILE);
+        if (!f.isFile()) return;
+        JSONObject r = new JSONObject(read(new java.io.FileInputStream(f)));
+        if (!f.delete()) return;
+        boolean gift = r.optBoolean("gift");
+        if (!gift && r.optBoolean("profile")) return;
+        new AlertDialog.Builder(a)
+                .setTitle(t("Nagroda za grę na telefonie!", "Reward for playing on your phone!"))
+                .setMessage(gift
+                        ? t("Peleryna „Zasięg” i pet „Telefonik” czekają na Ciebie w MiB Client na komputerze: otwórz launcher i odbierz prezent.",
+                            "The “Signal” cape and the “Phoney” pet are waiting in MiB Client on your computer: open the launcher and claim the gift.")
+                        : t("Peleryna „Zasięg” i pet „Telefonik” czekają na Ciebie. Zaloguj się w MiB Client na komputerze kontem " + r.optString("name") + ", a dostaniesz je w prezencie.",
+                            "The “Signal” cape and the “Phoney” pet are waiting for you. Sign in to MiB Client on a computer with the account " + r.optString("name") + " to get them as a gift."))
+                .setPositiveButton("OK", null)
+                .show();
     }
 
     // ---------- aktualizacje ----------
@@ -198,6 +285,16 @@ public final class Mib {
         con.setConnectTimeout(15000);
         con.setReadTimeout(30000);
         con.setInstanceFollowRedirects(true);
+        return con;
+    }
+
+    private static HttpURLConnection post(String url, String json, String apiKey) throws IOException {
+        HttpURLConnection con = open(url);
+        con.setRequestMethod("POST");
+        con.setDoOutput(true);
+        con.setRequestProperty("Content-Type", "application/json");
+        if (apiKey != null) { con.setRequestProperty("apikey", apiKey); con.setRequestProperty("Authorization", "Bearer " + apiKey); }
+        try (OutputStream o = con.getOutputStream()) { o.write(json.getBytes(StandardCharsets.UTF_8)); }
         return con;
     }
 

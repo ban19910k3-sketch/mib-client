@@ -375,10 +375,11 @@ test('partPose i petAnchor: ruch części i miejsce peta (te same liczby w Cosme
   assert.deepEqual(P.petAnchor('nie_ma', 'x', 0, true).pos, [11, -2, 1], 'nieznany tryb = lata po lewej');
 });
 
-test('cosmeticModel: wszystkie pety, ogony i plecaki w schema.sql (0.34.0) mają poprawny model', () => {
+test('cosmeticModel: wszystkie pety, ogony i plecaki w schema.sql (0.34.0, pet za telefon 0.44.0) mają poprawny model', () => {
   const sql = require('node:fs').readFileSync(require('node:path').join(__dirname, '../supabase/schema.sql'), 'utf8');
   const rows = [...sql.matchAll(/\('([a-z0-9_]+)', '(?:[^']|'')*', '(pet|tail|back)', (?:null|\d+), '(data:image\/png;base64,[A-Za-z0-9+/=]+)'\)/g)];
-  assert.equal(rows.length, 114);
+  assert.equal(rows.length, 115);
+  assert.ok(rows.some(r => r[1] === 'mobile_pet'), 'pet za grę na telefonie');
   for (const [, id, type, png] of rows) {
     const m = P.cosmeticModel(png);
     assert.ok(m, id);

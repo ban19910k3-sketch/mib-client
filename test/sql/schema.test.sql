@@ -1394,7 +1394,7 @@ end $$;
 -- pety, ogony i plecaki (0.34.0): 114 nowych, po 9 w kolekcji każdego święta (bez powtórzeń po drugim uruchomieniu),
 -- 4 tylko z kalendarza adwentowego (bez ceny), ceny całorocznych
 do $$ begin
-  assert (select count(*) from public.cosmetics where type in ('pet', 'tail', 'back') and id not in ('pet_t', 'tail_t', 'back_t')) = 114, '114 petów, ogonów i plecaków';
+  assert (select count(*) from public.cosmetics where type in ('pet', 'tail', 'back') and id not in ('pet_t', 'tail_t', 'back_t', 'mobile_pet')) = 114, '114 petów, ogonów i plecaków (bez nagrody za telefon)';
   -- (testy wyżej zmieniły kolekcje Halloween i Niepodległości)
   assert (select bool_and((select count(*) from unnest(t.items) x where x ~ '_(pet|tail|back)_') = 9) from public.themes t where t.id not in ('halloween', 'niepodleglosc')), 'po 9 w każdym święcie';
   assert (select bool_and(array_length(t.items, 1) = (select count(distinct x) from unnest(t.items) x)) from public.themes t), 'bez powtórzeń';
@@ -1562,3 +1562,58 @@ insert into auth.users (id, email, raw_app_meta_data) values ('1c000000-0000-000
 do $$ begin
   assert exists (select 1 from public.owned_cosmetics o join public.profiles p on p.id = o.user_id where p.num = 999 and o.cosmetic_id = 'cape_1k'), 'z kontem Minecraft też od razu';
 end $$;
+
+-- Nagroda za grę na telefonie (0.44.0): konto potwierdzone u Mojanga, prezent raz dla profilu z tym kontem Minecraft
+insert into extensions.fake_mojang values ('Telefon', 'cccccccccccccccccccccccccccccccc', '7e1e0000000040008000000000000001');
+set role anon;
+do $$ declare r json; begin
+  assert (public.mobile_hello('Telefon', 'dddddddddddddddddddddddddddddddd') ->> 'error') = 'not_verified', 'bez Mojanga nic';
+  r := public.mobile_hello('Telefon', 'cccccccccccccccccccccccccccccccc');
+  assert (r ->> 'ok')::boolean and not (r ->> 'profile')::boolean and not (r ->> 'gift')::boolean, 'bez profilu: zapisane, nagroda czeka';
+end $$;
+select pg_temp.expect_error($q$select public.mobile_hello('Zły nick', 'cccccccccccccccccccccccccccccccc')$q$, 'name_invalid');
+select pg_temp.expect_error($q$select count(*) from private.mobile_players$q$, 'permission denied');
+select pg_temp.expect_error($q$select private.mobile_reward('22222222-2222-2222-2222-222222222222')$q$, 'permission denied');
+reset role;
+do $$ begin
+  assert exists (select 1 from public.cosmetics where id = 'mobile_cape' and type = 'cape' and price is null), 'peleryna za telefon poza sklepem';
+  assert exists (select 1 from public.cosmetics where id = 'mobile_pet' and type = 'pet' and price is null), 'pet za telefon poza sklepem';
+end $$;
+-- profil z tym kontem Minecraft powstaje później: prezenty od razu (wyzwalacz)
+select setval('public.profiles_num_seq', (select max(num) from public.profiles));
+insert into auth.users (id, email, raw_app_meta_data) values ('7e1e0000-0000-0000-0000-000000000001', 'tel@mc.mib.invalid', '{"mc_uuid":"7e1e0000-0000-4000-8000-000000000001","mc_name":"Telefon"}');
+do $$ begin
+  assert (select count(*) from private.gifts where user_id = '7e1e0000-0000-0000-0000-000000000001' and cosmetic_id in ('mobile_cape', 'mobile_pet')
+    and message = 'Nagroda za grę w MiB Client na telefonie') = 2, 'dwa prezenty po założeniu profilu';
+end $$;
+-- kolejna gra: już nic (prezenty czekają albo są odebrane)
+set role anon;
+do $$ declare r json; begin
+  r := public.mobile_hello('Telefon', 'cccccccccccccccccccccccccccccccc');
+  assert (r ->> 'profile')::boolean and not (r ->> 'gift')::boolean, 'nagroda tylko raz';
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from private.gifts where user_id = '7e1e0000-0000-0000-0000-000000000001') = 2, 'bez powtórek';
+end $$;
+-- odebrany prezent: kosmetyk na profilu, ponowna gra niczego nie dokłada
+set role authenticated;
+set request.jwt.claim.sub = '7e1e0000-0000-0000-0000-000000000001';
+select public.claim_gift(id) from public.my_gifts();
+reset role;
+set role anon;
+do $$ begin
+  assert not (public.mobile_hello('Telefon', 'cccccccccccccccccccccccccccccccc') ->> 'gift')::boolean, 'po odebraniu nic nowego';
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from public.owned_cosmetics where user_id = '7e1e0000-0000-0000-0000-000000000001' and cosmetic_id in ('mobile_cape', 'mobile_pet')) = 2, 'peleryna i pet na profilu';
+  assert (select count(*) from private.gifts where user_id = '7e1e0000-0000-0000-0000-000000000001') = 2, 'dalej bez powtórek';
+end $$;
+-- gracz z profilem, który pierwszy raz gra na telefonie: prezenty od razu
+insert into extensions.fake_mojang values ('Steve', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', '44444444444444444444444444444444');
+set role anon;
+do $$ begin
+  assert (public.mobile_hello('Steve', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') ->> 'gift')::boolean, 'istniejący profil dostaje prezent od razu';
+end $$;
+reset role;
