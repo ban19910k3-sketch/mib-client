@@ -1007,6 +1007,9 @@ const MibTry = (() => {
     theme_bonus_invalid: ['Dodatek do nagrody dziennej: od 0 do 1000.', 'Daily bonus: 0 to 1000.'],
     theme_items_invalid: ['W kolekcji jest przedmiot, którego nie ma w katalogu.', 'The collection has an item that is not in the catalogue.'],
     theme_missing: ['Nie ma takiego motywu.', 'No such theme.'],
+    admin_locked: ['Panel admina jest zablokowany dla tej sesji. Zaloguj się jeszcze raz.', 'The admin panel is locked for this session. Sign in again.'],
+    web_password_only: ['Na stronie zaloguj się e-mailem i hasłem.', 'On the site, sign in with email and password.'],
+    no_session: ['Sesja wygasła. Zaloguj się jeszcze raz.', 'Your session expired. Sign in again.'],
     coins_amount: ['Wpisz liczbę monet inną niż 0 (najwyżej milion). Minus zabiera monety.', 'Enter a coin amount other than 0 (a million at most). A minus takes coins away.'],
     coins_not_enough: ['Gracz nie ma tylu monet, żeby je zabrać.', "The player doesn't have that many coins to take away."],
     player_missing: ['Nie ma takiego gracza.', 'No such player.'],
@@ -1054,6 +1057,8 @@ const MibTry = (() => {
     return session.access;
   }
   const rpc = async (name, args) => req('/rest/v1/rpc/' + name, { method: 'POST', body: args || {}, token: await token() });
+  // od launchera 0.35.0 funkcje admina działają tylko w odblokowanej sesji: strona odblokowuje sesję z logowania hasłem (na 12 h) i ponawia
+  const rpcAdmin = async (name, args) => { try { return await rpc(name, args); } catch (e) { if (e.code !== 'admin_locked') throw e; await rpc('web_admin_unlock'); return rpc(name, args); } };
   async function upload(file, path) {
     await req('/storage/v1/object/shop/' + path, { method: 'POST', body: file, raw: true, token: await token(), headers: { 'Content-Type': file.type, 'x-upsert': 'true', 'Cache-Control': '31536000' } })
       .catch(e => { throw e.code === 'offline' ? e : mkErr('upload_failed'); });
@@ -1258,7 +1263,7 @@ const MibTry = (() => {
   }
   async function loadAdmin() {
     if (mode === 'demo') { all = all.length ? all : shop.items.concat(COS.filter(r => r[4] == null).map(r => ({ id: r[0], name: r[1], type: r[2], texture: r[3], price: null, rarity: 'common', featured: false, sort: 0, owners: 0 }))); return; }
-    all = await rpc('admin_shop_list');
+    all = await rpcAdmin('admin_shop_list');
     try { const r = await req('/rest/v1/app_config?key=eq.shop_url&select=value'); shopUrl = r && r[0] ? r[0].value : null; } catch {}
   }
   async function openAdmin() {
@@ -1376,7 +1381,7 @@ const MibTry = (() => {
       if (!confirm(T('Usunąć „' + form.name + '”? Tego nie da się cofnąć.', 'Delete “' + form.name + '”? This can’t be undone.'))) return;
       try {
         if (mode === 'demo') { if (form.owners) throw mkErr('cosmetic_in_use'); all = all.filter(x => x.id !== form.id); }
-        else { await rpc('admin_delete_cosmetic', { p_id: form.id }); all = await rpc('admin_shop_list'); }
+        else { await rpcAdmin('admin_delete_cosmetic', { p_id: form.id }); all = await rpcAdmin('admin_shop_list'); }
         sel = null; form = blank(); admMsg = Object.assign(new String(T('Usunięty.', 'Deleted.')), { ok: true });
       } catch (e) { admMsg = errText(e); }
       renderAdmin();
@@ -1397,8 +1402,8 @@ const MibTry = (() => {
           all = all.filter(x => x.id !== it.id); all.unshift(it);
           shop.items = shop.items.filter(x => x.id !== it.id); if (it.price != null) shop.items.unshift(it);
         } else {
-          await rpc('admin_web_item', { p_id: form.id, p_name: form.name, p_type: form.type, p_texture: texData, p_image: image, p_price: form.price, p_old_price: form.old_price, p_description: form.description, p_rarity: form.rarity, p_featured: form.featured, p_sort: form.sort, p_hidden: form.hidden, p_until: form.until });
-          all = await rpc('admin_shop_list');
+          await rpcAdmin('admin_web_item', { p_id: form.id, p_name: form.name, p_type: form.type, p_texture: texData, p_image: image, p_price: form.price, p_old_price: form.old_price, p_description: form.description, p_rarity: form.rarity, p_featured: form.featured, p_sort: form.sort, p_hidden: form.hidden, p_until: form.until });
+          all = await rpcAdmin('admin_shop_list');
         }
         sel = form.id; texData = null; imgFile = null;
         form = Object.assign(blank(), all.find(x => x.id === sel) || form, { isNew: false, motion: MibTry.auraStyle(sel) });
@@ -1436,7 +1441,7 @@ const MibTry = (() => {
     });
   }
   async function loadThemes() {
-    try { themeList = mode === 'demo' ? (themeList || demoThemes()) : await rpc('admin_list_themes'); } catch (e) { themeList = []; themeMsg = errText(e); }
+    try { themeList = mode === 'demo' ? (themeList || demoThemes()) : await rpcAdmin('admin_list_themes'); } catch (e) { themeList = []; themeMsg = errText(e); }
   }
   function themeState(t) {
     if (!t.enabled) return [T('wyłączony', 'off'), 'off'];
@@ -1495,8 +1500,8 @@ const MibTry = (() => {
             gift_name: (byId(args.p_gift_cosmetic) || {}).name || null, daily_bonus: args.p_daily_bonus, items: args.p_items });
           const sp = MibHoliday.span(t, new Date()); t.active = MibHoliday.isOn(t, new Date()); t.d_from = sp && isoDay(sp.from); t.d_to = sp && isoDay(sp.to);
         } else {
-          await rpc('admin_save_theme', args);
-          themeList = await rpc('admin_list_themes');
+          await rpcAdmin('admin_save_theme', args);
+          themeList = await rpcAdmin('admin_list_themes');
         }
         themeOpen = null;
         themeMsg = Object.assign(new String(T('Motyw „', 'Theme “') + t.name + T('” zapisany.', '” saved.')), { ok: true });
@@ -1511,17 +1516,17 @@ const MibTry = (() => {
   function wireCoins() {
     $('s-f').onsubmit = async e => {
       e.preventDefault(); const q = $('s-q').value.trim(); admMsg = '';
-      try { found = mode === 'demo' ? DEMO_ADM.filter(p => !q || (p.nick + p.email + p.num).toLowerCase().includes(q.toLowerCase().replace(/^mib-0*/, ''))) : await rpc('admin_find_players', { p_q: q }); }
+      try { found = mode === 'demo' ? DEMO_ADM.filter(p => !q || (p.nick + p.email + p.num).toLowerCase().includes(q.toLowerCase().replace(/^mib-0*/, ''))) : await rpcAdmin('admin_find_players', { p_q: q }); }
       catch (x) { found = []; admMsg = errText(x); }
       renderAdmin(); $('s-q').value = q;
     };
     adm.querySelectorAll('[data-pl]').forEach(b => { b.onclick = async () => {
       player = found.find(p => p.id === b.dataset.pl); admMsg = '';
-      try { plog = mode === 'demo' ? demoLog[player.id] || [] : await rpc('admin_coin_log', { p_user: player.id }); } catch (x) { plog = []; admMsg = errText(x); }
+      try { plog = mode === 'demo' ? demoLog[player.id] || [] : await rpcAdmin('admin_coin_log', { p_user: player.id }); } catch (x) { plog = []; admMsg = errText(x); }
       renderAdmin();
     }; });
     const su = $('set-url');
-    if (su) su.onclick = async () => { const here = location.origin + location.pathname; try { if (mode !== 'demo') await rpc('admin_set_config', { p_key: 'shop_url', p_value: here }); shopUrl = here; admMsg = ''; } catch (x) { admMsg = errText(x); } renderAdmin(); };
+    if (su) su.onclick = async () => { const here = location.origin + location.pathname; try { if (mode !== 'demo') await rpcAdmin('admin_set_config', { p_key: 'shop_url', p_value: here }); shopUrl = here; admMsg = ''; } catch (x) { admMsg = errText(x); } renderAdmin(); };
     const f = $('c-f'); if (!f) return;
     f.onsubmit = async e => {
       e.preventDefault();
@@ -1532,8 +1537,8 @@ const MibTry = (() => {
           if (player.coins + amt < 0) throw mkErr('coins_not_enough');
           player.coins += amt; (demoLog[player.id] = demoLog[player.id] || []).unshift({ delta: amt, kind: 'admin', label: why || null, created_at: new Date().toISOString() }); plog = demoLog[player.id];
         } else {
-          player.coins = await rpc('admin_give_coins', { p_user: player.id, p_amount: amt, p_reason: why });
-          plog = await rpc('admin_coin_log', { p_user: player.id });
+          player.coins = await rpcAdmin('admin_give_coins', { p_user: player.id, p_amount: amt, p_reason: why });
+          plog = await rpcAdmin('admin_coin_log', { p_user: player.id });
         }
         admMsg = Object.assign(new String(T('Saldo zmienione. Gracz zobaczy je w launcherze.', 'Balance changed. The player sees it in the launcher.')), { ok: true });
       } catch (x) { admMsg = errText(x); }

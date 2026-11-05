@@ -141,6 +141,26 @@ begin
   where id = p_id;
 end $$;
 
+-- ===== Panel admina na stronie: logowanie e-mailem i hasłem (decyzja właściciela) =====
+-- Od 0.35.0 funkcje admina działają tylko w sesji odblokowanej w private.admin_unlocks (launcher robi to przez Mojanga).
+-- Strona nie ma konta Minecraft, więc sesję z logowania hasłem odblokowuje ta funkcja: tylko konto admina, tylko sesja
+-- z metodą „password” (nie sesje z launchera), na 12 godzin jak w launcherze. Wynik: {ok, until}.
+create or replace function public.web_admin_unlock() returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_sid uuid := private.session_id();
+  v_until timestamptz := now() + interval '12 hours';
+  v_claims json := nullif(current_setting('request.jwt.claims', true), '')::json;
+begin
+  if not exists (select 1 from private.admins where user_id = auth.uid()) then raise exception 'not_admin'; end if;
+  if v_sid is null then raise exception 'no_session'; end if;
+  if not exists (select 1 from json_array_elements(coalesce(v_claims -> 'amr', '[]'::json)) m where m ->> 'method' = 'password') then raise exception 'web_password_only'; end if;
+  delete from private.admin_unlocks where until < now();
+  insert into private.admin_unlocks (session_id, user_id, until) values (v_sid, auth.uid(), v_until)
+    on conflict (session_id) do update set user_id = excluded.user_id, until = excluded.until;
+  return json_build_object('ok', true, 'until', v_until);
+end $$;
+
 -- ===== Obrazy kart: publiczny bucket "shop" w Supabase Storage, wrzucać może tylko admin =====
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('shop', 'shop', true, 2097152, array['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
@@ -156,6 +176,8 @@ create policy shop_admin_delete on storage.objects for delete to authenticated
   using (bucket_id = 'shop' and (select public.is_admin()));
 
 -- ===== Uprawnienia do funkcji =====
+revoke all on function public.web_admin_unlock() from public, anon, authenticated;
+grant execute on function public.web_admin_unlock() to authenticated;
 revoke all on function public.web_shop() from public, anon, authenticated;
 revoke all on function public.web_player(text) from public, anon, authenticated;
 revoke all on function public.web_admin_email(bigint) from public, anon, authenticated;
