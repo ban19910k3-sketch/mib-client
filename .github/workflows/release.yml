@@ -1,5 +1,5 @@
 # Buduje instalator Windows i wrzuca go razem z latest.yml do szkicu wydania v<wersja z package.json>, potem launcher
-# na Maca (dmg i zip), na Linuksa (AppImage z latest-linux.yml) i na Androida (APK) do tego samego szkicu.
+# na Maca (dmg i zip) i na Linuksa (AppImage z latest-linux.yml) do tego samego szkicu.
 # Szkic nie trafia do graczy, dopóki ktoś nie kliknie "Publish release" na GitHubie.
 name: Zbuduj wydanie
 
@@ -141,12 +141,3 @@ jobs:
         run: gh release upload "v$(node -p "require('./package.json').version")" dist/MiB-Client-linux.AppImage dist/latest-linux.yml --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # MiB Client na Androida (od 0.43.0): MiB-Client-android.apk (stały link na stronę MiB:
-  # releases/latest/download/MiB-Client-android.apk); aplikacja sama sprawdza nowe wydania
-  android:
-    needs: build
-    uses: ./.github/workflows/android.yml
-    with:
-      release: true
-    secrets: inherit

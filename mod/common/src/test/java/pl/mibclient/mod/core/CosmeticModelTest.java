@@ -173,7 +173,7 @@ class CosmeticModelTest {
 		assertEquals(14 * 0.9375 / 16, o[2], 1e-9, "lewa strona to południe");
 	}
 
-	/** Pety, ogony i plecaki z bazy (0.34.0; pet za grę na telefonie od 0.44.0) czyta też mod — te same 115 co w launcherze. */
+	/** Pety, ogony i plecaki z bazy (0.34.0) czyta też mod — te same 114 co w launcherze. */
 	@Test
 	void petsFromSchemaParse() throws Exception {
 		File sql = null;
@@ -188,6 +188,6 @@ class CosmeticModelTest {
 			for (CosmeticModel.Part p : cm.parts) assertEquals("pet".equals(m.group(2)) ? CosmeticModel.PET : CosmeticModel.BODY, p.bone, m.group(1));
 			n++;
 		}
-		assertEquals(115, n);
+		assertEquals(114, n);
 	}
 }
