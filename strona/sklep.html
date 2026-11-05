@@ -1018,7 +1018,7 @@ const MibTry = (() => {
     request_failed: ['Coś poszło nie tak. Spróbuj jeszcze raz.', 'Something went wrong. Try again.']
   };
   const mkErr = c => { const e = new Error(c); e.code = c; return e; };
-  const errText = e => { const m = ERR[e && e.code] || ERR.request_failed; return T(m[0], m[1]); };
+  const errText = e => { const m = ERR[e && e.code] || ERR.request_failed; return T(m[0], m[1]) + (e && e.detail && !ERR[e.code] || (e && e.code === 'request_failed' && e.detail) ? ' (' + e.detail + ')' : ''); };
 
   // ===== Supabase przez fetch (klucz publiczny; uprawnienia pilnuje baza) =====
   let session = null;
@@ -1039,7 +1039,8 @@ const MibTry = (() => {
       if (d && d.code === 'P0001' && d.message) throw mkErr(d.message);
       if (d && (d.code === 'PGRST301' || /JWT expired/i.test(d.message || ''))) throw mkErr('auth_expired');
       if (d && ['PGRST202', 'PGRST205', '42883', '42P01'].includes(d.code)) throw mkErr('schema_outdated');
-      throw mkErr('request_failed');
+      if (res.status === 401 || res.status === 403 && /JWT|token/i.test((d && (d.message || d.msg)) || '')) throw mkErr('auth_expired');
+      throw Object.assign(mkErr('request_failed'), { detail: String(res.status) + (d && (d.code || d.error_code) ? ' ' + (d.code || d.error_code) : '') + (d && (d.message || d.msg) ? ': ' + String(d.message || d.msg).slice(0, 120) : '') });
     }
     return d;
   }
@@ -1231,20 +1232,20 @@ const MibTry = (() => {
   let admTab = 'items', all = [], sel = null, form = null, texData = null, imgFile = null, admMsg = '', found = [], player = null, plog = [], shopUrl = null;
   function footerLink() {}
   let admReady = false;
-  function loginDlg() {
+  function loginDlg(why) {
     const demo = mode === 'demo';
     const d = dialog('<h3>' + esc(T('Panel admina', 'Admin panel')) + '</h3>' +
       '<p class="mut" style="margin:0">' + esc(demo ? T('To podgląd strony, więc logowanie jest na niby: wpisz cokolwiek.', 'This is a preview, so sign-in is pretend: type anything.') : T('Numer MIB albo e-mail konta admina i hasło do niego.', 'The admin account MIB number or email, and its password.')) + '</p>' +
       '<form id="lf" novalidate style="display:flex;flex-direction:column;gap:14px"><label class="fld"><span>' + esc(T('Numer MIB albo e-mail', 'MIB number or email')) + '</span><input class="inp" id="l-id" autocomplete="username" required></label>' +
       '<label class="fld"><span>' + esc(T('Hasło', 'Password')) + '</span><input class="inp" id="l-pass" type="password" autocomplete="current-password" required></label>' +
-      '<p class="err" id="l-err" aria-live="polite"></p><div class="row"><button class="btn pri" type="submit">' + esc(T('Zaloguj się', 'Sign in')) + '</button><button class="btn" type="button" data-close>' + esc(T('Anuluj', 'Cancel')) + '</button></div></form>',
+      '<p class="err" id="l-err" aria-live="polite">' + esc(why || '') + '</p><div class="row"><button class="btn pri" type="submit">' + esc(T('Zaloguj się', 'Sign in')) + '</button><button class="btn" type="button" data-close>' + esc(T('Anuluj', 'Cancel')) + '</button></div></form>',
       () => { if (location.hash === '#admin' && adm.hidden) history.replaceState(null, '', location.pathname + location.search); });
     d.el.querySelector('#lf').addEventListener('submit', async e => {
       e.preventDefault();
       const id = $('l-id').value.trim(), pw = $('l-pass').value, er = $('l-err'), btn = e.target.querySelector('[type=submit]');
       if (demo) { admReady = true; await loadAdmin(); d.close(); return showAdmin(); }
       if (!id || !pw) { er.textContent = T('Wpisz numer albo e-mail i hasło.', 'Enter a number or email and a password.'); return; }
-      btn.disabled = true; er.textContent = '';
+      btn.disabled = true; er.textContent = ''; session = null; saveRT();
       try {
         let email = id;
         if (/^(mib-?)?\d{1,12}$/i.test(id)) { email = await rpc('web_admin_email', { p_num: +id.replace(/\D/g, '') }); if (!email) throw mkErr('not_admin_num'); }
@@ -1263,7 +1264,7 @@ const MibTry = (() => {
   async function openAdmin() {
     if (mode === 'loading') return;
     if (mode === 'demo' ? !admReady : !session) return loginDlg();
-    try { await loadAdmin(); showAdmin(); } catch (e) { if (e.code === 'auth_expired' || e.code === 'not_admin') { session = null; saveRT(); return loginDlg(); } alertMsg(errText(e)); }
+    try { await loadAdmin(); showAdmin(); } catch (e) { if (e.code === 'offline' || e.code === 'schema_outdated') return alertMsg(errText(e)); session = null; saveRT(); loginDlg(e.code === 'auth_expired' || e.code === 'not_admin' ? '' : errText(e)); }
   }
   function showAdmin() { adm.hidden = false; document.documentElement.style.overflow = 'hidden'; if (location.hash !== '#admin') history.replaceState(null, '', '#admin'); renderAdmin(); footerLink(); }
   function closeAdmin() { adm.hidden = true; document.documentElement.style.overflow = ''; history.replaceState(null, '', location.pathname + location.search); refresh(); }
