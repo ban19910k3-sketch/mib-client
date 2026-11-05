@@ -1,5 +1,8 @@
-<!-- 0.43.0 -->
+<!-- 0.44.0 -->
 ## Dodane
-- MiB Client na Linuksa: launcher, mod MiB w grze, kosmetyki, znajomi i party. Aktualizacje instalują się same, tak jak na Windows.
-- MiB Client na Androida (wersja próbna): Minecraft z modem MiB na telefonie. Aplikacja sama przygotowuje Minecrafta 1.21.11 z modem MiB, a przycisk „MiB” na ekranie gry otwiera menu MiB. Na razie bez kosmetyków innych graczy, znajomych i czatu w menu gry.
-- Na Androidzie aplikacja sama sprawdza nowe wersje i proponuje aktualizację.
+- Nowy wygląd MiB Client na Androidzie — w tym samym stylu co launcher na komputerze: GRAJ, konta, aktualności i ustawienia.
+- Nagroda za grę na telefonie: peleryna „Zasięg” i pet „Telefonik”. Przychodzą jako prezent w launcherze na komputerze.
+
+## Zmienione
+- Na Androidzie gra się tylko oryginalnym Minecraftem (konto Microsoft), bez kont offline.
+- Przycisk Discord na Androidzie prowadzi na serwer MiB.
