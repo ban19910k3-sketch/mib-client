@@ -542,7 +542,7 @@ const MIB = (() => {
 
   // Pobieranie: Windows (.exe) albo Mac (.dmg) z najnowszego wydania; system gracza wybieramy sami
   const ua = navigator.userAgent, plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
-  const myOs = /Android/i.test(ua) ? 'android' : /Win/i.test(plat + ua) ? 'win' : /Mac/i.test(plat + ua) && !/iPhone|iPad|iPod/i.test(ua) ? 'mac' : /Linux|X11|CrOS/i.test(plat + ua) ? 'linux' : 'other';
+  const myOs = /Android/i.test(ua) ? 'other' : /Win/i.test(plat + ua) ? 'win' : /Mac/i.test(plat + ua) && !/iPhone|iPad|iPod/i.test(ua) ? 'mac' : /Linux|X11|CrOS/i.test(plat + ua) ? 'linux' : 'other';
   const setText = (n, pl, en) => { n.dataset.en = en; const t = texts.find(x => x[0] === n); if (t) t[1] = pl; n.innerHTML = isEN() ? en : pl; };
   function showOs(os) {
     document.querySelectorAll('.osw [data-os]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.os === os)));
@@ -551,12 +551,13 @@ const MIB = (() => {
   document.querySelectorAll('.osw [data-os]').forEach(b => b.addEventListener('click', () => showOs(b.dataset.os)));
   if (document.querySelector('.osw')) {
     showOs(myOs === 'other' ? 'win' : myOs);
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) { const n = $('note-auto'); n.classList.add('warn'); setText(n, 'MiB Client to launcher na komputer, na telefonie nie działa. Pobierz go na komputerze z Windows, macOS albo Linuksem.', 'MiB Client is a launcher for computers and doesn’t run on phones. Download it on a Windows, macOS or Linux computer.'); }
   }
   const auto = [...document.querySelectorAll('a[data-dl="auto"]')];
   const pick = {};
-  ['win', 'mac', 'linux', 'android'].forEach(os => { pick[os] = [...document.querySelectorAll('a[data-dl="' + os + '"]')]; });
+  ['win', 'mac', 'linux'].forEach(os => { pick[os] = [...document.querySelectorAll('a[data-dl="' + os + '"]')]; });
   const LATEST = 'https://github.com/ban19910k3-sketch/mib-client/releases/latest/download/';
-  const STABLE = { mac: LATEST + 'MiB-Client-mac.dmg', linux: LATEST + 'MiB-Client-linux.AppImage', android: LATEST + 'MiB-Client-android.apk' };
+  const STABLE = { mac: LATEST + 'MiB-Client-mac.dmg', linux: LATEST + 'MiB-Client-linux.AppImage' };
   if (STABLE[myOs]) auto.forEach(l => { l.href = STABLE[myOs]; });
   if (window.fetch && (auto.length || pick.win.length)) {
     fetch('https://api.github.com/repos/ban19910k3-sketch/mib-client/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
@@ -568,12 +569,12 @@ const MIB = (() => {
           if (!a) return;
           pick[os].forEach(l => { l.href = a.browser_download_url; });
           if (myOs === os || (os === 'win' && myOs === 'other')) auto.forEach(l => { l.href = a.browser_download_url; });
-          const v = $('ver-' + os), mb = Math.round(a.size / 1048576), ex = { linux: [' · AppImage', ' · AppImage'], android: [' · wersja próbna', ' · beta'] }[os] || ['', ''];
+          const v = $('ver-' + os), mb = Math.round(a.size / 1048576), ex = { linux: [' · AppImage', ' · AppImage']}[os] || ['', ''];
           if (v) setText(v, 'Wersja ' + ver + ' · ' + mb + ' MB' + ex[0], 'Version ' + ver + ' · ' + mb + ' MB' + ex[1]);
         };
         if (ver) document.querySelectorAll('.brand .tag').forEach(t => { t.textContent = ver; });
         const find = re => (d.assets || []).find(x => re.test(x.name));
-        fill(exe, 'win'); fill(dmg, 'mac'); fill(find(/\.AppImage$/i), 'linux'); fill(find(/\.apk$/i), 'android');
+        fill(exe, 'win'); fill(dmg, 'mac'); fill(find(/\.AppImage$/i), 'linux');
       }).catch(() => {});
   }
 

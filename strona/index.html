@@ -357,13 +357,14 @@ body{background:var(--bg) linear-gradient(var(--bg),var(--bg))}
 .dc>div{flex:1;min-width:240px;display:flex;flex-direction:column;gap:10px}
 .dc p{margin:0}
 
-.osw{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.osw{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.osw button small{display:block;font-size:11.5px}
 .osw button{display:flex;align-items:center;gap:10px;min-height:52px;padding:0 14px;border:0;background:var(--card2);color:var(--ink2);box-shadow:inset 0 0 0 2px var(--line2);clip-path:var(--px);cursor:pointer;font-weight:550;text-align:left}
 .osw button svg{width:20px;height:20px;flex:none;color:var(--mut)}
 .osw button small{color:var(--mut);font-weight:400}
 .osw button[aria-checked="true"]{box-shadow:inset 0 0 0 2px var(--ac);color:#fff;background:var(--ac-soft)}
 .osw button[aria-checked="true"] svg{color:var(--ac-hi)}
-@media (max-width:480px){.osw button{padding:0 10px;font-size:14px;gap:8px}.osw button small{display:block;font-size:11px}}
+@media (max-width:560px){.osw{grid-template-columns:minmax(0,1fr)}.osw button small{display:inline;margin-left:4px}}
 .machelp{margin:-4px 0 0;padding:0 0 0 20px;display:flex;flex-direction:column;gap:8px;color:var(--mut);font-size:14px;line-height:1.5}
 .machelp li::marker{color:var(--ac-hi);font-weight:600}
 .os svg+svg{margin-left:-4px}
@@ -540,7 +541,7 @@ select.inp{background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://
      <a class="btn pri lg" href="https://github.com/ban19910k3-sketch/mib-client/releases/download/v0.42.0/MiB-Client-Setup-0.42.0.exe" data-dl="auto"><span data-en="Download MiB Client">Pobierz MiB Client</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
      <a class="btn lg" href="https://discord.gg/asrQzp4EWv" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.6 5.4A16.6 16.6 0 0 0 15.5 4l-.5 1a15 15 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.4C1.8 9.3 1.1 13.1 1.4 16.8a16.7 16.7 0 0 0 5 2.6l1.1-1.7a10.6 10.6 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.6 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.6 16.6 0 0 0 5-2.6c.4-4.3-.6-8-3.1-11.4ZM8.6 14.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg><span>Discord</span></a>
     </div>
-    <p class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM12 4.3 21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z"/></svg><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.9C6.9 7.3 5 8.6 5 11.4c0 1.7.6 3.5 1.4 4.7.7 1 1.5 2.1 2.6 2.1 1 0 1.4-.7 2.7-.7s1.6.7 2.7.7c1.1 0 1.8-1 2.5-2 .8-1.1 1.1-2.2 1.1-2.3 0 0-2.6-1-2.6-3.3ZM14.2 5.8c.6-.7 1-1.6.9-2.6-.8 0-1.8.6-2.4 1.3-.5.6-1 1.6-.9 2.5.9.1 1.8-.5 2.4-1.2Z"/></svg><span data-en="Windows · macOS · Linux · Android">Windows · macOS · Linux · Android</span></p>
+    <p class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM12 4.3 21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z"/></svg><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.9C6.9 7.3 5 8.6 5 11.4c0 1.7.6 3.5 1.4 4.7.7 1 1.5 2.1 2.6 2.1 1 0 1.4-.7 2.7-.7s1.6.7 2.7.7c1.1 0 1.8-1 2.5-2 .8-1.1 1.1-2.2 1.1-2.3 0 0-2.6-1-2.6-3.3ZM14.2 5.8c.6-.7 1-1.6.9-2.6-.8 0-1.8.6-2.4 1.3-.5.6-1 1.6-.9 2.5.9.1 1.8-.5 2.4-1.2Z"/></svg><span data-en="Windows · macOS · Linux">Windows · macOS · Linux</span></p>
     <div class="chips">
      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg><span data-en="Mods install themselves">Mody instalują się same</span></span>
      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></svg><span data-en="Menu under right Shift">Menu pod prawym Shiftem</span></span>
@@ -703,7 +704,7 @@ select.inp{background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://
    <h2 class="h2" data-reveal><span data-en="Start">Zacznij</span><br><span data-en="with MiB Client.">od MiB Client.</span></h2>
    <p class="lead" data-reveal="2" data-en="Download the installer, sign in and play. Your MiB profile sets itself up.">Pobierasz instalator, logujesz się i grasz. Profil MiB zakłada się sam.</p>
    <ol class="steps" data-reveal="3">
-    <li><i>01</i><span><b data-en="Install the launcher">Zainstaluj launcher</b><small data-en="Pick your system: Windows, macOS, Linux or Android.">Wybierz swój system: Windows, macOS, Linux albo Android.</small></span></li>
+    <li><i>01</i><span><b data-en="Install the launcher">Zainstaluj launcher</b><small data-en="Pick your system: Windows, macOS or Linux.">Wybierz swój system: Windows, macOS albo Linux.</small></span></li>
     <li><i>02</i><span><b data-en="Sign in with Microsoft">Zaloguj się kontem Microsoft</b><small data-en="The account that owns Minecraft Java Edition. Your MiB profile is created for you.">Tym, na którym masz Minecraft Java Edition. Profil MiB założy się sam.</small></span></li>
     <li><i>03</i><span><b data-en="Pick a version and play">Wybierz wersję i graj</b><small data-en="Right Shift in game opens the MiB menu.">Prawy Shift w grze otwiera menu MiB.</small></span></li>
    </ol>
@@ -713,10 +714,9 @@ select.inp{background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://
    <div class="dl-h"><img src="img/icon.png" alt="" width="56" height="56"><span><b data-en="MiB Client installer">Instalator MiB Client</b><small>Minecraft Java Edition</small></span></div>
    <div class="fld"><span data-en="System">System</span>
     <div class="osw" role="radiogroup" aria-label="System">
-     <button type="button" role="radio" data-os="win" aria-checked="true"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM12 4.3 21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z"/></svg><span>Windows 10 / 11</span></button>
+     <button type="button" role="radio" data-os="win" aria-checked="true"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zM12 4.3 21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z"/></svg><span>Windows <small>10 / 11</small></span></button>
      <button type="button" role="radio" data-os="mac" aria-checked="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.9C6.9 7.3 5 8.6 5 11.4c0 1.7.6 3.5 1.4 4.7.7 1 1.5 2.1 2.6 2.1 1 0 1.4-.7 2.7-.7s1.6.7 2.7.7c1.1 0 1.8-1 2.5-2 .8-1.1 1.1-2.2 1.1-2.3 0 0-2.6-1-2.6-3.3ZM14.2 5.8c.6-.7 1-1.6.9-2.6-.8 0-1.8.6-2.4 1.3-.5.6-1 1.6-.9 2.5.9.1 1.8-.5 2.4-1.2Z"/></svg><span>macOS <small data-en="(Intel and Apple)">(Intel i Apple)</small></span></button>
      <button type="button" role="radio" data-os="linux" aria-checked="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c-2 0-3 1.7-3 4 0 1.3-.6 2.4-1.5 3.6C6.3 12.2 5 14 5 16.2 5 19 7.8 21 12 21s7-2 7-4.8c0-2.2-1.3-4-2.5-5.6-.9-1.2-1.5-2.3-1.5-3.6 0-2.3-1-4-3-4Z"/><path d="M10.5 7.5h.01M13.5 7.5h.01M10.8 9.6l1.2.8 1.2-.8"/></svg><span>Linux <small data-en="(64-bit)">(64-bit)</small></span></button>
-     <button type="button" role="radio" data-os="android" aria-checked="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 11a7 7 0 0 1 14 0v6H5z"/><path d="m7 5 2 3M17 5l-2 3M9.5 8.5h.01M14.5 8.5h.01M3 12v4M21 12v4M9 17v3M15 17v3"/></svg><span>Android <small class="soon-tag" data-en="beta">wersja próbna</small></span></button>
     </div>
    </div>
    <p class="note-box" id="note-auto" data-en="We picked the version for your system. Playing on another computer? Choose its system above.">Wybraliśmy wersję dla Twojego systemu. Grasz na innym komputerze? Wybierz jego system wyżej.</p>
@@ -737,13 +737,6 @@ select.inp{background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://
     <li data-en="Double-click it to start. Updates install themselves, just like on Windows.">Kliknij go dwa razy, żeby uruchomić. Aktualizacje instalują się same, tak jak na Windows.</li>
     <li data-en="If it doesn’t start on Ubuntu, install FUSE: sudo apt install libfuse2 (on Ubuntu 24.04: libfuse2t64).">Jeśli na Ubuntu się nie uruchamia, doinstaluj FUSE: sudo apt install libfuse2 (na Ubuntu 24.04: libfuse2t64).</li>
    </ol>
-   <p class="ver" data-for="android" id="ver-android" hidden data-en="Version 0.43.0 · 153 MB · beta">Wersja 0.43.0 · 153 MB · wersja próbna</p>
-   <a class="btn pri lg wide" data-for="android" hidden href="https://github.com/ban19910k3-sketch/mib-client/releases/latest/download/MiB-Client-android.apk" data-dl="android"><span data-en="Download for Android">Pobierz na Androida</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg></a>
-   <ol class="machelp" data-for="android" hidden>
-    <li data-en="Download the .apk file on your phone and open it. Android will ask for permission to install apps from this source: allow it.">Pobierz plik .apk na telefonie i otwórz go. Android zapyta o zgodę na instalowanie aplikacji z tego źródła: zezwól.</li>
-    <li data-en="Sign in with the Microsoft account that owns Minecraft Java Edition. The app sets up Minecraft 1.21.11 with the MiB mod by itself.">Zaloguj się kontem Microsoft, na którym masz Minecraft Java Edition. Aplikacja sama przygotuje Minecrafta 1.21.11 z modem MiB.</li>
-    <li data-en="The “MiB” button on the game screen opens the MiB menu. In this beta there are no other players’ cosmetics, friends or chat in the game menu yet.">Przycisk „MiB” na ekranie gry otwiera menu MiB. W wersji próbnej nie ma jeszcze kosmetyków innych graczy, znajomych ani czatu w menu gry.</li>
-   </ol>
   </div>
  </div>
 </section>
@@ -761,7 +754,7 @@ select.inp{background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://
    <details data-reveal><summary><span data-en="How much does it cost?">Ile to kosztuje?</span><i></i></summary><p data-en="The launcher and the mod are free. Only cosmetics cost MiB Coins, and nobody has to buy them.">Launcher i mod są za darmo. Płatne są tylko kosmetyki za MiB Coins, a nikt nie musi ich kupować.</p></details>
    <details data-reveal="2"><summary><span data-en="How do I get a MiB profile?">Jak założyć profil MiB?</span><i></i></summary><p data-en="You don't have to do anything. When you sign in with Microsoft in the launcher, your profile is created for you.">Nic nie musisz robić. Kiedy zalogujesz się w launcherze kontem Microsoft, profil założy się sam.</p></details>
    <details data-reveal><summary><span data-en="Can I buy MiB Coins?">Czy mogę kupić MiB Coins?</span><i></i></summary><p data-en="In the shop you pick the player (MIB number or nick) and a pack, no signing in. Payments go live soon. Until then you get coins from the daily reward in the launcher.">W sklepie wybierasz gracza (numer MIB albo nick) i pakiet, bez logowania. Płatności uruchomimy wkrótce. Do tego czasu monety dostajesz za codzienną nagrodę w launcherze.</p></details>
-   <details data-reveal="2"><summary><span data-en="Which systems does it run on?">Na jakich systemach działa?</span><i></i></summary><p data-en="Windows 10 and 11, Macs with Intel and Apple chips (M1 and newer), 64-bit Linux, and Android phones (beta, Minecraft 1.21.11).">Na Windows 10 i 11, Macach z procesorem Intel i Apple (M1 i nowsze), 64-bitowym Linuksie i telefonach z Androidem (wersja próbna, Minecraft 1.21.11).</p></details>
+   <details data-reveal="2"><summary><span data-en="Which systems does it run on?">Na jakich systemach działa?</span><i></i></summary><p data-en="Windows 10 and 11, Macs with Intel and Apple chips (M1 and newer) and 64-bit Linux. It’s a launcher for computers, so it doesn’t run on phones.">Na Windows 10 i 11, Macach z procesorem Intel i Apple (M1 i nowsze) i 64-bitowym Linuksie. To launcher na komputer, więc nie działa na telefonach.</p></details>
   </div>
   <div class="dc card" data-reveal>
    <span class="dc-ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.6 5.4A16.6 16.6 0 0 0 15.5 4l-.5 1a15 15 0 0 0-6 0L8.5 4a16.6 16.6 0 0 0-4.1 1.4C1.8 9.3 1.1 13.1 1.4 16.8a16.7 16.7 0 0 0 5 2.6l1.1-1.7a10.6 10.6 0 0 1-1.7-.8l.4-.3a11.9 11.9 0 0 0 11.6 0l.4.3c-.5.3-1.1.6-1.7.8l1.1 1.7a16.6 16.6 0 0 0 5-2.6c.4-4.3-.6-8-3.1-11.4ZM8.6 14.6c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg></span>
@@ -849,7 +842,7 @@ const MIB = (() => {
 
   // Pobieranie: Windows (.exe) albo Mac (.dmg) z najnowszego wydania; system gracza wybieramy sami
   const ua = navigator.userAgent, plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
-  const myOs = /Android/i.test(ua) ? 'android' : /Win/i.test(plat + ua) ? 'win' : /Mac/i.test(plat + ua) && !/iPhone|iPad|iPod/i.test(ua) ? 'mac' : /Linux|X11|CrOS/i.test(plat + ua) ? 'linux' : 'other';
+  const myOs = /Android/i.test(ua) ? 'other' : /Win/i.test(plat + ua) ? 'win' : /Mac/i.test(plat + ua) && !/iPhone|iPad|iPod/i.test(ua) ? 'mac' : /Linux|X11|CrOS/i.test(plat + ua) ? 'linux' : 'other';
   const setText = (n, pl, en) => { n.dataset.en = en; const t = texts.find(x => x[0] === n); if (t) t[1] = pl; n.innerHTML = isEN() ? en : pl; };
   function showOs(os) {
     document.querySelectorAll('.osw [data-os]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.os === os)));
@@ -858,12 +851,13 @@ const MIB = (() => {
   document.querySelectorAll('.osw [data-os]').forEach(b => b.addEventListener('click', () => showOs(b.dataset.os)));
   if (document.querySelector('.osw')) {
     showOs(myOs === 'other' ? 'win' : myOs);
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) { const n = $('note-auto'); n.classList.add('warn'); setText(n, 'MiB Client to launcher na komputer, na telefonie nie działa. Pobierz go na komputerze z Windows, macOS albo Linuksem.', 'MiB Client is a launcher for computers and doesn’t run on phones. Download it on a Windows, macOS or Linux computer.'); }
   }
   const auto = [...document.querySelectorAll('a[data-dl="auto"]')];
   const pick = {};
-  ['win', 'mac', 'linux', 'android'].forEach(os => { pick[os] = [...document.querySelectorAll('a[data-dl="' + os + '"]')]; });
+  ['win', 'mac', 'linux'].forEach(os => { pick[os] = [...document.querySelectorAll('a[data-dl="' + os + '"]')]; });
   const LATEST = 'https://github.com/ban19910k3-sketch/mib-client/releases/latest/download/';
-  const STABLE = { mac: LATEST + 'MiB-Client-mac.dmg', linux: LATEST + 'MiB-Client-linux.AppImage', android: LATEST + 'MiB-Client-android.apk' };
+  const STABLE = { mac: LATEST + 'MiB-Client-mac.dmg', linux: LATEST + 'MiB-Client-linux.AppImage' };
   if (STABLE[myOs]) auto.forEach(l => { l.href = STABLE[myOs]; });
   if (window.fetch && (auto.length || pick.win.length)) {
     fetch('https://api.github.com/repos/ban19910k3-sketch/mib-client/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
@@ -875,12 +869,12 @@ const MIB = (() => {
           if (!a) return;
           pick[os].forEach(l => { l.href = a.browser_download_url; });
           if (myOs === os || (os === 'win' && myOs === 'other')) auto.forEach(l => { l.href = a.browser_download_url; });
-          const v = $('ver-' + os), mb = Math.round(a.size / 1048576), ex = { linux: [' · AppImage', ' · AppImage'], android: [' · wersja próbna', ' · beta'] }[os] || ['', ''];
+          const v = $('ver-' + os), mb = Math.round(a.size / 1048576), ex = { linux: [' · AppImage', ' · AppImage']}[os] || ['', ''];
           if (v) setText(v, 'Wersja ' + ver + ' · ' + mb + ' MB' + ex[0], 'Version ' + ver + ' · ' + mb + ' MB' + ex[1]);
         };
         if (ver) document.querySelectorAll('.brand .tag').forEach(t => { t.textContent = ver; });
         const find = re => (d.assets || []).find(x => re.test(x.name));
-        fill(exe, 'win'); fill(dmg, 'mac'); fill(find(/\.AppImage$/i), 'linux'); fill(find(/\.apk$/i), 'android');
+        fill(exe, 'win'); fill(dmg, 'mac'); fill(find(/\.AppImage$/i), 'linux');
       }).catch(() => {});
   }
 
