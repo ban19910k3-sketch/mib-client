@@ -1,0 +1,230 @@
+<!doctype html>
+<!-- MiB Client na Androida (od 0.44.0): ekran główny w wyglądzie launchera na komputerze (kolory, Geist, logo M, baner,
+     GRAJ). Działania przez most Javy „MiB” (Mib.Home w android/Mib.java): stan kont, gra, logowanie Microsoft, ustawienia. -->
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MiB Client</title>
+<style>
+@font-face{font-family:Geist;font-weight:100 900;src:url(geist-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:Geist;font-weight:100 900;src:url(geist-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2C60-2C7F,U+A720-A7FF}
+:root{--void:#07020c;--slab:#100618;--slab2:#190c25;--edge:#24133a;--edge2:#3a2256;--am:#a855f7;--am-hi:#d6b0ff;--am-lo:#6d28d9;
+  --t:#eee6f8;--m:#9a88ad;--bad:#f0526b;--r:14px;--r-sm:10px;--tint:rgba(168,85,247,.14);color-scheme:dark}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--void);color:var(--t);font:15px/1.45 Geist,system-ui,sans-serif;overflow:hidden;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+svg{display:block}
+[hidden]{display:none!important}
+#app{display:flex;height:100%;background:radial-gradient(ellipse at 85% -25%,rgba(168,85,247,.12),transparent 55%),var(--void)}
+/* pasek boczny jak na komputerze; na wąskim ekranie pasek na dole */
+#side{width:200px;flex:none;background:var(--slab);border-right:1px solid var(--edge);display:flex;flex-direction:column;gap:3px;padding:0 10px 10px;
+  padding-left:max(10px,env(safe-area-inset-left))}
+.brand{display:flex;align-items:center;gap:10px;height:62px;margin:0 -10px 10px;padding:0 16px;border-bottom:1px solid var(--edge)}
+.mlogo{width:30px;flex:none;fill:var(--void);stroke:var(--am);stroke-width:5;stroke-linejoin:round}
+.brand b{font-size:18px;font-weight:800;letter-spacing:-.03em;display:block;line-height:1.1}
+.brand small{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--m)}
+.nav{display:flex;align-items:center;gap:12px;width:100%;padding:9px 12px;border-radius:var(--r-sm);color:var(--m);font-weight:500;text-align:left}
+.nav svg{width:24px;height:24px;flex:none}
+.nav.act{background:var(--tint);color:var(--am-hi);font-weight:600}
+.sp{flex:1}
+#main{flex:1;min-width:0;overflow-y:auto;padding:22px 24px 26px;padding-right:max(24px,env(safe-area-inset-right))}
+.page{display:none;flex-direction:column;gap:16px;max-width:980px}
+.page.on{display:flex}
+h1{font-size:28px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.lead{color:var(--m);font-size:14px;margin-top:4px}
+.card{background:var(--slab);border:1px solid var(--edge);border-radius:var(--r)}
+#hero{position:relative;height:170px;border-radius:var(--r);overflow:hidden;background:#0b0414}
+#hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:75% 50%}
+#hero::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(8,3,14,.88),rgba(8,3,14,.3) 60%,transparent)}
+.hero-t{position:absolute;left:26px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:14px;z-index:1}
+.hero-t .mlogo{width:56px;stroke-width:3.5;fill:rgba(0,0,0,.55);stroke:var(--am-hi)}
+.hero-t b{display:block;font-size:30px;font-weight:800;letter-spacing:-.03em;color:#fff;line-height:1}
+.hero-t small{display:block;margin-top:6px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+.row{display:flex;gap:16px;align-items:stretch;flex-wrap:wrap}
+.vcard{flex:1 1 320px;display:flex;align-items:center;gap:16px;padding:16px 18px}
+.vcard .mlogo{width:44px;stroke-width:4.5}
+.vinfo{flex:1;min-width:0}.vinfo b{font-size:19px;font-weight:700;letter-spacing:-.02em;display:block}
+.vinfo span{font-size:13px;color:var(--m)}
+.go{min-width:150px;padding:14px 26px 12px;font-size:20px;font-weight:800;letter-spacing:.06em;color:#fff;border-radius:var(--r);background:var(--am-lo);
+  box-shadow:0 8px 24px -10px rgba(168,85,247,.8);text-align:center;line-height:1}
+.go:active{background:var(--am);transform:translateY(1px)}
+.go small{display:block;margin-top:5px;font-size:11px;font-weight:500;letter-spacing:0;opacity:.85}
+.acc{flex:1 1 240px;display:flex;align-items:center;gap:12px;padding:14px 16px;text-align:left}
+.acc img,.al img{width:40px;height:40px;border-radius:8px;image-rendering:pixelated;background:var(--slab2);flex:none}
+.acc div{flex:1;min-width:0}.acc b{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc span{font-size:13px;color:var(--m)}
+.chev{color:var(--m);width:22px;height:22px}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border-radius:var(--r-sm);background:var(--am-lo);color:#fff;font-weight:600}
+.b.ghost{background:var(--slab2);box-shadow:inset 0 0 0 1px var(--edge2);color:var(--t)}
+.b.danger{background:rgba(240,82,107,.14);box-shadow:inset 0 0 0 1px rgba(240,82,107,.4);color:var(--bad)}
+.b svg{width:22px;height:22px}
+.news{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.news .card{padding:16px 18px}
+.news h4{font-size:17px;font-weight:700;margin-bottom:6px;letter-spacing:-.01em}
+.news p{font-size:14px;color:#cfc3dd;white-space:pre-wrap;word-break:break-word}
+.news small{display:block;margin-top:8px;font-size:12px;color:var(--m)}
+.pin{color:var(--am-hi);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;display:block}
+.empty{color:var(--m);font-size:14px;padding:6px 2px}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;align-items:center;gap:14px;padding:14px 16px;text-align:left;width:100%}
+.item svg{width:24px;height:24px;flex:none;color:var(--am)}
+.item div{flex:1}.item b{display:block;font-weight:600}.item span{font-size:13px;color:var(--m)}
+.al{display:flex;align-items:center;gap:12px;padding:12px 14px}
+.al div{flex:1;min-width:0}.al b{display:block;font-weight:700}.al span{font-size:12.5px;color:var(--m)}
+.al.on{box-shadow:inset 0 0 0 1px var(--am)}
+.foot{font-size:12px;color:var(--m);line-height:1.6}
+.foot a{color:var(--am-hi)}
+/* telefon poziomo (niski ekran): mniejszy baner i pasek boczny, więcej miejsca na GRAJ */
+@media (max-height:520px) and (min-width:721px){
+  #side{width:184px}.brand{height:50px;margin-bottom:6px}.brand b{font-size:16px}.nav{padding:7px 10px;font-size:14px;white-space:nowrap}
+  #main{padding:14px 18px 18px}#hero{height:104px}.hero-t{left:20px}.hero-t b{font-size:24px}.hero-t .mlogo{width:42px}
+  .vcard{padding:12px 14px}.vcard .mlogo{width:36px}.go{padding:12px 22px 10px;font-size:18px}.acc{padding:10px 14px}h1{font-size:22px}
+}
+/* wąski ekran (telefon pionowo): pasek nawigacji na dole */
+@media (max-width:720px){
+  #app{flex-direction:column-reverse}
+  #side{width:auto;flex-direction:row;border-right:0;border-top:1px solid var(--edge);padding:6px 6px max(6px,env(safe-area-inset-bottom));gap:2px}
+  .brand,.sp{display:none}
+  .nav{flex-direction:column;gap:3px;padding:6px 2px;font-size:11px;text-align:center}
+  #main{padding:16px 16px 20px}
+  #hero{height:140px}.hero-t b{font-size:24px}.hero-t .mlogo{width:44px}
+  .go{width:100%}
+  .vcard{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <nav id="side">
+    <div class="brand"><svg class="mlogo" viewBox="0 0 100 60" aria-hidden="true"><path d="M8 54 L28 14 H42 L50 30 L58 14 H72 L92 54 H80 L66 28 L56 54 H44 L34 28 L20 54 Z"/></svg><div><b>MiB Client</b><small data-t="Android">Android</small></div></div>
+    <button class="nav act" data-p="home"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 20h16v2H4zm16-10h2v10h-2zM2 10h2v10H2zm2-2h2v2H4zm2-2h2v2H6zm2-2h2v2H8zm2-2h4v2h-4zm4 2h2v2h-2zm2 2h2v2h-2zm2 2h2v2h-2zM8 14h2v6H8zm2-2h4v2h-4zm4 2h2v6h-2z"/></svg><span data-t="Strona główna">Strona główna</span></button>
+    <button class="nav" data-p="news"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 2h12v2H8zM6 4h2v16H6zm14 0h2v16h-2zM4 20h16v2H4zm-2-9h2v9H2zm2-2h2v2H4zm6-3h8v2h-8zm0 4h8v2h-8zm0-2h2v2h-2zm6 0h2v2h-2zm-6 5h8v2h-8zm0 3h4v2h-4z"/></svg><span data-t="Aktualności">Aktualności</span></button>
+    <button class="nav" data-p="acc"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 2h6v2H9zm0 8h6v2H9zm6-6h2v6h-2zM7 4h2v6H7zM4 18h2v4H4zm14 0h2v4h-2zM8 14h8v2H8zm-2 2h2v2H6zm10 0h2v2h-2z"/></svg><span data-t="Konta">Konta</span></button>
+    <button class="nav" data-p="set"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 20h3v-2h4v4h2v-4h4v2h-2v4H9v-4H7v2H2v-5h2v3Zm18 2h-5v-2h3v-3h2v5ZM6 11H2v2h4v4H4v-2H0V9h4V7h2v4Zm14-2h4v6h-4v2h-2v-4h4v-2h-4V7h2v2Zm-6 7h-4v-2h4v2Zm-4-2H8v-4h2v4Zm6 0h-2v-4h2v4Zm-2-4h-4V8h4v2ZM7 4H4v3H2V2h5v2Zm8 0h2V2h5v5h-2V4h-3v2h-4V2h-2v4H7V4h2V0h6v4Z"/></svg><span data-t="Ustawienia">Ustawienia</span></button>
+    <div class="sp"></div>
+    <button class="nav" id="dc"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 4h8v2H8zM6 6h2v2H6zm10 0h2v2h-2zM4 8h2v6H4zm14 0h2v6h-2zM2 14h2v4H2zm18 0h2v4h-2zM4 18h4v2H4zm12 0h4v2h-4zM8 16h8v2H8zm1-6h2v3H9zm4 0h2v3h-2z"/></svg><span>Discord</span></button>
+  </nav>
+  <main id="main">
+    <section class="page on" id="p-home">
+      <div id="hero"><img src="banner.jpg" alt=""><div class="hero-t"><svg class="mlogo" viewBox="0 0 100 60" aria-hidden="true"><path d="M8 54 L28 14 H42 L50 30 L58 14 H72 L92 54 H80 L66 28 L56 54 H44 L34 28 L20 54 Z"/></svg><div><b>MiB Client</b><small data-t="Minecraft PvP na telefonie">Minecraft PvP na telefonie</small></div></div></div>
+      <div class="row">
+        <div class="card vcard">
+          <svg class="mlogo" viewBox="0 0 100 60" aria-hidden="true"><path d="M8 54 L28 14 H42 L50 30 L58 14 H72 L92 54 H80 L66 28 L56 54 H44 L34 28 L20 54 Z"/></svg>
+          <div class="vinfo"><b id="mcv">Minecraft</b><span data-t="Fabric + mod MiB (menu pod przyciskiem MiB w grze)">Fabric + mod MiB (menu pod przyciskiem MiB w grze)</span></div>
+          <button class="go" id="play">GRAJ<small id="playsub"></small></button>
+        </div>
+        <button class="card acc" id="accbtn"><img id="head" alt=""><div><b id="accname"></b><span id="accsub"></span></div><svg class="chev" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5h2v2H8zm2 2h2v2h-2zm2 2h2v2h-2zm2 2h2v2h-2zm-2 2h2v2h-2zm-2 2h2v2h-2zm-2 2h2v2H8z"/></svg></button>
+      </div>
+      <div><h1 data-t="Aktualności">Aktualności</h1></div>
+      <div class="news" id="news3"></div>
+    </section>
+    <section class="page" id="p-news">
+      <div><h1 data-t="Aktualności">Aktualności</h1><p class="lead" data-t="Wszystko, co nowego w MiB Client.">Wszystko, co nowego w MiB Client.</p></div>
+      <div class="news" id="newsall"></div>
+    </section>
+    <section class="page" id="p-acc">
+      <div><h1 data-t="Konta">Konta</h1><p class="lead" data-t="MiB Client działa tylko z oryginalnym Minecraftem — konto Microsoft z kupionym Minecraftem (Java Edition).">MiB Client działa tylko z oryginalnym Minecraftem — konto Microsoft z kupionym Minecraftem (Java Edition).</p></div>
+      <div class="list" id="accs"></div>
+      <div><button class="b" id="addacc"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 4h2v16h-2zM4 11h16v2H4z"/></svg><span data-t="Dodaj konto Microsoft">Dodaj konto Microsoft</span></button></div>
+    </section>
+    <section class="page" id="p-set">
+      <div><h1 data-t="Ustawienia">Ustawienia</h1></div>
+      <div class="list">
+        <button class="card item" data-a="settings"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 20h3v-2h4v4h2v-4h4v2h-2v4H9v-4H7v2H2v-5h2v3Zm18 2h-5v-2h3v-3h2v5ZM6 11H2v2h4v4H4v-2H0V9h4V7h2v4Zm14-2h4v6h-4v2h-2v-4h4v-2h-4V7h2v2Zm-6 7h-4v-2h4v2Zm-4-2H8v-4h2v4Zm6 0h-2v-4h2v4Zm-2-4h-4V8h4v2ZM7 4H4v3H2V2h5v2Zm8 0h2V2h5v5h-2V4h-3v2h-4V2h-2v4H7V4h2V0h6v4Z"/></svg><div><b data-t="Ustawienia gry">Ustawienia gry</b><span data-t="Grafika, pamięć RAM, sterowanie, rozdzielczość">Grafika, pamięć RAM, sterowanie, rozdzielczość</span></div></button>
+        <button class="card item" data-a="controls"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 7h16v2H4zM2 9h2v8H2zm18 0h2v8h-2zM4 17h4v2H4zm12 0h4v2h-4zM8 15h8v2H8zm-2-4h2v2H6zm-2 0h2v2H4zm2-2h2v2H6zm0 4h2v2H6zm10-2h2v2h-2zm-2 0h2v2h-2z"/></svg><div><b data-t="Przyciski na ekranie">Przyciski na ekranie</b><span data-t="Ułóż przyciski gry pod swój kciuk">Ułóż przyciski gry pod swój kciuk</span></div></button>
+        <button class="card item" data-a="folder"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 4h8v2H2zm8 2h12v2H10zM2 6h2v14H2zm18 2h2v12h-2zM4 18h16v2H4zM6 10h14v2H6z"/></svg><div><b data-t="Folder gry">Folder gry</b><span data-t="Zrzuty ekranu, światy, paczki zasobów">Zrzuty ekranu, światy, paczki zasobów</span></div></button>
+        <button class="card item" data-a="logs"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 2h9v2H6zm9 2h2v2h-2zm2 2h2v14h-2zM4 4h2v16H4zm2 16h11v2H6zm2-10h8v2H8zm0 4h8v2H8zm0-8h5v2H8z"/></svg><div><b data-t="Udostępnij logi">Udostępnij logi</b><span data-t="Gdy gra się nie uruchamia — wyślij je twórcy">Gdy gra się nie uruchamia — wyślij je twórcy</span></div></button>
+      </div>
+      <p class="foot"><span id="ver"></span> · <span data-t="Gra działa na silniku Amethyst (licencja LGPL-3.0)">Gra działa na silniku Amethyst (licencja LGPL-3.0)</span> · <a href="https://github.com/ban19910k3-sketch/mib-client" data-t="kod źródłowy">kod źródłowy</a></p>
+    </section>
+  </main>
+</div>
+<script>
+const EN = {"Android":"Android","Strona główna":"Home","Aktualności":"News","Konta":"Accounts","Ustawienia":"Settings","Minecraft PvP na telefonie":"Minecraft PvP on your phone",
+  "Fabric + mod MiB (menu pod przyciskiem MiB w grze)":"Fabric + MiB mod (menu under the MiB button in game)","Wszystko, co nowego w MiB Client.":"Everything new in MiB Client.",
+  "MiB Client działa tylko z oryginalnym Minecraftem — konto Microsoft z kupionym Minecraftem (Java Edition).":"MiB Client works only with the original Minecraft — a Microsoft account that owns Minecraft (Java Edition).",
+  "Dodaj konto Microsoft":"Add Microsoft account","Ustawienia gry":"Game settings","Grafika, pamięć RAM, sterowanie, rozdzielczość":"Graphics, RAM, controls, resolution",
+  "Przyciski na ekranie":"On-screen buttons","Ułóż przyciski gry pod swój kciuk":"Arrange the game buttons for your thumbs","Folder gry":"Game folder",
+  "Zrzuty ekranu, światy, paczki zasobów":"Screenshots, worlds, resource packs","Udostępnij logi":"Share logs","Gdy gra się nie uruchamia — wyślij je twórcy":"If the game won't start — send them to the creator",
+  "Gra działa na silniku Amethyst (licencja LGPL-3.0)":"The game runs on the Amethyst engine (LGPL-3.0)","kod źródłowy":"source code",
+  "Zaloguj się kontem Microsoft":"Sign in with Microsoft","Bez konta nie zagrasz":"You need an account to play","Konto Microsoft":"Microsoft account",
+  "Zmień konto":"Change account","Logowanie…":"Signing in…","Wybrane":"Selected","Wybierz":"Select","Usuń":"Remove","Konto offline — nie zagrasz nim":"Offline account — can't play with it",
+  "Nie udało się wczytać aktualności.":"Couldn't load the news.","Brak aktualności.":"No news yet.","Przypięte":"Pinned","Usunąć konto":"Remove account"};
+const L = (navigator.language || 'pl').toLowerCase().startsWith('pl') ? 'pl' : 'en';
+const tr = s => (L === 'en' && EN[s]) || s;
+document.documentElement.lang = L;
+document.querySelectorAll('[data-t]').forEach(e => { e.textContent = tr(e.dataset.t); });
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const app = window.MiB || { state: () => '{"accounts":[],"version":"dev","mc":"1.21.11","login":true,"supa":"","key":""}', play() {}, addAccount() {}, selectAccount() {},
+  removeAccount() {}, settings() {}, controls() {}, discord() {}, open() {}, logs() {}, folder() {} };
+const head = n => 'https://mc-heads.net/avatar/' + encodeURIComponent(n) + '/64';
+const STEVE = head('MHF_Steve');
+// bez internetu główki z mc-heads.net się nie wczytają: wtedy logo MiB
+const noHead = img => { img.onerror = null; img.src = 'icon.png'; };
+document.addEventListener('error', e => { if (e.target.tagName === 'IMG' && !e.target.src.endsWith('icon.png') && e.target.closest('.acc,.al')) noHead(e.target); }, true);
+
+// strony
+function show(p) {
+  document.querySelectorAll('.nav[data-p]').forEach(b => b.classList.toggle('act', b.dataset.p === p));
+  document.querySelectorAll('.page').forEach(s => s.classList.toggle('on', s.id === 'p-' + p));
+  $('main').scrollTop = 0;
+}
+document.querySelectorAll('.nav[data-p]').forEach(b => b.onclick = () => show(b.dataset.p));
+$('dc').onclick = () => app.discord();
+$('play').onclick = () => app.play();
+$('accbtn').onclick = () => show('acc');
+$('addacc').onclick = () => app.addAccount();
+document.querySelectorAll('[data-a]').forEach(b => b.onclick = () => app[b.dataset.a]());
+document.addEventListener('click', e => { const a = e.target.closest('a[href^="https://"]'); if (a) { e.preventDefault(); app.open(a.href); } });
+
+// konta i GRAJ
+let st = null;
+function refresh() {
+  try { st = JSON.parse(app.state()); } catch { return; }
+  $('mcv').textContent = 'Minecraft ' + st.mc;
+  $('ver').textContent = 'MiB Client ' + st.version;
+  const sel = st.accounts.find(a => a.selected);
+  const ok = sel && sel.ms;
+  $('head').src = ok ? head(sel.name) : STEVE;
+  $('accname').textContent = sel ? sel.name : tr('Zaloguj się kontem Microsoft');
+  $('accsub').textContent = !sel ? tr('Bez konta nie zagrasz') : !ok ? tr('Konto offline — nie zagrasz nim') : !st.login ? tr('Logowanie…') : tr('Konto Microsoft') + ' · ' + tr('Zmień konto');
+  $('playsub').textContent = ok ? sel.name : tr('Zaloguj się kontem Microsoft');
+  $('accs').innerHTML = st.accounts.map((a, i) => `<div class="card al${a.selected ? ' on' : ''}"><img src="${a.ms ? head(a.name) : STEVE}" alt="">
+    <div><b>${esc(a.name)}</b><span>${a.ms ? tr('Konto Microsoft') : tr('Konto offline — nie zagrasz nim')}</span></div>
+    ${a.selected ? `<span class="pin">${tr('Wybrane')}</span>` : `<button class="b ghost" data-sel="${i}">${tr('Wybierz')}</button>`}
+    <button class="b danger" data-del="${i}">${tr('Usuń')}</button></div>`).join('');
+  $('accs').querySelectorAll('[data-sel]').forEach(b => b.onclick = () => { app.selectAccount(st.accounts[+b.dataset.sel].file); setTimeout(refresh, 400); });
+  $('accs').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { app.removeAccount(st.accounts[+b.dataset.del].file); setTimeout(refresh, 400); });
+}
+window.mibRefresh = () => { refresh(); news(); };
+
+// aktualności z bazy MiB (te same co w launcherze na komputerze)
+let newsAt = 0;
+function card(n) {
+  const d = new Date(n.created_at);
+  return `<div class="card">${n.pinned ? `<span class="pin">${tr('Przypięte')}</span>` : ''}<h4>${esc(n.title)}</h4>${n.body ? `<p>${esc(n.body)}</p>` : ''}
+    <small>${isNaN(d) ? '' : d.toLocaleDateString(L === 'pl' ? 'pl-PL' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</small></div>`;
+}
+async function news() {
+  if (!st || !st.supa || Date.now() - newsAt < 60000) return;
+  newsAt = Date.now();
+  try {
+    const r = await fetch(st.supa + '/rest/v1/announcements?select=title,body,pinned,created_at&order=pinned.desc,created_at.desc&limit=30',
+      { headers: { apikey: st.key, Authorization: 'Bearer ' + st.key } });
+    if (!r.ok) throw new Error(r.status);
+    const list = await r.json();
+    const none = `<p class="empty">${tr('Brak aktualności.')}</p>`;
+    $('news3').innerHTML = list.slice(0, 3).map(card).join('') || none;
+    $('newsall').innerHTML = list.map(card).join('') || none;
+  } catch {
+    newsAt = 0;
+    $('news3').innerHTML = $('newsall').innerHTML = `<p class="empty">${tr('Nie udało się wczytać aktualności.')}</p>`;
+  }
+}
+refresh(); news();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

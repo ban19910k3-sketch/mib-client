@@ -4,6 +4,8 @@
 //   przy pierwszym uruchomieniu wybrany; po aktualizacji aplikacji pliki moda się odświeżają.
 // - aktualizacje jak na komputerze: przy starcie pyta GitHuba o najnowsze wydanie MiB; gdy jest nowsza wersja z plikiem
 //   na Androida — okno „Jest nowa wersja”, „Aktualizuj” pobiera APK i otwiera instalator Androida.
+// - od 0.44.0: własny ekran główny MiB (Mib.Home: android/ui.html w WebView, wygląd jak launcher na komputerze) zamiast
+//   menu Amethyst; przyciski wołają funkcje silnika przez most „MiB” (Bridge).
 // - od 0.44.0: tylko oryginalny Minecraft (konto Microsoft, bez kont offline) i nagroda za grę na telefonie: przed startem
 //   gry konto potwierdza się u Mojanga (token gry idzie tylko do Mojanga), a baza MiB (mobile_hello) daje profilowi MiB
 //   z tym kontem pelerynę „Zasięg” i peta „Telefonik”; przy następnym otwarciu launchera okno o nagrodzie.
@@ -18,11 +20,28 @@ import android.content.res.AssetManager;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
+import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.content.FileProvider;
+import androidx.fragment.app.Fragment;
+
+import com.kdt.mcgui.mcAccountSpinner;
 
 import net.kdt.pojavlaunch.BuildConfig;
+import net.kdt.pojavlaunch.CustomControlsActivity;
+import net.kdt.pojavlaunch.PojavProfile;
+import net.kdt.pojavlaunch.R;
+import net.kdt.pojavlaunch.fragments.MainMenuFragment;
 import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.extra.ExtraConstants;
 import net.kdt.pojavlaunch.extra.ExtraCore;
@@ -110,6 +129,170 @@ public final class Mib {
         if (created) LauncherPreferences.DEFAULT_PREF.edit().putString(LauncherPreferences.PREF_KEY_CURRENT_PROFILE, PROFILE_KEY).apply();
         p.edit().putString("installed", bundled).apply();
         Log.i(TAG, "profil MiB gotowy: " + id + " (MiB " + bundled + ")");
+    }
+
+    // ---------- ekran główny MiB ----------
+
+    /** Ekran główny (zamiast menu Amethyst) — dla LauncherActivity tak samo jak MainMenuFragment. */
+    public static boolean isHome(Fragment f) {
+        return f instanceof Home || f instanceof MainMenuFragment;
+    }
+
+    /** Górny pasek Amethyst (lista kont, przycisk ustawień) chowa się: konta i ustawienia są na ekranie MiB. */
+    public static void hideTopBar(Activity a) {
+        View acc = a.findViewById(R.id.account_spinner), set = a.findViewById(R.id.setting_button);
+        if (acc != null) acc.setVisibility(View.GONE);
+        if (set != null) set.setVisibility(View.GONE);
+    }
+
+    public static class Home extends Fragment {
+        private WebView web;
+
+        @Override
+        public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup parent, @Nullable Bundle state) {
+            web = new WebView(requireContext());
+            web.setBackgroundColor(0xFF07020C);
+            WebSettings ws = web.getSettings();
+            ws.setJavaScriptEnabled(true);
+            ws.setDomStorageEnabled(true);
+            ws.setAllowFileAccess(true);
+            ws.setAllowContentAccess(false);
+            web.addJavascriptInterface(new Bridge(this), "MiB");
+            web.setWebViewClient(new WebViewClient() {
+                @Override
+                @SuppressWarnings("deprecation")
+                public boolean shouldOverrideUrlLoading(WebView v, String url) {
+                    // ekran MiB to tylko plik z paczki; linki otwiera przeglądarka
+                    if (url.startsWith("https://") && getActivity() != null) Tools.openURL(getActivity(), url);
+                    return !url.startsWith("file:///android_asset/mib/ui/");
+                }
+            });
+            web.loadUrl("file:///android_asset/mib/ui/index.html");
+            Log.i(TAG, "ekran MiB");
+            return web;
+        }
+
+        @Override
+        public void onResume() {
+            super.onResume();
+            if (getActivity() != null) hideTopBar(getActivity());
+            if (web != null) web.evaluateJavascript("window.mibRefresh&&mibRefresh()", null);
+        }
+
+        @Override
+        public void onDestroyView() {
+            if (web != null) { web.removeJavascriptInterface("MiB"); web.destroy(); web = null; }
+            super.onDestroyView();
+        }
+    }
+
+    /** Most JS → silnik: stan kont i wersji, GRAJ, konta Microsoft, ustawienia, przyciski, folder, logi, linki. */
+    static class Bridge {
+        private final Home home;
+
+        Bridge(Home home) { this.home = home; }
+
+        private void ui(Runnable r) {
+            Activity a = home.getActivity();
+            if (a != null) a.runOnUiThread(() -> { try { r.run(); } catch (Throwable t) { Log.e(TAG, "ekran MiB", t); } });
+        }
+
+        private mcAccountSpinner spinner() {
+            Activity a = home.getActivity();
+            return a == null ? null : (mcAccountSpinner) a.findViewById(R.id.account_spinner);
+        }
+
+        @JavascriptInterface
+        public String state() {
+            JSONObject o = new JSONObject();
+            try {
+                Activity a = home.getActivity();
+                o.put("version", BuildConfig.VERSION_NAME).put("supa", SUPA_URL).put("key", SUPA_KEY);
+                String mc = "?";
+                if (a != null) try { mc = new JSONObject(read(a.getAssets().open("mib/fabric-profile.json"))).optString("inheritsFrom", "?"); } catch (Exception ignored) {}
+                o.put("mc", mc);
+                String cur = a == null ? "" : PojavProfile.getCurrentProfileName(a);
+                JSONArray list = new JSONArray();
+                for (String name : PojavProfile.getAllProfilesList()) {
+                    MinecraftAccount acc = MinecraftAccount.load(name);
+                    if (acc == null) continue;
+                    list.put(new JSONObject().put("name", acc.username).put("file", name).put("ms", original(acc)).put("selected", name.equals(cur)));
+                }
+                o.put("accounts", list);
+                mcAccountSpinner sp = spinner();
+                o.put("login", sp == null || sp.isLoginDone());
+            } catch (Exception e) {
+                Log.w(TAG, "stan", e);
+            }
+            return o.toString();
+        }
+
+        @JavascriptInterface
+        public void play() {
+            ui(() -> {
+                Activity a = home.getActivity();
+                mcAccountSpinner sp = spinner();
+                if (sp == null || sp.getSelectedAccount() == null) { ExtraCore.setValue(ExtraConstants.SELECT_AUTH_METHOD, true); return; }
+                if (!original(sp.getSelectedAccount())) { needMicrosoft(a); return; }
+                // ekran MiB zawsze gra profilem MiB (Minecraft z modem MiB)
+                LauncherPreferences.DEFAULT_PREF.edit().putString(LauncherPreferences.PREF_KEY_CURRENT_PROFILE, PROFILE_KEY).apply();
+                ExtraCore.setValue(ExtraConstants.LAUNCH_GAME, true);
+            });
+        }
+
+        @JavascriptInterface
+        public void addAccount() { ui(() -> ExtraCore.setValue(ExtraConstants.SELECT_AUTH_METHOD, true)); }
+
+        private int indexOf(mcAccountSpinner sp, String file) {
+            for (int i = 1; i < sp.getCount(); i++) if (file.equals(String.valueOf(sp.getItemAtPosition(i)))) return i;
+            return -1;
+        }
+
+        @JavascriptInterface
+        public void selectAccount(String file) {
+            ui(() -> { mcAccountSpinner sp = spinner(); int i = sp == null ? -1 : indexOf(sp, file); if (i > 0) sp.setSelection(i); });
+        }
+
+        @JavascriptInterface
+        public void removeAccount(String file) {
+            ui(() -> {
+                Activity a = home.getActivity();
+                mcAccountSpinner sp = spinner();
+                int i = sp == null ? -1 : indexOf(sp, file);
+                if (a == null || i <= 0) return;
+                new AlertDialog.Builder(a).setTitle(t("Usunąć konto " + file + "?", "Remove account " + file + "?"))
+                        .setPositiveButton(t("Usuń", "Remove"), (d, w) -> { sp.setSelection(i); sp.removeCurrentAccount(); })
+                        .setNegativeButton(t("Anuluj", "Cancel"), null).show();
+            });
+        }
+
+        @JavascriptInterface
+        public void settings() { ui(() -> { Activity a = home.getActivity(); if (a != null) a.findViewById(R.id.setting_button).performClick(); }); }
+
+        @JavascriptInterface
+        public void controls() { ui(() -> { Activity a = home.getActivity(); if (a != null) a.startActivity(new Intent(a, CustomControlsActivity.class)); }); }
+
+        @JavascriptInterface
+        public void discord() { ui(() -> { Activity a = home.getActivity(); if (a != null) Tools.openURL(a, a.getString(R.string.discord_invite)); }); }
+
+        @JavascriptInterface
+        public void open(String url) {
+            if (url != null && url.startsWith("https://")) ui(() -> { Activity a = home.getActivity(); if (a != null) Tools.openURL(a, url); });
+        }
+
+        @JavascriptInterface
+        public void logs() { ui(() -> { Activity a = home.getActivity(); if (a != null) Tools.shareLog(a); }); }
+
+        @JavascriptInterface
+        public void folder() {
+            ui(() -> {
+                Activity a = home.getActivity();
+                if (a == null) return;
+                LauncherProfiles.load();
+                MinecraftProfile mp = LauncherProfiles.mainProfileJson.profiles.get(PROFILE_KEY);
+                Tools.openPath(a, mp != null ? Tools.getGameDirPath(mp) : new File(Tools.DIR_GAME_NEW), false);
+            });
+        }
     }
 
     // ---------- tylko oryginalny Minecraft ----------

@@ -149,6 +149,23 @@ def main():
     patch(os.path.join(res, 'values/strings.xml'), [
         ('<string name="discord_invite" translatable="false">https://discord.gg/5ptqkyZxEy</string>',
          '<string name="discord_invite" translatable="false">https://discord.gg/33d6g9HuyN</string>')], 1)
+    # własny ekran główny MiB zamiast menu Amethyst (od 0.44.0): Mib.Home, bez górnego paska z listą kont
+    patch(os.path.join(main_dir, 'java/net/kdt/pojavlaunch/LauncherActivity.java'), [
+        ('.add(R.id.container_fragment, MainMenuFragment.class, null, "ROOT")', '.add(R.id.container_fragment, pl.mibclient.android.Mib.Home.class, null, "ROOT")'),
+        ('f instanceof MainMenuFragment', 'pl.mibclient.android.Mib.isHome(f)'),
+        ('!(fragment instanceof MainMenuFragment)', '!pl.mibclient.android.Mib.isHome(fragment)'),
+        ('if(fragment instanceof MainMenuFragment){', 'if(pl.mibclient.android.Mib.isHome(fragment)){'),
+        ('        getWindow().setBackgroundDrawable(null);\n        bindViews();',
+         '        getWindow().setBackgroundDrawable(null);\n        bindViews();\n        pl.mibclient.android.Mib.hideTopBar(this);'),
+    ], 1)
+    ui = os.path.join(main_dir, 'assets/mib/ui')
+    os.makedirs(ui, exist_ok=True)
+    root = os.path.dirname(HERE)
+    shutil.copy(os.path.join(HERE, 'ui.html'), os.path.join(ui, 'index.html'))
+    shutil.copy(os.path.join(root, 'banner.jpg'), ui)
+    shutil.copy(os.path.join(root, 'icon.png'), ui)
+    for f in ('geist-latin.woff2', 'geist-ext.woff2'):
+        shutil.copy(os.path.join(root, 'fonts', f), ui)
     dst = os.path.join(main_dir, 'java/pl/mibclient/android')
     os.makedirs(dst, exist_ok=True)
     shutil.copy(os.path.join(HERE, 'Mib.java'), dst)

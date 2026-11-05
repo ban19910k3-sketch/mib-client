@@ -6,7 +6,7 @@ name: Android
 
 on:
   push:
-    paths: ['android/**', '.github/workflows/android.yml']
+    paths: ['android/**', '.github/workflows/android.yml', 'banner.jpg', 'icon.png']
   workflow_dispatch:
     inputs:
       apk_run:
@@ -164,6 +164,7 @@ jobs:
           [ -n "$ps" ] || { echo "::error::MiB Client nie działa po starcie"; ok=0; }
           if grep -q "FATAL EXCEPTION" logcat.txt; then echo "::error::awaria: $(grep -A10 'FATAL EXCEPTION' logcat.txt | tr '\n' ' ' | cut -c1-3500)"; ok=0; fi
           grep -q "profil MiB gotowy" logcat.txt || { echo "::error::brak wpisu 'profil MiB gotowy' w logu"; ok=0; }
+          grep -q " MiB *: ekran MiB" logcat.txt || { echo "::error::brak ekranu MiB (Mib.Home)"; ok=0; }
           echo "$mods" | grep -q mib-client-mod.jar || { echo "::error::brak moda MiB w folderze gry"; ok=0; }
           echo "$mods" | grep -q "fabric-api-" || { echo "::error::brak Fabric API w folderze gry"; ok=0; }
           [ $ok = 1 ] && echo "::notice::PASS Android: aplikacja startuje, profil MiB z modem i Fabric API"
