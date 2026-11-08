@@ -267,7 +267,7 @@ const send = (c, d) => { if (c === 'log') { d = san(d); logBuf.push(d); logCount
 
 // ===== Status na Discordzie =====
 // Numer aplikacji z https://discord.com/developers/applications (pusty = status wyłączony)
-const DISCORD_CLIENT_ID = '';
+const DISCORD_CLIENT_ID = '1569052201366716527';
 const presence = createPresence({ clientId: DISCORD_CLIENT_ID });
 const launcherSince = Date.now();
 function setPresence(game) {

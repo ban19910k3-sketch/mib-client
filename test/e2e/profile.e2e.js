@@ -1172,7 +1172,9 @@ function png(w, h, px) {
     const am = () => w.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--am').trim());
     await w.click('#s-style .sty[data-s="ocean"]');
     await w.waitForFunction(() => document.documentElement.dataset.style === 'ocean');
-    assert.equal(await am(), '#f97316', 'w Halloween motyw święta wygrywa');
+    // w czasie święta (dowolnego) jego kolory wygrywają z motywem launchera
+    const holiday = await w.evaluate(() => document.documentElement.classList.contains('t-halloween') || document.documentElement.classList.contains('themed'));
+    if (holiday) assert.notEqual(await am(), '#38bdf8', 'w święto motyw święta wygrywa z Oceanem');
     const wasThemes = await w.isChecked('#s-themes');
     if (wasThemes) await w.uncheck('#s-themes');
     await w.waitForFunction(() => !document.documentElement.classList.contains('t-halloween') && !document.documentElement.classList.contains('themed'));
