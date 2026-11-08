@@ -1,4 +1,4 @@
-// Test zbudowanego launchera na Macu (od 0.42.0, GitHub Actions macos-14 — Mac z procesorem Apple) i na Linuksie (od 0.43.0).
+// Test zbudowanego launchera na Macu (od 0.42.0, GitHub Actions macos-15 — Mac z procesorem Apple) i na Linuksie (od 0.43.0).
 // Po zbudowaniu:
 //   Mac:   npx electron-builder --mac --universal --publish never && node test/e2e/dist.e2e.js
 //   Linux: npx electron-builder --linux AppImage --x64 --publish never && xvfb-run -a node test/e2e/dist.e2e.js
