@@ -38,14 +38,12 @@ jobs:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v6
-      # druga próba po chwilowym błędzie pobierania (np. limit zapytań repozytorium)
+      # do 4 prób po chwilowych błędach pobierania (serwery Mavena, limit zapytań); od drugiej biblioteki od nowa
       - name: Zbuduj mod
         shell: bash
         working-directory: mod
         run: |
-          set -o pipefail
-          ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:build --no-daemon 2>&1 | tee build.log \
-            || { sleep 30; ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:build --no-daemon --refresh-dependencies 2>&1 | tee build.log; }
+          bash ../.github/workflows/retry.sh bash -c 'set -o pipefail; ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:build --no-daemon $([ "$MIB_TRY" -gt 0 ] && echo --refresh-dependencies) 2>&1 | tee build.log'
       - name: Błędy jako adnotacje
         if: failure()
         shell: bash
@@ -66,7 +64,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: bash .github/workflows/retry.sh npm ci
+        shell: bash
       # pliki moda trafiają do instalatora jako resources/mod
       - uses: actions/download-artifact@v4
         with:
@@ -80,13 +79,15 @@ jobs:
           v=$(node -p "require('./package.json').version")
           head -1 build/release-notes.md | tr -d '\r' | grep -qx "<!-- $v -->" || { echo "::error::build/release-notes.md nie opisuje wersji $v (pierwsza linia: <!-- $v -->)"; exit 1; }
           if grep -qiE 'https?://|co-authored-by|claude-session' build/release-notes.md; then echo "::error::build/release-notes.md: bez linków i podpisów"; exit 1; fi
-      - run: npx electron-builder --win nsis --x64 --publish always
+      # electron-builder przy ponownej próbie nadpisuje pliki już wysłane do szkicu
+      - run: bash .github/workflows/retry.sh npx electron-builder --win nsis --x64 --publish always
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # ten sam opis na stronie szkicu wydania (electron-builder wpisuje go tylko do latest.yml)
       - name: Opis na stronie wydania
         shell: bash
-        run: gh release edit "v$(node -p "require('./package.json').version")" --notes-file build/release-notes.md
+        run: bash .github/workflows/retry.sh gh release edit "v$(node -p "require('./package.json').version")" --notes-file build/release-notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -102,20 +103,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: bash .github/workflows/retry.sh npm ci
+        shell: bash
       - uses: actions/download-artifact@v4
         with:
           pattern: mod-*
           merge-multiple: true
           path: mod-dist
       - name: Zbuduj dmg i zip
-        run: npx electron-builder --mac --universal --publish never || { sleep 15; npx electron-builder --mac --universal --publish never; }
+        run: bash .github/workflows/retry.sh npx electron-builder --mac --universal --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
       - name: Do szkicu wydania
         run: |
           v=$(node -p "require('./package.json').version")
-          gh release upload "v$v" dist/MiB-Client-mac.dmg "dist/MiB-Client-$v-mac.zip" --clobber
+          bash .github/workflows/retry.sh gh release upload "v$v" dist/MiB-Client-mac.dmg "dist/MiB-Client-$v-mac.zip" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -130,14 +132,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: bash .github/workflows/retry.sh npm ci
+        shell: bash
       - uses: actions/download-artifact@v4
         with:
           pattern: mod-*
           merge-multiple: true
           path: mod-dist
-      - run: npx electron-builder --linux AppImage --x64 --publish never
+      - run: bash .github/workflows/retry.sh npx electron-builder --linux AppImage --x64 --publish never
       - name: Do szkicu wydania
-        run: gh release upload "v$(node -p "require('./package.json').version")" dist/MiB-Client-linux.AppImage dist/latest-linux.yml --clobber
+        run: bash .github/workflows/retry.sh gh release upload "v$(node -p "require('./package.json').version")" dist/MiB-Client-linux.AppImage dist/latest-linux.yml --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

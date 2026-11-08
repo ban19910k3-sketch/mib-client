@@ -5,7 +5,7 @@ name: Mod MiB
 
 on:
   push:
-    paths: ['mod/**', '.github/workflows/mod.yml', '.github/workflows/annotate.sh']
+    paths: ['mod/**', '.github/workflows/mod.yml', '.github/workflows/annotate.sh', '.github/workflows/retry.sh']
   workflow_dispatch:
     inputs:
       versions:
@@ -64,8 +64,7 @@ jobs:
         shell: bash
         working-directory: mod
         run: |
-          set -o pipefail
-          ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:build --stacktrace 2>&1 | tee build.log
+          bash ../.github/workflows/retry.sh bash -c 'set -o pipefail; ./gradlew -Pmc=${{ matrix.mc }} :mc-${{ matrix.mc }}:build --stacktrace $([ "$MIB_TRY" -gt 0 ] && echo --refresh-dependencies) 2>&1 | tee build.log'
       - name: Test w kliencie gry
         shell: bash
         working-directory: mod

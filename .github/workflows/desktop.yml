@@ -6,7 +6,7 @@ name: Launcher na Maca i Linuksa
 
 on:
   push:
-    paths: ['*.js', '*.html', '*.css', 'lib/**', 'package.json', 'package-lock.json', 'build/afterpack.js', 'test/**', '.github/workflows/desktop.yml']
+    paths: ['*.js', '*.html', '*.css', 'lib/**', 'package.json', 'package-lock.json', 'build/afterpack.js', 'test/**', '.github/workflows/desktop.yml', '.github/workflows/retry.sh']
   workflow_dispatch:
 
 jobs:
@@ -19,14 +19,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: bash .github/workflows/retry.sh npm ci
       - run: npm test
       # druga próba po chwilowym błędzie obrazu dmg (hdiutil: Resource busy)
       - name: Zbuduj dmg i zip
-        run: npx electron-builder --mac --universal --publish never || { sleep 15; npx electron-builder --mac --universal --publish never; }
+        run: bash .github/workflows/retry.sh npx electron-builder --mac --universal --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-      - run: npm i -g playwright@1.56.1
+      - run: bash .github/workflows/retry.sh npm i -g playwright@1.56.1
       - name: Test na Macu
         run: node test/e2e/dist.e2e.js
         env:
@@ -41,9 +41,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: bash .github/workflows/retry.sh npm ci
       - name: Zbuduj AppImage
-        run: npx electron-builder --linux AppImage --x64 --publish never
-      - run: npm i -g playwright@1.56.1
+        run: bash .github/workflows/retry.sh npx electron-builder --linux AppImage --x64 --publish never
+      - run: bash .github/workflows/retry.sh npm i -g playwright@1.56.1
       - name: Test na Linuksie
         run: xvfb-run -a node test/e2e/dist.e2e.js
