@@ -478,9 +478,20 @@ pre.codes{background:var(--void);border:1px solid var(--edge);padding:10px;margi
 /* ===== Panel admina: motywy i kalendarz adwentowy (od 0.25.0) ===== */
 .theme-form{margin:-2px 0 10px;padding:12px 14px;background:var(--slab);box-shadow:inset 0 0 0 1px var(--edge2);border-radius:var(--r-sm)}
 .theme-row.on{border-color:var(--am)}
-.adv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:4px 16px}
-.adv-row{display:flex;align-items:center;gap:8px;font-size:13px}.adv-row .adv-n{width:30px;font-variant-numeric:tabular-nums}
-.adv-row .adv-coins{width:84px}.adv-row select{flex:1;min-width:0}.adv-row small{width:70px}
+/* od 0.47.0 każdy dzień to karta: numer dnia, duże pole z coinsami (nie kurczy się), wybór przedmiotu; nad kalendarzem suma */
+.adv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.adv-row{display:flex;flex-direction:column;gap:8px;padding:10px 12px 12px;border:1px solid var(--edge);border-radius:var(--r-sm);background:var(--slab2);font-size:13px;min-width:0}
+.adv-row.has-item{border-color:color-mix(in srgb,var(--am) 45%,var(--edge))}
+.adv-top{display:flex;align-items:baseline;gap:6px}.adv-top .adv-n{font-size:20px;line-height:1;font-weight:800;color:var(--hi);font-variant-numeric:tabular-nums}
+.adv-top .tag{margin-left:auto;font-style:normal}
+.adv-c{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 8px;border-radius:var(--r-sm);background:var(--slab);border:1px solid var(--edge2);cursor:text}
+.adv-c:focus-within{border-color:var(--am)}
+.adv-c .coin{width:20px;height:20px;flex:none;image-rendering:pixelated}
+.adv-row .adv-coins{flex:1 1 auto;min-width:64px;width:auto;padding:4px 0;border:0;background:none;box-shadow:none;outline:0;font-size:18px;font-weight:800;color:#fde047;font-variant-numeric:tabular-nums}
+.adv-c>span{flex:none;font-size:12px;font-weight:600;color:var(--m);white-space:nowrap}
+.adv-row .ipick{min-width:0;width:100%}
+.adv-sum{display:flex;align-items:center;gap:10px;margin:6px 0 12px;padding:10px 14px;border-radius:var(--r-sm);background:linear-gradient(90deg,rgba(250,204,21,.12),transparent 70%);border:1px solid rgba(250,204,21,.28);font-size:14px}
+.adv-sum .coin{width:24px;height:24px;flex:none;image-rendering:pixelated}.adv-sum b{color:#fde047}.adv-sum small{font-size:12px}
 
 /* profil z konta Minecraft (od 0.26.0) */
 #pf-mc-hint{margin:0 0 14px;font-size:13px;line-height:1.5}.mcline{font-size:13px;margin:0 0 8px}
@@ -816,8 +827,8 @@ label.srow{cursor:pointer}
 .t-wielkanoc{--void:#070a09;--slab:#0e1512;--slab2:#15201b;--edge:#22352b;--edge2:#30493c;--am:#4ade80;--am-hi:#bbf7d0;--am-lo:#15803d;--t:#f2faf5;--m:#9db3a6;
   --g:74,222,128;--go:#16a34a;--go-hi:#4ade80;--go-lo:#14532d;--go-sh:#052e16;--spl:249,168,212;--sbg:hue-rotate(-150deg) saturate(.7) brightness(1.1);
   --sky:radial-gradient(ellipse at 30% -10%,rgba(253,230,138,.14),transparent 50%),radial-gradient(ellipse at 75% -10%,rgba(249,168,212,.12),transparent 50%)}
-.t-primaaprilis{--am:#22d3ee;--am-hi:#a5f3fc;--am-lo:#0e7490;
-  --g:34,211,238;--go:#0891b2;--go-hi:#22d3ee;--go-lo:#164e63;--go-sh:#083344;--spl:34,211,238;--sbg:hue-rotate(180deg);
+.t-primaaprilis{--void:#06080e;--slab:#0c1018;--slab2:#121823;--edge:#1d2736;--edge2:#2a384b;--am:#22d3ee;--am-hi:#a5f3fc;--am-lo:#0e7490;--t:#eefbff;--m:#93a6b8;
+  --g:236,72,153;--go:#db2777;--go-hi:#f472b6;--go-lo:#831843;--go-sh:#500724;--spl:34,211,238;--sbg:hue-rotate(-90deg) saturate(1.15);
   --sky:radial-gradient(ellipse at 20% -10%,rgba(244,114,182,.16),transparent 50%),radial-gradient(ellipse at 80% -10%,rgba(250,204,21,.12),transparent 50%)}
 .t-urodzinymc{--void:#070a05;--slab:#0f140b;--slab2:#172012;--edge:#26331c;--edge2:#3a4d2a;--am:#6abe30;--am-hi:#c5ec9f;--am-lo:#3f7a1a;--t:#f2f8ec;--m:#9fae92;
   --g:106,190,48;--go:#5a9e2a;--go-hi:#86d14a;--go-lo:#2f5c14;--go-sh:#1a3309;--spl:106,190,48;--sbg:hue-rotate(-150deg) saturate(.9);
@@ -852,11 +863,24 @@ label.srow{cursor:pointer}
 .themed #fill{background:repeating-linear-gradient(90deg,var(--am-hi) 0 10px,var(--am) 10px 12px);box-shadow:0 0 14px var(--am)}
 /* ozdoby motywów (themes.js): pikselowe obrazki, dwie klatki migają; .home tylko na stronie głównej */
 .themed #hw{display:block;position:absolute;inset:0;pointer-events:none;z-index:0}
-#hw .deco{background-position:left top;background-repeat:no-repeat}
-#hw .deco.blink{animation:deco 1.2s steps(1) infinite}
+.deco{position:absolute;display:block;background-position:left top;background-repeat:no-repeat;image-rendering:pixelated}
+.deco.strip,#hw .deco.strip{background-repeat:repeat-x}#hw .deco{background-position:left top}
+.deco.blink{animation:deco 1.2s steps(1) infinite}
 @keyframes deco{0%{background-image:var(--a)}50%{background-image:var(--b)}}
-#app:not(:has(#p-home.on)) #hw .home{display:none}
-.noanim #hw .deco.blink{animation:none}
+.noanim .deco.blink{animation:none}
+/* od 0.47.0: girlanda zwisa spod górnego paska na każdej stronie, scena świąteczna w banerze (nad przyciemnieniem),
+   plakietka ze świętem pod nazwą w banerze i ikonka przy „MiB Client” w pasku bocznym (--hol-ico z themes.js) */
+#hw .deco:first-child{filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
+.hol-art{position:absolute;inset:0;z-index:1;pointer-events:none}
+.hol-art .deco{filter:drop-shadow(0 3px 6px rgba(0,0,0,.45))}
+.hol-art .deco.strip{filter:none}
+.themed #hero{box-shadow:var(--shadow),inset 0 0 0 1px rgba(var(--g),.35)}
+.themed #hero::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse at 88% 100%,rgba(var(--g),.28),transparent 45%)}
+.hol-tag{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:4px 11px 4px 6px;border-radius:999px;background:rgba(var(--g),.2);border:1px solid rgba(var(--g),.5);
+  font-size:12px;font-weight:700;letter-spacing:.02em;color:#fff;backdrop-filter:blur(4px)}
+.hol-tag i,.themed .brand b::after{display:inline-block;width:15px;height:15px;flex:none;image-rendering:pixelated;background:var(--hol-ico) center/contain no-repeat}
+.themed .brand b::after{content:"";width:14px;height:14px;margin-left:7px;vertical-align:-1px}
+.t-primaaprilis #hero img{scale:1 -1}
 /* Prima aprilis: postać na stronie głównej do góry nogami (jak moby z imieniem Dinnerbone) */
 .t-primaaprilis #skinw>canvas,.t-primaaprilis #skinw>img{rotate:180deg}
 

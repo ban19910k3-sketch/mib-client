@@ -485,6 +485,7 @@ function png(w, h, px) {
     assert.equal(await w.isChecked('#s-themes'), true);
     await w.uncheck('#s-themes');
     await w.waitForFunction(() => !/\bt-|themed/.test(document.documentElement.className));
+    assert.equal(await w.evaluate(() => document.querySelectorAll('#hero .hol, #hw .deco').length), 0, 'bez motywu bez ozdób');
     await w.check('#s-themes');
     await w.waitForFunction(id => !id || document.documentElement.classList.contains('t-' + id), themeNow);
     tester.coins = 0;
@@ -1021,12 +1022,19 @@ function png(w, h, px) {
     // launcher bierze wymuszony motyw z bazy
     await w.evaluate(() => MibThemes.refresh());
     await w.waitForFunction(() => document.documentElement.classList.contains('t-walentynki') && document.documentElement.classList.contains('themed'));
+    // ozdoby motywu (0.47.0): girlanda pod górnym paskiem, scena i plakietka w banerze, ikonka przy nazwie
+    assert.deepEqual(await w.evaluate(() => ({ tag: document.querySelector('#hero .hol-tag').textContent, top: !!document.querySelector('#hw .deco.strip'),
+      art: document.querySelectorAll('#hero .hol-art .deco').length, ico: /^url\(/.test(getComputedStyle(document.documentElement).getPropertyValue('--hol-ico').trim()) })),
+    { tag: 'Walentynki', top: true, art: 2, ico: true });
     await w.fill('#aa-list .adv-row[data-day="7"] .adv-coins', '40');
     await w.press('#aa-list .adv-row[data-day="7"] .adv-coins', 'Tab');
     await until(() => fake.st.advent.find(a => a.day === 7).coins === 40);
     await pickItem('#aa-list .adv-row[data-day="8"] .adv-cos', 'cape_start');
     await until(() => fake.st.advent.find(a => a.day === 8).cosmetic_id === 'cape_start');
     await w.waitForSelector('#aa-list .adv-row[data-day="8"] .ipick .ipick-i > *');
+    // suma kalendarza (0.47.0): dni 1–19 po 20, 7. grudnia 40, w 8. grudnia przedmiot
+    await w.waitForFunction(() => /Razem w kalendarzu: 400 i 1 przedmiot\b/.test(document.getElementById('aa-sum').textContent));
+    assert.equal(await w.$eval('#aa-list .adv-row[data-day="7"] .adv-coins', e => e.getBoundingClientRect().width >= 60), true, 'pole z coinsami się nie kurczy');
     await w.waitForSelector('#aa-stage canvas.cape3d:not([hidden])');
     await w.waitForTimeout(500);
     await shot('admin-themes.png');

@@ -1975,7 +1975,7 @@
     document.body.append(o);
     setTimeout(() => { if (o.isConnected) close(); }, 2200);
   };
-  window.mibProfileUI = { modsShown, refresh, sidebar, holidays: () => holidayCheck(true), get loggedIn() { return !!(st.loggedIn || st.offline); },
+  window.mibProfileUI = { modsShown, refresh, sidebar, holidays: () => holidayCheck(true), coinIcon, get loggedIn() { return !!(st.loggedIn || st.offline); },
     openShop: () => document.querySelector('#side .nav[data-tab="shop"]').click() };
   window.mibUI = { h, msg, fmtDate, capeThumb, itemImage, copyText, kindIcon };
   sidebar();

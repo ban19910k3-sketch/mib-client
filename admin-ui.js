@@ -890,27 +890,42 @@
         return open === t.id ? h('div', {}, row, form(t)) : row;
       }));
     }
+    // Kalendarz (od 0.47.0): każdy dzień jako karta z dużą liczbą coinsów, nad kalendarzem suma całego kalendarza
+    const advSum = h('div', { class: 'adv-sum', id: 'aa-sum' });
+    const coinSvg = () => (window.mibProfileUI && mibProfileUI.coinIcon ? mibProfileUI.coinIcon() : h('span'));
     async function loadAdvent() {
       const l = await call('admin_advent');
       if (failed(l)) return adv.replaceChildren(h('p', { class: 'err' }, err(l)));
+      const sum = () => {
+        const coins = l.reduce((s, d) => s + (Number(d.coins) || 0), 0), items = l.filter(d => d.cosmetic_id).length;
+        advSum.replaceChildren(coinSvg(), h('span', {}, 'Razem w kalendarzu: ', h('b', {}, coins_(coins)), ' i ', h('b', {}, items + ' ' + (items === 1 ? 'przedmiot' : items % 10 >= 2 && items % 10 <= 4 && (items % 100 < 10 || items % 100 >= 20) ? 'przedmioty' : 'przedmiotów')),
+          h('small', { class: 'mut' }, ' · jeden gracz może zebrać wszystko, otwierając 24 okienka')));
+      };
       adv.replaceChildren(...l.map(d => {
-        const coinsIn = h('input', { class: 'adv-coins', type: 'number', min: 0, max: 100000, value: d.coins, 'aria-label': 'Coinsy, dzień ' + d.day });
-        const pick = h('select', { class: 'adv-cos', 'aria-label': 'Przedmiot, dzień ' + d.day }, h('option', { value: '' }, 'bez przedmiotu'),
+        const coinsIn = h('input', { class: 'adv-coins', type: 'number', min: 0, max: 100000, value: d.coins, 'aria-label': 'MiB Coins, ' + d.day + ' grudnia' });
+        const pick = h('select', { class: 'adv-cos', 'aria-label': 'Przedmiot, ' + d.day + ' grudnia' }, h('option', { value: '' }, 'bez przedmiotu'),
           ...all.map(c => h('option', { value: c.id, selected: c.id === d.cosmetic_id }, c.name)));
+        const row = h('div', { class: 'adv-row' + (d.cosmetic_id ? ' has-item' : ''), 'data-day': d.day });
         const saveDay = async () => {
           const r = await call('admin_set_advent_day', { p_day: d.day, p_coins: Number(coinsIn.value) || 0, p_cosmetic: pick.value || null });
-          if (failed(r)) { toast(err(r), 1); coinsIn.value = d.coins; pick.value = d.cosmetic_id || ''; return; }
+          if (failed(r)) { toast(err(r), 1); coinsIn.value = d.coins; pick.value = d.cosmetic_id || ''; pick.dispatchEvent(new Event('change')); return; }
           d.coins = Number(coinsIn.value) || 0; d.cosmetic_id = pick.value || null;
+          row.classList.toggle('has-item', !!d.cosmetic_id);
+          sum();
           toast(d.day + ' grudnia zapisany.');
         };
         coinsIn.onchange = saveDay; pick.onchange = saveDay;
-        return h('div', { class: 'adv-row', 'data-day': d.day }, h('b', { class: 'adv-n' }, d.day + '.'), coinsIn, h('span', { class: 'mut' }, 'coinsów i'), pick, pickPreview(pick, all, advStage),
-          h('small', { class: 'mut' }, d.opened ? 'otwarło ' + d.opened : ''));
+        row.append(h('div', { class: 'adv-top' }, h('b', { class: 'adv-n' }, String(d.day)), h('span', { class: 'mut' }, 'grudnia'),
+          d.opened ? h('em', { class: 'tag' }, 'otwarło ' + d.opened) : null),
+          h('label', { class: 'adv-c' }, coinSvg(), coinsIn, h('span', {}, 'MiB Coins')),
+          pick, pickPreview(pick, all, advStage));
+        return row;
       }));
+      sum();
     }
     box.append(h('p', { class: 'lead' }, 'Wygląd każdego święta jest wbudowany w launcher i w grę. Tu ustawiasz daty, włączasz i wyłączasz motywy, nagrodę świąteczną, dodatek do nagrody dziennej i kolekcję w sklepie. Zmiany działają bez aktualizacji launchera.'),
       list, h('div', { class: 'sec', id: 'aa' }, h('h3', {}, 'Kalendarz adwentowy'),
-        h('p', { class: 'mut' }, 'Gracze otwierają okienka od 1 do 24 grudnia na stronie głównej, zaległe do 26 grudnia, gdy motyw Bożego Narodzenia jest włączony. Nagrodę widać dopiero po otwarciu. Zmiana zapisuje się od razu. Kliknij listę przedmiotu, żeby zobaczyć go na postaci.'), advStage, adv));
+        h('p', { class: 'mut' }, 'Gracze otwierają okienka od 1 do 24 grudnia na stronie głównej, zaległe do 26 grudnia, gdy motyw Bożego Narodzenia jest włączony. Nagrodę widać dopiero po otwarciu. Zmiana zapisuje się od razu. Kliknij przedmiot, żeby go zmienić i zobaczyć na postaci.'), advSum, advStage, adv));
     load(); loadAdvent();
   }
   const coins_ = n => Number(n || 0).toLocaleString('pl-PL');

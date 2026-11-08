@@ -1,3 +1,5 @@
-<!-- 0.46.0 -->
-## Dodane
-- Status na Discordzie: znajomi widzą, że grasz w MiB Client i w którą wersję Minecrafta, z przyciskiem „Pobierz MiB Client”. Można go wyłączyć w Ustawieniach.
+<!-- 0.47.0 -->
+## Zmienione
+- Ładniejsze motywy świąteczne w launcherze: girlanda pod górnym paskiem, świąteczna scena na banerze strony głównej (choinka ze śniegiem, flaga, serce, zajączek, tort i inne), nazwa święta na banerze i ikonka przy logo.
+- Prima Aprilis ma własne kolory, a baner jest do góry nogami.
+- Nowe cząsteczki w tle: znaki zapytania na Prima Aprilis, bąbelki w wakacje i balony na urodziny MiB.
