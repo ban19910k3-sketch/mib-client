@@ -96,7 +96,7 @@ jobs:
   # MiB-Client-<wersja>-mac.zip (z niego launcher na Macu sam się aktualizuje). Po Windows, żeby szkic już istniał.
   mac:
     needs: [mod, build]
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v5
