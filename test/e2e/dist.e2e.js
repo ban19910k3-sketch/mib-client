@@ -149,7 +149,9 @@ async function step(name, f) {
         sh('ditto', [APP, copy]);
         fs.writeFileSync(path.join(copy, 'Contents', 'Resources', 'nowa-wersja.txt'), 'x');
         require('../../build/afterpack').macSign(copy, require('../../package.json').build.appId);
-        assert.notEqual(shAll('codesign', ['-dv', copy]).match(/CDHash=\w+/)[0], shAll('codesign', ['-dv', APP]).match(/CDHash=\w+/)[0], 'nowy skrót kodu jak po aktualizacji');
+        const cdhash = a => (shAll('codesign', ['-dvvv', a]).match(/CDHash=(\w+)/) || [])[1];
+        console.log('skrót kodu przed i po aktualizacji:', cdhash(APP), cdhash(copy));
+        assert.notEqual(cdhash(copy), cdhash(APP), 'nowy skrót kodu jak po aktualizacji');
         let c;
         try { c = await timed(run(false, path.join(copy, 'Contents', 'MacOS', 'MiB Client'), 'po-aktualizacji'), 90000, 'launcher po aktualizacji (pęk kluczy pyta o hasło?)'); }
         catch (e) { c = { error: e.message }; try { execSync('pkill -f "' + copy + '"'); } catch {} }
