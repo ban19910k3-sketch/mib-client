@@ -12,7 +12,7 @@ const macUp = require('../../lib/macupdate'), { ensureJava } = require('../../li
 
 const ROOT = path.join(__dirname, '..', '..'), DIST = path.join(ROOT, 'dist');
 const MAC = process.platform === 'darwin', SYS = MAC ? 'Maca' : 'Linuksa';
-const VERSION = require('../../package.json').version, NAME = 'MiB Client.app';
+const VERSION = require('../../package.json').version, NAME = 'MiB Client.app', NAME_APP = NAME;
 const APP = path.join(DIST, 'mac-universal', NAME), ZIP = path.join(DIST, 'MiB-Client-' + VERSION + '-mac.zip');
 const IMAGE = path.join(DIST, 'MiB-Client-linux.AppImage');
 const TMP = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'mib-dist-')));
@@ -105,8 +105,8 @@ async function step(name, f) {
       const f = globalThis.fetch;
       globalThis.fetch = (u, o) => (String(u).startsWith('https://sessionserver.mojang.com/') ? Promise.resolve(new Response(null, { status: 204 })) : f(u, o));
     };
-    const run = async first => {
-      const app = await _electron.launch({ executablePath: MAC ? path.join(APP, 'Contents', 'MacOS', 'MiB Client') : path.join(SQ, 'AppRun'),
+    const run = async (first, exe = MAC ? path.join(APP, 'Contents', 'MacOS', 'MiB Client') : path.join(SQ, 'AppRun'), label = first ? 'nowy-gracz' : 'nowy-gracz-ponownie') => {
+      const app = await _electron.launch({ executablePath: exe,
         env: { ...process.env, MIB_TEST_HOOKS: '1', MIB_SUPA_URL: 'http://127.0.0.1:' + fake.server.address().port, XDG_CONFIG_HOME: path.join(TMP, 'config-new'), ...(MAC ? {} : { APPDIR: SQ }) } });
       try {
         await app.evaluate(stub, { name: NAME, uuid: UUID });
@@ -125,12 +125,14 @@ async function step(name, f) {
         assert.equal(await app.evaluate(({ app: a }) => a.getPath('userData')), ud);
         const files = ['accounts.json', 'mib-session.json'].filter(f => fs.existsSync(path.join(ud, f))).map(f => f + ':' + (fs.statSync(path.join(ud, f)).mode & 0o777).toString(8));
         const con = await w.evaluate(() => (document.getElementById('con') || {}).textContent || '');
-        const info = { first, ms: Date.now() - t0, status: st, encryption: enc, files, profiles: fake.st.users.map(u => u.nick), log: con.split('\n').filter(l => /profil|Profil|konto|Konto/.test(l)).slice(-6) };
+        const info = { label, ms: Date.now() - t0, status: st, encryption: enc, files, profiles: fake.st.users.map(u => u.nick), log: con.split('\n').filter(l => /profil|Profil|konto|Konto/.test(l)).slice(-6) };
         console.log('::notice::' + SYS + ' ' + JSON.stringify(info));
-        await w.screenshot({ path: path.join(TMP, first ? 'nowy-gracz.png' : 'nowy-gracz-ponownie.png') });
+        await w.screenshot({ path: path.join(TMP, label + '.png') });
         return info;
       } finally { await app.close().catch(() => {}); }
     };
+    // z limitem czasu: launcher zablokowany (np. okno pęku kluczy macOS) nie wstrzymuje reszty testu
+    const timed = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + ': brak odpowiedzi w ' + ms / 1000 + ' s')), ms))]);
     try {
       const a = await run(true);
       assert.equal(a.status.state, 'ok', 'profil MiB po zalogowaniu: ' + JSON.stringify(a.status));
@@ -138,6 +140,20 @@ async function step(name, f) {
       const b = await run(false);
       assert.equal(b.status.state, 'ok', 'po ponownym uruchomieniu konto i profil zapamiętane: ' + JSON.stringify(b));
       assert.deepEqual(b.files, ['accounts.json:600', 'mib-session.json:600'], 'tokeny tylko dla użytkownika');
+      // Mac: po aktualizacji aplikacja ma nowy podpis ad-hoc (inny skrót kodu) — czy pęk kluczy dalej oddaje zapisane konto
+      // bez pytania o hasło (bez tego gracz po każdej aktualizacji byłby wylogowany albo launcher czekałby na okno macOS)
+      if (MAC) {
+        const copy = path.join(TMP, 'po-aktualizacji', NAME_APP);
+        fs.mkdirSync(path.dirname(copy), { recursive: true });
+        sh('ditto', [APP, copy]);
+        fs.writeFileSync(path.join(copy, 'Contents', 'Resources', 'nowa-wersja.txt'), 'x');
+        sh('codesign', ['--force', '--deep', '--sign', '-', copy]);
+        console.log('::notice::pęk kluczy przed: ' + shAll('security', ['find-generic-password', '-s', 'MiB Client Safe Storage']).split('\n').filter(l => /svce|acct|keychain/.test(l)).join(' | '));
+        let c;
+        try { c = await timed(run(false, path.join(copy, 'Contents', 'MacOS', 'MiB Client'), 'po-aktualizacji'), 90000, 'launcher po aktualizacji'); }
+        catch (e) { c = { error: e.message }; try { execSync('pkill -f "' + copy + '"'); } catch {} }
+        console.log('::notice::Maca po aktualizacji (nowy podpis): ' + JSON.stringify(c));
+      }
     } finally { fake.server.close(); }
   });
 
