@@ -21,6 +21,7 @@ const sh = (cmd, args, o = {}) => execFileSync(cmd, args, { encoding: 'utf8', st
 const shAll = (cmd, args) => { const r = require('child_process').spawnSync(cmd, args, { encoding: 'utf8' }); return (r.stdout || '') + (r.stderr || ''); };
 const plist = (app, key) => sh('/usr/libexec/PlistBuddy', ['-c', 'Print :' + key, path.join(app, 'Contents', 'Info.plist')]).trim();
 
+let userDir = null; // folder danych launchera (z pierwszego uruchomienia)
 async function step(name, f) {
   try { await f(); ok(name); } catch (e) { console.log('::error::' + name + ': ' + String((e && e.stack) || e).replace(/\n/g, '%0A')); process.exitCode = 1; }
 }
@@ -70,6 +71,7 @@ async function step(name, f) {
       const info = await app.evaluate(({ app: a }) => ({ packaged: a.isPackaged, platform: process.platform, arch: process.arch, user: a.getPath('userData') }));
       assert.equal(info.packaged, true); assert.equal(info.platform, process.platform);
       console.log('launcher:', JSON.stringify(info));
+      userDir = info.user;
       const w = await app.firstWindow(), errors = [];
       w.on('pageerror', e => errors.push(e.message));
       await w.waitForSelector('#app.on', { timeout: 30000 });
@@ -92,7 +94,7 @@ async function step(name, f) {
     await new Promise(r => fake.server.listen(0, '127.0.0.1', r));
     const NAME = 'MacGracz', UUID = '5e1f2c3d4b5a69788796a5b4c3d2e1f0';
     fake.st.mojang = { [NAME]: UUID };
-    const ud = MAC ? path.join(os.homedir(), 'Library', 'Application Support', 'MiB Client') : path.join(TMP, 'config-new', 'MiB Client');
+    const ud = MAC ? userDir : path.join(TMP, 'config-new', path.basename(userDir));
     for (const f of ['accounts.json', 'mib-session.json']) fs.rmSync(path.join(ud, f), { force: true });
     const stub = (_, { name, uuid }) => {
       const msmc = globalThis.__mibRequire('msmc');
@@ -120,6 +122,7 @@ async function step(name, f) {
         }
         const enc = await app.evaluate(({ safeStorage }) => ({ available: safeStorage.isEncryptionAvailable(), backend: safeStorage.getSelectedStorageBackend ? safeStorage.getSelectedStorageBackend() : '-' }));
         // pliki z zaszyfrowanymi tokenami tylko dla użytkownika (0600)
+        assert.equal(await app.evaluate(({ app: a }) => a.getPath('userData')), ud);
         const files = ['accounts.json', 'mib-session.json'].filter(f => fs.existsSync(path.join(ud, f))).map(f => f + ':' + (fs.statSync(path.join(ud, f)).mode & 0o777).toString(8));
         const con = await w.evaluate(() => (document.getElementById('con') || {}).textContent || '');
         const info = { first, ms: Date.now() - t0, status: st, encryption: enc, files, profiles: fake.st.users.map(u => u.nick), log: con.split('\n').filter(l => /profil|Profil|konto|Konto/.test(l)).slice(-6) };
