@@ -598,6 +598,15 @@ test('mcLogin: sesja z funkcji mc-login, profil od razu w stanie (z uuid konta M
   assert.ok(!supa.calls.some(c => c[0] === 'signOut'), 'nie było czego wylogować');
 });
 
+test('mcLogin: błąd systemowego schowka haseł (Mac: pęk kluczy) — profil zalogowany, sesja tylko w pamięci', async () => {
+  const broken = { isEncryptionAvailable: () => true, encryptString: () => { throw new Error('Error while encrypting the text provided to safeStorage.encryptString.'); }, decryptString: () => '' };
+  const { p, store } = mk({ safe: broken, supa: fakeSupa({ select: async t => (t === 'profiles' ? [{ ...profileRow, nick: 'Steve', mc_uuid: '44444444-4444-4444-4444-444444444444' }] : []) }) });
+  const r = await p.mcLogin({ name: 'Steve', serverId: 'a'.repeat(32) });
+  assert.equal(r.loggedIn, true);
+  assert.equal(r.created, true);
+  assert.equal(store.files['mib-session.json'], undefined);
+  assert.equal((await p.state()).nick, 'Steve', 'sesja w pamięci działa dalej');
+});
 test('mcLogin przy zmianie konta: poprzedni profil wylogowany na serwerze, sesja nowego zapisana', async () => {
   const { p, store, supa } = mk();
   await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });

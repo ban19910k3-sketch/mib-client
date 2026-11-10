@@ -19,7 +19,7 @@ function createFake() {
   const norm = c => String(c || '').toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
   // Peleryna 1000 graczy (0.38.0): jak private.make_profile — profile do MIB-001000, gdy cape_1k jest w bazie
   const founderCape = u => { if (u.num <= 1000 && cosmetics.cape_1k) st.owned.push({ user: u.id, cosmetic: 'cape_1k', source: 'founder', at: new Date().toISOString() }); };
-  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, pet: u.pet || { mode: 'fly', side: 'left', name: '' }, coins: u.coins || 0, bugs_found: u.bugs || 0, warnings: u.warnings || 0, banned_at: u.banned || null, ban_reason: u.banReason || null, mc_name: u.mcName || null });
+  const profileRow = u => ({ id: u.id, nick: u.nick, num: u.num, founder: u.num <= 1000, created_at: u.created, settings: u.settings || null, settings_updated_at: u.settingsAt || null, playtime_min: u.playtime || 0, launches: u.launches || 0, version_stats: u.vs || {}, equipped: u.equipped || {}, pet: u.pet || { mode: 'fly', side: 'left', name: '' }, coins: u.coins || 0, bugs_found: u.bugs || 0, warnings: u.warnings || 0, banned_at: u.banned || null, ban_reason: u.banReason || null, mc_name: u.mcName || null, mc_uuid: u.mcUuid || null });
   const banned = u => !!(u && u.banned);
   // Motywy: tak jak private.theme_season, on_sale i advent_today w schema.sql (st.today podmienia dzień)
   const today = () => (st.today ? new Date(st.today + 'T12:00:00') : new Date());
@@ -70,13 +70,15 @@ function createFake() {
         return u ? json(res, 200, newSession(u)) : json(res, 400, { error_code: 'refresh_token_not_found' });
       }
       if (p === '/auth/v1/logout') { delete st.sessions[tok]; return json(res, 204); }
-      // Funkcja mc-login (supabase/functions/mc-login): Mojanga udaje test (konto = nazwa), profil z nickiem z Minecrafta
+      // Funkcja mc-login (supabase/functions/mc-login): Mojanga udaje test (st.mojang: nazwa → uuid), profil z nickiem z Minecrafta
       if (p === '/functions/v1/mc-login') {
         if (st.mcLoginFail) return json(res, st.mcLoginFail.status, { error: st.mcLoginFail.error });
         if (!/^[A-Za-z0-9_]{1,16}$/.test(body.name || '') || !/^[0-9a-f]{32}$/.test(body.serverId || '')) return json(res, 400, { error: 'bad_request' });
         let u = st.users.find(x => x.mc === body.name), created = false;
         if (!u) {
-          u = { id: crypto.randomUUID(), email: 'mc-' + body.name.toLowerCase() + '@mc.mibclient.invalid', nick: body.name, mc: body.name, mcName: body.name, num: ++st.num, created: new Date().toISOString() };
+          const hex = String((st.mojang || {})[body.name] || crypto.createHash('md5').update(body.name).digest('hex')).replace(/-/g, '');
+          u = { id: crypto.randomUUID(), email: 'mc-' + body.name.toLowerCase() + '@mc.mibclient.invalid', nick: body.name, mc: body.name, mcName: body.name,
+            mcUuid: hex.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5'), num: ++st.num, created: new Date().toISOString() };
           st.users.push(u); founderCape(u); created = true;
         }
         return json(res, 200, { ...newSession(u), created });

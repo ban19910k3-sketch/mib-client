@@ -27,7 +27,8 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     restored = true; // sesja w pamięci jest ważniejsza niż plik z dysku
     if (!s || !remember) return store.remove(SESSION);
     // Hasła nie zapisujemy nigdy; refresh token tylko zaszyfrowany przez system. ID profilu nie jest tajne.
-    if (safeStorage.isEncryptionAvailable()) store.write(SESSION, { t: safeStorage.encryptString(s.refreshToken).toString('base64'), u: s.userId });
+    // błąd systemowego schowka haseł (Mac: pęk kluczy) nie psuje logowania: sesja zostaje w pamięci
+    try { if (safeStorage.isEncryptionAvailable()) store.write(SESSION, { t: safeStorage.encryptString(s.refreshToken).toString('base64'), u: s.userId }); } catch {}
   }
   function restore() {
     if (restored) return;

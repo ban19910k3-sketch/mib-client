@@ -19,7 +19,12 @@ let win, auth = null, launching = false;
 const dir = () => app.getPath('userData');
 const jf = f => path.join(dir(), f);
 const rd = (f, d) => { try { return JSON.parse(fs.readFileSync(jf(f), 'utf8')); } catch { return d; } };
-const wr = (f, v) => fs.writeFileSync(jf(f), JSON.stringify(v, null, 2));
+// konta i sesja profilu MiB (zaszyfrowane tokeny) tylko dla użytkownika systemu (Mac, Linux)
+const PRIVATE = new Set(['accounts.json', 'mib-session.json']);
+const wr = (f, v) => {
+  fs.writeFileSync(jf(f), JSON.stringify(v, null, 2), PRIVATE.has(f) ? { mode: 0o600 } : undefined);
+  if (PRIVATE.has(f) && process.platform !== 'win32') try { fs.chmodSync(jf(f), 0o600); } catch {}
+};
 const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true, shareServer: true, perfMods: true, friendNotify: true, invisible: false, chatFilter: true });
 const logBuf = []; let logCount = 0;
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
@@ -291,6 +296,10 @@ app.on('before-quit', e => {
 });
 
 app.whenReady().then(() => {
+  // Linux bez keyringa (od 0.47.0; np. bez GNOME/KDE): bez tego launcher nie pamiętał konta ani profilu MiB i po każdym
+  // uruchomieniu gracz był wylogowany. Wtedy szyfrowanie Chromium bez systemowego hasła, a pliki z tokenami tylko dla
+  // właściciela (wr niżej), tak jak inne launchery Minecrafta na Linuksie
+  try { if (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') safeStorage.setUsePlainTextEncryption(true); } catch {}
   setPresence(null);
   win = new BrowserWindow({ width: 1100, height: 680, minWidth: 900, minHeight: 600, frame: false, backgroundColor: '#050007', icon: path.join(__dirname, 'icon.png'),
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.js') } });
@@ -328,9 +337,18 @@ const accSave = a => wr('accounts.json', a);
 // profil MiB jest wylogowywany także na serwerze (before-quit niżej)
 const MS_TEMP = 'mslogin-temp';
 let tempAcc = null;
+// Token konta Microsoft zaszyfrowany przez system (Windows DPAPI, pęk kluczy na Macu, keyring na Linuksie) albo null
+function seal(s) {
+  try { return safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(s).toString('base64') : null; }
+  catch (e) { send('log', 'Konto nie zostało zapamiętane (systemowy schowek haseł): ' + e.message); return null; }
+}
 async function profile(xbox, o = {}) {
   const mc = await xbox.getMinecraft();
   auth = mc; const p = mc.profile || {}, id = String(p.id || p.name || 'unknown'), name = p.name || 'Gracz';
+  // profil MiB od razu po zalogowaniu (od 0.47.0 przed zapisem konta: błąd systemowego schowka haseł — na Macu pęk kluczy,
+  // na Linuksie brak keyringa — nie zatrzymuje zakładania profilu)
+  prof.setRemember({ on: !o.temp });
+  setTimeout(() => mibFromMinecraft(), 0);
   const a = accLoad();
   if (o.temp) {
     tempAcc = { id, name, t: xbox.save() };
@@ -338,13 +356,12 @@ async function profile(xbox, o = {}) {
     a.list = a.list.filter(x => x.id !== id); a.active = null; accSave(a);
   } else {
     tempAcc = null;
-    if (safeStorage.isEncryptionAvailable()) {
-      const rec = { id, name, t: safeStorage.encryptString(xbox.save()).toString('base64') }, i = a.list.findIndex(x => x.id === id);
+    const t = seal(xbox.save());
+    if (t) {
+      const rec = { id, name, t }, i = a.list.findIndex(x => x.id === id);
       if (i >= 0) a.list[i] = rec; else a.list.push(rec); a.active = id; accSave(a);
     }
   }
-  prof.setRemember({ on: !o.temp });
-  setTimeout(() => mibFromMinecraft(), 0);
   return { name, id, temp: !!o.temp };
 }
 // Profil MiB z konta Minecraft (od 0.26.0): po zalogowaniu kontem Microsoft (także przy starcie z zapisanym kontem)

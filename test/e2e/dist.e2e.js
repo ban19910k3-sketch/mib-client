@@ -91,6 +91,7 @@ async function step(name, f) {
     const fake = createFake();
     await new Promise(r => fake.server.listen(0, '127.0.0.1', r));
     const NAME = 'MacGracz', UUID = '5e1f2c3d4b5a69788796a5b4c3d2e1f0';
+    fake.st.mojang = { [NAME]: UUID };
     const ud = MAC ? path.join(os.homedir(), 'Library', 'Application Support', 'MiB Client') : path.join(TMP, 'config-new', 'MiB Client');
     for (const f of ['accounts.json', 'mib-session.json']) fs.rmSync(path.join(ud, f), { force: true });
     const stub = (_, { name, uuid }) => {
@@ -118,7 +119,8 @@ async function step(name, f) {
           if (!first && st.state === 'idle' && await w.evaluate(() => !document.getElementById('gate').hidden)) break;
         }
         const enc = await app.evaluate(({ safeStorage }) => ({ available: safeStorage.isEncryptionAvailable(), backend: safeStorage.getSelectedStorageBackend ? safeStorage.getSelectedStorageBackend() : '-' }));
-        const files = ['accounts.json', 'mib-session.json'].filter(f => fs.existsSync(path.join(ud, f)));
+        // pliki z zaszyfrowanymi tokenami tylko dla użytkownika (0600)
+        const files = ['accounts.json', 'mib-session.json'].filter(f => fs.existsSync(path.join(ud, f))).map(f => f + ':' + (fs.statSync(path.join(ud, f)).mode & 0o777).toString(8));
         const con = await w.evaluate(() => (document.getElementById('con') || {}).textContent || '');
         const info = { first, ms: Date.now() - t0, status: st, encryption: enc, files, profiles: fake.st.users.map(u => u.nick), log: con.split('\n').filter(l => /profil|Profil|konto|Konto/.test(l)).slice(-6) };
         console.log('::notice::' + SYS + ' ' + JSON.stringify(info));
@@ -132,6 +134,7 @@ async function step(name, f) {
       assert.deepEqual(a.profiles, [NAME], 'mc-login założył profil');
       const b = await run(false);
       assert.equal(b.status.state, 'ok', 'po ponownym uruchomieniu konto i profil zapamiętane: ' + JSON.stringify(b));
+      assert.deepEqual(b.files, ['accounts.json:600', 'mib-session.json:600'], 'tokeny tylko dla użytkownika');
     } finally { fake.server.close(); }
   });
 
