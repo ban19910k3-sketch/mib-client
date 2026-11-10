@@ -536,4 +536,35 @@ function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));
 }
 
-module.exports = { createProfile, register };
+// Mac (od 0.47.0): konta Microsoft i sesja profilu MiB szyfrowane kluczem z pliku (0600, w folderze launchera) zamiast pęku
+// kluczy. Bez konta Apple Developer aplikacja ma podpis ad-hoc i po każdej aktualizacji macOS uznawał ją za obcą: przy starcie
+// pytał o hasło do pęku kluczy, launcher stał do odpowiedzi, a po „Odmów” gracz był wylogowany (także z profilu MiB).
+// Ten sam interfejs co safeStorage z Electrona; zapisy w starym formacie (z pęku kluczy) odrzuca bez pytania systemu.
+function fileVault(file) {
+  const fs = require('fs'), crypto = require('crypto'), MAGIC = Buffer.from('MIB1');
+  let key = null;
+  const k = () => {
+    if (key) return key;
+    try { const b = fs.readFileSync(file); if (b.length === 32) return (key = b); } catch {}
+    key = crypto.randomBytes(32);
+    fs.writeFileSync(file, key, { mode: 0o600 });
+    try { fs.chmodSync(file, 0o600); } catch {}
+    return key;
+  };
+  return {
+    isEncryptionAvailable: () => true,
+    encryptString(s) {
+      const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', k(), iv);
+      const d = Buffer.concat([c.update(String(s), 'utf8'), c.final()]);
+      return Buffer.concat([MAGIC, iv, c.getAuthTag(), d]);
+    },
+    decryptString(b) {
+      if (b.length < 32 || !b.subarray(0, 4).equals(MAGIC)) throw new Error('zapis w innym formacie');
+      const c = crypto.createDecipheriv('aes-256-gcm', k(), b.subarray(4, 16));
+      c.setAuthTag(b.subarray(16, 32));
+      return Buffer.concat([c.update(b.subarray(32)), c.final()]).toString('utf8');
+    },
+  };
+}
+
+module.exports = { createProfile, register, fileVault };

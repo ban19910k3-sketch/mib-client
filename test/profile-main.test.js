@@ -728,3 +728,23 @@ test('catalog for browsing without login: priced items on sale today', async () 
   assert.deepEqual((await p.catalog()).map(c => c.id), ['pet_kotek'], 'poza świętami bez kolekcji');
   assert.ok(supa.calls.filter(c => c[0] === 'select').every(c => c[3] === undefined), 'bez tokenu gracza');
 });
+
+// ===== Mac (0.47.0): zapis kont i sesji bez pęku kluczy =====
+test('fileVault: szyfruje kluczem z pliku 0600, ten sam klucz po ponownym uruchomieniu, stare zapisy z pęku kluczy odrzuca', () => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const { fileVault } = require('../profile-main');
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mib-vault-')), 'mib-key');
+  const v = fileVault(f);
+  assert.equal(v.isEncryptionAvailable(), true);
+  const b = v.encryptString('refresh-token-ąę');
+  assert.ok(!b.toString('latin1').includes('refresh-token'), 'nie jawnym tekstem');
+  assert.equal(v.decryptString(b), 'refresh-token-ąę');
+  assert.equal(fs.statSync(f).mode & 0o777, 0o600, 'klucz tylko dla użytkownika');
+  assert.equal(fileVault(f).decryptString(b), 'refresh-token-ąę', 'po ponownym uruchomieniu');
+  assert.notDeepEqual(v.encryptString('x'), v.encryptString('x'), 'losowy IV');
+  assert.throws(() => v.decryptString(Buffer.from('v10' + 'x'.repeat(40))), 'zapis z pęku kluczy (Chromium v10)');
+  const t = Buffer.from(b); t[t.length - 1] ^= 1;
+  assert.throws(() => v.decryptString(t), 'zmieniony zapis');
+  // inny klucz (np. nowy folder) nie odczyta
+  assert.throws(() => fileVault(f + '2').decryptString(b));
+});

@@ -121,7 +121,9 @@ async function step(name, f) {
           if (st.state === 'ok' || st.state === 'needsProfile' || (st.state === 'error' && !st.retryIn)) break;
           if (!first && st.state === 'idle' && await w.evaluate(() => !document.getElementById('gate').hidden)) break;
         }
-        const enc = await app.evaluate(({ safeStorage }) => ({ available: safeStorage.isEncryptionAvailable(), backend: safeStorage.getSelectedStorageBackend ? safeStorage.getSelectedStorageBackend() : '-' }));
+        // na Macu bez pytania safeStorage: samo pytanie sięga do pęku kluczy (launcher od 0.47.0 z niego nie korzysta)
+        const enc = MAC ? { mac: 'mib-key:' + (fs.existsSync(path.join(ud, 'mib-key')) ? (fs.statSync(path.join(ud, 'mib-key')).mode & 0o777).toString(8) : 'brak') }
+          : await app.evaluate(({ safeStorage }) => ({ available: safeStorage.isEncryptionAvailable(), backend: safeStorage.getSelectedStorageBackend() }));
         // pliki z zaszyfrowanymi tokenami tylko dla użytkownika (0600)
         assert.equal(await app.evaluate(({ app: a }) => a.getPath('userData')), ud);
         const files = ['accounts.json', 'mib-session.json'].filter(f => fs.existsSync(path.join(ud, f))).map(f => f + ':' + (fs.statSync(path.join(ud, f)).mode & 0o777).toString(8));
@@ -141,8 +143,9 @@ async function step(name, f) {
       const b = await run(false);
       assert.equal(b.status.state, 'ok', 'po ponownym uruchomieniu konto i profil zapamiętane: ' + JSON.stringify(b));
       assert.deepEqual(b.files, ['accounts.json:600', 'mib-session.json:600'], 'tokeny tylko dla użytkownika');
-      // Mac: po aktualizacji aplikacja ma nowy podpis ad-hoc (inny skrót kodu) — czy pęk kluczy dalej oddaje zapisane konto
-      // bez pytania o hasło (bez tego gracz po każdej aktualizacji byłby wylogowany albo launcher czekałby na okno macOS)
+      if (MAC) assert.deepEqual(b.encryption, { mac: 'mib-key:600' }, 'klucz zapisu kont na Macu tylko dla użytkownika');
+      // Mac: po aktualizacji aplikacja ma nowy podpis ad-hoc (inny skrót kodu). Z pękiem kluczy macOS pytał wtedy o hasło i launcher
+      // stał (test: brak odpowiedzi w 90 s), od 0.47.0 konto i profil są zapisane bez pęku kluczy (fileVault) i wczytują się od razu
       if (MAC) {
         const copy = path.join(TMP, 'po-aktualizacji', NAME_APP);
         fs.mkdirSync(path.dirname(copy), { recursive: true });

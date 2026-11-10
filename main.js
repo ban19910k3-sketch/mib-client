@@ -30,10 +30,12 @@ const logBuf = []; let logCount = 0;
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
 // Profil MiB (Supabase). Klucz publiczny — bezpieczny w launcherze; uprawnienia pilnuje baza.
 const SUPA_URL = process.env.MIB_SUPA_URL || 'https://pijyremkmhmnyvjusrhu.supabase.co', SUPA_KEY = 'sb_publishable_-Gfr_STF_qinPsxzdYFaDg_eXg4j1Al';
+// Zapis kont i sesji profilu MiB: Windows DPAPI i keyring Linuksa przez safeStorage, Mac klucz z pliku (fileVault)
+const vault = process.platform === 'darwin' ? profileMain.fileVault(path.join(dir(), 'mib-key')) : safeStorage;
 const prof = profileMain.createProfile({
   supa: createSupa({ url: SUPA_URL, key: SUPA_KEY, fetch: (...a) => fetch(...a) }),
   store: { read: rd, write: wr, remove: f => { try { fs.unlinkSync(jf(f)); } catch {} } },
-  safeStorage, randomBytes: crypto.randomBytes,
+  safeStorage: vault, randomBytes: crypto.randomBytes,
   // tryb niewidoczny: znajomi widzą offline
   hidden: () => ({ ...defaults(), ...rd('settings.json', {}) }).invisible === true,
   // sklep MiB Coins: tylko link https z bazy (sprawdza profile-main)
@@ -337,9 +339,9 @@ const accSave = a => wr('accounts.json', a);
 // profil MiB jest wylogowywany także na serwerze (before-quit niżej)
 const MS_TEMP = 'mslogin-temp';
 let tempAcc = null;
-// Token konta Microsoft zaszyfrowany przez system (Windows DPAPI, pęk kluczy na Macu, keyring na Linuksie) albo null
+// Token konta Microsoft zaszyfrowany (Windows DPAPI, keyring na Linuksie, na Macu klucz z pliku — vault) albo null
 function seal(s) {
-  try { return safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(s).toString('base64') : null; }
+  try { return vault.isEncryptionAvailable() ? vault.encryptString(s).toString('base64') : null; }
   catch (e) { send('log', 'Konto nie zostało zapamiętane (systemowy schowek haseł): ' + e.message); return null; }
 }
 async function profile(xbox, o = {}) {
@@ -427,7 +429,7 @@ ipcMain.handle('profile:status', () => mibStatus);
 async function switchAccount(id) {
   if (tempAcc && tempAcc.id === id) return profile(await new Auth('select_account').refresh(tempAcc.t), { temp: true });
   const rec = accLoad().list.find(x => x.id === id); if (!rec) throw new Error('brak konta');
-  return profile(await new Auth('select_account').refresh(safeStorage.decryptString(Buffer.from(rec.t, 'base64'))));
+  return profile(await new Auth('select_account').refresh(vault.decryptString(Buffer.from(rec.t, 'base64'))));
 }
 // Okno logowania Microsoftu ma osobną sesję przeglądarki: po usunięciu konta z launchera da się ją wyczyścić,
 // żeby Microsoft nie podpowiadał już zapisanego konta („Pick an account”)
@@ -456,7 +458,7 @@ ipcMain.handle('restore', async () => {
   let r = null;
   try {
     const a = accLoad(), old = rd('account.json', null);
-    if (!a.list.length && old) { r = await profile(await new Auth('select_account').refresh(safeStorage.decryptString(Buffer.from(old.t, 'base64')))); try { fs.unlinkSync(jf('account.json')); } catch {} }
+    if (!a.list.length && old) { r = await profile(await new Auth('select_account').refresh(vault.decryptString(Buffer.from(old.t, 'base64')))); try { fs.unlinkSync(jf('account.json')); } catch {} }
     else if (a.active) r = await switchAccount(a.active);
   } catch { r = null; }
   // bez aktywnego konta Microsoft profil MiB z poprzedniego uruchomienia się wylogowuje (od 0.35.0); wróci sam po zalogowaniu kontem
