@@ -45,17 +45,30 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     return typeof u === 'string' && P.validShopUrl(u) ? u : null;
   }
   // Ważny access token albo null (brak profilu). Brak sieci rzuca dalej ('offline').
+  // Jedno odświeżenie naraz (od 0.47.0): przy starcie launchera stan, obecność i profil z konta Minecraft pytają równocześnie,
+  // a refresh token działa raz — drugie odświeżenie tym samym tokenem kończyło się wylogowaniem z profilu MiB
+  let refreshing = null;
   async function token() {
     restore();
     if (!sess) return null;
     if (sess.accessToken && sess.expiresAt - now() > 60000) return sess.accessToken;
-    try {
-      saveSession(await supa.refresh(sess.refreshToken));
-      return sess.accessToken;
-    } catch (e) {
-      if (e.code === 'bad_login') { saveSession(null); return null; }
-      throw e;
+    const was = sess;
+    if (!refreshing || refreshing.rt !== was.refreshToken) {
+      const p = (async () => {
+        try {
+          const s = await supa.refresh(was.refreshToken);
+          if (sess === was) saveSession(s); // w międzyczasie nowa sesja (np. logowanie kontem Minecraft) wygrywa
+        } catch (e) {
+          if (e.code !== 'bad_login') throw e;
+          if (sess === was) saveSession(null);
+        }
+      })();
+      refreshing = { rt: was.refreshToken, p };
+      const done = () => { if (refreshing && refreshing.p === p) refreshing = null; };
+      p.then(done, done);
     }
+    await refreshing.p;
+    return sess ? sess.accessToken : null;
   }
   async function need() {
     const t = await token();

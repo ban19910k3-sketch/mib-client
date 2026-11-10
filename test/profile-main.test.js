@@ -90,6 +90,19 @@ test('restored session refreshes once and reuses the access token', async () => 
   assert.equal(supa.calls.find(c => c[0] === 'refresh')[1], 'RT9');
 });
 
+test('równoczesne zapytania przy starcie: jedno odświeżenie sesji (jednorazowy refresh token), gracz zostaje zalogowany', async () => {
+  const store = memStore();
+  store.files['mib-session.json'] = { t: Buffer.from('xRT9').toString('base64') };
+  // jak Supabase: refresh token działa raz, drugi raz = bad_login (bez okna ponownego użycia)
+  const used = new Set();
+  const supa = fakeSupa({ refresh: async rt => { await new Promise(r => setTimeout(r, 20)); if (used.has(rt)) throw new SupaError(400, 'bad_login'); used.add(rt); return sess(2); } });
+  const { p } = mk({ store, supa });
+  const [a, b, c] = await Promise.all([p.state(), p.state(), p.state()]);
+  assert.equal(supa.calls.filter(x => x[0] === 'refresh').length, 1, 'jedno odświeżenie');
+  for (const r of [a, b, c]) assert.equal(r.loggedIn, true);
+  assert.equal(Buffer.from(store.files['mib-session.json'].t, 'base64').toString(), 'xRT2', 'nowa sesja zapisana');
+});
+
 test('stats queue flush once', async () => {
   let online = false;
   const supa = fakeSupa({ rpc: async n => { if (n === 'add_play_session' && !online) throw new SupaError(0, 'offline'); return null; } });
