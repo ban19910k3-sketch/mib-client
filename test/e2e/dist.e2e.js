@@ -83,6 +83,58 @@ async function step(name, f) {
     } finally { await app.close().catch(() => {}); }
   });
 
+  // Nowy gracz (od 0.47.0): logowanie kontem Microsoft (atrapa msmc przez MIB_TEST_HOOKS), Mojang (atrapa fetch) i mc-login
+  // (atrapa Supabase) — profil MiB ma powstać od razu, a po ponownym uruchomieniu konto i profil mają być zapamiętane
+  await step('nowy gracz na ' + SYS + ': profil MiB od razu po zalogowaniu kontem Microsoft, zapamiętany po ponownym uruchomieniu', async () => {
+    const { _electron } = require(execSync('npm root -g').toString().trim() + '/playwright');
+    const { createFake } = require('../fake-supabase');
+    const fake = createFake();
+    await new Promise(r => fake.server.listen(0, '127.0.0.1', r));
+    const NAME = 'MacGracz', UUID = '5e1f2c3d4b5a69788796a5b4c3d2e1f0';
+    const ud = MAC ? path.join(os.homedir(), 'Library', 'Application Support', 'MiB Client') : path.join(TMP, 'config-new', 'MiB Client');
+    for (const f of ['accounts.json', 'mib-session.json']) fs.rmSync(path.join(ud, f), { force: true });
+    const stub = (_, { name, uuid }) => {
+      const msmc = globalThis.__mibRequire('msmc');
+      const mc = { profile: { id: uuid, name }, mclc: () => ({ access_token: 'mc-token', client_token: 'c', uuid, name, meta: { type: 'msa', demo: false } }) };
+      const xbox = { getMinecraft: async () => mc, save: () => 'msmc-refresh-' + name };
+      msmc.Auth.prototype.launch = async function () { return xbox; };
+      msmc.Auth.prototype.refresh = async function () { return xbox; };
+      const f = globalThis.fetch;
+      globalThis.fetch = (u, o) => (String(u).startsWith('https://sessionserver.mojang.com/') ? Promise.resolve(new Response(null, { status: 204 })) : f(u, o));
+    };
+    const run = async first => {
+      const app = await _electron.launch({ executablePath: MAC ? path.join(APP, 'Contents', 'MacOS', 'MiB Client') : path.join(SQ, 'AppRun'),
+        env: { ...process.env, MIB_TEST_HOOKS: '1', MIB_SUPA_URL: 'http://127.0.0.1:' + fake.server.address().port, XDG_CONFIG_HOME: path.join(TMP, 'config-new'), ...(MAC ? {} : { APPDIR: SQ }) } });
+      try {
+        await app.evaluate(stub, { name: NAME, uuid: UUID });
+        const w = await app.firstWindow(), t0 = Date.now();
+        await w.waitForSelector('#app.on', { timeout: 30000 });
+        await w.click('#w-go', { timeout: 5000 }).catch(() => {});
+        if (first) { await w.waitForSelector('#gate.on #g-go', { timeout: 20000 }); await w.click('#g-go'); }
+        let st = null;
+        for (const end = Date.now() + 25000; Date.now() < end; await new Promise(r => setTimeout(r, 250))) {
+          st = await w.evaluate(() => window.mib.call('profile:status'));
+          if (st.state === 'ok' || st.state === 'needsProfile' || (st.state === 'error' && !st.retryIn)) break;
+          if (!first && st.state === 'idle' && await w.evaluate(() => !document.getElementById('gate').hidden)) break;
+        }
+        const enc = await app.evaluate(({ safeStorage }) => ({ available: safeStorage.isEncryptionAvailable(), backend: safeStorage.getSelectedStorageBackend ? safeStorage.getSelectedStorageBackend() : '-' }));
+        const files = ['accounts.json', 'mib-session.json'].filter(f => fs.existsSync(path.join(ud, f)));
+        const con = await w.evaluate(() => (document.getElementById('con') || {}).textContent || '');
+        const info = { first, ms: Date.now() - t0, status: st, encryption: enc, files, profiles: fake.st.users.map(u => u.nick), log: con.split('\n').filter(l => /profil|Profil|konto|Konto/.test(l)).slice(-6) };
+        console.log('::notice::' + SYS + ' ' + JSON.stringify(info));
+        await w.screenshot({ path: path.join(TMP, first ? 'nowy-gracz.png' : 'nowy-gracz-ponownie.png') });
+        return info;
+      } finally { await app.close().catch(() => {}); }
+    };
+    try {
+      const a = await run(true);
+      assert.equal(a.status.state, 'ok', 'profil MiB po zalogowaniu: ' + JSON.stringify(a.status));
+      assert.deepEqual(a.profiles, [NAME], 'mc-login założył profil');
+      const b = await run(false);
+      assert.equal(b.status.state, 'ok', 'po ponownym uruchomieniu konto i profil zapamiętane: ' + JSON.stringify(b));
+    } finally { fake.server.close(); }
+  });
+
   if (MAC) await step('aktualizacja: zip → podmiana aplikacji w Aplikacjach po zamknięciu launchera', () => {
     const apps = path.join(TMP, 'Applications'), cur = path.join(apps, NAME), out = path.join(TMP, 'upd');
     fs.mkdirSync(apps); fs.mkdirSync(out);

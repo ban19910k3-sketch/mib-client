@@ -4,6 +4,8 @@ const path = require('path'), fs = require('fs');
 const { Client } = require('minecraft-launcher-core');
 const { autoUpdater } = require('electron-updater');
 const { Auth } = require('msmc');
+// Test zbudowanej aplikacji (test/e2e/dist.e2e.js): require procesu głównego, żeby podstawić atrapę logowania Microsoftu
+if (process.env.MIB_TEST_HOOKS === '1') globalThis.__mibRequire = require;
 const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
 const { diagnoseCrash } = require('./lib/crash');

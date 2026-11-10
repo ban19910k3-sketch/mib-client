@@ -70,6 +70,17 @@ function createFake() {
         return u ? json(res, 200, newSession(u)) : json(res, 400, { error_code: 'refresh_token_not_found' });
       }
       if (p === '/auth/v1/logout') { delete st.sessions[tok]; return json(res, 204); }
+      // Funkcja mc-login (supabase/functions/mc-login): Mojanga udaje test (konto = nazwa), profil z nickiem z Minecrafta
+      if (p === '/functions/v1/mc-login') {
+        if (st.mcLoginFail) return json(res, st.mcLoginFail.status, { error: st.mcLoginFail.error });
+        if (!/^[A-Za-z0-9_]{1,16}$/.test(body.name || '') || !/^[0-9a-f]{32}$/.test(body.serverId || '')) return json(res, 400, { error: 'bad_request' });
+        let u = st.users.find(x => x.mc === body.name), created = false;
+        if (!u) {
+          u = { id: crypto.randomUUID(), email: 'mc-' + body.name.toLowerCase() + '@mc.mibclient.invalid', nick: body.name, mc: body.name, mcName: body.name, num: ++st.num, created: new Date().toISOString() };
+          st.users.push(u); founderCape(u); created = true;
+        }
+        return json(res, 200, { ...newSession(u), created });
+      }
       if (p.startsWith('/rest/v1/rpc/')) {
         const fn = p.slice(13);
         if (fn === 'nick_available') return json(res, 200, !st.users.some(u => u.nick.toLowerCase() === String(body.p_nick).toLowerCase()));
