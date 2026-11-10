@@ -194,7 +194,7 @@ async function step(name, f) {
       const v = shAll(p, ['-version']), file = sh('file', [fs.realpathSync(p)]);
       console.log(major + ':', p, '|', v.split('\n')[0], '|', file.trim());
       assert.match(v, major === 8 ? /version "1\.8/ : new RegExp('version "' + major));
-      if (MAC) assert.match(file, major === 8 ? /x86_64/ : /arm64/, 'Java 8 na Intela (Rosetta), nowsze na Apple');
+      if (MAC) assert.match(file, major === 8 || process.arch === 'x64' ? /x86_64/ : /arm64/, 'Java 8 na Intela (na Apple przez Rosettę), nowsze na Apple');
       else assert.match(file, /ELF 64-bit.*x86-64/);
       if (major === 21) java21 = p;
       // drugi raz bez pobierania

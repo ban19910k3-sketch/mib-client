@@ -10,8 +10,14 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Mac z procesorem Apple i Mac z Intelem (od 0.47.0: ta sama aplikacja na oba, a maszyny Apple na GitHubie bywają
+  # niedostępne przez długą kolejkę)
   mac:
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
