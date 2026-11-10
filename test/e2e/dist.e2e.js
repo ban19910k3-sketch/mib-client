@@ -34,6 +34,7 @@ async function step(name, f) {
     assert.match(archs, /x86_64/); assert.match(archs, /arm64/);
     sh('codesign', ['--verify', '--deep', '--strict', APP]);
     assert.match(shAll('codesign', ['-dv', APP]), /Signature=adhoc/);
+    assert.match(shAll('codesign', ['-d', '-r-', APP]), /designated => identifier "pl\.mib\.client"/, 'stałe wymaganie podpisu (pęk kluczy po aktualizacji)');
     assert.equal(plist(APP, 'CFBundleShortVersionString'), VERSION);
     assert.ok(!fs.existsSync(path.join(APP, 'Contents', 'Resources', 'app.asar.unpacked', 'node_modules', 'uiohook-napi')), 'uiohook (tylko Windows) nie trafia na Maca');
   });
@@ -87,7 +88,7 @@ async function step(name, f) {
 
   // Nowy gracz (od 0.47.0): logowanie kontem Microsoft (atrapa msmc przez MIB_TEST_HOOKS), Mojang (atrapa fetch) i mc-login
   // (atrapa Supabase) — profil MiB ma powstać od razu, a po ponownym uruchomieniu konto i profil mają być zapamiętane
-  await step('nowy gracz na ' + SYS + ': profil MiB od razu po zalogowaniu kontem Microsoft, zapamiętany po ponownym uruchomieniu', async () => {
+  await step('nowy gracz na ' + SYS + ': profil MiB od razu po zalogowaniu kontem Microsoft, zapamiętany po ponownym uruchomieniu' + (MAC ? ' i po aktualizacji' : ''), async () => {
     const { _electron } = require(execSync('npm root -g').toString().trim() + '/playwright');
     const { createFake } = require('../fake-supabase');
     const fake = createFake();
@@ -147,12 +148,12 @@ async function step(name, f) {
         fs.mkdirSync(path.dirname(copy), { recursive: true });
         sh('ditto', [APP, copy]);
         fs.writeFileSync(path.join(copy, 'Contents', 'Resources', 'nowa-wersja.txt'), 'x');
-        sh('codesign', ['--force', '--deep', '--sign', '-', copy]);
-        console.log('::notice::pęk kluczy przed: ' + shAll('security', ['find-generic-password', '-s', 'MiB Client Safe Storage']).split('\n').filter(l => /svce|acct|keychain/.test(l)).join(' | '));
+        require('../../build/afterpack').macSign(copy, require('../../package.json').build.appId);
+        assert.notEqual(shAll('codesign', ['-dv', copy]).match(/CDHash=\w+/)[0], shAll('codesign', ['-dv', APP]).match(/CDHash=\w+/)[0], 'nowy skrót kodu jak po aktualizacji');
         let c;
-        try { c = await timed(run(false, path.join(copy, 'Contents', 'MacOS', 'MiB Client'), 'po-aktualizacji'), 90000, 'launcher po aktualizacji'); }
+        try { c = await timed(run(false, path.join(copy, 'Contents', 'MacOS', 'MiB Client'), 'po-aktualizacji'), 90000, 'launcher po aktualizacji (pęk kluczy pyta o hasło?)'); }
         catch (e) { c = { error: e.message }; try { execSync('pkill -f "' + copy + '"'); } catch {} }
-        console.log('::notice::Maca po aktualizacji (nowy podpis): ' + JSON.stringify(c));
+        assert.equal(c.status && c.status.state, 'ok', 'po aktualizacji konto i profil bez pytania o hasło: ' + JSON.stringify(c));
       }
     } finally { fake.server.close(); }
   });

@@ -1,5 +1,5 @@
 // Po spakowaniu launchera (electron-builder afterPack):
-// - Mac (od 0.42.0, bez konta Apple Developer): podpis „ad-hoc”. Bez żadnego podpisu Mac z procesorem Apple nie uruchomi
+// - Mac (od 0.42.0, bez konta Apple Developer): podpis „ad-hoc” (od 0.47.0 ze stałym wymaganiem, macSign niżej). Bez żadnego podpisu Mac z procesorem Apple nie uruchomi
 //   aplikacji („jest uszkodzona”). Tymczasowe części wersji universal (katalogi …-temp, łączone potem w jedną) pomija —
 //   podpisuje się dopiero połączoną aplikację.
 // - Linux (od 0.43.0): mib-client to mały skrypt, który uruchamia właściwy program (mib-client.bin). Gdy system blokuje
@@ -24,7 +24,14 @@ exports.default = async ctx => {
     return;
   }
   if (ctx.electronPlatformName !== 'darwin' || ctx.appOutDir.endsWith('-temp')) return;
-  const app = path.join(ctx.appOutDir, ctx.packager.appInfo.productFilename + '.app');
-  execFileSync('codesign', ['--force', '--deep', '--sign', '-', app], { stdio: 'inherit' });
-  execFileSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', app], { stdio: 'inherit' });
+  macSign(path.join(ctx.appOutDir, ctx.packager.appInfo.productFilename + '.app'), ctx.packager.appInfo.id);
 };
+// Podpis ad-hoc z wymaganiem „ta aplikacja = ten identyfikator” (od 0.47.0). Domyślnie podpis ad-hoc wiąże aplikację ze
+// skrótem jej kodu, który zmienia się przy każdej aktualizacji — macOS uznawał wtedy nową wersję za obcą aplikację i
+// przy starcie pytał o hasło do pęku kluczy (zapisane konto Microsoft i sesja profilu MiB), a launcher stał do odpowiedzi.
+function macSign(app, id) {
+  execFileSync('codesign', ['--force', '--deep', '--sign', '-', app], { stdio: 'inherit' });
+  execFileSync('codesign', ['--force', '--sign', '-', '--requirements', '=designated => identifier "' + id + '"', app], { stdio: 'inherit' });
+  execFileSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', app], { stdio: 'inherit' });
+}
+exports.macSign = macSign;
