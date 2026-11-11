@@ -54,6 +54,30 @@ jobs:
       - name: Test na Linuksie
         run: xvfb-run -a node test/e2e/dist.e2e.js
 
+  # Postać 3D w Kosmetykach (od 0.47.3): nie znika przy klikaniu i po 20 oknach zakupu, skin i peleryna wczytują się raz
+  # (test/e2e/skin.e2e.js, wynik w adnotacji) — na każdym systemie, bo WebGL rysuje inna karta graficzna
+  skin:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: bash .github/workflows/retry.sh npm ci
+        shell: bash
+      - run: bash .github/workflows/retry.sh npm i -g playwright@1.56.1
+        shell: bash
+      - name: Postać 3D w Kosmetykach
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a node test/e2e/skin.e2e.js; else node test/e2e/skin.e2e.js; fi
+
   # Ikona Minecrafta na pasku zadań / w Docku (od 0.47.0): stara (LWJGL 2), średnia i najnowsza wersja gry na każdym systemie
   icon:
     strategy:

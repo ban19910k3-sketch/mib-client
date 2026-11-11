@@ -474,8 +474,34 @@
     mib.call('thumbs:done');
   });
   // ===== Skin konta Minecraft (na górze strony Kosmetyki; wystarczy konto Microsoft) =====
-  let skinViewer = null;
-  const skinCanvas = h('canvas', { width: 200, height: 260, class: 'skin3d', id: 'skin3d' });
+  // Jedna postać na całe Kosmetyki (mib3d w ui.js: rysuje się tylko na widocznej stronie). Od 0.47.3 przerysowanie strony
+  // (filtr, zakładka, zakup) nie wczytuje drugi raz tego samego skina i stroju, a bez kontekstu WebGL postać powstaje
+  // od nowa na nowym płótnie w tym samym miejscu, z tym samym skinem i strojem.
+  let skinViewer = null, skinNow = null, lastDress = [];
+  const newSkinCanvas = () => h('canvas', { width: 200, height: 260, class: 'skin3d', id: 'skin3d' });
+  let skinCanvas = newSkinCanvas();
+  function cosViewer() {
+    if (skinViewer) return skinViewer;
+    try {
+      skinViewer = mib3d.view({ canvas: skinCanvas, width: 200, height: 260 }, () => {
+        const c = newSkinCanvas(), was = skinNow;
+        skinCanvas.replaceWith(c); skinCanvas = c;
+        mib3d.drop(skinViewer); skinViewer = null; skinNow = null;
+        cosViewer();
+        if (was) showSkin(was.url, was.model);
+        dressPage(lastDress);
+      });
+      skinViewer.autoRotate = true; skinViewer.autoRotateSpeed = 0.7;
+    } catch {}
+    return skinViewer;
+  }
+  // url null = Steve
+  async function showSkin(url, model) {
+    const v = cosViewer(), m = model === 'slim' ? 'slim' : 'default';
+    if (!v || (skinNow && skinNow.url === url && skinNow.model === m)) return;
+    skinNow = { url, model: m };
+    try { await v.loadSkin(url || await mib.call('skin', 'MHF_Steve'), { model: m }); } catch { skinNow = null; }
+  }
   // Twarz ze skina (z nakładką) do listy ostatnio używanych
   function face(dataUrl) {
     const c = h('canvas', { width: 32, height: 32, class: 'skface' }), x = c.getContext('2d'), img = new Image();
@@ -487,17 +513,17 @@
   async function skinSection() {
     const err = errBox(), sec = h('div', { class: 'sec skinsec' }, h('h3', {}, T('Skin')));
     const cur = await mib.call('skin:current');
-    try { if (!skinViewer) { skinViewer = new skinview3d.SkinViewer({ canvas: skinCanvas, width: 200, height: 260 }); skinViewer.autoRotate = true; skinViewer.autoRotateSpeed = 0.7; skinViewer.controls.enableZoom = false; } } catch {}
+    cosViewer();
     // bez konta Microsoft: postać Steve (na niej też da się przymierzać kosmetyki), bez zmiany skina
     if (cur.error === 'skin_no_account') {
-      try { if (skinViewer) await skinViewer.loadSkin(await mib.call('skin', 'MHF_Steve')); } catch {}
+      showSkin(null, 'classic');
       sec.append(h('div', { class: 'skinside' }, h('p', { class: 'mut' }, msg('skin_no_account'))));
       return sec;
     }
     let picked = null;
     const variant = h('select', { id: 'skin-var' }, h('option', { value: 'classic' }, T('Klasyczny (szersze ręce)')), h('option', { value: 'slim' }, T('Smukły (węższe ręce)')));
     variant.value = cur.variant || 'classic';
-    const show = async (dataUrl, model) => { try { if (skinViewer) await skinViewer.loadSkin(dataUrl || await mib.call('skin', 'MHF_Steve'), { model: model === 'slim' ? 'slim' : 'default' }); } catch {} };
+    const show = showSkin;
     const setBtn = h('button', { class: 'b', id: 'skin-set', type: 'button', disabled: true }, T('Ustaw skina'));
     const hist = h('div', { class: 'skhist', id: 'skin-hist' });
     variant.onchange = () => show(picked || cur.dataUrl, variant.value);
@@ -531,7 +557,8 @@
         ...l.map(x => h('button', { class: 'skh', type: 'button', title: T('Ustaw ten skin'), on: { click: () => { variant.value = x.variant; show(x.dataUrl, x.variant); apply(x.dataUrl, x.variant); } } }, face(x.dataUrl))))] : []));
     }
     if (cur.error) err.textContent = msg(cur.error);
-    show(cur.dataUrl, variant.value);
+    // chwilowy błąd Mojanga (np. limit zapytań): zostaje skin, który już widać, zamiast Steve'a
+    if (!cur.error || !skinNow) show(cur.dataUrl, variant.value);
     loadHist();
     sec.append(h('div', { class: 'skinside' },
       h('p', { class: 'mut' }, T('Skin Twojego konta Minecraft. Widzą go wszyscy gracze, na każdym serwerze.')),
@@ -571,6 +598,13 @@
   async function dress(viewer, { cape = null, wings = null, hat = null, mask = null, aura = null, pet = null, tail = null, back = null, petMode = 'fly', petSide = 'left' } = {}) {
     const st = dressed.get(viewer) || {};
     dressed.set(viewer, st);
+    // ten sam strój na postaci, która jest na stronie (od 0.47.3): bez zdejmowania i zakładania wszystkiego od nowa
+    const key = JSON.stringify([cape, wings, hat, mask, aura && aura.texture, aura && aura.id, pet, tail, back, petMode, petSide]);
+    if (st.key === key && st.last && viewer.canvas && viewer.canvas.isConnected) {
+      if (st.wings || st.aura || moving(st)) animate(viewer, st);
+      return st.last;
+    }
+    st.key = key; st.last = null;
     const my = st.gen = (st.gen || 0) + 1;
     const load = u => (u ? frames(u).catch(() => null) : null);
     const [cf, wf, hf, mf, af, pf, tf, kf] = await Promise.all([load(cape), load(wings), load(hat), load(mask), load(aura && aura.texture), load(pet), load(tail), load(back)]);
@@ -615,8 +649,8 @@
       }, MibProfile.CAPE_FRAME_MS);
     }
     if (st.wings || st.aura || moving(st)) animate(viewer, st);
-    return { back: kind, fairy: !!st.wings, hat: st.hat ? (st.hat.model ? 'model' : st.hat.parts.length > 1 ? 'tall' : '1') : '', mask: !!st.mask, aura: st.aura ? style : '', frames: n,
-      pet: st.pet ? st.pet.pet.mode : '', tail: !!st.tail, pack: !!st.back };
+    return (st.last = { back: kind, fairy: !!st.wings, hat: st.hat ? (st.hat.model ? 'model' : st.hat.parts.length > 1 ? 'tall' : '1') : '', mask: !!st.mask, aura: st.aura ? style : '', frames: n,
+      pet: st.pet ? st.pet.pet.mode : '', tail: !!st.tail, pack: !!st.back });
   }
   function draw(canvas, frame, y, tex) {
     const x = canvas.getContext('2d');
@@ -820,6 +854,7 @@
   let petCfg = { mode: 'fly', side: 'left', name: '' };
   let lastItems = [];
   async function dressPage(list) {
+    lastDress = list;
     if (!skinViewer) return;
     const on = t => trying[t] || list.find(c => c.equipped && c.type === t && c.texture);
     const tried = trying.wings && !trying.cape ? 'wings' : null;
@@ -1086,7 +1121,7 @@
     const what = offer ? offer.name : item.name, coins = Number.isInteger(shopCoins) ? shopCoins : 0, short = cost - coins;
     const canvas = h('canvas', { width: 170, height: 200, class: 'gift3d' }), err = errBox();
     let viewer = null;
-    const close = () => { try { if (viewer) viewer.dispose(); } catch {} ov.remove(); };
+    const close = () => { mib3d.drop(viewer); viewer = null; ov.remove(); };
     const who = gift ? h('select', { id: 'buy-to' }, h('option', { value: '' }, T('Wczytywanie…'))) : null;
     const note = gift ? h('textarea', { id: 'buy-msg', maxlength: 200, rows: 2, placeholder: T('Wiadomość do znajomego (nieobowiązkowa)') }) : null;
     const go2 = h('button', { class: 'b', id: 'buy-go', type: 'submit' }, (gift ? T('Kup i wyślij za') : T('Kup za')) + ' ' + fmtCoins(cost));
@@ -1134,11 +1169,15 @@
       who.disabled = !fr.length;
       if (!fr.length) err.textContent = T('Prezent możesz kupić tylko znajomemu. Dodaj znajomych na stronie Znajomi.');
     }
+    // okno zamknięte w trakcie: bez nowej postaci (zajęłaby kontekst WebGL do końca)
     try {
-      viewer = new skinview3d.SkinViewer({ canvas, width: 170, height: 200 }); viewer.autoRotate = true; viewer.autoRotateSpeed = 0.9; viewer.controls.enableZoom = false;
+      if (!ov.isConnected) return;
+      const v = viewer = mib3d.view({ canvas, width: 170, height: 200 }); v.autoRotate = true; v.autoRotateSpeed = 0.9;
       const cur = await mib.call('skin:current');
-      await viewer.loadSkin(cur && cur.dataUrl ? cur.dataUrl : await mib.call('skin', 'MHF_Steve'), { model: cur && cur.variant === 'slim' ? 'slim' : 'default' });
-      if (ov.isConnected) window.mibDress(viewer, outfit(offer ? items : [item]));
+      const skin = cur && cur.dataUrl ? cur.dataUrl : await mib.call('skin', 'MHF_Steve');
+      if (v.disposed) return;
+      await v.loadSkin(skin, { model: cur && cur.variant === 'slim' ? 'slim' : 'default' });
+      if (!v.disposed) window.mibDress(v, outfit(offer ? items : [item]));
     } catch {}
   }
 
@@ -1281,7 +1320,7 @@
       h('b', { class: 'gift-name' }, g.name), h('span', { class: 'mut' }, T(KIND[g.type] || 'Kosmetyk')),
       g.message ? h('blockquote', { class: 'gift-msg' }, '„' + (g.from_nick ? clean(g.message) : g.message) + '”', h('small', {}, '— ' + (g.from_nick || T('twórca MiB Client')))) : null,
       actions));
-    const close = () => { try { if (viewer) viewer.dispose(); } catch {} ov.remove(); giftOpen = false; if ($('p-cos').classList.contains('on')) renderCos(); giftsCheck(true); };
+    const close = () => { mib3d.drop(viewer); viewer = null; ov.remove(); giftOpen = false; if ($('p-cos').classList.contains('on')) renderCos(); giftsCheck(true); };
     const claim = h('button', { class: 'b', id: 'gift-claim', type: 'button', on: { click: async () => {
       claim.disabled = true;
       const r = await mib.call('prof:claimGift', { id: g.id });
@@ -1299,10 +1338,12 @@
     actions.append(claim);
     document.body.append(ov);
     try {
-      viewer = new skinview3d.SkinViewer({ canvas, width: 200, height: 230 }); viewer.autoRotate = true; viewer.autoRotateSpeed = 0.9; viewer.controls.enableZoom = false;
+      const v = viewer = mib3d.view({ canvas, width: 200, height: 230 }); v.autoRotate = true; v.autoRotateSpeed = 0.9;
       const cur = await mib.call('skin:current');
-      await viewer.loadSkin(cur && cur.dataUrl ? cur.dataUrl : await mib.call('skin', 'MHF_Steve'), { model: cur && cur.variant === 'slim' ? 'slim' : 'default' });
-      if (g.texture) window.mibDress(viewer, outfit([{ type: g.type, id: g.cosmetic_id, texture: g.texture }]));
+      const skin = cur && cur.dataUrl ? cur.dataUrl : await mib.call('skin', 'MHF_Steve');
+      if (v.disposed) return;
+      await v.loadSkin(skin, { model: cur && cur.variant === 'slim' ? 'slim' : 'default' });
+      if (g.texture && !v.disposed) window.mibDress(v, outfit([{ type: g.type, id: g.cosmetic_id, texture: g.texture }]));
     } catch {}
   }
   // launcher sprawdza prezenty i odpowiedzi co minutę (main.js); kliknięte powiadomienie otwiera okno albo Pomysły
@@ -1722,7 +1763,7 @@
     const canvas = h('canvas', { width: 170, height: 210, class: 'fc3d' });
     const body = h('div', { class: 'fc-body' }, h('h3', {}, f.nick), h('p', { class: 'mut' }, T('Wczytywanie…')));
     let viewer = null;
-    const close = () => { try { if (viewer) viewer.dispose(); } catch {} ov.remove(); };
+    const close = () => { mib3d.drop(viewer); viewer = null; ov.remove(); };
     const ov = h('div', { class: 'ov on', id: 'fcard' }, h('div', { class: 'm fc-m', role: 'dialog', 'aria-label': f.nick },
       h('div', { class: 'fc-top' }, canvas, body),
       h('div', { class: 'row', style: 'justify-content:flex-end' },
@@ -1746,9 +1787,11 @@
       line('Założone', eq.length ? eq.map(x => x.name).join(', ') : '—'),
       h('h4', {}, T('Osiągnięcia') + ' (' + done + '/' + list.length + ')'), achGrid(list));
     try {
-      viewer = new skinview3d.SkinViewer({ canvas, width: 170, height: 210 }); viewer.autoRotate = true; viewer.autoRotateSpeed = 0.8; viewer.controls.enableZoom = false;
-      await viewer.loadSkin(await mib.call('skin', c.mc_name || 'MHF_Steve'));
-      if (ov.isConnected) window.mibDress(viewer, outfit(eq));
+      const v = viewer = mib3d.view({ canvas, width: 170, height: 210 }); v.autoRotate = true; v.autoRotateSpeed = 0.8;
+      const skin = await mib.call('skin', c.mc_name || 'MHF_Steve');
+      if (v.disposed) return;
+      await v.loadSkin(skin);
+      if (!v.disposed) window.mibDress(v, outfit(eq));
       canvas.dataset.dressed = eq.map(x => x.type).sort().join(',');
     } catch {}
   }

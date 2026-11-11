@@ -72,13 +72,20 @@
   const copy = async t => toast(await window.mibUI.copyText(t) ? 'Skopiowano' : 'Nie udało się skopiować');
   let tab = 'ann';
   // Jeden podgląd 3D na cały panel (każdy nowy SkinViewer zajmuje kontekst WebGL)
-  let capeCanvas = null, capeViewer = null;
+  let capeCanvas = null, capeViewer = null, capeLast = [];
   // Podgląd 3D przedmiotu na postaci (peleryna, skrzydła, czapka jak hełm, aura; animowane też się ruszają)
   function capePreview(dataUrl, type = 'cape', id = '') {
     if (!capeCanvas) capeCanvas = h('canvas', { width: 180, height: 220, class: 'cape3d', hidden: true });
+    capeLast = [dataUrl, type, id];
     try {
       if (dataUrl && !capeViewer) {
-        capeViewer = new skinview3d.SkinViewer({ canvas: capeCanvas, width: 180, height: 220 }); capeViewer.autoRotate = true; capeViewer.autoRotateSpeed = 0.8; capeViewer.controls.enableZoom = false;
+        // bez kontekstu WebGL (mib3d w ui.js): nowe płótno w tym samym miejscu i ten sam przedmiot
+        capeViewer = mib3d.view({ canvas: capeCanvas, width: 180, height: 220 }, () => {
+          const c = h('canvas', { width: 180, height: 220, class: 'cape3d', hidden: capeCanvas.hidden });
+          capeCanvas.replaceWith(c); capeCanvas = c; mib3d.drop(capeViewer); capeViewer = null;
+          capePreview(...capeLast);
+        });
+        capeViewer.autoRotate = true; capeViewer.autoRotateSpeed = 0.8;
         mib.call('skin', 'MHF_Steve').then(s => capeViewer.loadSkin(s)).catch(() => {});
       }
       if (capeViewer) window.mibDress(capeViewer, dataUrl ? window.mibOutfit([{ type, id, texture: dataUrl }]) : {});

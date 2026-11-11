@@ -684,13 +684,20 @@ function skinFromBuffer(buf) {
   const img = nativeImage.createFromBuffer(buf), size = img.getSize();
   return { dataUrl: toDataUrl(buf), variant: skinApi.guessVariant(img.toBitmap(), size.width, size.height) };
 }
+// Skin zapamiętany na 5 minut dla tego konta (od 0.47.3): Kosmetyki pytały Mojanga przy każdym kliknięciu (filtr, zakładka,
+// okno zakupu), a przy limicie zapytań podgląd na chwilę wracał do Steve'a. Zmiana i reset skina zapominają go.
+let skinCache = null;
 ipcMain.handle('skin:current', async () => {
   try {
-    const cur = await skinApi.currentSkin({ fetch, token: await mcToken() });
+    const token = await mcToken(), who = auth.profile && auth.profile.id;
+    if (skinCache && skinCache.who === who && Date.now() - skinCache.at < 300e3) return skinCache.v;
+    const cur = await skinApi.currentSkin({ fetch, token });
     if (cur && auth.profile) auth.profile.skins = cur.skins;
-    if (!cur) return { variant: 'classic', dataUrl: null };
+    if (!cur) return (skinCache = { who, at: Date.now(), v: { variant: 'classic', dataUrl: null } }).v;
     const r = await fetch(cur.url, { signal: AbortSignal.timeout(15000) });
-    return { variant: cur.variant, dataUrl: r.ok ? toDataUrl(Buffer.from(await r.arrayBuffer())) : null };
+    const v = { variant: cur.variant, dataUrl: r.ok ? toDataUrl(Buffer.from(await r.arrayBuffer())) : null };
+    if (v.dataUrl) skinCache = { who, at: Date.now(), v };
+    return v;
   } catch (e) { return skinErr(e); }
 });
 ipcMain.handle('skin:pick', async () => {
@@ -704,6 +711,7 @@ ipcMain.handle('skin:set', async (_, { dataUrl, variant }) => {
     const png = Buffer.from(String(dataUrl || '').replace(/^data:image\/png;base64,/, ''), 'base64');
     const prof = await skinApi.uploadSkin({ fetch, token: await mcToken(), png, variant });
     if (prof && prof.skins && auth.profile) auth.profile.skins = prof.skins;
+    skinCache = null;
     // historia: ten sam plik nie powtarza się na liście
     const id = crypto.createHash('sha1').update(png).digest('hex').slice(0, 16);
     fs.mkdirSync(skinDir(), { recursive: true });
@@ -715,7 +723,7 @@ ipcMain.handle('skin:set', async (_, { dataUrl, variant }) => {
   } catch (e) { return skinErr(e); }
 });
 ipcMain.handle('skin:reset', async () => {
-  try { await skinApi.resetSkin({ fetch, token: await mcToken() }); if (auth.profile) auth.profile.skins = []; return { ok: true }; } catch (e) { return skinErr(e); }
+  try { await skinApi.resetSkin({ fetch, token: await mcToken() }); if (auth.profile) auth.profile.skins = []; skinCache = null; return { ok: true }; } catch (e) { return skinErr(e); }
 });
 ipcMain.handle('skin:history', () => skinList().map(x => {
   try { return { ...x, dataUrl: toDataUrl(fs.readFileSync(path.join(skinDir(), path.basename(x.id) + '.png'))) }; } catch { return null; }

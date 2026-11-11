@@ -406,6 +406,40 @@ function png(w, h, px) {
     tester.coins = 0;
     ok('(an) sklep: przymiarka, za mało coinsów, zakup, prezent dla znajomego, pakiet taniej, historia i nagroda dzienna');
 
+    // Postać w Kosmetykach (0.47.3): okna z postacią 3D od razu oddają kontekst WebGL (wcześniej po kilkunastu przeglądarka
+    // zabierała go postaci w Kosmetykach — pusta, na Macu znikała i wracała), filtr i zakładki nie wczytują drugi raz skina
+    // i stroju, a postać bez kontekstu powstaje od nowa w tym samym miejscu i w tym samym stroju
+    const glLost = () => w.$eval('#skin3d', c => { const g = c.getContext('webgl2') || c.getContext('webgl'); return !g || g.isContextLost(); });
+    fake.cosmetics.cape_view = { id: 'cape_view', name: 'Peleryna podgląd', type: 'cape', image_url: null, price: 50, texture: fake.cosmetics.cape_start.texture };
+    await w.click('#cos-tabs [data-t="shop"]');
+    await w.waitForSelector('#shop-grid .cosi[data-id="cape_view"]');
+    for (let i = 0; i < 20; i++) {
+      await w.click('#shop-grid .cosi[data-id="cape_view"] button:has-text("Kup")');
+      await w.waitForSelector('#buy canvas');
+      await w.waitForTimeout(150);
+      await w.press('#buy', 'Escape');
+      await w.waitForSelector('#buy', { state: 'detached' });
+    }
+    await w.click('#cos-tabs [data-t="mine"]');
+    await w.waitForSelector('#cos-code');
+    assert.equal(await glLost(), false, 'po 20 oknach zakupu postać w Kosmetykach dalej ma kontekst WebGL');
+    await w.evaluate(() => {
+      const P = skinview3d.SkinViewer.prototype; window.__sv = { skin: 0, cape: 0 };
+      for (const [m, k] of [['loadSkin', 'skin'], ['loadCape', 'cape'], ['resetCape', 'cape']]) { const o = P[m]; P[m] = function (...a) { if (this.canvas.id === 'skin3d') window.__sv[k]++; return o.apply(this, a); }; }
+    });
+    for (const k of ['cape', 'all']) { await w.click(`#cos-kinds .kind[data-k="${k}"]`); await w.waitForSelector(`#cos-kinds .kind.on[data-k="${k}"]`); }
+    await w.click('#cos-tabs [data-t="shop"]'); await w.waitForSelector('#shop-grid');
+    await w.click('#cos-tabs [data-t="mine"]'); await w.waitForSelector('#cos-code');
+    await w.waitForTimeout(500);
+    assert.deepEqual(await w.evaluate(() => window.__sv), { skin: 0, cape: 0 }, 'filtr i zakładki nie wczytują skina i stroju od nowa');
+    const worn = await w.$eval('#skin3d', c => JSON.stringify(c.dataset));
+    await w.$eval('#skin3d', c => { c.dataset.old = '1'; (c.getContext('webgl2') || c.getContext('webgl')).getExtension('WEBGL_lose_context').loseContext(); });
+    await w.waitForFunction(() => { const c = document.getElementById('skin3d'); return c && !c.dataset.old && c.isConnected; }, null, { timeout: 6000 });
+    assert.equal(await glLost(), false, 'nowa postać ma kontekst WebGL');
+    await w.waitForFunction(b => JSON.stringify(document.getElementById('skin3d').dataset) === b, worn, { timeout: 5000 });
+    delete fake.cosmetics.cape_view;
+    ok('(az) postać w Kosmetykach: 20 okien zakupu, filtr i zakładki bez wczytywania od nowa, nowa postać po utracie kontekstu WebGL');
+
     // Święta (0.25.0): maska i wysoka czapka na podglądzie, kolekcja w sklepie z datą końca, nagroda świąteczna i kalendarz
     // adwentowy na stronie głównej (dzień w atrapie: 5 grudnia), wyłączenie motywów w Ustawieniach. Tekstury z schema.sql.
     const seededP = id => new RegExp("\\('" + id + "', '[^']*', '\\w+', \\w+, '(data:image/png;base64,[^']+)'\\)").exec(fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8'))[1];

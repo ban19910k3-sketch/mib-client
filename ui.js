@@ -57,19 +57,33 @@ $('skinimg').onerror=()=>{$('skinimg').style.display='none';$('skin').style.disp
 const cards=()=>{$('c-ver').textContent=$('sel').value;$('c-ram').textContent=((S.ram||2048)/1024).toFixed(1).replace('.0','')+' GB';$('c-res').textContent=(S.width||1280)+'×'+(S.height||720)};
 $('sel').addEventListener('change',cards);$('s-save').addEventListener('click',()=>setTimeout(cards,300));setTimeout(cards,1500);
 
-// Obracana postać 3D (przeciągnij myszką); w razie błędu pokazuje zwykły obrazek
-let viewer;
+// Postacie 3D (skinview3d) a konteksty WebGL (od 0.47.3): przeglądarka trzyma najwyżej 16 kontekstów, a zamknięty podgląd
+// oddawał swój dopiero przy odśmiecaniu. Po kilkunastu oknach (zakup, prezent, karta znajomego) zabierała więc kontekst
+// postaci w Kosmetykach: pusta, a na Macu znikała i wracała. view: podgląd rysuje się tylko wtedy, gdy go widać, a bez
+// kontekstu (nie wrócił w 2 s, np. reset karty graficznej) onDead() robi nowe płótno i nowy podgląd; drop: zamknięty
+// podgląd od razu oddaje kontekst.
+window.mib3d={
+  view(o,onDead){const v=new skinview3d.SkinViewer(o),c=v.canvas;v.controls.enableZoom=false;
+    if(window.IntersectionObserver){const io=new IntersectionObserver(es=>{if(v.disposed)return io.disconnect();v.renderPaused=!es[es.length-1].isIntersecting});io.observe(c);v.mibIO=io}
+    if(onDead)c.addEventListener('webglcontextlost',()=>setTimeout(()=>{if(!v.disposed&&v.renderer.getContext().isContextLost())onDead()},2000));
+    return v},
+  drop(v){if(!v)return;try{if(v.mibIO)v.mibIO.disconnect();v.dispose();v.renderer.forceContextLoss()}catch{}}
+};
+// Obracana postać 3D na stronie głównej (przeciągnij myszką); w razie błędu pokazuje zwykły obrazek. Od 0.30.0 schowana
+// (#skinw hidden): podgląd i jego kontekst WebGL powstają dopiero, gdy będzie widać to miejsce.
+let viewer=null,skinName='MHF_Steve';
+function homeViewer(){try{viewer=mib3d.view({canvas:$('skincv'),width:300,height:320},()=>{const o=$('skincv'),c=o.cloneNode(false);o.replaceWith(c);mib3d.drop(viewer);viewer=null;loadSkin(skinName)});
+  viewer.animation=new skinview3d.IdleAnimation();viewer.autoRotate=true;viewer.autoRotateSpeed=0.6;viewer.controls.enablePan=false;
+  $('skincv').addEventListener('mouseenter',()=>anim('WalkingAnimation'));$('skincv').addEventListener('mouseleave',()=>anim('IdleAnimation'))}catch(e){log('Podgląd 3D niedostępny: '+e.message)}}
 async function loadSkin(name){
+  skinName=name;if($('skinw').hidden)return;if(!viewer)homeViewer();
   try{const d=await mib.call('skin',name);if(!d||!viewer)throw 0;await viewer.loadSkin(d);$('skincv').style.display='block';$('skinimg').style.display='none';$('skin').style.display='none'}
   catch{$('skincv').style.display='none';$('skin').style.display='none';$('skinimg').src='https://mc-heads.net/body/'+encodeURIComponent(name)+'/280';$('skinimg').style.display='block'}
 }
-try{viewer=new skinview3d.SkinViewer({canvas:$('skincv'),width:300,height:320});viewer.animation=new skinview3d.IdleAnimation();
-viewer.autoRotate=true;viewer.autoRotateSpeed=0.6;viewer.controls.enableZoom=false;viewer.controls.enablePan=false}catch(e){log('Podgląd 3D niedostępny: '+e.message)}
 loadSkin('MHF_Steve');
 // Postać macha na powitanie i idzie, gdy najedziesz na nią myszką
 const anim=A=>{if(viewer&&!document.documentElement.classList.contains('noanim'))viewer.animation=new skinview3d[A]()};
 window.mibWave=()=>{anim('WaveAnimation');clearTimeout(window._wave);window._wave=setTimeout(()=>anim('IdleAnimation'),2500)};
-$('skincv').addEventListener('mouseenter',()=>anim('WalkingAnimation'));$('skincv').addEventListener('mouseleave',()=>anim('IdleAnimation'));
 
 
 $('sel').addEventListener('change',()=>localStorage.setItem('mibver',$('sel').value));
