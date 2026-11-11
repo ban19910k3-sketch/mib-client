@@ -6,7 +6,7 @@ name: Launcher na Maca i Linuksa
 
 on:
   push:
-    paths: ['*.js', '*.html', '*.css', 'lib/**', 'package.json', 'package-lock.json', 'build/afterpack.js', 'test/**', '.github/workflows/desktop.yml', '.github/workflows/retry.sh']
+    paths: ['*.js', '*.html', '*.css', 'lib/**', 'package.json', 'package-lock.json', 'build/afterpack.js', 'build/DockAgent.java', 'build/dock-agent.sh', 'test/**', '.github/workflows/desktop.yml', '.github/workflows/retry.sh']
   workflow_dispatch:
 
 jobs:
