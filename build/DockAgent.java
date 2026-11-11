@@ -2,7 +2,10 @@
 // (LWJGL 2, do 1.12), a Minecraft sam ustawia ikonę dopiero od 1.19. Launcher dokłada ten agent na Macu:
 // -javaagent:mib-dock.jar=<minecraft.icns>. Po utworzeniu okna gry agent robi to samo co gra od 1.19
 // (NSApplication setApplicationIconImage przez java-objc-bridge, który gra ma na Macu od 1.12.2) na wątku głównym.
-// Budowanie (Java 8): javac --release 8 -d out build/DockAgent.java, manifest „Premain-Class: DockAgent”.
+// Budowanie (Java 8): build/dock-agent.sh, manifest „Premain-Class: pl.mibclient.dock.DockAgent”. Własny pakiet, bo stare
+// wersje gry mają podpisane klasy w pakiecie domyślnym — niepodpisana klasa tam blokuje start gry (SecurityException).
+package pl.mibclient.dock;
+
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
