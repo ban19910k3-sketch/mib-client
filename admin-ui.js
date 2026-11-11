@@ -850,6 +850,10 @@
     const all = await allWithTextures();
     const list = h('div', { id: 'at-list' }), adv = h('div', { id: 'aa-list', class: 'adv-grid' }), advStage = h('div', { class: 'adv-stage', id: 'aa-stage' });
     let open = null;
+    // Podgląd (od 0.47.3): drugie okno launchera w tym święcie, z animacją startową; tylko do oglądania, bez zapisów i gry
+    const peek = (id, label) => h('button', { class: 'b ghost', type: 'button', 'data-peek': id, title: 'Otwórz drugie okno launchera w tym motywie', on: { click: async () => {
+      if (!(await mib.call('theme:preview', id))) toast('Nie udało się otworzyć podglądu.', 1);
+    } } }, label);
     function state(t) {
       if (!t.enabled) return ['wyłączony', 'off'];
       if (t.forced) return ['włączony teraz ręcznie', 'now'];
@@ -893,7 +897,8 @@
           h('div', {}, h('b', {}, t.name, h('em', { class: 'tag ' + (cls === 'now' ? 'st-done' : cls === 'off' ? 'st-rejected' : 'st-seen') }, st)),
             h('span', { class: 'mut' }, 'Nagroda: ' + (t.gift_coins ? t.gift_coins + ' MiB Coins' : '') + (t.gift_name ? (t.gift_coins ? ' i ' : '') + t.gift_name : '') + (!t.gift_coins && !t.gift_name ? 'brak' : '') +
               (t.claims ? ' (odebrało ' + t.claims + ')' : '') + ' · kolekcja: ' + t.items.length + (t.daily_bonus ? ' · dzienna +' + t.daily_bonus : ''))),
-          h('button', { class: 'b ghost', type: 'button', on: { click: () => { open = open === t.id ? null : t.id; load(); } } }, open === t.id ? 'Zwiń' : 'Edytuj'));
+          h('div', { class: 'row' },
+            h('button', { class: 'b ghost', type: 'button', on: { click: () => { open = open === t.id ? null : t.id; load(); } } }, open === t.id ? 'Zwiń' : 'Edytuj'), peek(t.id, 'Podgląd')));
         return open === t.id ? h('div', {}, row, form(t)) : row;
       }));
     }
@@ -930,7 +935,8 @@
       }));
       sum();
     }
-    box.append(h('p', { class: 'lead' }, 'Wygląd każdego święta jest wbudowany w launcher i w grę. Tu ustawiasz daty, włączasz i wyłączasz motywy, nagrodę świąteczną, dodatek do nagrody dziennej i kolekcję w sklepie. Zmiany działają bez aktualizacji launchera.'),
+    box.append(h('p', { class: 'lead' }, 'Wygląd każdego święta jest wbudowany w launcher i w grę. Tu ustawiasz daty, włączasz i wyłączasz motywy, nagrodę świąteczną, dodatek do nagrody dziennej i kolekcję w sklepie. Zmiany działają bez aktualizacji launchera. „Podgląd” otwiera drugie okno launchera w danym motywie (tylko do oglądania).'),
+      h('div', { class: 'row' }, peek('none', 'Podgląd bez święta')),
       list, h('div', { class: 'sec', id: 'aa' }, h('h3', {}, 'Kalendarz adwentowy'),
         h('p', { class: 'mut' }, 'Gracze otwierają okienka od 1 do 24 grudnia na stronie głównej, zaległe do 26 grudnia, gdy motyw Bożego Narodzenia jest włączony. Nagrodę widać dopiero po otwarciu. Zmiana zapisuje się od razu. Kliknij przedmiot, żeby go zmienić i zobaczyć na postaci.'), advSum, advStage, adv));
     load(); loadAdvent();

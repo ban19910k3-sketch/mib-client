@@ -198,7 +198,9 @@
   const off = () => read(OFF, '1') === '0';
   // święto ukryte przez gracza do swojego końca (od 0.47.0, wybór motywu, trybu albo koloru w Ustawieniach → Wygląd)
   const skip = () => { try { return JSON.parse(read(SKIP, 'null')); } catch { return null; } };
-  function compute() { return off() ? '' : P.themeShown(themes, skip()); }
+  // okno podglądu motywu z panelu admina (od 0.47.3): zawsze podglądane święto, bez ustawień gracza
+  const PV = P.previewTheme(location.search);
+  function compute() { return PV !== null ? PV : off() ? '' : P.themeShown(themes, skip()); }
   const NAMES = { halloween: 'Halloween' };
   const themeName = id => (DECOR[id] && DECOR[id].name) || NAMES[id] || id;
   function apply(id) {
@@ -207,7 +209,7 @@
     for (const c of [...root.classList]) if (c.startsWith('t-') || c === 'themed') root.classList.remove(c);
     if (current) { root.classList.add('t-' + current); if (current !== 'halloween') root.classList.add('themed'); }
     decorate(current);
-    if (window.mib && mib.call) mib.call('theme:set', current).catch(() => {});
+    if (window.mib && mib.call && PV === null) mib.call('theme:set', current).catch(() => {});
     if (was !== current) for (const f of listeners) try { f(current); } catch {}
   }
   async function refresh() {
@@ -216,7 +218,7 @@
       if (Array.isArray(l) && l.length) { themes = l; write(KEY, JSON.stringify(l)); }
     } catch {}
     const id = compute();
-    if (id !== current) apply(id); else if (window.mib && mib.call) mib.call('theme:set', current).catch(() => {});
+    if (id !== current) apply(id); else if (window.mib && mib.call && PV === null) mib.call('theme:set', current).catch(() => {});
   }
 
   // ===== Prima Aprilis: przycisk GRAJ raz ucieka przy najechaniu =====

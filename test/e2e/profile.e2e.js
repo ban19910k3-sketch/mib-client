@@ -1140,7 +1140,22 @@ function png(w, h, px) {
     Object.assign(fake.st.advent.find(a => a.day === 8), { cosmetic_id: null });
     await w.evaluate(() => MibThemes.refresh());
     await w.waitForFunction(() => !document.documentElement.classList.contains('t-walentynki'));
-    ok('(aq) zakładka Motywy: daty, nagroda świąteczna, kolekcja, włączenie od razu, kalendarz adwentowy');
+    // Podgląd (0.47.3): drugie okno launchera w danym święcie, z animacją startową w tym święcie, tylko do oglądania
+    const pvWin = app.waitForEvent('window');
+    await w.click('#at-list [data-peek="boze"]');
+    const pv = await pvWin;
+    await pv.waitForSelector('#app.on', { timeout: 15000 });
+    await pv.waitForSelector('#pv-bar');
+    assert.deepEqual(await pv.evaluate(() => [...['preview', 't-boze', 'themed'].map(c => document.documentElement.classList.contains(c)), document.getElementById('splash').classList.contains('t-boze')]), [true, true, true, true]);
+    assert.match(await pv.textContent('#pv-bar'), /Podgląd motywu.*Boże Narodzenie.*Nic się tu nie zapisuje.*Zamknij podgląd/s);
+    assert.equal(await pv.evaluate(() => document.getElementById('gate').hidden), true, 'w podglądzie bez okna logowania');
+    await pv.click('#go');
+    await pv.waitForSelector('.toast:has-text("To tylko podgląd motywu")');
+    assert.equal(await pv.evaluate(() => mib.call('settings:set', { ram: 1 })), null, 'zapisy z podglądu nie przechodzą');
+    assert.equal(await w.evaluate(() => document.documentElement.classList.contains('t-boze') || document.documentElement.classList.contains('preview')), false, 'główne okno bez zmian');
+    await pv.click('#pv-bar .b');
+    await until(async () => (await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)) === 1);
+    ok('(aq) zakładka Motywy: daty, nagroda świąteczna, kolekcja, włączenie od razu, kalendarz adwentowy, podgląd w drugim oknie');
 
     // Prezent z zakładki Gracze i nagroda za zgłoszony błąd z odpowiedzią: admin (Sierota_1) wysyła je sobie.
     // Sprawdzanie prezentów co minutę (main.js) wstrzymane, żeby okno nie wyskoczyło w połowie klikania w panelu

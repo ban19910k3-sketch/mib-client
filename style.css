@@ -1120,3 +1120,10 @@ body:has(#ted.on) #toasts{bottom:96px}
 .hol-art .firework{filter:drop-shadow(0 0 5px rgba(34,211,238,.7))}.hol-art .fw2{animation-delay:-.45s;filter:drop-shadow(0 0 5px rgba(244,114,182,.7))}
 .hol-art .gem{filter:drop-shadow(0 0 5px rgba(103,232,249,.7))}
 .hol-art .rainbow{opacity:.85}
+
+/* ===== Okno podglądu motywu (od 0.47.3, panel admina → drugie okno launchera): pasek na dole ===== */
+#pv-bar{position:fixed;left:16px;right:16px;bottom:18px;width:fit-content;margin-inline:auto;z-index:9500;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
+  padding:9px 10px 9px 16px;border:1px solid var(--edge);border-radius:var(--r);font-size:13px;
+  background:color-mix(in srgb,var(--cardbg) 94%,transparent);box-shadow:0 14px 36px -14px rgba(0,0,0,.65)}
+#pv-bar em{font-style:normal;font-weight:700;color:var(--am-hi)}#pv-bar span{color:var(--m)}#pv-bar .b{padding:7px 12px}
+.preview #toasts{bottom:78px}

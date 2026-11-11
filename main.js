@@ -1,4 +1,12 @@
 const { app, BrowserWindow, ipcMain, safeStorage, dialog, screen, clipboard, nativeImage, Notification, utilityProcess, session, shell } = require('electron');
+// Podgląd motywu (od 0.47.3, panel admina): drugie okno launchera tylko do oglądania. Z niego przechodzą wyłącznie odczyty
+// z PREVIEW_OK i przyciski okna; reszta (konto, gra, zapisy, profil MiB, motyw dla gry) dostaje null, więc podgląd niczego
+// nie zmienia. Strażnik owija ipcMain przed rejestracją kanałów (też tych z profile-main.js).
+const previews = new Set(), PREVIEW_OK = new Set(['ver', 'settings:get', 'sys:mem', 'versions', 'trending', 'skin', 'prof:themes', 'prof:catalog', 'prof:announcements', 'win']);
+for (const k of ['handle', 'on']) {
+  const reg = ipcMain[k].bind(ipcMain);
+  ipcMain[k] = (ch, fn) => reg(ch, (e, ...a) => (e && e.sender && previews.has(e.sender.id) && !PREVIEW_OK.has(ch) ? null : fn(e, ...a)));
+}
 const { spawn } = require('child_process'), crypto = require('crypto');
 const path = require('path'), fs = require('fs');
 const { Client } = require('minecraft-launcher-core');
@@ -306,11 +314,27 @@ app.whenReady().then(() => {
   win = new BrowserWindow({ width: 1100, height: 680, minWidth: 900, minHeight: 600, frame: false, backgroundColor: '#050007', icon: path.join(__dirname, 'icon.png'),
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.js') } });
   win.setMenu(null); win.loadFile('index.html');
+  // zamknięty launcher zamyka też okna podglądu motywu
+  win.on('closed', () => { for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed() && previews.has(w.webContents.id)) w.close(); });
   win.webContents.once('did-finish-load', () => setTimeout(() => checkUpdate(false), 4000));
 });
 app.on('window-all-closed', () => app.quit());
 
-ipcMain.on('win', (_, a) => { if (!win) return; a === 'min' ? win.minimize() : a === 'max' ? (win.isMaximized() ? win.unmaximize() : win.maximize()) : win.close(); });
+// przyciski okna działają na oknie, z którego przyszły (główne albo podgląd motywu)
+ipcMain.on('win', (e, a) => { const w = BrowserWindow.fromWebContents(e.sender) || win; if (!w || w.isDestroyed()) return; a === 'min' ? w.minimize() : a === 'max' ? (w.isMaximized() ? w.unmaximize() : w.maximize()) : w.close(); });
+// Podgląd motywu z panelu admina (zakładka Motywy): drugie okno launchera w danym święcie ('none' = bez święta), z osobną
+// pamięcią (partycja w pamięci, bez dysku) — zaczyna od wyglądu MiB i nie rusza ustawień ani konta gracza
+ipcMain.handle('theme:preview', (e, id) => {
+  if (!win || win.isDestroyed() || e.sender !== win.webContents || (id !== 'none' && !THEME_IDS.includes(id))) return false;
+  const [w0, h0] = win.getSize();
+  const p = new BrowserWindow({ width: w0, height: h0, minWidth: 900, minHeight: 600, frame: false, backgroundColor: '#050007', icon: path.join(__dirname, 'icon.png'),
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.js'), partition: 'mib-podglad' } });
+  const wid = p.webContents.id;
+  previews.add(wid);
+  p.on('closed', () => previews.delete(wid));
+  p.setMenu(null); p.loadFile('index.html', { query: { mibtheme: id } });
+  return true;
+});
 ipcMain.handle('settings:get', () => ({ ...defaults(), ...rd('settings.json', {}) }));
 // Motyw świąteczny z launchera (themes.js) dla moda MiB: -Dmib.theme=<id>, „none” = bez motywu (wyłączone albo poza świętami)
 let theme = '';

@@ -513,3 +513,12 @@ test('lookOf, nowe palety i synchronizacja wyglądu', () => {
   assert.equal(P.styleImg(P.styleOf({ p: 'grafit' })), 'grayscale(1) brightness(1.1)');
   assert.match(P.styleCss(P.styleOf({ p: 'zachod' })), /--style-img:hue-rotate\(/);
 });
+
+test('previewTheme: okno podglądu motywu z panelu admina', () => {
+  assert.equal(P.previewTheme('?mibtheme=boze'), 'boze');
+  assert.equal(P.previewTheme('?mibtheme=halloween&x=1'), 'halloween');
+  assert.equal(P.previewTheme('?mibtheme=none'), '', 'bez święta');
+  assert.equal(P.previewTheme(''), null, 'zwykłe okno');
+  assert.equal(P.previewTheme('?mibtheme=zly'), null, 'nieznane id to nie podgląd');
+  assert.equal(P.previewTheme(undefined), null);
+});
