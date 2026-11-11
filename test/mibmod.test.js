@@ -613,6 +613,13 @@ test('versionOk: warunki wersji Fabric', () => {
   assert.strictEqual(ok('1.9.9', '^1.2.0'), true);
   assert.strictEqual(ok('1.21', '>1.20.6'), true);
   assert.strictEqual(ok('1.21', '<=1.20.6'), false);
+  // wersje beta porównywane jak w Fabric (semver): Sodium Extra dla 26.3 wymaga dokładnie beta.4, a jest beta.3
+  assert.strictEqual(ok('0.9.3-beta.3+mc26.3', '0.9.3-beta.4+mc26.3'), false);
+  assert.strictEqual(ok('0.9.3-beta.4+mc26.3', '0.9.3-beta.4+mc26.3'), true);
+  assert.strictEqual(ok('0.9.3-beta.4', '>=0.9.3-beta.10'), false);
+  assert.strictEqual(ok('0.9.3-beta.10', '>=0.9.3-beta.4'), true);
+  assert.strictEqual(ok('0.9.3-alpha', '<0.9.3-beta'), true);
+  assert.strictEqual(ok('0.9.3', '>0.9.3-rc.1'), true);
 });
 test('installFromModrinth: wersja moda niezgodna z wersją gry albo z bibliotekami — bierze starszą, która pasuje', async () => {
   const crypto = require('crypto');
@@ -678,6 +685,27 @@ test('zgodność: moduły w środku Fabric API, „breaks”, brakująca bibliot
   fs.writeFileSync(path.join(d, 'iris.jar'), iris);
   assert.match(m.fitsInstance(nestedJar('sodium', '0.7.0+mc1.21.2'), '1.21.2', d).why, /iris wymaga sodium/);
   assert.deepStrictEqual(m.fitsInstance(nestedJar('sodium', '0.6.5+mc1.21.2'), '1.21.2', d), { ok: true });
+  // mod w środku pliku ma własne wymagania: Zoomify z YACL 3.7.1 w środku, a YACL wymaga Fabric API, którego nie ma (crash w 1.21)
+  const deepJar = (id, version, inner, extra = {}) => {
+    const z = new AdmZipD(), y = new AdmZipD();
+    y.addFile('fabric.mod.json', Buffer.from(JSON.stringify({ schemaVersion: 1, ...inner })));
+    z.addFile('fabric.mod.json', Buffer.from(JSON.stringify({ schemaVersion: 1, id, version, jars: [{ file: 'META-INF/jars/in.jar' }], ...extra })));
+    z.addFile('META-INF/jars/in.jar', y.toBuffer()); return z.toBuffer();
+  };
+  const e = tmp();
+  fs.writeFileSync(path.join(e, 'fabric-api.jar'), nestedJar('fabric-api', '0.102.0+1.21'));
+  const zoomIn = deepJar('zoomify', '2.14.6', { id: 'yet_another_config_lib_v3', version: '3.7.1+1.21.1-fabric', depends: { 'fabric-api': '>=0.104.0+1.21.1' } }, { depends: { yet_another_config_lib_v3: '>=3.6.6' } });
+  const r = m.fitsInstance(zoomIn, '1.21', e);
+  assert.strictEqual(r.kind, 'version'); assert.strictEqual(r.id, 'fabric-api'); assert.match(r.why, /w środku: yet_another_config_lib_v3/);
+  // w folderze nowsza YACL (bez wymagań nie do spełnienia) — Fabric bierze ją, a nie tę ze środka
+  fs.writeFileSync(path.join(e, 'yacl.jar'), nestedJar('yet_another_config_lib_v3', '3.8.0+1.21-fabric'));
+  assert.deepStrictEqual(m.fitsInstance(zoomIn, '1.21', e), { ok: true });
+  // biblioteka w środku dwóch modów: liczy się nowsza (Xaero minimap 1.0.42 i world map 1.1.0)
+  const f = tmp();
+  fs.writeFileSync(path.join(f, 'minimap.jar'), nestedJar('xaerominimap', '25.3.2', [{ id: 'xaerolib', version: '1.0.42' }]));
+  fs.writeFileSync(path.join(f, 'worldmap.jar'), nestedJar('xaeroworldmap', '1.41.2', [{ id: 'xaerolib', version: '1.1.0' }], { depends: { xaerolib: '>=1.1.0' } }));
+  assert.deepStrictEqual(m.fitsInstance(fs.readFileSync(path.join(f, 'minimap.jar')), '1.21', f), { ok: true });
+  assert.deepStrictEqual(m.fitsInstance(fs.readFileSync(path.join(f, 'worldmap.jar')), '1.21', f), { ok: true });
 });
 test('fixMods: mody gracza przed GRAJ — brakująca biblioteka z Modrinth, mod na inną wersję gry i bez biblioteki wyłączony', async () => {
   const crypto = require('crypto');

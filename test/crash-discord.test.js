@@ -11,6 +11,9 @@ test('crashMods names the mod Fabric or the crash report blames', () => {
   assert.deepEqual(crashMods('Mixin apply for mod notenoughanimations failed notenoughanimations.mixins.json:X'), ['notenoughanimations']);
   assert.deepEqual(crashMods('Suspected Mods: Not Enough Animations (notenoughanimations), Minecraft (minecraft)'), ['Not Enough Animations']);
   assert.deepEqual(crashMods('Suspected Mods: NONE'), []);
+  assert.deepEqual(crashMods("java.lang.RuntimeException: Could not execute entrypoint stage 'client' due to errors, provided by 'notenoughanimations' at 'dev.tr7zw.X'!"), ['notenoughanimations']);
+  // błąd mixina wskazuje winnego dokładniej niż mod, którego punkt startowy padł
+  assert.deepEqual(crashMods("Mixin apply for mod moreculling failed x\nCould not execute entrypoint stage 'client' due to errors, provided by 'sodium' at 'y'!"), ['moreculling']);
   assert.deepEqual(crashMods('java.lang.OutOfMemoryError'), []);
 });
 
