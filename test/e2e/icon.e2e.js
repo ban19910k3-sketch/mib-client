@@ -93,14 +93,18 @@ $out`;
         memory: { max: '2G', min: '512M' }, window: { width: 854, height: 480 }, customArgs: args });
       assert.ok(proc, 'MCLC nie uruchomił gry');
       let closed = null; proc.on('close', code => { closed = code; });
-      // czekamy na okno, potem do 40 s na ikonę (gra ustawia ją zaraz po utworzeniu okna)
-      let res = null, seenAt = 0;
+      // czekamy na okno, potem na ikonę — aż do wczytania gry i 15 s dłużej (bez karty graficznej start trwa długo)
+      let res = null, seenAt = 0, loadedAt = 0, iconAfter = 0;
+      const loaded = () => log.some(l => /Sound engine started|Created: \d+x\d+x\d+ minecraft:textures\/atlas/.test(l));
       for (const end = Date.now() + 12 * 60000; Date.now() < end && closed === null; await sleep(3000)) {
         const r = probe(proc.pid);
         if (!r) continue;
         res = r; seenAt = seenAt || Date.now();
-        if (r.icon || Date.now() - seenAt > 40000) break;
+        if (!loadedAt && loaded()) loadedAt = Date.now();
+        if (r.icon) { iconAfter = Math.round((Date.now() - seenAt) / 1000); break; }
+        if ((loadedAt && Date.now() - loadedAt > 15000) || Date.now() - seenAt > 6 * 60000) break;
       }
+      if (res) res.detail += ' (ikona ' + (res.icon ? iconAfter + ' s po pojawieniu się okna' : 'nie pojawiła się') + ', gra ' + (loadedAt ? 'wczytana po ' + Math.round((loadedAt - seenAt) / 1000) + ' s' : 'niewczytana') + ')';
       try { proc.kill('SIGKILL'); } catch {}
       if (OS === 'win32') try { execFileSync('taskkill', ['/F', '/T', '/PID', String(proc.pid)]); } catch {}
       if (!res) {

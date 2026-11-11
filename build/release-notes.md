@@ -10,6 +10,7 @@
 - Profil MiB nie wylogowuje się już czasem sam przy starcie launchera.
 - Wybór motywu, trybu albo koloru w Ustawieniach działa od razu także w czasie święta — motyw świąteczny chowa się do końca święta (można go przywrócić w Ustawieniach → Wygląd).
 - MiB Coins znikają od razu po zakupie, także w górnym pasku.
+- Mody dodane przez gracza (także przeciągnięte pliki): launcher odrzuca mod na inną wersję gry, sam doinstalowuje brakujące biblioteki, a mod, który i tak wywaliłby grę, wyłącza przed uruchomieniem i mówi dlaczego.
 - Mody z MiB Hub już nie wywalają gry: launcher wybiera wersję moda zgodną z wersją gry i bibliotekami, nie instaluje dwóch wersji tej samej biblioteki, a zdublowane mody sam wyłącza przed uruchomieniem gry.
 - Mac: w Docku ikona i nazwa Minecrafta także w starszych wersjach gry.
 - Ładniejsze motywy świąteczne w launcherze: girlanda pod górnym paskiem, świąteczna scena na banerze strony głównej (choinka ze śniegiem, flaga, serce, zajączek, tort i inne), nazwa święta na banerze i ikonka przy logo.

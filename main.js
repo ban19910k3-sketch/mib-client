@@ -540,6 +540,14 @@ async function doLaunch(version, server) {
     // dwie wersje tego samego moda (np. Fabric API od MiB i nowsza z moda z Modrinth): Fabric i Forge wtedy nie uruchamiają
     // gry — zostaje najnowsza, starsze są wyłączane (od 0.47.0; naprawia też foldery z wcześniejszych wersji launchera)
     for (const d of mibmod.dedupeMods(modsDir(version))) send('log', 'Wyłączono starszą kopię moda ' + d.id + ' (' + d.off + ') — zostaje ' + d.kept + '. Dwie kopie nie pozwalały uruchomić gry.');
+    // mody gracza, które i tak nie pozwoliłyby uruchomić gry: brakujące biblioteki z Modrinth, a mody na inną wersję gry
+    // albo bez biblioteki w Modrinth są wyłączane z komunikatem (od 0.47.0)
+    if (loader === 'fabric') try {
+      const fx = await mibmod.fixMods({ dir: modsDir(version), gv: version, mr, fetch: (...a) => fetch(...a), log: modLog });
+      for (const f of fx.installed) send('log', 'Doinstalowano bibliotekę wymaganą przez mod: ' + f);
+      for (const d of fx.disabled) send('log', 'Wyłączono mod ' + d.id + ' (' + d.file + '): ' + d.why);
+      if (fx.disabled.length) send('modsOff', fx.disabled.map(d => ({ id: d.id, kind: d.kind, need: typeof d.need === 'string' ? d.need : JSON.stringify(d.need) })));
+    } catch (e) { send('log', 'Sprawdzanie modów pominięte: ' + e.message); }
     if (loader === 'fabric') {
       send('log', 'Przygotowywanie Fabric…'); opts.version.custom = await ensureFabric(root, version);
       // bez internetu może zostać tylko stary loader: mod MiB wymaga nowszego, więc gra startuje bez niego
@@ -761,7 +769,7 @@ const safe = f => f === path.basename(f);
 ipcMain.handle('mods:list', (_, gv) => { try { return fs.readdirSync(modsDir(gv)).filter(f => /\.jar(\.disabled)?$/.test(f)).map(f => ({ file: f, on: !f.endsWith('.disabled'), size: fs.statSync(path.join(modsDir(gv), f)).size, mib: mibmod.isMibFile(f) })); } catch { return []; } });
 ipcMain.handle('mods:toggle', (_, { gv, file }) => { if (!safe(file) || mibmod.isMibFile(file)) return false; const d = modsDir(gv); fs.renameSync(path.join(d, file), path.join(d, file.endsWith('.disabled') ? file.slice(0, -9) : file + '.disabled')); modsChanged(gv); return true; });
 // Mody przeciągnięte do „Moje mody”: tylko pliki .jar z modem na loader tej wersji gry (pierwszy mod wybiera loader jak w MiB Hub)
-ipcMain.handle('mods:add', (_, { gv, paths }) => {
+ipcMain.handle('mods:add', async (_, { gv, paths }) => {
   const added = [], errors = [], dir = modsDir(gv);
   for (const p of Array.isArray(paths) ? paths.slice(0, 50) : []) {
     const name = typeof p === 'string' ? path.basename(p) : '';
@@ -777,11 +785,21 @@ ipcMain.handle('mods:add', (_, { gv, paths }) => {
       // ten sam mod w innej wersji (inna nazwa pliku) — dwie kopie nie pozwalają uruchomić gry
       const meta = mibmod.modMeta(buf);
       if (meta && mibmod.modFiles(dir).some(m => m.id === meta.id)) throw new Error('exists');
+      // Fabric (od 0.47.0): mod na inną wersję gry odrzucony, brakujące biblioteki doinstalowane z Modrinth
+      let fit = loader === 'fabric' ? mibmod.fitsInstance(buf, gv, dir) : { ok: true };
+      if (fit.kind === 'game') throw Object.assign(new Error('wrong_game'), { need: typeof fit.pred === 'string' ? fit.pred : JSON.stringify(fit.pred) });
+      if (fit.kind === 'breaks' || fit.kind === 'reverse') throw Object.assign(new Error('conflict'), { need: fit.id });
       if (!cur) instSet(gv, { loader });
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, name), buf);
+      for (const tried = new Set(); !fit.ok && (fit.kind === 'missing' || fit.kind === 'version') && !tried.has(fit.id);) {
+        tried.add(fit.id);
+        try { await mibmod.ensureModDep({ slug: mibmod.depSlug(fit.id), gv, loader: 'fabric', dest: dir, mr, fetch: (...a) => fetch(...a), log: modLog }); } catch {}
+        fit = mibmod.fitsInstance(buf, gv, dir);
+      }
+      if (!fit.ok) { try { fs.unlinkSync(path.join(dir, name)); } catch {} throw Object.assign(new Error('needs'), { need: fit.id }); }
       added.push(name);
-    } catch (e) { errors.push({ file: name || String(p), code: e.message, loader: e.loader || null, cur: e.cur || null }); }
+    } catch (e) { errors.push({ file: name || String(p), code: e.message, loader: e.loader || null, cur: e.cur || null, need: e.need || null }); }
   }
   if (added.length) modsChanged(gv);
   return { added, errors };

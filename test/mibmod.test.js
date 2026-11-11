@@ -679,3 +679,32 @@ test('zgodność: moduły w środku Fabric API, „breaks”, brakująca bibliot
   assert.match(m.fitsInstance(nestedJar('sodium', '0.7.0+mc1.21.2'), '1.21.2', d).why, /iris wymaga sodium/);
   assert.deepStrictEqual(m.fitsInstance(nestedJar('sodium', '0.6.5+mc1.21.2'), '1.21.2', d), { ok: true });
 });
+test('fixMods: mody gracza przed GRAJ — brakująca biblioteka z Modrinth, mod na inną wersję gry i bez biblioteki wyłączony', async () => {
+  const crypto = require('crypto');
+  const jarD = (id, version, depends) => { const z = new AdmZipD(); z.addFile('fabric.mod.json', Buffer.from(JSON.stringify({ schemaVersion: 1, id, version, depends }))); return z.toBuffer(); };
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'fabric-api.jar'), jarD('fabric-api', '0.102.0+1.21', { minecraft: '~1.21' }));
+  fs.writeFileSync(path.join(d, 'zoomify.jar'), jarD('zoomify', '2.14.0', { minecraft: '>=1.21', yet_another_config_lib_v3: '>=3.5.0' }));
+  fs.writeFileSync(path.join(d, 'old.jar'), jarD('oldmod', '1.0', { minecraft: '1.20.1' }));
+  fs.writeFileSync(path.join(d, 'lonely.jar'), jarD('lonely', '1.0', { minecraft: '*', nolib: '*' }));
+  fs.writeFileSync(path.join(d, 'ok.jar'), jarD('okmod', '1.0', { minecraft: '>=1.21', 'fabric-api': '*' }));
+  const yacl = jarD('yet_another_config_lib_v3', '3.5.0+1.21', { minecraft: '>=1.21' });
+  const asked = [];
+  const mr = async u => {
+    asked.push(u);
+    if (u.startsWith('/project/yacl/version')) return [{ id: 'y1', loaders: ['fabric'], dependencies: [], files: [{ url: 'u/yacl', filename: 'yacl-3.5.0.jar', primary: true, hashes: { sha512: crypto.createHash('sha512').update(yacl).digest('hex') } }] }];
+    return [];
+  };
+  const fetch = async () => ({ arrayBuffer: async () => yacl });
+  const r = await m.fixMods({ dir: d, gv: '1.21', mr, fetch });
+  assert.deepStrictEqual(r.installed, ['yacl-3.5.0.jar'], 'YACL (id yet_another_config_lib_v3 → projekt yacl) doinstalowana');
+  assert.deepStrictEqual(r.disabled.map(x => [x.id, x.kind, x.need]).sort(), [['lonely', 'missing', 'nolib'], ['oldmod', 'game', '1.20.1']]);
+  assert.deepStrictEqual(fs.readdirSync(d).sort(), ['fabric-api.jar', 'lonely.jar.disabled', 'ok.jar', 'old.jar.disabled', 'yacl-3.5.0.jar', 'zoomify.jar']);
+  assert.ok(asked.some(u => u.startsWith('/project/nolib/version')));
+  // drugi raz nic do zrobienia; bez internetu (mr rzuca) mod bez biblioteki i tak jest wyłączany, a nie wywala gry
+  assert.deepStrictEqual(await m.fixMods({ dir: d, gv: '1.21', mr, fetch }), { installed: [], disabled: [] });
+  assert.strictEqual(m.depSlug('fabric-rendering-v1'), 'fabric-api');
+  assert.strictEqual(m.depSlug('fabric-language-kotlin'), 'fabric-language-kotlin');
+  assert.strictEqual(m.depSlug('cloth-config2'), 'cloth-config');
+  assert.strictEqual(m.depSlug('some_lib'), 'some-lib');
+});

@@ -1279,6 +1279,14 @@ function png(w, h, px) {
       assert.deepEqual(r.errors.map(e => e.code), ['wrong_loader', 'not_mod', 'not_jar'], 'Forge do wersji z Fabricem, nie-mod i nie-.jar odrzucone');
       const again = await w.evaluate(p => mib.call('mods:add', { gv: '1.21.11', paths: [p] }), fab);
       assert.equal(again.errors[0].code, 'exists');
+      // Fabric: mod na inną wersję gry i mod z biblioteką, której nie ma (ani w Modrinth) — odrzucone z powodem
+      const mkJson = (name, j) => { const z = new AdmZip(); z.addFile('fabric.mod.json', Buffer.from(JSON.stringify(j))); z.writeZip(path.join(dir, name)); return path.join(dir, name); };
+      const oldMc = mkJson('stary-mod.jar', { schemaVersion: 1, id: 'starymod', version: '1.0', depends: { minecraft: '1.20.1' } });
+      const noLib = mkJson('bez-biblioteki.jar', { schemaVersion: 1, id: 'bezbiblioteki', version: '1.0', depends: { 'mib-test-brak-takiej-biblioteki': '*' } });
+      const bad = await w.evaluate(p => mib.call('mods:add', { gv: '1.21.11', paths: p }), [oldMc, noLib]);
+      assert.deepEqual(bad.added, []);
+      assert.deepEqual(bad.errors.map(e => [e.code, e.need]), [['wrong_game', '1.20.1'], ['needs', 'mib-test-brak-takiej-biblioteki']]);
+      assert.deepEqual(await w.evaluate(e => dropMsg(e), bad.errors[0]), 'Ten mod jest na inną wersję gry (Minecraft 1.20.1).');
       const list = await w.evaluate(() => mib.call('mods:list', '1.21.11'));
       assert.ok(list.some(m => m.file === 'sodium-test.jar'), 'mod na liście Moje mody');
       await w.click('#side .nav[data-p="hub"]'); await w.click('.nav[data-p="mods"]'); // Mody → zakładka Zainstalowane
@@ -1288,7 +1296,7 @@ function png(w, h, px) {
       await shot('mods-drop.png');
       await w.dispatchEvent('#p-mods', 'dragleave');
       assert.equal(await w.$('#p-mods.drop'), null);
-      ok('(x) mody przeciągnięte do Moje mody: tylko .jar z modem na loader tej wersji');
+      ok('(x) mody przeciągnięte do Moje mody: tylko .jar z modem na loader i wersję gry, z bibliotekami');
     }
 
     await new Promise(r => { fake.server.closeAllConnections && fake.server.closeAllConnections(); fake.server.close(r); });

@@ -39,13 +39,15 @@ const mr = m.modrinthApi(fetch, 'MiB-Client-CI (github.com/ban19910k3-sketch/mib
     } catch (e) { none.push(slug + ': ' + e.message); }
   }
   const dup = m.dedupeMods(MODS_DIR);
+  // jak przed GRAJ w launcherze: brakujące biblioteki z Modrinth, mody, które nie pozwoliłyby uruchomić gry — wyłączone
+  const fx = await m.fixMods({ dir: MODS_DIR, gv: GV, mr, fetch, log: t => console.log(t) });
   const all = fs.readdirSync(MODS_DIR).filter(f => f.endsWith('.jar')), slugs = MODS.filter(x => !none.some(n => n.split(':')[0] === x));
   const CACHE = path.join(TMP, 'cache'); fs.mkdirSync(CACHE);
   // mod MiB, jego biblioteki i mody na FPS (po id moda — popularny mód mógł podmienić plik na inną wersję) są zawsze
   const idOf = {}; for (const f of all) { const mm = m.modMeta(fs.readFileSync(path.join(MODS_DIR, f))); idOf[f] = mm && mm.id; }
   const baseIds = new Set([...base].map(f => { try { const mm = m.modMeta(fs.readFileSync(path.join(CACHE_SRC, f))); return mm && mm.id; } catch { return null; } }).filter(Boolean));
   for (const f of all) fs.copyFileSync(path.join(MODS_DIR, f), path.join(CACHE, f));
-  note('mod MiB: ' + (mib ? 'tak' : 'nie') + ' · mody (' + all.length + '): ' + all.join(', ') + (none.length ? ' · bez wersji: ' + none.join(', ') : '') + (dup.length ? ' · duplikaty wyłączone: ' + dup.map(d => d.off).join(', ') : ''));
+  note('mod MiB: ' + (mib ? 'tak' : 'nie') + ' · mody (' + all.length + '): ' + all.join(', ') + (none.length ? ' · bez wersji: ' + none.join(', ') : '') + (dup.length ? ' · duplikaty wyłączone: ' + dup.map(d => d.off).join(', ') : '') + (fx.installed.length ? ' · doinstalowane biblioteki: ' + fx.installed.join(', ') : '') + (fx.disabled.length ? ' · wyłączone przed startem: ' + fx.disabled.map(d => d.id + ' (' + d.why + ')').join(', ') : ''));
   // 3. Fabric (jak ensureFabric w main.js) i Java dla tej wersji gry
   const list = await (await fetch('https://meta.fabricmc.net/v2/versions/loader/' + GV)).json();
   const lv = (list.find(x => x.loader.stable) || list[0]).loader.version;
