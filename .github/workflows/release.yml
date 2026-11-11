@@ -15,7 +15,7 @@ permissions:
 jobs:
   # lista wersji gry = katalogi mod/versions/<wersja>
   versions:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       list: ${{ steps.v.outputs.list }}
     steps:
@@ -26,7 +26,7 @@ jobs:
   # mod MiB do gry (menu pod prawym Shiftem), osobny plik dla każdej wersji gry
   mod:
     needs: versions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -129,7 +129,7 @@ jobs:
   # releases/latest/download/MiB-Client-linux.AppImage) i latest-linux.yml — z niego aktualizacje jak na Windows
   linux:
     needs: [mod, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v5

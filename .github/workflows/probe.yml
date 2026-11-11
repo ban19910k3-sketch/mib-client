@@ -9,7 +9,7 @@ on:
 
 jobs:
   versions:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       list: ${{ steps.v.outputs.list }}
     steps:
@@ -19,7 +19,7 @@ jobs:
 
   probe:
     needs: versions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:

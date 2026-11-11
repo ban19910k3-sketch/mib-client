@@ -17,7 +17,7 @@ on:
 
 jobs:
   common:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-java@v5
@@ -31,7 +31,7 @@ jobs:
 
   # lista wersji gry = katalogi mod/versions/<wersja>
   versions:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       list: ${{ steps.v.outputs.list }}
     steps:
@@ -45,7 +45,7 @@ jobs:
 
   version:
     needs: versions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -59,7 +59,7 @@ jobs:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v6
-      - run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers
+      - run: bash .github/workflows/retry.sh sudo apt-get update && bash .github/workflows/retry.sh sudo apt-get install -y xvfb mesa-vulkan-drivers
       - name: Zbuduj
         shell: bash
         working-directory: mod
@@ -109,7 +109,7 @@ jobs:
     needs: [versions, version]
     if: always()
     continue-on-error: true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -125,7 +125,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: bash .github/workflows/retry.sh npm ci
-      - run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers
+      - run: bash .github/workflows/retry.sh sudo apt-get update && bash .github/workflows/retry.sh sudo apt-get install -y xvfb mesa-vulkan-drivers
       - uses: actions/download-artifact@v4
         continue-on-error: true
         with:
