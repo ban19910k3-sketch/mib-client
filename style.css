@@ -1029,3 +1029,18 @@ label.srow{cursor:pointer}
 #pchat-who{display:flex;flex-wrap:wrap;gap:4px 10px}
 #pchat-who .mem{display:inline-flex;align-items:center;gap:5px}
 #pchat-who .head{border-radius:3px}
+/* ===== Szczegóły wyglądu (od 0.47.0): zaokrąglenie rogów, czcionka, warstwa własnego obrazu tła ===== */
+:root[data-radius=square]{--r:3px;--r-sm:2px}
+:root[data-radius=slight]{--r:8px;--r-sm:6px}
+:root[data-radius=round]{--r:22px;--r-sm:16px}
+:root[data-font=pixel] body,:root[data-font=pixel] body *{font-family:Pixelify,Geist,"Segoe UI",sans-serif!important;letter-spacing:.01em}
+:root[data-font=system] body,:root[data-font=system] body *{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif!important}
+/* baner w kolorze motywu launchera (ustępuje świętom, które mają swój filtr) */
+:root[data-style]:not(.t-halloween):not(.themed) #hero img{filter:var(--style-img,none)}
+#bgimg{position:absolute;inset:-30px;z-index:0;pointer-events:none}
+.seg2{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;border-radius:999px;background:var(--slab2);border:1px solid var(--edge)}
+.seg2 button{border:0;background:none;color:var(--m);font:inherit;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;cursor:pointer}
+.seg2 button:hover{color:var(--t)}.seg2 button.on{background:var(--am);color:#fff}
+.seg2 button:focus-visible{outline:2px solid var(--am-hi);outline-offset:1px}
+.bgopts{display:flex;flex-wrap:wrap;gap:8px 16px}.bgopts .rng{display:flex;align-items:center;gap:8px}.bgopts .rng b{min-width:44px;font-size:12px;color:var(--m)}
+

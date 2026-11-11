@@ -416,7 +416,7 @@ test('launcher style (0.36.0): presets, own colors, palette, game colors and sha
   assert.equal(P.stylePalette(P.styleOf({ p: 'snieg' })).light, true, 'Śnieg jest jasny');
   assert.equal(P.stylePalette(P.styleOf({ p: 'neon' })).light, false);
   const css = P.styleCss(P.styleOf({ p: 'snieg' }));
-  assert.match(css, /^:root\[data-style\]\[data-mode\]:not\(\.t-halloween\):not\(\.themed\)\{color-scheme:light;--void:#eef3fa;--slab:#ffffff;/, 'ustępuje motywom świątecznym');
+  assert.match(css, /^:root\[data-style\]\[data-mode\]:not\(\.t-halloween\):not\(\.themed\)\{color-scheme:light;--style-img:[^;]+;--void:#eef3fa;--slab:#ffffff;/, 'ustępuje motywom świątecznym');
   // te same liczby w ThemeTest w modzie
   assert.equal(P.styleGame(P.styleOf({ p: 'ocean' })), '020814,0a1628,162132,212b3d,315069,38bdf8,a5e1fc,2681a9,e6e9f8,868b98,60caf9,1f6888,31a6da');
   assert.equal(P.styleGame(null), '');
@@ -472,4 +472,24 @@ test('themeSkipFor i themeShown: święto ukryte do swojego końca, następne ś
   const forced = P.DEFAULT_THEMES.map(t => ({ ...t, forced: t.id === 'wakacje' }));
   assert.deepEqual(P.themeSkipFor(forced, 'wakacje', d), { id: 'wakacje', until: '2026-12-11' });
   assert.equal(P.themeSkipFor(null, 'nieznany', d), null);
+});
+
+// ===== Więcej opcji wyglądu (0.47.0): nowe palety, zaokrąglenie, czcionka, ilość cząsteczek, przyciemnienie i rozmycie tła =====
+test('lookOf, nowe palety i synchronizacja wyglądu', () => {
+  const P = require('../lib/profile');
+  assert.deepEqual(P.STYLE_IDS, ['mib', 'ocean', 'las', 'lawa', 'snieg', 'neon', 'zachod', 'mieta', 'wisnia', 'zloto', 'grafit', 'lawenda', 'custom']);
+  for (const id of Object.keys(P.STYLES)) { assert.match(P.styleGame(P.styleOf({ p: id })), /^([0-9a-f]{6},){12}[0-9a-f]{6}$/); }
+  assert.equal(P.stylePalette(P.styleOf({ p: 'lawenda' })).light, true, 'Lawenda jest jasna');
+  assert.deepEqual(P.lookOf(null), P.LOOK_DEFAULT);
+  assert.deepEqual(P.LOOK_DEFAULT, { r: 'soft', f: 'geist', n: 'normal', dim: 55, blur: 0 });
+  assert.deepEqual(P.lookOf({ r: 'square', f: 'pixel', n: 'high', dim: 120, blur: -3, x: 1 }), { r: 'square', f: 'pixel', n: 'high', dim: 90, blur: 0 });
+  assert.deepEqual(P.lookOf({ r: 'zle', f: 'comic', n: 'max', dim: 'a', blur: 7.6 }), { ...P.LOOK_DEFAULT, blur: 8 });
+  assert.ok(P.SYNCED_KEYS.includes('look'));
+  assert.deepEqual(P.sanitizeSynced({ look: { r: 'round', f: 'system', n: 'low', dim: 30, blur: 10 } }).look, { r: 'round', f: 'system', n: 'low', dim: 30, blur: 10 });
+  assert.equal(P.sanitizeSynced({ look: 'x' }).look, undefined);
+  // baner w kolorze akcentu: fiolet MiB bez zmian, Ocean (błękit) w stronę niebieskiego, Grafit szary
+  assert.equal(P.styleImg({ a: '#a855f7' }), 'hue-rotate(-4deg) saturate(1.1)');
+  assert.match(P.styleImg(P.styleOf({ p: 'ocean' })), /^hue-rotate\(-\d+deg\)/);
+  assert.equal(P.styleImg(P.styleOf({ p: 'grafit' })), 'grayscale(1) brightness(1.1)');
+  assert.match(P.styleCss(P.styleOf({ p: 'zachod' })), /--style-img:hue-rotate\(/);
 });

@@ -505,6 +505,18 @@ function png(w, h, px) {
     await w.click('#s-hol-show');
     await w.waitForFunction(() => document.documentElement.classList.contains('t-walentynki') && document.documentElement.classList.contains('themed'));
     await w.evaluate(() => { setStyle(null); MibThemes.unskip(); });
+    // 0.47.0: szczegóły wyglądu — zaokrąglenie rogów, czcionka, ilość cząsteczek (zapis w miblook, na profilu „look”)
+    await w.evaluate(() => MibThemes.skipNow());
+    await w.click('#s-radius button[data-r="square"]');
+    await w.selectOption('#s-font', 'pixel');
+    await w.selectOption('#s-fxn', 'low');
+    assert.deepEqual(await w.evaluate(() => ({ r: getComputedStyle(document.documentElement).getPropertyValue('--r').trim(), pixel: /Pixelify/.test(getComputedStyle(document.querySelector('.nav')).fontFamily), look: JSON.parse(localStorage.getItem('miblook')) })),
+      { r: '3px', pixel: true, look: { r: 'square', f: 'pixel', n: 'low', dim: 55, blur: 0 } });
+    assert.equal((await w.$$('#s-style .sty')).length, 13, 'MiB, 11 gotowych i Własny');
+    await w.click('#s-radius button[data-r="soft"]');
+    await w.selectOption('#s-font', 'geist');
+    await w.selectOption('#s-fxn', 'normal');
+    await w.evaluate(() => MibThemes.unskip());
     walF.forced = false;
     await w.evaluate(() => MibThemes.refresh());
     await w.waitForFunction(id => !id || document.documentElement.classList.contains('t-' + id), themeNow);
@@ -1196,7 +1208,7 @@ function png(w, h, px) {
     await app.evaluate(({ ipcMain }) => { global.styleSet = []; ipcMain.removeHandler('style:set'); ipcMain.handle('style:set', (_, c) => { global.styleSet.push(c); }); });
     await w.click('.stab[data-st="look"]');
     await w.waitForSelector('#s-style .sty[data-s="mib"].on');
-    assert.deepEqual(await w.$$eval('#s-style .sty', l => l.map(b => b.dataset.s)), ['mib', 'ocean', 'las', 'lawa', 'snieg', 'neon', 'custom']);
+    assert.deepEqual(await w.$$eval('#s-style .sty', l => l.map(b => b.dataset.s)), ['mib', 'ocean', 'las', 'lawa', 'snieg', 'neon', 'zachod', 'mieta', 'wisnia', 'zloto', 'grafit', 'lawenda', 'custom']);
     const am = () => w.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--am').trim());
     await w.click('#s-style .sty[data-s="ocean"]');
     await w.waitForFunction(() => document.documentElement.dataset.style === 'ocean');

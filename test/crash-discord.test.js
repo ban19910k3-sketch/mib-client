@@ -1,9 +1,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const net = require('node:net'), path = require('node:path'), os = require('node:os'), fs = require('node:fs');
-const { diagnoseCrash } = require('../lib/crash');
+const { diagnoseCrash, crashMods } = require('../lib/crash');
 const { buildActivity, createPresence, encode } = require('../lib/discord');
 const { pngInfo, validCapeSize, capeFrames, CAPE_FRAME_MS } = require('../lib/profile');
+
+test('crashMods names the mod Fabric or the crash report blames', () => {
+  assert.deepEqual(crashMods("- Mod 'Zoomify' (zoomify) 2.14.0 requires version 3.6.6 or later of yet_another_config_lib_v3, which is missing!"), ['Zoomify']);
+  assert.deepEqual(crashMods("- Mod 'Iris' (iris) 1.8.0 is incompatible with any version of mod 'OptiFabric' (optifabric)!\n- Mod 'Iris' (iris) 1.8.0 requires sodium"), ['Iris']);
+  assert.deepEqual(crashMods('Mixin apply for mod notenoughanimations failed notenoughanimations.mixins.json:X'), ['notenoughanimations']);
+  assert.deepEqual(crashMods('Suspected Mods: Not Enough Animations (notenoughanimations), Minecraft (minecraft)'), ['Not Enough Animations']);
+  assert.deepEqual(crashMods('Suspected Mods: NONE'), []);
+  assert.deepEqual(crashMods('java.lang.OutOfMemoryError'), []);
+});
 
 test('diagnoseCrash recognizes common causes', () => {
   assert.equal(diagnoseCrash('Exception in thread "main" java.lang.OutOfMemoryError: Java heap space'), 'memory');

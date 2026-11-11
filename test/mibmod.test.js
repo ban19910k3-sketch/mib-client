@@ -645,3 +645,37 @@ test('installFromModrinth: wersja moda niezgodna z wersją gry albo z biblioteka
   await m.ensureModDep({ slug: 'sodium', gv: '26.1', loader: 'fabric', dest: mods2, mr, fetch });
   assert.deepStrictEqual(fs.readdirSync(mods2), ['sodium-ok.jar']);
 });
+test('zgodność: moduły w środku Fabric API, „breaks”, brakująca biblioteka i wersje beta jak w Fabric', () => {
+  const nestedJar = (id, version, nested = [], extra = {}) => {
+    const z = new AdmZipD();
+    z.addFile('fabric.mod.json', Buffer.from(JSON.stringify({ schemaVersion: 1, id, version, jars: nested.map(n => ({ file: 'META-INF/jars/' + n.id + '.jar' })), ...extra })));
+    for (const n of nested) { const y = new AdmZipD(); y.addFile('fabric.mod.json', Buffer.from(JSON.stringify({ schemaVersion: 1, id: n.id, version: n.version }))); z.addFile('META-INF/jars/' + n.id + '.jar', y.toBuffer()); }
+    return z.toBuffer();
+  };
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'fabric-api.jar'), nestedJar('fabric-api', '0.106.1+1.21.2', [{ id: 'fabric-lifecycle-events-v1', version: '2.3.22+c47b9d' }, { id: 'fabric-rendering-v1', version: '8.0.5+c47b9d4373' }]));
+  fs.writeFileSync(path.join(d, 'sodium.jar'), nestedJar('sodium', '0.6.0-beta.4+mc1.21.2'));
+  // LambDynamicLights: nowsze moduły Fabric API niż są dla 1.21.2
+  const ldl = nestedJar('lambdynlights', '4.1.0+1.21.3', [], { depends: { minecraft: '>=1.21.2', 'fabric-lifecycle-events-v1': '>=2.5.1', 'fabric-rendering-v1': '>=8.0.8' } });
+  assert.strictEqual(m.fitsInstance(ldl, '1.21.2', d).ok, false);
+  assert.match(m.fitsInstance(ldl, '1.21.2', d).why, /fabric-lifecycle-events-v1/);
+  // Iris: Sodium 0.6.x (beta też pasuje, jak w Fabric)
+  const iris = nestedJar('iris', '1.8.0+1.21.3', [], { depends: { minecraft: ['1.21.x'], sodium: ['0.6.x'] }, breaks: { canvas: '*' } });
+  assert.deepStrictEqual(m.fitsInstance(iris, '1.21.2', d), { ok: true });
+  assert.strictEqual(m.versionOk('0.6.0-beta.4+mc1.21.2', '0.6.x'), true);
+  assert.strictEqual(m.versionOk('0.7.0-beta.1', '0.6.x'), false);
+  // „breaks”: mod gryzie się z modem w folderze
+  fs.writeFileSync(path.join(d, 'canvas.jar'), nestedJar('canvas', '1.0'));
+  assert.match(m.fitsInstance(iris, '1.21.2', d).why, /canvas/);
+  fs.unlinkSync(path.join(d, 'canvas.jar'));
+  // brakująca wymagana biblioteka (nie ma jej w folderze ani w środku moda) — mod by nie wystartował
+  const zoom = nestedJar('zoomify', '2.15.2', [], { depends: { yet_another_config_lib_v3: '>=3.6.6' } });
+  assert.match(m.fitsInstance(zoom, '1.21', d).why, /yet_another_config_lib_v3/);
+  // biblioteka w środku samego moda wystarcza
+  const zoom2 = nestedJar('zoomify', '2.15.2', [{ id: 'yet_another_config_lib_v3', version: '3.7.0' }], { depends: { yet_another_config_lib_v3: '>=3.6.6' } });
+  assert.deepStrictEqual(m.fitsInstance(zoom2, '1.21', d), { ok: true });
+  // w drugą stronę: Iris w folderze wymaga Sodium 0.6.x — nowsza Sodium 0.7 by go zepsuła
+  fs.writeFileSync(path.join(d, 'iris.jar'), iris);
+  assert.match(m.fitsInstance(nestedJar('sodium', '0.7.0+mc1.21.2'), '1.21.2', d).why, /iris wymaga sodium/);
+  assert.deepStrictEqual(m.fitsInstance(nestedJar('sodium', '0.6.5+mc1.21.2'), '1.21.2', d), { ok: true });
+});

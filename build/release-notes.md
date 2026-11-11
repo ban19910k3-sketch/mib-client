@@ -1,5 +1,10 @@
 <!-- 0.47.0 -->
+## Dodane
+- Więcej możliwości wyglądu launchera (Ustawienia → Wygląd): 6 nowych gotowych motywów (Zachód, Mięta, Wiśnia, Złoto, Grafit, Lawenda), zaokrąglenie rogów, czcionka (zwykła, pikselowa, systemowa), ilość cząsteczek w tle oraz przyciemnienie i rozmycie własnego obrazka tła. Ustawienia zapisują się na profilu MiB.
+- Po awarii gry launcher pokazuje, który mod był prawdopodobnie winny.
+
 ## Zmienione
+- Baner na stronie głównej ma kolory wybranego motywu launchera.
 - Mac i Linux: profil MiB zakłada się od razu po zalogowaniu kontem Microsoft, a launcher pamięta konto i profil po ponownym uruchomieniu (także na Linuksie bez systemowego schowka haseł).
 - Mac: po aktualizacji launcher nie pyta już o hasło do pęku kluczy i nie zawiesza się. Po tej aktualizacji trzeba raz zalogować się ponownie.
 - Profil MiB nie wylogowuje się już czasem sam przy starcie launchera.

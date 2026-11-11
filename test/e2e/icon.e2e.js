@@ -53,13 +53,21 @@ $out = $null
     [void][W]::SendMessageTimeout($h, 0x7F, [IntPtr]1, [IntPtr]0, 2, 5000, [ref]$r); $big = $r
     [void][W]::SendMessageTimeout($h, 0x7F, [IntPtr]0, [IntPtr]0, 2, 5000, [ref]$r); $small = $r
     [void][W]::SendMessageTimeout($h, 0x7F, [IntPtr]2, [IntPtr]0, 2, 5000, [ref]$r); $small2 = $r
-    $cls = [W]::GetClassLongPtr($h, -14); $clsSm = [W]::GetClassLongPtr($h, -34); $script:out = "$t|$big|$small|$cls|$small2|$clsSm" }
+    $cls = [W]::GetClassLongPtr($h, -14); $clsSm = [W]::GetClassLongPtr($h, -34)
+    # próba kontrolna: gdy gra nie ustawiła ikony, czy w tym środowisku ikonę okna w ogóle da się ustawić i odczytać
+    $ctl = ''
+    if ($big -eq [IntPtr]::Zero -and $small -eq [IntPtr]::Zero) { Add-Type -AssemblyName System.Drawing
+      $ico = [System.Drawing.SystemIcons]::Information.Handle
+      [void][W]::SendMessageTimeout($h, 0x80, [IntPtr]1, $ico, 2, 5000, [ref]$r)
+      [void][W]::SendMessageTimeout($h, 0x7F, [IntPtr]1, [IntPtr]0, 2, 5000, [ref]$r); $ctl = "kontrola: ustawiona $ico, odczytana $r"
+      [void][W]::SendMessageTimeout($h, 0x80, [IntPtr]1, [IntPtr]::Zero, 2, 5000, [ref]$r) }
+    $script:out = "$t|$big|$small|$cls|$small2|$clsSm|$ctl" }
   return $true }, [IntPtr]::Zero) | Out-Null
 $out`;
   const o = run('powershell', ['-NoProfile', '-Command', ps]).trim().split('\n').pop().trim();
   if (!o || !o.includes('|')) return null;
-  const [title, big, small, cls, small2, clsSm] = o.split('|');
-  return { title, icon: big !== '0' || small !== '0', detail: 'WM_GETICON big=' + big + ' small=' + small + ' small2=' + small2 + ', ikona klasy okna=' + cls + '/' + clsSm };
+  const [title, big, small, cls, small2, clsSm, ctl] = o.split('|');
+  return { title, icon: big !== '0' || small !== '0', detail: 'WM_GETICON big=' + big + ' small=' + small + ' small2=' + small2 + ', ikona klasy okna=' + cls + '/' + clsSm + (ctl ? ', ' + ctl : '') };
 }
 
 (async () => {

@@ -8,7 +8,7 @@ const { Auth } = require('msmc');
 if (process.env.MIB_TEST_HOOKS === '1') globalThis.__mibRequire = require;
 const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
-const { diagnoseCrash } = require('./lib/crash');
+const { diagnoseCrash, crashMods } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
 const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText, THEME_IDS, mcProfileAction, partyPlay, partyEntry, partyChatRows } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
@@ -837,8 +837,8 @@ function reportCrash(code, game) {
   } catch {}
   // tylko linie logu z tej sesji gry (nie z poprzednich uruchomień)
   const log = logBuf.slice(-Math.min(200, Math.max(0, logCount - game.logFrom))).join('\n');
-  lastCrash = { code, report: report.slice(-6000), cause: diagnoseCrash(report + '\n' + log) };
-  send('crashed', { code, cause: lastCrash.cause, report: !!report });
+  lastCrash = { code, report: report.slice(-6000), cause: diagnoseCrash(report + '\n' + log), mods: crashMods(report + '\n' + log) };
+  send('crashed', { code, cause: lastCrash.cause, report: !!report, mods: lastCrash.mods });
   notify('MiB Client', 'Gra zamknęła się z błędem.');
   if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 }

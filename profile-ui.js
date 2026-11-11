@@ -1096,8 +1096,11 @@
       if (short > 0) return;
       if (gift && !who.value) { err.textContent = T('Wybierz znajomego.'); return; }
       go2.disabled = true; err.textContent = '';
+      // saldo spada w chwili kliknięcia (od 0.47.0), a odpowiedź bazy je potwierdza; przy błędzie wraca
+      const before = shopCoins;
+      if (Number.isInteger(before)) showCoins(Math.max(0, before - cost));
       const r = offer ? await mib.call('prof:buyOffer', { id: offer.id }) : await mib.call('prof:buy', { id: item.id, to: gift ? who.value : null, message: gift ? note.value : '' });
-      if (r.error) { go2.disabled = false; err.textContent = msg(r.error, r.detail); return; }
+      if (r.error) { go2.disabled = false; err.textContent = msg(r.error, r.detail); if (Number.isInteger(before)) showCoins(before); return; }
       showCoins(r.coins);
       close();
       if (gift) toast(T('Prezent wysłany!') + ' ' + who.selectedOptions[0].textContent + ' ' + T('dostanie') + ' ' + item.name + '.');
