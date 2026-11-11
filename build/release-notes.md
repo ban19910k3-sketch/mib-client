@@ -12,7 +12,7 @@
 - MiB Coins znikają od razu po zakupie, także w górnym pasku.
 - Mody dodane przez gracza (także przeciągnięte pliki): launcher odrzuca mod na inną wersję gry, sam doinstalowuje brakujące biblioteki, a mod, który i tak wywaliłby grę, wyłącza przed uruchomieniem i mówi dlaczego.
 - Mody z MiB Hub już nie wywalają gry: launcher wybiera wersję moda zgodną z wersją gry i bibliotekami, nie instaluje dwóch wersji tej samej biblioteki, a zdublowane mody sam wyłącza przed uruchomieniem gry.
-- Mac: w Docku ikona i nazwa Minecrafta także w starszych wersjach gry.
+- Mac: w Docku ikona Minecrafta także w starszych wersjach gry.
 - Ładniejsze motywy świąteczne w launcherze: girlanda pod górnym paskiem, świąteczna scena na banerze strony głównej (choinka ze śniegiem, flaga, serce, zajączek, tort i inne), nazwa święta na banerze i ikonka przy logo.
 - Prima Aprilis ma własne kolory, a baner jest do góry nogami.
 - Nowe cząsteczki w tle: znaki zapytania na Prima Aprilis, bąbelki w wakacje i balony na urodziny MiB.

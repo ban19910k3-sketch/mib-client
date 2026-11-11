@@ -112,6 +112,8 @@ jobs:
           pattern: mod-*
           merge-multiple: true
           path: mod-dist
+      - name: Agent Docka (ikona Minecrafta w Docku dla gier na GLFW)
+        run: bash build/dock-agent.sh mod-dist
       - name: Zbuduj dmg i zip
         run: bash .github/workflows/retry.sh npx electron-builder --mac --universal --publish never
         env:

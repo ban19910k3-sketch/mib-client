@@ -526,7 +526,8 @@ async function doLaunch(version, server) {
     if (process.platform === 'darwin') {
       let roots = []; try { roots = fs.readdirSync(path.join(s.root, 'instances')).map(v => path.join(s.root, 'instances', v)); } catch {}
       const icon = await require('./lib/macupdate').dockIcon({ dir: dir(), roots, fetch: (...a) => fetch(...a) }).catch(() => null);
-      opts.customArgs.push(...require('./lib/macupdate').dockArgs(icon));
+      const agent = path.join(modResDir(), 'mib-dock.jar');
+      opts.customArgs.push(...require('./lib/macupdate').dockArgs(icon, fs.existsSync(agent) ? agent : null));
     }
     // Mod MiB (menu pod prawym Shiftem): przy błędzie gra startuje bez niego. Ustawienia moda i most kont są wspólne dla wszystkich wersji gry.
     let mibDir = null;

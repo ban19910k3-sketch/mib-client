@@ -172,4 +172,6 @@ test('dockIcon: minecraft.icns z zasobów Mojanga (sprawdzony skrót), raz pobra
   assert.equal(fs.existsSync(path.join(dir3, 'minecraft.icns')), false);
   assert.deepEqual(mac.dockArgs(p), ['-Xdock:icon=' + p, '-Xdock:name=Minecraft']);
   assert.deepEqual(mac.dockArgs(null), ['-Xdock:name=Minecraft']);
+  assert.deepEqual(mac.dockArgs(p, '/app/mod/mib-dock.jar'), ['-Xdock:icon=' + p, '-Xdock:name=Minecraft', '-javaagent:/app/mod/mib-dock.jar=' + p]);
+  assert.deepEqual(mac.dockArgs(null, '/app/mod/mib-dock.jar'), ['-Xdock:name=Minecraft']);
 });

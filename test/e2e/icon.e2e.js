@@ -1,7 +1,7 @@
 // Ikona Minecrafta na pasku zadań / w Docku (od 0.47.0) na prawdziwym systemie (GitHub Actions: Windows, Mac, Linux):
 // stara (LWJGL 2), średnia i najnowsza wersja gry uruchomione tak jak w launcherze (MCLC, Java z lib/java.js, na Macu
 // -Xdock:icon/-Xdock:name z lib/macupdate.js). Sprawdza okno gry: Windows — ikona okna (WM_GETICON), Linux — _NET_WM_ICON,
-// Mac — nazwa aplikacji w Docku (Minecraft zamiast java) i poprawny plik minecraft.icns.
+// Mac — gry na AWT (do 1.12): nazwa w Docku z -Xdock:name; na GLFW (1.13+): ikona ustawiona przez agenta Docka (NSApplication), poprawny plik minecraft.icns.
 // Uruchom: node test/e2e/icon.e2e.js (Linux: xvfb-run -a; Windows bez karty graficznej: MESA_DIR z bibliotekami Mesa)
 const path = require('path'), fs = require('fs'), os = require('os'), { execFileSync, spawnSync } = require('child_process');
 const assert = require('node:assert/strict');
@@ -86,7 +86,9 @@ $out`;
       if (OS === 'darwin') {
         const icon = await mac.dockIcon({ dir: path.join(TMP, 'launcher'), roots: [ROOT], fetch });
         assert.ok(icon && fs.readFileSync(icon).subarray(0, 4).toString('latin1') === 'icns', 'minecraft.icns z zasobów Mojanga');
-        args.push(...mac.dockArgs(icon));
+        // agent Docka jak w wydaniu (gry na GLFW: ikona przez NSApplication, bo -Xdock:icon działa tylko z AWT)
+        const agentDir = path.join(TMP, 'dock'); if (!fs.existsSync(path.join(agentDir, 'mib-dock.jar'))) execFileSync('bash', [path.join(__dirname, '../../build/dock-agent.sh'), agentDir]);
+        args.push(...mac.dockArgs(icon, path.join(agentDir, 'mib-dock.jar')));
       }
       const c = new Client(), log = [];
       c.on('data', d => log.push(String(d).trim()));
@@ -100,6 +102,8 @@ $out`;
       for (const end = Date.now() + 12 * 60000; Date.now() < end && closed === null; await sleep(3000)) {
         const r = probe(proc.pid);
         if (!r) continue;
+        // Mac: gry na GLFW mają w Docku nazwę „java”, ale ikonę ustawia agent (potwierdza w logu); gry na AWT — nazwa z -Xdock:name
+        if (OS === 'darwin') { const d = log.find(l => /\[MIB-DOCK\]/.test(l)); if (d) { r.detail += ' · ' + d.slice(0, 120); if (/\[MIB-DOCK\] ok/.test(d)) r.icon = true; } }
         res = r; seenAt = seenAt || Date.now();
         if (!loadedAt && loaded()) loadedAt = Date.now();
         if (r.icon) { iconAfter = Math.round((Date.now() - seenAt) / 1000); break; }
