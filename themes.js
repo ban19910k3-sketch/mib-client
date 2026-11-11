@@ -3,7 +3,7 @@
 // Halloween ma swoje ozdoby w index.html i style.css; pozostałe motywy rysują tu pikselowe obrazki z siatek znaków.
 (() => {
   const root = document.documentElement, P = window.MibProfile;
-  const KEY = 'mib-themes', OFF = 'mibthemes';
+  const KEY = 'mib-themes', OFF = 'mibthemes', SKIP = 'mibthemeskip';
   const read = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch { return d; } };
   const write = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   let themes = null, current = '';
@@ -165,7 +165,11 @@
 
   // ===== Wybór motywu =====
   const off = () => read(OFF, '1') === '0';
-  function compute() { return off() ? '' : P.themeNow(themes); }
+  // święto ukryte przez gracza do swojego końca (od 0.47.0, wybór motywu, trybu albo koloru w Ustawieniach → Wygląd)
+  const skip = () => { try { return JSON.parse(read(SKIP, 'null')); } catch { return null; } };
+  function compute() { return off() ? '' : P.themeShown(themes, skip()); }
+  const NAMES = { halloween: 'Halloween' };
+  const themeName = id => (DECOR[id] && DECOR[id].name) || NAMES[id] || id;
   function apply(id) {
     const was = current;
     current = id || '';
@@ -199,10 +203,21 @@
 
   window.MibThemes = {
     get id() { return current; },
+    name: themeName,
+    // gracz wybrał własny wygląd: trwające święto znika do swojego końca; zwraca {id, until} albo null
+    skipNow() {
+      if (!current) return null;
+      const sk = P.themeSkipFor(themes, current);
+      if (sk) { write(SKIP, JSON.stringify(sk)); apply(compute()); }
+      return sk;
+    },
+    unskip() { try { localStorage.removeItem(SKIP); } catch {} apply(compute()); },
+    // ukryte dziś święto {id, until} albo null
+    get skipped() { const sk = skip(); return !off() && sk && P.themeNow(themes) === sk.id && !compute() ? sk : null; },
     fx: () => FX[current] || FX[''],
     onChange: f => listeners.push(f),
     refresh,
-    setEnabled(on) { write(OFF, on ? '1' : '0'); apply(compute()); },
+    setEnabled(on) { write(OFF, on ? '1' : '0'); apply(compute()); for (const f of listeners) try { f(current); } catch {} },
     get enabled() { return !off(); },
   };
   // klasa z <head> (index.html) zgadza się z obliczoną; ozdoby i motyw dla gry od razu, potem świeże daty z bazy

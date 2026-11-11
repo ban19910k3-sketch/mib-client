@@ -349,6 +349,8 @@ function png(w, h, px) {
     await until(() => fake.st.owned.some(o => o.user === tester.id && o.cosmetic === 'hat_shop' && o.source === 'shop'));
     assert.equal(tester.coins, 100);
     await w.waitForFunction(() => /^100$/.test(document.getElementById('cos-coins').textContent) && /Masz/.test(document.querySelector('#shop-grid .cosi[data-id="hat_shop"]').textContent));
+    // 0.47.0: górny pasek od razu z nowym saldem (wcześniej stare do 90 s albo przełączenia okna)
+    await w.waitForFunction(() => !document.getElementById('tb-coins').hidden && document.getElementById('tb-coins-n').textContent === '100', null, { timeout: 3000 });
     await w.waitForFunction(() => !document.getElementById('unlock'), null, { timeout: 5000 });
     // prezent: bez znajomych nie ma komu, potem znajomy dostaje okno „Masz prezent!” z nickiem kupującego
     await w.click('#shop-grid .cosi[data-id="cape_shop"] button:has-text("Podaruj")');
@@ -369,6 +371,7 @@ function png(w, h, px) {
     await until(() => fake.st.gifts.some(g => g.user === kumpel.id && g.cosmetic === 'cape_shop' && g.from === tester.id && g.message === 'Wszystkiego najlepszego!'));
     await w.waitForSelector('.toast:has-text("Prezent wysłany")');
     assert.equal(tester.coins, 1200);
+    await w.waitForFunction(() => document.getElementById('tb-coins-n').textContent.replace(/\D/g, '') === '1200', null, { timeout: 3000 });
     assert.ok(!fake.st.owned.some(o => o.user === tester.id && o.cosmetic === 'cape_shop'), 'kupujący nie dostaje prezentu');
     // pakiet: brakuje już tylko peleryny (800 z 2000) → 400
     await w.waitForFunction(() => /400/.test(document.querySelector('.card.offer .price').textContent));
@@ -488,8 +491,25 @@ function png(w, h, px) {
     assert.equal(await w.evaluate(() => document.querySelectorAll('#hero .hol, #hw .deco').length), 0, 'bez motywu bez ozdób');
     await w.check('#s-themes');
     await w.waitForFunction(id => !id || document.documentElement.classList.contains('t-' + id), themeNow);
+    // 0.47.0: wybór motywu launchera w czasie święta działa od razu — święto chowa się do swojego końca, „Pokaż motyw świąteczny” wraca
+    const walF = fake.st.themes.find(t => t.id === 'walentynki');
+    walF.forced = true;
+    await w.evaluate(() => MibThemes.refresh());
+    await w.waitForFunction(() => document.documentElement.classList.contains('t-walentynki'));
+    assert.match(await w.textContent('#s-hol'), /Teraz trwa motyw świąteczny: Walentynki/);
+    await w.click('#s-style .sty[data-s="ocean"]');
+    await w.waitForFunction(() => !document.documentElement.classList.contains('themed') && document.documentElement.dataset.style === 'ocean');
+    assert.equal(await w.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--am').trim()), '#38bdf8', 'kolory Oceanu, nie święta');
+    assert.match(await w.textContent('#s-hol'), /Motyw świąteczny Walentynki schowany do/);
+    await w.waitForSelector('.toast:has-text("Motyw świąteczny schowany do końca święta")');
+    await w.click('#s-hol-show');
+    await w.waitForFunction(() => document.documentElement.classList.contains('t-walentynki') && document.documentElement.classList.contains('themed'));
+    await w.evaluate(() => { setStyle(null); MibThemes.unskip(); });
+    walF.forced = false;
+    await w.evaluate(() => MibThemes.refresh());
+    await w.waitForFunction(id => !id || document.documentElement.classList.contains('t-' + id), themeNow);
     tester.coins = 0;
-    ok('(ap) święta: maska i wysoka czapka, kolekcja w sklepie, nagroda świąteczna, kalendarz adwentowy, wyłączenie motywów');
+    ok('(ap) święta: maska i wysoka czapka, kolekcja w sklepie, nagroda świąteczna, kalendarz adwentowy, wyłączenie motywów, własny motyw w czasie święta');
 
     // Pety, ogony i plecaki (0.34.0): filtr kategorii, wszystko naraz na postaci, ustawienia peta (tryb, strona, imię)
     for (const [id, name, type, price] of [['pet_kotek', 'Kotek', 'pet', 1500], ['tail_koci', 'Koci ogon', 'tail', 800], ['back_mib', 'Plecak MiB', 'back', 1000]])

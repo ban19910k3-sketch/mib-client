@@ -137,3 +137,39 @@ test('macupdate.download: zapis z postępem, przerwane pobieranie to błąd', as
   await assert.rejects(mu.download({ url: 'u', file, fetch: async () => ({ ok: false, status: 404 }) }), /kod 404/);
   assert.match(mu.DMG_URL, /^https:\/\/github\.com\/ban19910k3-sketch\/mib-client\/releases\/latest\/download\/MiB-Client-mac\.dmg$/);
 });
+
+// ===== Ikona Minecrafta w Docku (0.47.0): starsze wersje gry same jej nie ustawiają na Macu =====
+test('dockIcon: minecraft.icns z zasobów Mojanga (sprawdzony skrót), raz pobrany do folderu launchera; dockArgs dla Javy', async () => {
+  const crypto = require('crypto'), fs = require('fs'), os = require('os'), path = require('path');
+  const mac = require('../lib/macupdate');
+  const icns = Buffer.concat([Buffer.from('icns'), Buffer.alloc(60, 7)]), hash = crypto.createHash('sha1').update(icns).digest('hex');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mib-dock-')), calls = [];
+  const json = o => ({ ok: true, json: async () => o });
+  const fetch = async u => {
+    calls.push(u);
+    if (u.includes('version_manifest')) return json({ versions: [{ id: '1.12.2', url: 'https://piston-meta/v/1.12.2.json' }] });
+    if (u.endsWith('1.12.2.json')) return json({ assetIndex: { url: 'https://piston-meta/i/1.12.json' } });
+    if (u.endsWith('1.12.json')) return json({ objects: { 'icons/minecraft.icns': { hash, size: icns.length } } });
+    if (u === 'https://resources.download.minecraft.net/' + hash.slice(0, 2) + '/' + hash) return { ok: true, arrayBuffer: async () => icns };
+    return { ok: false, status: 404 };
+  };
+  const p = await mac.dockIcon({ dir, roots: [], fetch });
+  assert.equal(p, path.join(dir, 'minecraft.icns'));
+  assert.deepEqual(fs.readFileSync(p), icns);
+  const n = calls.length;
+  assert.equal(await mac.dockIcon({ dir, roots: [], fetch }), p, 'drugi raz z dysku');
+  assert.equal(calls.length, n, 'bez sieci');
+  // z indeksu i obiektu w folderze gry (bez sieci)
+  const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'mib-dock-')), root = fs.mkdtempSync(path.join(os.tmpdir(), 'mib-root-'));
+  fs.mkdirSync(path.join(root, 'assets', 'indexes'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'assets', 'indexes', '1.8.json'), JSON.stringify({ objects: { 'icons/minecraft.icns': { hash } } }));
+  fs.mkdirSync(path.join(root, 'assets', 'objects', hash.slice(0, 2)), { recursive: true });
+  fs.writeFileSync(path.join(root, 'assets', 'objects', hash.slice(0, 2), hash), icns);
+  assert.equal(await mac.dockIcon({ dir: dir2, roots: [root], fetch: () => { throw new Error('sieć'); } }), path.join(dir2, 'minecraft.icns'));
+  // zły plik (inny skrót) nie zostaje zapisany
+  const dir3 = fs.mkdtempSync(path.join(os.tmpdir(), 'mib-dock-'));
+  assert.equal(await mac.dockIcon({ dir: dir3, roots: [], fetch: async u => (u.includes('resources.download') ? { ok: true, arrayBuffer: async () => Buffer.from('icnsZLE') } : fetch(u)) }), null);
+  assert.equal(fs.existsSync(path.join(dir3, 'minecraft.icns')), false);
+  assert.deepEqual(mac.dockArgs(p), ['-Xdock:icon=' + p, '-Xdock:name=Minecraft']);
+  assert.deepEqual(mac.dockArgs(null), ['-Xdock:name=Minecraft']);
+});

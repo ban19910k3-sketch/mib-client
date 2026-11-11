@@ -53,3 +53,39 @@ jobs:
       - run: bash .github/workflows/retry.sh npm i -g playwright@1.56.1
       - name: Test na Linuksie
         run: xvfb-run -a node test/e2e/dist.e2e.js
+
+  # Ikona Minecrafta na pasku zadań / w Docku (od 0.47.0): stara (LWJGL 2), średnia i najnowsza wersja gry na każdym systemie
+  icon:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: bash .github/workflows/retry.sh npm ci
+        shell: bash
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb x11-utils mesa-utils
+      # Windows bez karty graficznej: OpenGL z Mesa (llvmpipe) obok javaw.exe
+      - if: runner.os == 'Windows'
+        name: Mesa (OpenGL bez karty graficznej)
+        shell: bash
+        run: |
+          bash .github/workflows/retry.sh gh release download --repo pal1000/mesa-dist-win --pattern '*release-msvc.7z' --dir mesa
+          7z x -omesa mesa/*.7z > /dev/null
+          echo "MESA_DIR=$(cygpath -w "$PWD/mesa/x64")" >> "$GITHUB_ENV"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Ikona w grze
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a -s "-screen 0 1280x720x24" node test/e2e/icon.e2e.js; else node test/e2e/icon.e2e.js; fi
+        env:
+          GALLIUM_DRIVER: llvmpipe
+

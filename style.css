@@ -951,6 +951,9 @@ label.srow{cursor:pointer}
 .style-code{display:flex;flex-wrap:wrap;gap:8px;width:100%}
 .style-code input{flex:1;min-width:180px;font-family:Consolas,ui-monospace,monospace;font-size:12px;letter-spacing:.02em}
 #s-style-row{display:flex;flex-direction:column;align-items:stretch;gap:12px}
+/* Motyw świąteczny a własny wygląd (od 0.47.0): informacja nad motywami i przywracanie schowanego święta */
+.hol-note{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:4px 0 6px;padding:10px 14px;border-radius:var(--r-sm);background:color-mix(in srgb,var(--am) 12%,transparent);border:1px solid color-mix(in srgb,var(--am) 35%,var(--edge));font-size:13px;line-height:1.45;color:var(--t)}
+.hol-note b{color:var(--hi)}.hol-note .b{margin-left:auto;padding:6px 12px;font-size:12.5px}
 /* Logowanie do profilu MiB kontem Minecraft (od 0.37.0) */
 .pf-auto{display:flex;align-items:center;gap:14px;padding:16px 18px;margin:8px 0 14px}
 .pf-auto.err{flex-direction:column;align-items:flex-start;gap:6px;border-color:color-mix(in srgb,var(--bad) 45%,var(--edge))}

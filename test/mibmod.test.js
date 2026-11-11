@@ -507,3 +507,85 @@ test('miniatury kosmetyków dla menu gry: nazwa z skrótu tekstury i pole thumb 
   assert.equal(p.items[0].thumb, n);
   assert.equal('thumb' in p.items[1], false, 'zła nazwa nie trafia do gry');
 });
+
+// ===== Duplikaty modów (0.47.0): ta sama biblioteka w dwóch wersjach = Fabric nie uruchamia gry =====
+const AdmZipD = require('adm-zip');
+const modJar = (id, version, kind = 'fabric') => {
+  const z = new AdmZipD();
+  if (kind === 'fabric') z.addFile('fabric.mod.json', Buffer.from(JSON.stringify({ schemaVersion: 1, id, version })));
+  else if (kind === 'quilt') z.addFile('quilt.mod.json', Buffer.from(JSON.stringify({ quilt_loader: { id, version } })));
+  else z.addFile('META-INF/mods.toml', Buffer.from(`modLoader="javafml"\n[[mods]]\nmodId="${id}"\nversion="${version}"\n`));
+  return z.toBuffer();
+};
+test('modMeta: loader, id i wersja z fabric.mod.json, quilt.mod.json i mods.toml', () => {
+  assert.deepStrictEqual(m.modMeta(modJar('sodium', '0.6.13+mc1.21.11')), { loader: 'fabric', id: 'sodium', version: '0.6.13+mc1.21.11' });
+  assert.deepStrictEqual(m.modMeta(modJar('qmod', '1.0', 'quilt')), { loader: 'quilt', id: 'qmod', version: '1.0' });
+  assert.deepStrictEqual(m.modMeta(modJar('jei', '19.1.0', 'forge')), { loader: 'forge', id: 'jei', version: '19.1.0' });
+  assert.strictEqual(m.modMeta(Buffer.from('to nie jar')), null);
+});
+test('cmpModVersion: wersje modów w różnych zapisach', () => {
+  assert.strictEqual(m.cmpModVersion('0.133.4+1.21.11', '0.130.0+1.21.11'), 1);
+  assert.strictEqual(m.cmpModVersion('mc1.21.11-0.7.3-fabric', 'mc1.21.11-0.7.10-fabric'), -1);
+  assert.strictEqual(m.cmpModVersion('1.9.6+1.21.11', '1.9.6+1.21.11'), 0);
+});
+test('dedupeMods: z dwóch wersji tej samej biblioteki zostaje nowsza, starsza wyłączona; mod MiB i inne mody bez zmian', () => {
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'fabric-api-0.130.0+1.21.11.jar'), modJar('fabric-api', '0.130.0+1.21.11'));
+  fs.writeFileSync(path.join(d, 'fabric-api-0.133.4+1.21.11.jar'), modJar('fabric-api', '0.133.4+1.21.11'));
+  fs.writeFileSync(path.join(d, 'sodium-a.jar'), modJar('sodium', '0.6.13+mc1.21.11'));
+  fs.writeFileSync(path.join(d, 'sodium-b.jar.disabled'), modJar('sodium', '0.7.0+mc1.21.11'));
+  fs.writeFileSync(path.join(d, 'iris.jar'), modJar('iris', '1.9.6+1.21.11'));
+  fs.writeFileSync(path.join(d, 'zepsuty.jar'), 'x');
+  const out = m.dedupeMods(d);
+  assert.deepStrictEqual(out, [{ id: 'fabric-api', off: 'fabric-api-0.130.0+1.21.11.jar', kept: 'fabric-api-0.133.4+1.21.11.jar' }]);
+  assert.deepStrictEqual(fs.readdirSync(d).sort(), ['fabric-api-0.130.0+1.21.11.jar.disabled', 'fabric-api-0.133.4+1.21.11.jar', 'iris.jar', 'sodium-a.jar', 'sodium-b.jar.disabled', 'zepsuty.jar']);
+  assert.deepStrictEqual(m.dedupeMods(d), [], 'drugi raz nic');
+  assert.deepStrictEqual(m.dedupeMods(path.join(d, 'brak')), []);
+});
+test('placeMod: nowszy plik zastępuje starszy tego samego moda, starszy obok nowszego się nie zapisuje', () => {
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'fabric-api-0.130.0+1.21.11.jar'), modJar('fabric-api', '0.130.0+1.21.11'));
+  assert.deepStrictEqual(m.placeMod(d, 'fabric-api-0.133.4+1.21.11.jar', modJar('fabric-api', '0.133.4+1.21.11')), { file: 'fabric-api-0.133.4+1.21.11.jar', replaced: ['fabric-api-0.130.0+1.21.11.jar'] });
+  assert.deepStrictEqual(fs.readdirSync(d), ['fabric-api-0.133.4+1.21.11.jar']);
+  assert.deepStrictEqual(m.placeMod(d, 'fabric-api-0.120.0+1.21.11.jar', modJar('fabric-api', '0.120.0+1.21.11')), { file: 'fabric-api-0.133.4+1.21.11.jar', kept: true });
+  assert.deepStrictEqual(fs.readdirSync(d), ['fabric-api-0.133.4+1.21.11.jar']);
+  // wyłączony przez gracza: nowy plik też wyłączony (gracz go nie chciał)
+  fs.renameSync(path.join(d, 'fabric-api-0.133.4+1.21.11.jar'), path.join(d, 'fabric-api-0.133.4+1.21.11.jar.disabled'));
+  assert.deepStrictEqual(m.placeMod(d, 'fabric-api-0.140.0+1.21.11.jar', modJar('fabric-api', '0.140.0+1.21.11')), { file: 'fabric-api-0.140.0+1.21.11.jar.disabled', replaced: ['fabric-api-0.133.4+1.21.11.jar.disabled'] });
+  // paczka zasobów / nie-mod: zwykły zapis
+  assert.deepStrictEqual(m.placeMod(d, 'pack.zip', Buffer.from('zip')), { file: 'pack.zip' });
+});
+test('installFromModrinth: mod z Modrinth wymaga Fabric API, a w folderze jest starsza od MiB — zostaje jedna, nowsza (wcześniej dwie i crash)', async () => {
+  const crypto = require('crypto');
+  const inst = tmp(), mods = path.join(inst, 'mods');
+  fs.mkdirSync(mods);
+  fs.writeFileSync(path.join(mods, 'fabric-api-0.130.0+1.21.11.jar'), modJar('fabric-api', '0.130.0+1.21.11'));
+  fs.writeFileSync(path.join(mods, 'sodium-fabric-0.7.3+mc1.21.11.jar'), modJar('sodium', '0.7.3+mc1.21.11'));
+  const files = { 'https://cdn/menu.jar': modJar('modmenu', '16.0.0'), 'https://cdn/fapi.jar': modJar('fabric-api', '0.133.4+1.21.11'), 'https://cdn/iris.jar': modJar('iris', '1.9.6+1.21.11'), 'https://cdn/sodium-old.jar': modJar('sodium', '0.7.0+mc1.21.11') };
+  const file = (url, filename) => ({ url, filename, primary: true, hashes: { sha512: crypto.createHash('sha512').update(files[url]).digest('hex') } });
+  const V = {
+    modmenu: { id: 'vMM', loaders: ['fabric'], files: [file('https://cdn/menu.jar', 'modmenu-16.0.0.jar')], dependencies: [{ project_id: 'P7dR8mSH', dependency_type: 'required' }] },
+    fapi: { id: 'vFA', loaders: ['fabric'], files: [file('https://cdn/fapi.jar', 'fabric-api-0.133.4+1.21.11.jar')], dependencies: [] },
+    iris: { id: 'vIR', loaders: ['fabric'], files: [file('https://cdn/iris.jar', 'iris-fabric-1.9.6+mc1.21.11.jar')], dependencies: [{ project_id: 'AANobbMI', version_id: 'vSOld', dependency_type: 'required' }] },
+    sodiumOld: { id: 'vSOld', loaders: ['fabric'], files: [file('https://cdn/sodium-old.jar', 'sodium-fabric-0.7.0+mc1.21.11.jar')], dependencies: [] },
+  };
+  const calls = [];
+  const mr = async u => {
+    calls.push(u);
+    if (u === '/project/modmenu') return { project_type: 'mod' };
+    if (u === '/project/iris') return { project_type: 'mod' };
+    if (u.startsWith('/project/modmenu/version')) return [V.modmenu];
+    if (u.startsWith('/project/iris/version')) return [V.iris];
+    if (u.startsWith('/project/P7dR8mSH/version')) return [V.fapi];
+    if (u === '/version/vSOld') return V.sodiumOld;
+    throw new Error('nieznane ' + u);
+  };
+  const fetch = async u => ({ arrayBuffer: async () => files[u] });
+  const r = await m.installFromModrinth({ slug: 'modmenu', gv: '1.21.11', cur: 'fabric', instDir: inst, mr, fetch });
+  assert.deepStrictEqual(r, { loader: 'fabric', pack: false, files: ['modmenu-16.0.0.jar', 'fabric-api-0.133.4+1.21.11.jar'] });
+  assert.deepStrictEqual(fs.readdirSync(mods).sort(), ['fabric-api-0.133.4+1.21.11.jar', 'modmenu-16.0.0.jar', 'sodium-fabric-0.7.3+mc1.21.11.jar']);
+  // Iris z przypiętą wersją Sodium: dokładnie ta wersja zastępuje Sodium od MiB (inną Iris by nie wystartował), bez drugiej kopii
+  await m.installFromModrinth({ slug: 'iris', gv: '1.21.11', cur: 'fabric', instDir: inst, mr, fetch });
+  assert.deepStrictEqual(fs.readdirSync(mods).sort(), ['fabric-api-0.133.4+1.21.11.jar', 'iris-fabric-1.9.6+mc1.21.11.jar', 'modmenu-16.0.0.jar', 'sodium-fabric-0.7.0+mc1.21.11.jar']);
+  assert.deepStrictEqual(m.dedupeMods(mods), []);
+});

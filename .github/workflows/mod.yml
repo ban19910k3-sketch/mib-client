@@ -101,3 +101,38 @@ jobs:
             mod/versions/${{ matrix.mc }}/**/screenshots/*.png
             mod/versions/${{ matrix.mc }}/build/libs/mib-mod-fabric-*.jar
             mod/test.log
+
+  # Gra z popularnymi modami z Modrinth (od 0.47.0) tak jak u gracza: instalacja kodem launchera (mod MiB z bibliotekami,
+  # mody na FPS, potem ok. 20 najpopularniejszych modów z wymaganymi bibliotekami, bez duplikatów), Fabric i MCLC jak w
+  # launcherze; mod MiB z tego przebiegu (artefakt). 1.20.1 bez moda MiB. Wynik i przyczyny awarii w adnotacjach.
+  popular:
+    needs: [versions, version]
+    if: always()
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        mc: ${{ fromJson(needs.versions.outputs.list) }}
+        include:
+          - mc: '1.20.1'
+    name: mody ${{ matrix.mc }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: bash .github/workflows/retry.sh npm ci
+      - run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: zrzuty-${{ matrix.mc }}
+          path: art
+      - name: Gra z popularnymi modami
+        run: |
+          JAR=$(find art -name "mib-mod-fabric-${{ matrix.mc }}.jar" 2>/dev/null | head -1)
+          xvfb-run -a -s "-screen 0 1280x720x24" node test/e2e/mods.e2e.js "${{ matrix.mc }}" "$JAR"
+

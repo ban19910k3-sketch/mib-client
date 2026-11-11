@@ -1098,7 +1098,7 @@
       go2.disabled = true; err.textContent = '';
       const r = offer ? await mib.call('prof:buyOffer', { id: offer.id }) : await mib.call('prof:buy', { id: item.id, to: gift ? who.value : null, message: gift ? note.value : '' });
       if (r.error) { go2.disabled = false; err.textContent = msg(r.error, r.detail); return; }
-      if (Number.isInteger(r.coins)) shopCoins = r.coins;
+      showCoins(r.coins);
       close();
       if (gift) toast(T('Prezent wysłany!') + ' ' + who.selectedOptions[0].textContent + ' ' + T('dostanie') + ' ' + item.name + '.');
       else if (window.mibUnlock) mibUnlock(offer ? { name: offer.name, label: T('Kupione!'), glyph: coinIcon() } : { name: item.name, type: item.type, imageUrl: item.texture, label: T('Kupione!') });
@@ -1194,13 +1194,22 @@
     refreshWallet(card);
     return card;
   }
+  // Saldo wszędzie naraz (od 0.47.0): karta portfela w Kosmetykach i licznik w górnym pasku — wcześniej górny pasek
+  // pokazywał stare saldo po zakupie aż do 90 s albo przełączenia okna
+  function showCoins(n) {
+    if (!Number.isInteger(n)) return;
+    shopCoins = n;
+    const c = document.getElementById('cos-coins'), tb = document.getElementById('tb-coins'), tn = document.getElementById('tb-coins-n');
+    if (c) c.textContent = fmtCoins(n);
+    if (tb && tn) { tn.textContent = fmtCoins(n); tb.hidden = false; }
+  }
   async function refreshWallet(card = document.getElementById('cos-wallet')) {
-    if (!card) return;
     const w = await mib.call('prof:wallet');
     const ok = !!(w && !w.error && w.loggedIn && Number.isInteger(w.coins)), shop = !!(w && w.shopUrl);
+    if (ok) showCoins(w.coins);
+    if (!card) return;
     // bez profilu albo przed uruchomieniem nowego schema.sql (brak coinsów w bazie) karty nie ma; bez sieci: „—”
     card.hidden = !ok && !(w && w.error);
-    if (ok) shopCoins = w.coins;
     card.querySelector('#cos-coins').textContent = ok ? fmtCoins(w.coins) : '—';
     card.querySelector('#cos-shop').hidden = !shop;
     card.querySelector('.soon').hidden = shop;

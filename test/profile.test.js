@@ -452,3 +452,24 @@ test('party: lider gra na serwerze, wpis w menu gry, czat w grze, powiadomienia'
   assert.equal(P.friendNotice({ type: 'party_msg', nick: 'Kolega', text: 'x'.repeat(200) }, 'pl').body.length, 140);
   assert.equal(P.PARTY_MAX, 8);
 });
+
+// ===== Własny wygląd w czasie święta (0.47.0): wybór gracza ukrywa to święto do jego końca =====
+test('themeSkipFor i themeShown: święto ukryte do swojego końca, następne święto już normalnie', () => {
+  const P = require('../lib/profile');
+  const d = new Date(2026, 10, 11); // 11 listopada: Święto Niepodległości (11-08 … 11-12)
+  assert.equal(P.themeNow(null, d), 'niepodleglosc');
+  const skip = P.themeSkipFor(null, 'niepodleglosc', d);
+  assert.deepEqual(skip, { id: 'niepodleglosc', until: '2026-11-12' });
+  assert.equal(P.themeShown(null, skip, d), '', 'ukryte dziś');
+  assert.equal(P.themeShown(null, skip, new Date(2026, 10, 12)), '', 'do ostatniego dnia święta');
+  assert.equal(P.themeShown(null, skip, new Date(2027, 10, 9)), 'niepodleglosc', 'za rok znowu');
+  assert.equal(P.themeShown(null, skip, new Date(2026, 11, 3)), 'boze', 'inne święto normalnie');
+  assert.equal(P.themeShown(null, null, d), 'niepodleglosc');
+  assert.equal(P.themeShown(null, { id: 'x', until: 'zle' }, d), 'niepodleglosc', 'zepsuty zapis nic nie ukrywa');
+  // Boże Narodzenie przez Nowy Rok: ukryte do 6 stycznia
+  assert.deepEqual(P.themeSkipFor(null, 'boze', new Date(2026, 11, 20)), { id: 'boze', until: '2027-01-06' });
+  // wymuszony z panelu admina (bez końca): 30 dni
+  const forced = P.DEFAULT_THEMES.map(t => ({ ...t, forced: t.id === 'wakacje' }));
+  assert.deepEqual(P.themeSkipFor(forced, 'wakacje', d), { id: 'wakacje', until: '2026-12-11' });
+  assert.equal(P.themeSkipFor(null, 'nieznany', d), null);
+});

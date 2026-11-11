@@ -522,6 +522,12 @@ async function doLaunch(version, server) {
     const opts = { authorization: auth.mclc(), root, version: { number: version, type: 'release' }, javaPath, memory: { max: s.ram + 'M', min: Math.min(512, s.ram) + 'M' },
       window: { width: s.width, height: s.height }, customArgs: s.jvm ? s.jvm.split(/\s+/).filter(Boolean) : [] };
     if (mibmod.validServer(server)) opts.quickPlay = { type: 'multiplayer', identifier: server };
+    // Mac: ikona i nazwa Minecrafta w Docku (od 0.47.0; starsze wersje gry same ich nie ustawiają — była ikona Javy)
+    if (process.platform === 'darwin') {
+      let roots = []; try { roots = fs.readdirSync(path.join(s.root, 'instances')).map(v => path.join(s.root, 'instances', v)); } catch {}
+      const icon = await require('./lib/macupdate').dockIcon({ dir: dir(), roots, fetch: (...a) => fetch(...a) }).catch(() => null);
+      opts.customArgs.push(...require('./lib/macupdate').dockArgs(icon));
+    }
     // Mod MiB (menu pod prawym Shiftem): przy błędzie gra startuje bez niego. Ustawienia moda i most kont są wspólne dla wszystkich wersji gry.
     let mibDir = null;
     const gameAcc = String((auth.profile && (auth.profile.id || auth.profile.name)) || 'unknown');
@@ -531,6 +537,9 @@ async function doLaunch(version, server) {
       if (m.active) { opts.customArgs.push(...m.jvmArgs, '-Dmib.theme=' + (theme || 'none'), ...(!theme && styleColors ? ['-Dmib.colors=' + styleColors] : [])); mibDir = dirMib; }
     } catch (e) { send('log', 'Mod MiB pominięty: ' + e.message); }
     const loader = instGet(version).loader;
+    // dwie wersje tego samego moda (np. Fabric API od MiB i nowsza z moda z Modrinth): Fabric i Forge wtedy nie uruchamiają
+    // gry — zostaje najnowsza, starsze są wyłączane (od 0.47.0; naprawia też foldery z wcześniejszych wersji launchera)
+    for (const d of mibmod.dedupeMods(modsDir(version))) send('log', 'Wyłączono starszą kopię moda ' + d.id + ' (' + d.off + ') — zostaje ' + d.kept + '. Dwie kopie nie pozwalały uruchomić gry.');
     if (loader === 'fabric') {
       send('log', 'Przygotowywanie Fabric…'); opts.version.custom = await ensureFabric(root, version);
       // bez internetu może zostać tylko stary loader: mod MiB wymaga nowszego, więc gra startuje bez niego
@@ -716,7 +725,6 @@ const ensureJava = major => require('./lib/java').ensureJava({ base: path.join(d
 // ---- Instalacja dodatków z Modrinth ----
 const UA = { headers: { 'User-Agent': 'MiB-Client/' + app.getVersion() } };
 const mr = async u => (await fetch('https://api.modrinth.com/v2' + u, UA)).json();
-const enc = o => encodeURIComponent(JSON.stringify(o));
 const rootDir = () => ({ ...defaults(), ...rd('settings.json', {}) }).root;
 const instFile = gv => path.join(rootDir(), 'instances', gv, 'mib-instance.json');
 const instGet = gv => { try { return JSON.parse(fs.readFileSync(instFile(gv), 'utf8')); } catch { return {}; } };
@@ -726,38 +734,25 @@ ipcMain.handle('hub:versions', async (_, { slug }) => {
   const r = await mr('/project/' + encodeURIComponent(slug));
   return { versions: (r.game_versions || []).filter(v => /^\d+\.\d+(\.\d+)?$/.test(v)).reverse(), loaders: (r.loaders || []).filter(l => ['fabric', 'forge'].includes(l)), type: r.project_type };
 });
-async function getFile(v, dest, done) {
-  const f = v.files.find(x => x.primary) || v.files[0];
-  const buf = Buffer.from(await (await fetch(f.url)).arrayBuffer());
-  if (f.hashes && f.hashes.sha512 && crypto.createHash('sha512').update(buf).digest('hex') !== f.hashes.sha512) throw new Error('niezgodna suma kontrolna pliku');
-  fs.mkdirSync(dest, { recursive: true }); fs.writeFileSync(path.join(dest, path.basename(f.filename)), buf); done.push(path.basename(f.filename));
-  for (const d of v.dependencies || []) {
-    if (d.dependency_type !== 'required') continue;
-    try { const dv = d.version_id ? await mr('/version/' + d.version_id) : (await mr('/project/' + d.project_id + '/version?game_versions=' + enc([done.gv]) + (done.loader ? '&loaders=' + enc([done.loader]) : '')))[0];
-      if (dv && !done.includes(path.basename(dv.files[0].filename))) await getFile(dv, dest, done); } catch {}
-  }
-}
+// od 0.47.0 w lib/mibmod.js (wspólne z testem gry z popularnymi modami): wymagane biblioteki i bez duplikatów
+const modLog = t => send('log', t);
+async function getFile(v, dest, done) { return mibmod.getModFile({ v, dest, done, mr, fetch: (...a) => fetch(...a), log: modLog }); }
 // Zależność moda MiB (np. Fabric API): najnowsza wersja z Modrinth dla tej wersji gry i loadera
 async function ensureDep(slug, gv, loader) {
-  const vs = await mr('/project/' + encodeURIComponent(slug) + '/version?game_versions=' + enc([gv]) + '&loaders=' + enc([loader]));
-  if (!Array.isArray(vs) || !vs.length) throw Object.assign(new Error('brak wersji ' + slug + ' dla ' + gv), { code: 'no_version' });
-  const done = []; done.gv = gv; done.loader = loader;
-  await getFile(vs[0], modsDir(gv), done); modsChanged(gv);
+  await mibmod.ensureModDep({ slug, gv, loader, dest: modsDir(gv), mr, fetch: (...a) => fetch(...a), log: modLog });
+  modsChanged(gv);
 }
 // Plik moda MiB: w instalatorze w resources/mod, w trybie deweloperskim w mod-dist (kopia z mod/fabric-1.21.11/build/libs)
 const modResDir = () => app.isPackaged ? path.join(process.resourcesPath, 'mod') : path.join(__dirname, 'mod-dist');
 // Loader (Fabric/Forge) wybierany automatycznie przy instalacji pierwszego moda i zapamiętany dla wersji gry
 ipcMain.handle('hub:install', async (_, { slug, gv }) => {
   try {
-    const p = await mr('/project/' + encodeURIComponent(slug)), pack = p.project_type === 'resourcepack', cur = instGet(gv).loader;
-    const vs = await mr('/project/' + encodeURIComponent(slug) + '/version?game_versions=' + enc([gv]) + (pack ? '' : '&loaders=' + enc(cur ? [cur] : ['fabric', 'forge'])));
-    if (!vs.length) return cur && !pack ? 'Brak wersji tego moda dla ' + gv + ' z loaderem ' + cur + ' (ta instalacja używa ' + cur + ').' : 'Brak wersji dla ' + gv + ' (Fabric/Forge).';
-    const v = vs.find(x => x.loaders.includes('fabric')) || vs[0], loader = pack ? null : (cur || (v.loaders.includes('fabric') ? 'fabric' : 'forge'));
-    if (loader && !cur) instSet(gv, { loader });
-    const done = []; done.gv = gv; done.loader = loader;
-    await getFile(v, path.join(rootDir(), 'instances', gv, pack ? 'resourcepacks' : 'mods'), done);
-    if (!pack) modsChanged(gv);
-    return 'Zainstalowano (' + done.length + ' plik/ów)' + (loader ? ', loader: ' + loader : '') + ': ' + done.join(', ');
+    const cur = instGet(gv).loader;
+    const r = await mibmod.installFromModrinth({ slug, gv, cur, instDir: path.join(rootDir(), 'instances', gv), mr, fetch: (...a) => fetch(...a), log: modLog });
+    if (r.error) return cur && !r.pack ? 'Brak wersji tego moda dla ' + gv + ' z loaderem ' + cur + ' (ta instalacja używa ' + cur + ').' : 'Brak wersji dla ' + gv + ' (Fabric/Forge).';
+    if (r.loader && !cur) instSet(gv, { loader: r.loader });
+    if (!r.pack) modsChanged(gv);
+    return 'Zainstalowano (' + r.files.length + ' plik/ów)' + (r.loader ? ', loader: ' + r.loader : '') + ': ' + r.files.join(', ');
   } catch (e) { return 'Błąd instalacji: ' + e.message; }
 });
 // ---- Zarządzanie zainstalowanymi modami ----
@@ -779,6 +774,9 @@ ipcMain.handle('mods:add', (_, { gv, paths }) => {
       const bad = mibmod.dropError(loader, cur);
       if (bad) throw Object.assign(new Error(bad), { loader, cur });
       if (fs.existsSync(path.join(dir, name)) || fs.existsSync(path.join(dir, name + '.disabled'))) throw new Error('exists');
+      // ten sam mod w innej wersji (inna nazwa pliku) — dwie kopie nie pozwalają uruchomić gry
+      const meta = mibmod.modMeta(buf);
+      if (meta && mibmod.modFiles(dir).some(m => m.id === meta.id)) throw new Error('exists');
       if (!cur) instSet(gv, { loader });
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, name), buf);
