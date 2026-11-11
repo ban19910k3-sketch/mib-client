@@ -1051,3 +1051,30 @@ label.srow{cursor:pointer}
 .seg2 button:focus-visible{outline:2px solid var(--am-hi);outline-offset:1px}
 .bgopts{display:flex;flex-wrap:wrap;gap:8px 16px}.bgopts .rng{display:flex;align-items:center;gap:8px}.bgopts .rng b{min-width:44px;font-size:12px;color:var(--m)}
 
+/* ===== Edytor motywu (od 0.47.0): okno z podglądem drugiego launchera (#ted-frame) i wszystkimi ustawieniami wyglądu;
+   zmiany w szkicu, launcher zmienia się po „Zapisz” ===== */
+.tsum{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:2px 0 6px;grid-column:1/-1}
+.tsum-n{display:flex;flex-direction:column;gap:2px;min-width:120px}.tsum-n small{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--m)}.tsum-n b{font-size:16px;color:var(--t)}
+#ted{z-index:25}
+#ted .m.ted{width:min(1240px,95vw);height:min(780px,92vh);max-width:none;padding:18px 20px 14px;gap:12px}
+.ted-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.ted-head h3{margin:0 0 4px}.ted-head small{display:block;max-width:560px;line-height:1.4}
+.ted-hol{font-size:12px;line-height:1.4;color:var(--t2);background:var(--slab2);border:1px solid var(--edge);border-radius:var(--r-sm);padding:7px 10px;max-width:380px}
+.ted-body{flex:1;min-height:0;display:flex;gap:16px}
+.ted-prev{flex:1.6;min-width:0;display:grid;place-items:center;border-radius:var(--r);background:var(--slab2);border:1px solid var(--edge);overflow:hidden;padding:12px}
+.ted-win{position:relative;overflow:hidden;border-radius:12px;border:1px solid var(--edge2);box-shadow:0 24px 60px -24px rgba(0,0,0,.75)}
+#ted-frame{display:block;border:0;transform-origin:0 0;pointer-events:none;background:#000}
+.ted-ctl{flex:1;min-width:320px;max-width:440px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px}
+.ted-ctl section{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--edge);border-radius:var(--r);background:var(--slab2)}
+.ted-ctl section>small{font-size:12px;line-height:1.4}
+.ted-ctl h4{margin:0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--m)}
+.ted-ctl .styles{grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}
+.ted-ctl .sty{background:var(--slab)}
+#ted label.srow{flex-direction:row;align-items:center;color:var(--t);font-size:13px}
+#ted .srow{padding:9px 0}.ted-ctl section>.srow:first-of-type,.ted-ctl section>h4+.srow{border-top:0}
+#ted .ssel{flex-direction:row}
+#ted .style-more{border-top:0;padding-top:0}
+#ted .modes{margin:0}
+.ted-foot{display:flex;align-items:center;gap:8px;padding-top:4px;border-top:1px solid var(--edge)}.ted-foot .sp{flex:1}
+@media (max-width:900px){.ted-body{flex-direction:column}.ted-prev{flex:none;height:42%}.ted-ctl{max-width:none}}
+/* przy otwartym edytorze powiadomienia nad stopką z Zapisz/Anuluj */
+body:has(#ted.on) #toasts{bottom:96px}

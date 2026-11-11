@@ -1,5 +1,6 @@
 <!-- 0.47.0 -->
 ## Dodane
+- Edytor motywu: „Zmień motyw” otwiera okno z podglądem launchera, w którym zmienisz wszystko — motyw, każdy kolor, cząsteczki, rogi, czcionkę, skalę, przezroczystość kart, animacje i tło. Zmiany widać od razu na podglądzie, a przyciski Zapisz, Zresetuj i Anuluj decydują, co trafi do launchera.
 - Motyw Własny: oprócz akcentu, tła, kart i cząsteczek także kolor tekstu, kolor pasków, przejście akcentu na przyciskach, przejście tła oraz kształt (kwadraty, plusy, romby, serca, gwiazdki, śnieżki, bańki), ruch i szybkość cząsteczek. Kod motywu zawiera wszystko, więc można go podać znajomym.
 - Więcej możliwości wyglądu launchera (Ustawienia → Wygląd): 6 nowych gotowych motywów (Zachód, Mięta, Wiśnia, Złoto, Grafit, Lawenda), zaokrąglenie rogów, czcionka (zwykła, pikselowa, systemowa), ilość cząsteczek w tle oraz przyciemnienie i rozmycie własnego obrazka tła. Ustawienia zapisują się na profilu MiB.
 - Po awarii gry launcher pokazuje, który mod był prawdopodobnie winny, i pozwala go wyłączyć jednym kliknięciem.

@@ -497,7 +497,14 @@ function png(w, h, px) {
     await w.evaluate(() => MibThemes.refresh());
     await w.waitForFunction(() => document.documentElement.classList.contains('t-walentynki'));
     assert.match(await w.textContent('#s-hol'), /Teraz trwa motyw świąteczny: Walentynki/);
+    // od 0.47.0 kafelek otwiera edytor motywu: podgląd drugiego launchera, launcher zmienia się dopiero po „Zapisz”
     await w.click('#s-style .sty[data-s="ocean"]');
+    await w.waitForSelector('#ted.on');
+    assert.match(await w.textContent('#ted-hol'), /Walentynki/);
+    await w.waitForFunction(() => { const d = document.getElementById('ted-frame').contentDocument; return d && d.getElementById('app') && d.documentElement.dataset.style === 'ocean'; });
+    assert.equal(await w.evaluate(() => document.documentElement.classList.contains('t-walentynki')), true, 'przed zapisem launcher bez zmian');
+    await w.click('#ted-save');
+    await w.waitForFunction(() => !document.getElementById('ted').classList.contains('on'));
     await w.waitForFunction(() => !document.documentElement.classList.contains('themed') && document.documentElement.dataset.style === 'ocean');
     assert.equal(await w.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--am').trim()), '#38bdf8', 'kolory Oceanu, nie święta');
     assert.match(await w.textContent('#s-hol'), /Motyw świąteczny Walentynki schowany do/);
@@ -507,15 +514,34 @@ function png(w, h, px) {
     await w.evaluate(() => { setStyle(null); MibThemes.unskip(); });
     // 0.47.0: szczegóły wyglądu — zaokrąglenie rogów, czcionka, ilość cząsteczek (zapis w miblook, na profilu „look”)
     await w.evaluate(() => MibThemes.skipNow());
+    const frameAttr = n => w.evaluate(k => document.getElementById('ted-frame').contentDocument.documentElement.dataset[k] || null, n);
+    // Anuluj: zmiany tylko w podglądzie, launcher bez zmian
+    await w.click('#s-theme-open'); await w.waitForSelector('#ted.on');
+    await w.waitForFunction(() => document.getElementById('ted-frame').contentDocument?.getElementById('app'));
+    await w.click('#s-radius button[data-r="round"]');
+    assert.equal(await frameAttr('radius'), 'round', 'podgląd: mocno zaokrąglone');
+    await w.click('#ted-cancel');
+    await w.waitForFunction(() => !document.getElementById('ted').classList.contains('on'));
+    assert.equal(await w.evaluate(() => document.documentElement.dataset.radius || null), null, 'Anuluj: bez zmian');
+    // Zapisz
+    await w.click('#s-theme-open'); await w.waitForSelector('#ted.on');
+    await w.waitForFunction(() => document.getElementById('ted-frame').contentDocument?.getElementById('app'));
     await w.click('#s-radius button[data-r="square"]');
     await w.selectOption('#s-font', 'pixel');
     await w.selectOption('#s-fxn', 'low');
+    assert.equal(await frameAttr('font'), 'pixel');
+    await w.click('#ted-save');
     assert.deepEqual(await w.evaluate(() => ({ r: getComputedStyle(document.documentElement).getPropertyValue('--r').trim(), pixel: /Pixelify/.test(getComputedStyle(document.querySelector('.nav')).fontFamily), look: JSON.parse(localStorage.getItem('miblook')) })),
       { r: '3px', pixel: true, look: { r: 'square', f: 'pixel', n: 'low', dim: 55, blur: 0 } });
     assert.equal((await w.$$('#s-style .sty')).length, 13, 'MiB, 11 gotowych i Własny');
-    await w.click('#s-radius button[data-r="soft"]');
-    await w.selectOption('#s-font', 'geist');
-    await w.selectOption('#s-fxn', 'normal');
+    // Zresetuj: wygląd MiB w podglądzie, po „Zapisz” w launcherze
+    await w.click('#s-theme-open'); await w.waitForSelector('#ted.on');
+    await w.waitForFunction(() => document.getElementById('ted-frame').contentDocument?.getElementById('app'));
+    await w.click('#ted-reset');
+    assert.equal(await frameAttr('radius'), null);
+    await w.click('#ted-save');
+    await w.waitForFunction(() => !document.documentElement.dataset.radius && !document.documentElement.dataset.font);
+    assert.deepEqual(await w.evaluate(() => JSON.parse(localStorage.getItem('miblook'))), { r: 'soft', f: 'geist', n: 'normal', dim: 55, blur: 0 });
     await w.evaluate(() => MibThemes.unskip());
     walF.forced = false;
     await w.evaluate(() => MibThemes.refresh());
@@ -1210,8 +1236,21 @@ function png(w, h, px) {
     await w.waitForSelector('#s-style .sty[data-s="mib"].on');
     assert.deepEqual(await w.$$eval('#s-style .sty', l => l.map(b => b.dataset.s)), ['mib', 'ocean', 'las', 'lawa', 'snieg', 'neon', 'zachod', 'mieta', 'wisnia', 'zloto', 'grafit', 'lawenda', 'custom']);
     const am = () => w.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--am').trim());
+    // edytor motywu (od 0.47.0): kafelek albo „Zmień motyw…” otwiera okno z podglądem drugiego launchera; zmiany tylko w podglądzie do „Zapisz”
+    const frameReady = () => w.waitForFunction(() => { const d = document.getElementById('ted-frame').contentDocument; return d && d.getElementById('app') && d.getElementById('side'); });
+    const fcss = n => w.evaluate(k => getComputedStyle(document.getElementById('ted-frame').contentDocument.documentElement).getPropertyValue(k).trim(), n);
+    const fstyle = (sel, prop) => w.evaluate(([q, k]) => getComputedStyle(document.getElementById('ted-frame').contentDocument.querySelector(q))[k], [sel, prop]);
+    const saved = () => w.waitForFunction(() => !document.getElementById('ted').classList.contains('on'));
     await w.click('#s-style .sty[data-s="ocean"]');
+    await w.waitForSelector('#ted.on'); await frameReady();
+    assert.equal(await w.inputValue('#s-code'), 'MIBT-38bdf8-020814-0a1628-7dd3fc');
+    assert.equal(await w.isVisible('#ted-modes'), false, 'tryb ustawia motyw');
+    assert.equal(await fcss('--am'), '#38bdf8', 'podgląd: Ocean');
+    assert.notEqual(await am(), '#38bdf8', 'launcher jeszcze bez zmian');
+    await shot('style-editor.png');
+    await w.click('#ted-save'); await saved();
     await w.waitForFunction(() => document.documentElement.dataset.style === 'ocean');
+    assert.equal(await w.textContent('#s-cur'), 'Ocean');
     // w czasie święta (dowolnego) jego kolory wygrywają z motywem launchera
     const holiday = await w.evaluate(() => document.documentElement.classList.contains('t-halloween') || document.documentElement.classList.contains('themed'));
     if (holiday) assert.notEqual(await am(), '#38bdf8', 'w święto motyw święta wygrywa z Oceanem');
@@ -1219,55 +1258,64 @@ function png(w, h, px) {
     if (wasThemes) await w.uncheck('#s-themes');
     await w.waitForFunction(() => !document.documentElement.classList.contains('t-halloween') && !document.documentElement.classList.contains('themed'));
     assert.equal(await am(), '#38bdf8', 'Ocean: akcent');
-    assert.equal(await w.isVisible('.modes'), false, 'tryb ustawia motyw');
-    assert.equal(await w.inputValue('#s-code'), 'MIBT-38bdf8-020814-0a1628-7dd3fc');
     await w.locator('#s-style-row').scrollIntoViewIfNeeded();
     await shot('style-ocean.png');
-    await w.click('#s-style .sty[data-s="custom"]');
-    await w.waitForSelector('#s-own:not([hidden])');
+    // zmiana koloru w gotowym motywie robi z niego Własny
+    await w.click('#s-theme-open'); await w.waitForSelector('#ted.on'); await frameReady();
     await w.fill('#s-own-a', '#ff3366');
-    await w.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue('--am').trim() === '#ff3366');
-    assert.match(await w.inputValue('#s-code'), /^MIBT-ff3366-/);
-    await shot('style-own.png');
-    // Własny — dodatki (od 0.47.0): tekst, paski, przejścia, kształt/ruch/szybkość cząsteczek, kod z dodatkami, „auto”
-    const cssv = v => w.evaluate(n => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), v);
+    await until(async () => (await fcss('--am')) === '#ff3366');
+    assert.ok(await w.$('#ted-style .sty[data-s="custom"].on'), 'Ocean z innym akcentem to Własny');
+    assert.match(await w.inputValue('#s-code'), /^MIBT-ff3366-020814-0a1628-7dd3fc$/);
+    assert.equal(await am(), '#38bdf8', 'przed zapisem launcher bez zmian');
+    // Własny — dodatki: tekst, paski, przejścia, kształt/ruch/szybkość cząsteczek, kod z dodatkami, „auto”
     assert.equal(await w.$$eval('#s-more .sc.isauto', l => l.length), 4, 'bez dodatków wszystkie kolory „auto”');
     await w.fill('#s-own-t', '#ffee00');
-    await until(async () => (await cssv('--t')) === '#ffee00');
+    await until(async () => (await fcss('--t')) === '#ffee00');
     await w.fill('#s-own-s', '#202020');
-    await until(async () => (await w.$eval('#side', e => getComputedStyle(e).backgroundColor)) === 'rgb(32, 32, 32)');
+    await until(async () => (await fstyle('#side', 'backgroundColor')) === 'rgb(32, 32, 32)');
     await w.fill('#s-own-d', '#0000ff');
-    await until(async () => /linear-gradient/.test(await w.$eval('#app', e => getComputedStyle(e).backgroundImage)));
+    await until(async () => /linear-gradient/.test(await fstyle('#app', 'backgroundImage')));
     await w.fill('#s-own-g', '#22ccff');
     await w.selectOption('#s-own-k', 'heart'); await w.selectOption('#s-own-v', 'float'); await w.selectOption('#s-own-q', 'fast');
     await until(async () => /-Kheart-Vfloat-Qfast$/.test(await w.inputValue('#s-code')));
     assert.match(await w.inputValue('#s-code'), /^MIBT-ff3366-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{6}-Tffee00-S202020-G22ccff-D0000ff-Kheart-Vfloat-Qfast$/);
     assert.equal(await w.$eval('#s-more .sc[data-f="t"]', l => l.classList.contains('isauto')), false);
-    await w.locator('#s-more').scrollIntoViewIfNeeded();
+    await w.waitForTimeout(400);
     await shot('style-own-more.png');
     const extCode = await w.inputValue('#s-code');
     await w.click('#s-more .auto[data-f="t"]');
-    await until(async () => (await cssv('--t')) !== '#ffee00');
+    await until(async () => (await fcss('--t')) !== '#ffee00');
     assert.doesNotMatch(await w.inputValue('#s-code'), /-T/, 'auto: tekst znów wyliczany');
-    await w.fill('#s-code-in', extCode); await w.click('#s-code-use');
-    await until(async () => (await cssv('--t')) === '#ffee00');
-    assert.equal(await w.inputValue('#s-own-k'), 'heart', 'kod z dodatkami przywraca kształt cząsteczek');
     await w.fill('#s-code-in', 'to nie kod'); await w.click('#s-code-use');
     await w.waitForSelector('.toast:has-text("To nie jest kod motywu")');
+    await w.fill('#s-code-in', extCode); await w.click('#s-code-use');
+    await until(async () => (await fcss('--t')) === '#ffee00');
+    assert.equal(await w.inputValue('#s-own-k'), 'heart', 'kod z dodatkami przywraca kształt cząsteczek');
+    await w.click('#ted-save'); await saved();
+    await until(async () => (await w.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--t').trim())) === '#ffee00');
+    assert.equal(await am(), '#ff3366', 'po „Zapisz” launcher ma Własny');
+    assert.equal(await w.$eval('#side', e => getComputedStyle(e).backgroundColor), 'rgb(32, 32, 32)');
+    // kod gotowej palety w edytorze = ta paleta
+    await w.click('#s-theme-open'); await w.waitForSelector('#ted.on'); await frameReady();
     await w.fill('#s-code-in', 'MIBT-ec4899-07020f-120822-22d3ee'); await w.click('#s-code-use');
+    assert.ok(await w.$('#ted-style .sty[data-s="neon"].on'), 'kod gotowej palety ustawia tę paletę');
+    await w.click('#ted-save'); await saved();
     await w.waitForFunction(() => document.documentElement.dataset.style === 'neon');
-    assert.equal(await w.isVisible('#s-own'), false, 'kod gotowej palety ustawia tę paletę');
     await until(() => (fake.st.users.find(u => u.settings && u.settings.style) || {}).settings?.style?.p === 'neon');
     const styleSent = await app.evaluate(() => global.styleSet);
     assert.equal(styleSent[styleSent.length - 1].split(',')[5], 'ec4899', 'kolory menu w grze dla neonu');
-    await w.click('#s-style .sty[data-s="custom"]');
+    await w.click('#s-style .sty[data-s="custom"]'); await w.waitForSelector('#ted.on');
     assert.equal(await w.inputValue('#s-own-a'), '#ff3366', 'Własny pamięta swoje kolory');
-    await w.click('#s-style .sty[data-s="mib"]');
+    await w.keyboard.press('Escape');
+    await saved();
+    assert.equal(await w.evaluate(() => document.documentElement.dataset.style), 'neon', 'Esc = Anuluj');
+    await w.click('#s-style .sty[data-s="mib"]'); await w.waitForSelector('#ted.on');
+    assert.equal(await w.isVisible('#ted-modes'), true, 'MiB: tryb i akcent');
+    await w.click('#ted-save'); await saved();
     await w.waitForFunction(() => !document.documentElement.dataset.style && !document.getElementById('mib-style'));
-    assert.equal(await w.isVisible('.modes'), true);
     assert.equal(await app.evaluate(() => global.styleSet[global.styleSet.length - 1]), '', 'MiB: zwykłe kolory w grze');
     if (wasThemes) await w.check('#s-themes');
-    ok('(au) motyw launchera: gotowe palety, Własny, kod, profil, kolory w grze, święta wygrywają');
+    ok('(au) edytor motywu: podgląd drugiego launchera, Zapisz/Anuluj/Esc, gotowe palety, Własny z dodatkami, kod, profil, kolory w grze, święta wygrywają');
     fake.st.presence[sier.id] = { at: Date.now(), playing: false };
     await w.click('.stab[data-st="gen"]');
     await w.check('#s-inv'); await w.click('#s-save');
