@@ -71,7 +71,7 @@ jobs:
       - run: bash .github/workflows/retry.sh npm ci
         shell: bash
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y xvfb x11-utils mesa-utils
+        run: sudo apt-get update && sudo apt-get install -y xvfb x11-utils x11-xserver-utils mesa-utils
       # Windows bez karty graficznej: OpenGL z Mesa (llvmpipe) obok javaw.exe
       - if: runner.os == 'Windows'
         name: Mesa (OpenGL bez karty graficznej)

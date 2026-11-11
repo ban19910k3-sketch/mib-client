@@ -19,8 +19,9 @@ function probe(pid) {
     const tree = run('xwininfo', ['-root', '-tree']);
     const m = tree.split('\n').map(l => /^\s*(0x[0-9a-f]+) "(Minecraft[^"]*)"/i.exec(l)).find(Boolean);
     if (!m) return null;
+    // xprop pokazuje ikonę jako „Icon (16 x 16):” z obrazkiem albo „not found”
     const icon = run('xprop', ['-id', m[1], '_NET_WM_ICON']);
-    return { title: m[2], icon: /_NET_WM_ICON\(CARDINAL\) = \d/.test(icon), detail: icon.slice(0, 60).replace(/\s+/g, ' ') };
+    return { title: m[2], icon: /_NET_WM_ICON\(CARDINAL\) = /.test(icon), detail: (icon.match(/Icon \(\d+ x \d+\)/g) || [icon.slice(0, 60)]).join(', ').replace(/\s+/g, ' ') };
   }
   if (OS === 'darwin') {
     // aplikacja z oknem w Launch Services: nazwa w Docku (z -Xdock:name), bez okna jej nie ma
@@ -41,19 +42,20 @@ public static class W {
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [DllImport("user32.dll")] public static extern IntPtr GetClassLongPtr(IntPtr h, int i);
 }
 "@
 $out = $null
 [W]::EnumWindows({ param($h, $l) $p = 0; [void][W]::GetWindowThreadProcessId($h, [ref]$p)
   $sb = New-Object System.Text.StringBuilder 256; [void][W]::GetWindowText($h, $sb, 256); $t = $sb.ToString()
   if ($p -eq ${pid} -and $t -like 'Minecraft*') { $big = [W]::SendMessage($h, 0x7F, [IntPtr]1, [IntPtr]0); $small = [W]::SendMessage($h, 0x7F, [IntPtr]0, [IntPtr]0)
-    $script:out = "$t|$big|$small" }
+    $cls = [W]::GetClassLongPtr($h, -14); $script:out = "$t|$big|$small|$cls" }
   return $true }, [IntPtr]::Zero) | Out-Null
 $out`;
   const o = run('powershell', ['-NoProfile', '-Command', ps]).trim().split('\n').pop().trim();
   if (!o || !o.includes('|')) return null;
-  const [title, big, small] = o.split('|');
-  return { title, icon: big !== '0' || small !== '0', detail: 'WM_GETICON big=' + big + ' small=' + small };
+  const [title, big, small, cls] = o.split('|');
+  return { title, icon: big !== '0' || small !== '0', detail: 'WM_GETICON big=' + big + ' small=' + small + ', ikona klasy okna (exe Javy)=' + cls };
 }
 
 (async () => {
@@ -88,8 +90,13 @@ $out`;
       }
       try { proc.kill('SIGKILL'); } catch {}
       if (OS === 'win32') try { execFileSync('taskkill', ['/F', '/T', '/PID', String(proc.pid)]); } catch {}
-      if (!res) throw new Error('okno gry się nie pojawiło' + (closed !== null ? ' (gra zamknięta, kod ' + closed + ')' : '') + ':\n' + log.slice(-25).join('\n'));
-      console.log('::notice::' + OS + ' ' + ver + ': okno „' + res.title + '”, ikona: ' + (res.icon ? 'tak' : 'NIE') + ' — ' + res.detail);
+      if (!res) {
+        const crash = (() => { try { const d = path.join(ROOT, 'crash-reports'), f = fs.readdirSync(d).sort().pop(); return f ? fs.readFileSync(path.join(d, f), 'utf8').split('\n').slice(0, 30).join('\n') : ''; } catch { return ''; } })();
+        const hs = (() => { try { const f = fs.readdirSync(ROOT).filter(x => /^hs_err/.test(x)).pop(); return f ? fs.readFileSync(path.join(ROOT, f), 'utf8').split('\n').slice(0, 15).join('\n') : ''; } catch { return ''; } })();
+        throw new Error('okno gry się nie pojawiło' + (closed !== null ? ' (gra zamknięta, kod ' + closed + ')' : '') + ':\n' + log.slice(-30).join('\n') + (crash ? '\n--- raport ---\n' + crash : '') + (hs ? '\n--- hs_err ---\n' + hs : ''));
+      }
+      console.log('::notice::' + OS + ' ' + ver + ': okno „' + res.title + '”, ikona: ' + (res.icon ? 'tak' : 'NIE') + ' — ' + res.detail
+        + (res.icon ? '' : '%0Alog gry (ikona/okno): ' + log.filter(l => /icon|GLFW|platform|Backend|OpenGL|LWJGL/i.test(l)).slice(0, 12).join('%0A')));
       assert.ok(res.icon, OS + ' ' + ver + ': brak ikony Minecrafta (' + res.detail + ')');
       console.log('::notice::PASS ikona Minecrafta ' + OS + ' ' + ver);
     } catch (e) {
