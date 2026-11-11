@@ -57,7 +57,8 @@ $out = $null
     # próba kontrolna: gdy gra nie ustawiła ikony, czy w tym środowisku ikonę okna w ogóle da się ustawić i odczytać
     $ctl = ''
     if ($big -eq [IntPtr]::Zero -and $small -eq [IntPtr]::Zero) { Add-Type -AssemblyName System.Drawing
-      $ico = [System.Drawing.SystemIcons]::Information.Handle
+      # ikona tworzona z obrazka (CreateIconIndirect — tak jak GLFW w grze)
+      $bmp = New-Object System.Drawing.Bitmap 32, 32; $bmp.SetPixel(1, 1, [System.Drawing.Color]::Red); $ico = $bmp.GetHicon()
       [void][W]::SendMessageTimeout($h, 0x80, [IntPtr]1, $ico, 2, 5000, [ref]$r)
       [void][W]::SendMessageTimeout($h, 0x7F, [IntPtr]1, [IntPtr]0, 2, 5000, [ref]$r); $ctl = "kontrola: ustawiona $ico, odczytana $r"
       [void][W]::SendMessageTimeout($h, 0x80, [IntPtr]1, [IntPtr]::Zero, 2, 5000, [ref]$r) }
@@ -113,7 +114,7 @@ $out`;
         throw new Error('okno gry się nie pojawiło' + (closed !== null ? ' (gra zamknięta, kod ' + closed + ')' : '') + ':\n' + log.slice(-30).join('\n') + (crash ? '\n--- raport ---\n' + crash : '') + (hs ? '\n--- hs_err ---\n' + hs : ''));
       }
       console.log('::notice::' + OS + ' ' + ver + ': okno „' + res.title + '”, ikona: ' + (res.icon ? 'tak' : 'NIE') + ' — ' + res.detail
-        + (res.icon ? '' : '%0Alog gry (ikona/okno): ' + log.filter(l => /icon|GLFW|platform|Backend|OpenGL|LWJGL/i.test(l)).slice(0, 12).join('%0A')));
+        + (res.icon ? '' : '%0Alog gry (błędy, ikona, okno): ' + log.flatMap(l => l.split('\n')).filter(l => /ERROR|GL ERROR|Couldn't set icon|Failed to create|GLFW|LWJGL/.test(l) && !/appender|Realms|401/i.test(l)).slice(0, 15).map(l => l.slice(0, 200)).join('%0A')));
       assert.ok(res.icon, OS + ' ' + ver + ': brak ikony Minecrafta (' + res.detail + ')');
       console.log('::notice::PASS ikona Minecrafta ' + OS + ' ' + ver);
     } catch (e) {
