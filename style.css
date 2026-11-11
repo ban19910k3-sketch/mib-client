@@ -949,6 +949,13 @@ label.srow{cursor:pointer}
 .sc input[type=color]{width:26px;height:26px;padding:0;border:0;border-radius:50%;background:none;cursor:pointer}
 .sc input[type=color]::-webkit-color-swatch-wrapper{padding:0}.sc input[type=color]::-webkit-color-swatch{border:2px solid var(--edge2);border-radius:50%}
 .style-code{display:flex;flex-wrap:wrap;gap:8px;width:100%}
+/* Własny motyw — dodatki (od 0.47.0): kolory z „auto” (wyliczane z czterech głównych) i cząsteczki */
+.style-more{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;width:100%;padding-top:10px;border-top:1px dashed var(--edge)}
+.style-more .sm-h{width:100%;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--m)}
+.sc .auto{border:0;background:none;color:var(--faint);font:inherit;font-size:11px;padding:2px 6px;border-radius:999px;cursor:pointer}
+.sc .auto:hover{color:var(--t)}.sc .auto.on{color:var(--am-hi);background:color-mix(in srgb,var(--am) 18%,transparent)}
+.sc.isauto input[type=color]{opacity:.55}
+.ssel{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--m)}.ssel select{min-width:120px}
 .style-code input{flex:1;min-width:180px;font-family:Consolas,ui-monospace,monospace;font-size:12px;letter-spacing:.02em}
 #s-style-row{display:flex;flex-direction:column;align-items:stretch;gap:12px}
 /* Motyw świąteczny a własny wygląd (od 0.47.0): informacja nad motywami i przywracanie schowanego święta */

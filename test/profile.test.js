@@ -424,6 +424,26 @@ test('launcher style (0.36.0): presets, own colors, palette, game colors and sha
   assert.deepEqual(P.parseStyleCode(' mibt-38BDF8-020814-0a1628-7dd3fc '), { p: 'ocean', ...P.STYLES.ocean }, 'kod gotowej palety to ta paleta');
   assert.deepEqual(P.parseStyleCode('MIBT-ff0000-000000-111111-ffffff'), { p: 'custom', a: '#ff0000', b: '#000000', c: '#111111', x: '#ffffff' });
   for (const bad of ['', 'MIBT-ff0000-000000-111111', 'MIBT-gg0000-000000-111111-ffffff', 'x MIBT-ff0000-000000-111111-ffffff']) assert.equal(P.parseStyleCode(bad), null, bad);
+  // Własny z dodatkami (od 0.47.0): tekst, paski, drugi akcent, drugie tło, kształt, ruch i szybkość cząsteczek
+  const ext = P.styleOf({ p: 'custom', a: '#ff0000', b: '#000000', c: '#111111', x: '#ffffff', t: '#EEEE00', s: '#222222', g: '#00ff00', d: '#0000ff', k: 'heart', v: 'down', q: 'fast' });
+  assert.deepEqual(ext, { p: 'custom', a: '#ff0000', b: '#000000', c: '#111111', x: '#ffffff', t: '#eeee00', s: '#222222', g: '#00ff00', d: '#0000ff', k: 'heart', v: 'down', q: 'fast' });
+  assert.deepEqual(P.styleOf({ p: 'custom', a: '#ff0000', b: '#000000', c: '#111111', x: '#ffffff', t: 'zly', k: 'pix', v: 'bok', q: 'normal' }), { p: 'custom', a: '#ff0000', b: '#000000', c: '#111111', x: '#ffffff' }, 'złe i domyślne dodatki pomijane');
+  assert.equal(P.stylePalette(ext).t, '#eeee00', 'własny kolor tekstu');
+  const ecss = P.styleCss(ext);
+  assert.match(ecss, /#side,[^{]+#top\{background:#222222/);
+  assert.match(ecss, /#app\{background:linear-gradient\(160deg,#000000,#0000ff\)/);
+  assert.match(ecss, /\.go:not\(\.loading\),[^{]+\.b:not\(\.ghost\):not\(:disabled\)\{background:linear-gradient\(135deg,/);
+  assert.doesNotMatch(P.styleCss(P.styleOf({ p: 'ocean' })), /#side|#app|\.go/, 'gotowe palety bez dodatków');
+  assert.deepEqual(P.styleFx(ext), { colors: ['#ffffff', '#ffffff', '#ff0000', '#00ff00'], shape: 'heart', dir: 1, speed: 2 });
+  assert.deepEqual(P.styleFx(P.styleOf({ p: 'ocean' })), { colors: ['#7dd3fc', '#7dd3fc', '#38bdf8'], shape: 'pix', dir: -1, speed: 1 });
+  assert.equal(P.styleFx(null), null);
+  const code = P.styleCode(ext);
+  assert.equal(code, 'MIBT-ff0000-000000-111111-ffffff-Teeee00-S222222-G00ff00-D0000ff-Kheart-Vdown-Qfast');
+  assert.deepEqual(P.parseStyleCode(code), ext, 'kod z dodatkami wraca do tego samego motywu');
+  assert.deepEqual(P.parseStyleCode('MIBT-38bdf8-020814-0a1628-7dd3fc-Kstar'), { p: 'custom', ...P.STYLES.ocean, k: 'star' }, 'paleta z dodatkiem to Własny');
+  assert.equal(P.styleCode(P.styleOf({ p: 'custom', a: '#ff0000', b: '#000000', c: '#111111', x: '#ffffff' })), 'MIBT-ff0000-000000-111111-ffffff', 'bez dodatków stary krótki kod');
+  for (const bad of ['MIBT-ff0000-000000-111111-ffffff-Kkwadrat', 'MIBT-ff0000-000000-111111-ffffff-Tzzzzzz', 'MIBT-ff0000-000000-111111-ffffff-Xabc', 'MIBT-ff0000-000000-111111-ffffff-Vbok']) assert.equal(P.parseStyleCode(bad), null, bad);
+  for (const k of P.STYLE_OPTS.k) assert.equal(P.parseStyleCode('MIBT-ff0000-000000-111111-ffffff-K' + k).k, k === 'pix' ? undefined : k, k);
   assert.deepEqual(P.sanitizeSynced({ style: { p: 'mib' } }), { style: { p: 'mib' } }, 'powrót do MiB idzie na inne komputery');
   assert.deepEqual(P.sanitizeSynced({ style: { p: 'custom', a: 'zly' } }), {}, 'zły motyw z profilu odrzucony');
   assert.ok(P.SYNCED_KEYS.includes('style'));
