@@ -88,7 +88,8 @@ $out`;
         assert.ok(icon && fs.readFileSync(icon).subarray(0, 4).toString('latin1') === 'icns', 'minecraft.icns z zasobów Mojanga');
         // agent Docka jak w wydaniu (gry na GLFW: ikona przez NSApplication, bo -Xdock:icon działa tylko z AWT)
         const agentDir = path.join(TMP, 'dock'); if (!fs.existsSync(path.join(agentDir, 'mib-dock.jar'))) execFileSync('bash', [path.join(__dirname, '../../build/dock-agent.sh'), agentDir]);
-        args.push(...mac.dockArgs(icon, path.join(agentDir, 'mib-dock.jar')));
+        const m = require('../../lib/mibmod'), glfwNoIcon = m.cmpVersion(ver, '1.13') >= 0 && m.cmpVersion(ver, '1.19') < 0;
+        args.push(...mac.dockArgs(icon, glfwNoIcon ? path.join(agentDir, 'mib-dock.jar') : null));
       }
       const c = new Client(), log = [];
       c.on('data', d => log.push(String(d).trim()));
@@ -119,8 +120,10 @@ $out`;
       }
       console.log('::notice::' + OS + ' ' + ver + ': okno „' + res.title + '”, ikona: ' + (res.icon ? 'tak' : 'NIE') + ' — ' + res.detail
         + (res.icon ? '' : '%0Alog gry (błędy, ikona, okno): ' + log.flatMap(l => l.split('\n')).filter(l => /ERROR|GL ERROR|Couldn't set icon|Failed to create|GLFW|LWJGL/.test(l) && !/appender|Realms|401/i.test(l)).slice(0, 15).map(l => l.slice(0, 200)).join('%0A')));
-      // Windows bez karty graficznej (maszyna testowa): gra potrafi utknąć zaraz po utworzeniu okna, przed ustawieniem ikony
-      if (!res.icon && OS === 'win32' && !loadedAt) { console.log('::warning::win32 ' + ver + ': gra nie wczytała się bez karty graficznej — ikony nie da się tu sprawdzić'); continue; }
+      // Windows / Mac bez karty graficznej (maszyna testowa): gra potrafi utknąć zaraz po utworzeniu okna, zanim ustawi ikonę
+      // (Mac: agent czeka na wątek główny gry); od 1.19 gra na Macu ustawia ikonę sama, nazwa w Docku zostaje „java”
+      if (!res.icon && OS === 'darwin' && require('../../lib/mibmod').cmpVersion(ver, '1.19') >= 0) { console.log('::notice::darwin ' + ver + ': ikonę w Docku ustawia sama gra (od 1.19) — ' + res.detail); continue; }
+      if (!res.icon && (OS === 'win32' || OS === 'darwin') && !loadedAt) { console.log('::warning::' + OS + ' ' + ver + ': gra nie wczytała się bez karty graficznej — ikony nie da się tu sprawdzić (' + res.detail + ')'); continue; }
       assert.ok(res.icon, OS + ' ' + ver + ': brak ikony Minecrafta (' + res.detail + ')');
       console.log('::notice::PASS ikona Minecrafta ' + OS + ' ' + ver);
     } catch (e) {
@@ -131,4 +134,6 @@ $out`;
     }
     await sleep(3000);
   }
+  // procesy gry i otwarte połączenia nie mogą trzymać testu do limitu czasu zadania (Mac: wisiał po ostatniej wersji)
+  process.exit(process.exitCode || 0);
 })();

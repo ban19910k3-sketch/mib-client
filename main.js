@@ -526,8 +526,9 @@ async function doLaunch(version, server) {
     if (process.platform === 'darwin') {
       let roots = []; try { roots = fs.readdirSync(path.join(s.root, 'instances')).map(v => path.join(s.root, 'instances', v)); } catch {}
       const icon = await require('./lib/macupdate').dockIcon({ dir: dir(), roots, fetch: (...a) => fetch(...a) }).catch(() => null);
-      const agent = path.join(modResDir(), 'mib-dock.jar');
-      opts.customArgs.push(...require('./lib/macupdate').dockArgs(icon, fs.existsSync(agent) ? agent : null));
+      // agent Docka tylko dla gier na GLFW bez własnej ikony na Macu (1.13–1.18); od 1.19 gra ustawia ją sama
+      const agent = path.join(modResDir(), 'mib-dock.jar'), glfwNoIcon = mibmod.cmpVersion(version, '1.13') >= 0 && mibmod.cmpVersion(version, '1.19') < 0;
+      opts.customArgs.push(...require('./lib/macupdate').dockArgs(icon, glfwNoIcon && fs.existsSync(agent) ? agent : null));
     }
     // Mod MiB (menu pod prawym Shiftem): przy błędzie gra startuje bez niego. Ustawienia moda i most kont są wspólne dla wszystkich wersji gry.
     let mibDir = null;
