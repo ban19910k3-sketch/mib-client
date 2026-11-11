@@ -5,7 +5,7 @@ name: Mod MiB
 
 on:
   push:
-    paths: ['mod/**', '.github/workflows/mod.yml', '.github/workflows/annotate.sh', '.github/workflows/retry.sh']
+    paths: ['mod/**', 'lib/mibmod.js', 'test/e2e/mods.e2e.js', '.github/workflows/mod.yml', '.github/workflows/annotate.sh', '.github/workflows/retry.sh']
   workflow_dispatch:
     inputs:
       versions:
