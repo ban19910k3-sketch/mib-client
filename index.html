@@ -6,6 +6,9 @@
 <!-- Ikony menu: pixelarticons (MIT), font Geist (OFL) — licencje w fonts/LICENSES.txt --></head><body>
 <div id="splash"><img id="sbg" src="splash.jpg" alt=""><div class="streak"></div><div class="streak s2"></div><canvas id="pc"></canvas>
 <div id="sbox"><div id="sname">MiB Client</div><div id="bar"><div id="fill"></div></div><div id="status">Przygotowywanie interfejsu…</div></div></div>
+<script>/* Animacja startowa (od 0.47.0) zawsze w oficjalnym wyglądzie MiB: w święto świąteczna — także gdy gracz schował święto
+albo wyłączył motywy świąteczne — a poza świętami fiolet MiB, nigdy w motywie wybranym przez gracza */
+{let t=null;try{t=JSON.parse(localStorage.getItem('mib-themes'))}catch{}const id=MibProfile.themeNow(t),e=document.getElementById('splash');if(id)e.classList.add('t-'+id,...(id==='halloween'?[]:['themed']))}</script>
 
 <div id="toasts"></div><div id="accmenu"></div>
 <div id="gate" hidden><div class="g-art" aria-hidden="true"><img src="banner.jpg" alt=""></div><div class="g-lang" role="group" aria-label="Język / Language"><button type="button" data-l="pl">PL</button><button type="button" data-l="en">EN</button></div><div class="g-box" role="dialog" aria-modal="true" aria-labelledby="g-t"><div class="g-logo"><svg viewBox="0 0 100 60" aria-hidden="true"><path d="M8 54 L28 14 H42 L50 30 L58 14 H72 L92 54 H80 L66 28 L56 54 H44 L34 28 L20 54 Z"/></svg><span>MiB Client</span></div><h1 id="g-t">Witaj w MiB Client</h1><p class="g-lead">Zaloguj się kontem Microsoft z Minecraftem, żeby grać, zbierać kosmetyki i mieć znajomych.</p><button type="button" class="b g-go" id="g-go"><span class="ms" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Zaloguj się przez Microsoft</span></button><div class="g-st" id="g-st" role="status" aria-live="polite"></div><label class="g-rem"><input type="checkbox" id="g-temp"><span><b>Nie zapamiętuj mnie na tym komputerze</b><small>Grasz na szkolnym albo cudzym komputerze? Włącz to: po zamknięciu launchera Twoje konto zniknie z tego komputera.</small></span></label><p class="g-safe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 2h8v2H8zM6 4h2v6H6zm10 0h2v6h-2zM4 10h16v2H4zm0 2h2v8H4zm14 0h2v8h-2zM4 20h16v2H4zm7-6h2v4h-2z"/></svg><span>Logujesz się na oficjalnej stronie Microsoftu. MiB Client nie widzi Twojego hasła.</span></p><button type="button" class="g-later" id="g-later">Później</button></div></div>
@@ -89,8 +92,8 @@ const A=localStorage.getItem('mibanim')||'full',sp=document.getElementById('spla
 const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;if(A==='off'||RM)document.documentElement.classList.add('noanim');
 if(A==='off')sp.style.display='none';else if(localStorage.getItem('mibfx')!=='0'){const c=document.getElementById('pc'),x=c.getContext('2d');let W,H;const rs=()=>{W=c.width=innerWidth;H=c.height=innerHeight};rs();
 const P=Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.8+.4,v:Math.random()*.6+.2,a:Math.random()*6}));
-// kolor z motywu (--spl w style.css); w Boże Narodzenie płatki spadają
-const SPL=getComputedStyle(document.documentElement).getPropertyValue('--spl').trim()||'192,132,252',DN=document.documentElement.classList.contains('t-boze')?-1:1;
+// kolor z oficjalnego wyglądu MiB albo święta (--spl w style.css, klasy na #splash); w Boże Narodzenie płatki spadają
+const SPL=getComputedStyle(sp).getPropertyValue('--spl').trim()||'192,132,252',DN=sp.classList.contains('t-boze')?-1:1;
 (function loop(){x.clearRect(0,0,W,H);for(const p of P){p.y-=p.v*DN;p.a+=.02;if(p.y<0||p.y>H){p.y=DN>0?H:0;p.x=Math.random()*W}x.fillStyle='rgba('+SPL+','+(.25+.35*Math.abs(Math.sin(p.a)))+')';x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()}if(!sp.classList.contains('out'))requestAnimationFrame(loop)})()}
 const steps=[['Przygotowywanie interfejsu…',()=>new Promise(r=>requestAnimationFrame(()=>r()))],
 ['Sprawdzanie plików…',()=>Promise.resolve(document.fonts&&document.fonts.ready)],

@@ -17,4 +17,5 @@
 - Mac: w Docku ikona Minecrafta także w starszych wersjach gry.
 - Ładniejsze motywy świąteczne w launcherze: girlanda pod górnym paskiem, świąteczna scena na banerze strony głównej (choinka ze śniegiem, flaga, serce, zajączek, tort i inne), nazwa święta na banerze i ikonka przy logo.
 - Prima Aprilis ma własne kolory, a baner jest do góry nogami.
+- Animacja przy włączaniu launchera ma kolory święta, gdy trwa święto, a poza świętami zawsze oficjalne kolory MiB — niezależnie od motywu wybranego w launcherze.
 - Nowe cząsteczki w tle: znaki zapytania na Prima Aprilis, bąbelki w wakacje i balony na urodziny MiB.

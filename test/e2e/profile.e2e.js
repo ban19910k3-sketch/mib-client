@@ -102,7 +102,11 @@ function png(w, h, px) {
     await w.waitForFunction(() => document.getElementById('plname').textContent === 'Profil MiB' && document.getElementById('plsub').textContent === 'Logowanie…');
     ok('(a) dolny blok zachęca do założenia profilu');
     assert.equal(await w.evaluate(() => document.documentElement.classList.contains('t-halloween')), require('../../lib/profile').season() === 'halloween', 'motyw według daty');
-    ok('(ao) motyw Halloween według daty');
+    // animacja startowa (od 0.47.0): oficjalny wygląd MiB — w święto świąteczna (dni z wbudowanej listy albo z bazy), poza świętem fiolet MiB
+    const splashHol = await w.evaluate(() => { let t = null; try { t = JSON.parse(localStorage.getItem('mib-themes')) } catch {} return { want: MibProfile.themeNow(t), cls: document.getElementById('splash').className }; });
+    if (splashHol.want) assert.match(splashHol.cls, new RegExp('\\bt-' + splashHol.want + '\\b'), 'splash w kolorach święta');
+    else assert.doesNotMatch(splashHol.cls, /\bt-|themed/, 'poza świętem splash MiB');
+    ok('(ao) motyw Halloween według daty, animacja startowa w oficjalnym wyglądzie');
     await w.click('.nav[data-p="ideas"]');
     await w.waitForFunction(() => /Załóż profil MiB/.test(document.getElementById('ideas-box').textContent));
     assert.equal(await w.$('#id-body'), null, 'bez profilu nie ma formularza pomysłów');
