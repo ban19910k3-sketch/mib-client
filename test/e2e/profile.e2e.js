@@ -1086,8 +1086,9 @@ function png(w, h, px) {
     await w.waitForFunction(() => document.documentElement.classList.contains('t-walentynki') && document.documentElement.classList.contains('themed'));
     // ozdoby motywu (0.47.0): girlanda pod górnym paskiem, scena i plakietka w banerze, ikonka przy nazwie
     assert.deepEqual(await w.evaluate(() => ({ tag: document.querySelector('#hero .hol-tag').textContent, top: !!document.querySelector('#hw .deco.strip'),
-      art: document.querySelectorAll('#hero .hol-art .deco').length, ico: /^url\(/.test(getComputedStyle(document.documentElement).getPropertyValue('--hol-ico').trim()) })),
-    { tag: 'Walentynki', top: true, art: 2, ico: true });
+      art: document.querySelectorAll('#hero .hol-art .deco').length, ico: /^url\(/.test(getComputedStyle(document.documentElement).getPropertyValue('--hol-ico').trim()),
+      greet: document.querySelector('#p-home .ptitle .lead').textContent })),
+    { tag: 'Walentynki', top: true, art: 3, ico: true, greet: 'Wszystkiego miłego w Walentynki!' }, 'od 0.47.2 też list i życzenia');
     await w.fill('#aa-list .adv-row[data-day="7"] .adv-coins', '40');
     await w.press('#aa-list .adv-row[data-day="7"] .adv-coins', 'Tab');
     await until(() => fake.st.advent.find(a => a.day === 7).coins === 40);

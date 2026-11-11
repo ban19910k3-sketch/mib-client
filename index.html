@@ -93,8 +93,15 @@ const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;if(A==='off'||RM
 if(A==='off')sp.style.display='none';else if(localStorage.getItem('mibfx')!=='0'){const c=document.getElementById('pc'),x=c.getContext('2d');let W,H;const rs=()=>{W=c.width=innerWidth;H=c.height=innerHeight};rs();
 const P=Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.8+.4,v:Math.random()*.6+.2,a:Math.random()*6}));
 // kolor z oficjalnego wyglądu MiB albo święta (--spl w style.css, klasy na #splash); w Boże Narodzenie płatki spadają
-const SPL=getComputedStyle(sp).getPropertyValue('--spl').trim()||'192,132,252',DN=sp.classList.contains('t-boze')?-1:1;
-(function loop(){x.clearRect(0,0,W,H);for(const p of P){p.y-=p.v*DN;p.a+=.02;if(p.y<0||p.y>H){p.y=DN>0?H:0;p.x=Math.random()*W}x.fillStyle='rgba('+SPL+','+(.25+.35*Math.abs(Math.sin(p.a)))+')';x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()}if(!sp.classList.contains('out'))requestAnimationFrame(loop)})()}
+// w święta (od 0.47.1) też kolory, kształt i kierunek cząsteczek oraz fajerwerki z --spls/--spl-shape/--spl-dir/--spl-fw na #splash
+const cs=getComputedStyle(sp),cv=n=>cs.getPropertyValue(n).trim(),SPLS=(cv('--spls')||cv('--spl')||'192,132,252').split('|').map(c=>c.trim()),SH=cv('--spl-shape'),FW=cv('--spl-fw')==='1',DN=+(cv('--spl-dir')||1)||1;
+const SHP={heart:['.#.#.','#####','#####','.###.','..#..'],snow:['#.#.#','.###.','##.##','.###.','#.#.#'],egg:['.##.','####','####','####','.##.'],star:['.#.','###','.#.'],square:['##','##'],ring:['.##.','#..#','#..#','.##.'],q:['###','..#','.##','...','.#.']};
+for(const p of P){p.c=SPLS[Math.random()*SPLS.length|0];p.o=Math.random()<.5;p.k=p.r>1.3?2:1}
+let BR=[],nb=40;const burst=()=>{const cx=W*(.15+Math.random()*.7),cy=H*(.1+Math.random()*.35),c=SPLS[Math.random()*SPLS.length|0];for(let i=0;i<22;i++){const a=i/22*6.283,v=1.2+Math.random()*1.4;BR.push({x:cx,y:cy,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:0,c:Math.random()<.3?'255,255,255':c})}};
+(function loop(){x.clearRect(0,0,W,H);for(const p of P){p.y-=p.v*DN;p.a+=.02;if(p.y<-8||p.y>H+8){p.y=DN>0?H+4:-4;p.x=Math.random()*W}x.fillStyle='rgba('+p.c+','+(.25+.35*Math.abs(Math.sin(p.a)))+')';
+ const sh=SH==='confetti'?(p.o?['###']:['#','#','#']):SHP[SH];if(sh){const X=Math.round(p.x+Math.sin(p.a)*4),Y=Math.round(p.y);sh.forEach((row,j)=>{for(let i=0;i<row.length;i++)if(row[i]==='#')x.fillRect(X+i*p.k,Y+j*p.k,p.k,p.k)})}else{x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()}}
+ if(FW){if(--nb<=0){burst();nb=50+Math.random()*50}BR=BR.filter(b=>(b.l+=.016)<1.3);for(const b of BR){b.vy+=.025;b.x+=b.vx;b.y+=b.vy;x.fillStyle='rgba('+b.c+','+(1-b.l/1.3)+')';x.fillRect(Math.round(b.x),Math.round(b.y),2,2)}}
+ if(!sp.classList.contains('out'))requestAnimationFrame(loop)})()}
 const steps=[['Przygotowywanie interfejsu…',()=>new Promise(r=>requestAnimationFrame(()=>r()))],
 ['Sprawdzanie plików…',()=>Promise.resolve(document.fonts&&document.fonts.ready)],
 ['Wczytywanie ustawień…',()=>Promise.resolve()],['Gotowe',()=>new Promise(r=>setTimeout(r,dly))]];

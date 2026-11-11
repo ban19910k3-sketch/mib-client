@@ -858,11 +858,11 @@ label.srow{cursor:pointer}
 .themed .card.reward{background:linear-gradient(90deg,rgba(var(--g),.2),rgba(var(--g),.04) 75%)}
 .themed .card.offer{border-color:var(--am-lo);background:linear-gradient(120deg,rgba(var(--g),.16),var(--slab) 60%)}
 .themed #gift .gift3d,.themed .fc3d{background:radial-gradient(circle at 50% 60%,rgba(var(--g),.26),transparent 70%)}
-.themed #sbg{filter:var(--sbg,none)}
+.themed #sbg{filter:var(--spl-img,var(--sbg,none))}
 .themed .streak{background:linear-gradient(90deg,transparent,rgba(var(--g),.2),transparent)}
 .themed #sname{text-shadow:0 0 14px rgba(var(--g),.8)}
 .themed #bar{border-color:var(--am)}
-.themed #fill{background:repeating-linear-gradient(90deg,var(--am-hi) 0 10px,var(--am) 10px 12px);box-shadow:0 0 14px var(--am)}
+.themed #fill{background:var(--spl-fill,repeating-linear-gradient(90deg,var(--am-hi) 0 10px,var(--am) 10px 12px));box-shadow:0 0 14px var(--am)}
 /* ozdoby motywów (themes.js): pikselowe obrazki, dwie klatki migają; .home tylko na stronie głównej */
 .themed #hw{display:block;position:absolute;inset:0;pointer-events:none;z-index:0}
 .deco{position:absolute;display:block;background-position:left top;background-repeat:no-repeat;image-rendering:pixelated}
@@ -1080,3 +1080,43 @@ label.srow{cursor:pointer}
 @media (max-width:900px){.ted-body{flex-direction:column}.ted-prev{flex:none;height:42%}.ted-ctl{max-width:none}}
 /* przy otwartym edytorze powiadomienia nad stopką z Zapisz/Anuluj */
 body:has(#ted.on) #toasts{bottom:96px}
+
+/* ===== Animacja startowa w święta (od 0.47.1): logo w barwach święta — obraz splasha (--spl-img, szary) i nakładka mnożąca
+   kolory (--spl-ov: flaga, tęcza, pisanka, zachód słońca) — pasek (--spl-fill) i cząsteczki splasha: kolory --spls (r,g,b|…),
+   kształt --spl-shape, kierunek --spl-dir (1 w górę, -1 w dół), fajerwerki --spl-fw ===== */
+#splash::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:var(--spl-ov,none);mix-blend-mode:multiply}
+.t-niepodleglosc{--spl-img:grayscale(1) brightness(1.4);--spl-ov:linear-gradient(180deg,#fff 0 47%,#dc143c 47%);--spls:255,255,255|255,255,255|220,20,60|254,205,211;--spl-shape:confetti;
+  --spl-fill:linear-gradient(180deg,#fff 0 50%,#dc143c 50%)}
+.t-boze{--spl-img:hue-rotate(-133deg) saturate(1.1);--spls:255,255,255|224,242,254|186,230,253;--spl-shape:snow;--spl-dir:-1;
+  --spl-fill:repeating-linear-gradient(-45deg,#ef4444 0 6px,#fff 6px 12px)}
+.t-sylwester{--spl-img:grayscale(1) brightness(1.4);--spl-ov:linear-gradient(180deg,#fef08a 25%,#eab308 62%);--spls:250,204,21|253,230,138|34,211,238|244,114,182|255,255,255;--spl-shape:star;--spl-fw:1;
+  --spl-fill:repeating-linear-gradient(90deg,#fde047 0 10px,#eab308 10px 12px)}
+.t-walentynki{--spl-img:hue-rotate(60deg) saturate(1.15);--spls:244,63,94|251,113,133|253,164,175|255,255,255;--spl-shape:heart;
+  --spl-fill:repeating-linear-gradient(90deg,#fda4af 0 10px,#f43f5e 10px 12px)}
+.t-wielkanoc{--spl-img:grayscale(1) brightness(1.4);--spl-ov:repeating-linear-gradient(180deg,#f9a8d4 0 7%,#fde68a 7% 14%,#bbf7d0 14% 21%,#a5f3fc 21% 28%,#c4b5fd 28% 35%);
+  --spls:249,168,212|253,230,138|187,247,208|165,243,252|196,181,253;--spl-shape:egg;--spl-dir:-1;
+  --spl-fill:repeating-linear-gradient(90deg,#f9a8d4 0 10px,#fde68a 10px 20px,#bbf7d0 20px 30px,#c4b5fd 30px 40px)}
+.t-primaaprilis{--spls:34,211,238|244,114,182|250,204,21|163,230,53;--spl-shape:q;
+  --spl-fill:repeating-linear-gradient(90deg,#22d3ee 0 10px,#f472b6 10px 20px,#facc15 20px 30px)}
+.t-primaaprilis #sbg,.t-primaaprilis #sname{rotate:180deg}
+.t-urodzinymc{--spl-img:hue-rotate(-150deg) saturate(1.1);--spls:163,230,53|132,204,22|190,242,100|250,204,21;--spl-shape:square;
+  --spl-fill:linear-gradient(180deg,#6abe30 0 38%,#8b5a2b 38%)}
+.t-dziendziecka{--spl-img:grayscale(1) brightness(1.4);--spl-ov:linear-gradient(90deg,#ef4444 28%,#f97316 36%,#facc15 44%,#22c55e 52%,#38bdf8 60%,#a855f7 70%);
+  --spls:239,68,68|249,115,22|250,204,21|34,197,94|56,189,248|168,85,247;--spl-shape:confetti;
+  --spl-fill:linear-gradient(90deg,#ef4444,#f97316,#facc15,#22c55e,#38bdf8,#a855f7)}
+.t-wakacje{--spl-img:grayscale(1) brightness(1.4);--spl-ov:linear-gradient(180deg,#fde047 22%,#fb923c 40%,#f472b6 49%,#22d3ee 58%);
+  --spls:165,243,252|255,255,255|34,211,238;--spl-shape:ring;
+  --spl-fill:linear-gradient(180deg,#fcd34d 0 45%,#22d3ee 45%)}
+.t-urodzinymib{--spl-img:grayscale(1) brightness(1.4);--spl-ov:linear-gradient(120deg,#fde047 30%,#f472b6 48%,#a855f7 62%);--spls:250,204,21|244,114,182|34,211,238|192,132,252|255,255,255;--spl-shape:confetti;--spl-fw:1;
+  --spl-fill:repeating-linear-gradient(90deg,#facc15 0 10px,#a855f7 10px 12px)}
+/* ===== Święta w launcherze (od 0.47.1): GRAJ w barwach święta, życzenia pod powitaniem, poświata ozdób na banerze ===== */
+.t-wielkanoc{--go:#facc15;--go-hi:#fde047;--go-lo:#a16207;--go-sh:rgba(255,255,255,.35);--go-t:#1c1404}
+.t-niepodleglosc .go:not(.loading){background:linear-gradient(180deg,#fff 0 16%,#dc143c 16%)}
+.t-dziendziecka .go:not(.loading){background:linear-gradient(90deg,#ef4444,#f97316,#eab308,#16a34a,#0284c7,#9333ea);text-shadow:0 1px 0 rgba(0,0,0,.35)}
+.t-urodzinymib .go:not(.loading){background:linear-gradient(120deg,#ca8a04,#db2777 48%,#7e22ce);text-shadow:0 1px 0 rgba(0,0,0,.3)}
+.t-urodzinymib .brand svg{stroke:#facc15}
+.themed .lead.hol-greet,.t-halloween .lead.hol-greet{color:var(--am-hi);font-weight:600}
+.hol-art .year{filter:drop-shadow(0 0 6px rgba(250,204,21,.85))}
+.hol-art .firework{filter:drop-shadow(0 0 5px rgba(34,211,238,.7))}.hol-art .fw2{animation-delay:-.45s;filter:drop-shadow(0 0 5px rgba(244,114,182,.7))}
+.hol-art .gem{filter:drop-shadow(0 0 5px rgba(103,232,249,.7))}
+.hol-art .rainbow{opacity:.85}

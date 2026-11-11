@@ -58,10 +58,10 @@
   // ikonka przy nazwie w pasku bocznym i plakietka ze świętem w banerze. Pikselowe obrazki: siatka znaków + paleta,
   // dwie klatki = miganie. Wpis: [klasa, siatka lub klatki, paleta, skala, pozycja w CSS]; pas = left i right:0 (powtarzany w poziomie).
   const NP = { W: '#f8fafc', w: '#cbd5e1', R: '#dc143c', r: '#9f1239', s: '#a8a29e', p: '#d6d3d1', P: '#78716c', G: '#facc15' };
-  const BZ = { k: '#1f3a27', R: '#ef4444', Y: '#facc15', G: '#22c55e', B: '#38bdf8', r: '#7f1d1d', y: '#713f12', g: '#14532d', b: '#0c4a6e', T: '#15803d', t: '#166534', D: '#0f5132', S: '#fef9c3', n: '#78350f', W: '#f8fafc', i: '#dbeafe', I: '#93c5fd' };
+  const BZ = { K: '#111827', O: '#f97316', k: '#1f3a27', R: '#ef4444', Y: '#facc15', G: '#22c55e', B: '#38bdf8', r: '#7f1d1d', y: '#713f12', g: '#14532d', b: '#0c4a6e', T: '#15803d', t: '#166534', D: '#0f5132', S: '#fef9c3', n: '#78350f', W: '#f8fafc', i: '#dbeafe', I: '#93c5fd' };
   const SY = { Y: '#facc15', y: '#a16207', W: '#fffbeb', S: '#e5e7eb', s: '#9ca3af', C: '#22d3ee', P: '#f472b6', g: '#14532d', G: '#166534', K: '#0b0610', L: '#fde68a', k: '#3f3f46' };
   const WA = { R: '#f43f5e', r: '#be123c', E: '#fda4af', P: '#ec4899', p: '#9d174d', L: '#fbcfe8', s: '#9f7a85', W: '#fff1f2' };
-  const WI = { M: '#f472b6', Y: '#fde047', Q: '#7dd3fc', V: '#c4b5fd', G: '#86efac', W: '#ffffff', R: '#fb7185', s: '#a8a29e', A: '#4ade80', a: '#16a34a', d: '#15803d', X: '#d4a64a', x: '#92702c', S: '#f9a8d4', k: '#1c1424', w: '#e5e7eb' };
+  const WI = { O: '#f97316', y: '#eab308', q: '#c4b5fd', M: '#f472b6', Y: '#fde047', Q: '#7dd3fc', V: '#c4b5fd', G: '#86efac', W: '#ffffff', R: '#fb7185', s: '#a8a29e', A: '#4ade80', a: '#16a34a', d: '#15803d', X: '#d4a64a', x: '#92702c', S: '#f9a8d4', k: '#1c1424', w: '#e5e7eb' };
   const PA = { C: '#22d3ee', P: '#f472b6', Y: '#facc15', L: '#a3e635', V: '#a78bfa', s: '#94a3b8', W: '#f8fafc', k: '#0f172a', B: '#fde047' };
   const MC = { A: '#6abe30', a: '#4b8a22', D: '#8b5a2b', d: '#5e3a1a', F: '#fde047', f: '#f97316', w: '#8b5a2b', W: '#5e3a1a', s: '#a8a29e', Y: '#facc15', G: '#22c55e', b: '#8b5a2b' };
   const DZ = { R: '#ef4444', Y: '#facc15', Q: '#38bdf8', G: '#22c55e', V: '#a855f7', O: '#f97316', W: '#ffffff', s: '#e5e7eb', k: '#94a3b8' };
@@ -108,28 +108,56 @@
   const MB_ICO = ['...O...', '...v...', '.KKKKK.', '.KkKkK.', '.BBBBB.', '.LLLLL.', '.BBBBB.'];
   const MB_GARLAND = ['ssssssssssssssssssssssss', '.PPPPP.YYYYY.SSSSS.CCCCC', '..PPP...YYY...SSS...CCC.', '...P.....Y.....S.....C..'];
   const MB_CAKE = [['...O.....u.....O...', '...u.....O.....u...', '...v.....v.....v...', '...v.....v.....v...', '.KKKKKKKKKKKKKKKKK.', 'KKkKKKkKKKKkKKKkKKK', 'KkkKkkkkKKkkkKkkKkK', 'BBBBBBBBBBBBBBBBBBB', 'BBBBBBBBBBBBBBBBBBB', 'LLLLLLLLLLLLLLLLLLL', 'BBBBBBBBBBBBBBBBBBB', 'BBBBBBBBBBBBBBBBBBB', '.bbbbbbbbbbbbbbbbb.'], ['...u.....O.....u...', '...O.....u.....O...', '...v.....v.....v...', '...v.....v.....v...', '.KKKKKKKKKKKKKKKKK.', 'KKkKKKkKKKKkKKKkKKK', 'KkkKkkkkKKkkkKkkKkK', 'BBBBBBBBBBBBBBBBBBB', 'BBBBBBBBBBBBBBBBBBB', 'LLLLLLLLLLLLLLLLLLL', 'BBBBBBBBBBBBBBBBBBB', 'BBBBBBBBBBBBBBBBBBB', '.bbbbbbbbbbbbbbbbb.']];
+  // ===== Dodatkowe ozdoby (od 0.47.1): więcej rzeczy kojarzących się z danym świętem =====
+  const NP_COCKADE = ['...wWWWw...', '..WRRRRRW..', '.WRrWWWrRW.', 'wRrWWWWWrRw', 'WRWWRRRWWRW', 'WRWWRrRWWRW', 'wRrWWRWWrRw', '.WRrWWWrRW.', '..WRRRRRW..', '...WR.RW...', '..WRr.rRW..', '..Rr...rR..', '.Rr.....rR.'];
+  const BZ_SNOWMAN = ['...KKKKK...', '...KKKKK...', '..KKKKKKK..', '...WWWWW...', '..WWKWKWW..', '..WWWOOWW..', '...WWWWW...', '..RRRRRRR..', '.WWWWRWWWW.', 'WWWWWKWWWWi', 'WWWWWWWWWWi', 'WWWWWKWWWWi', '.WWWWWWWWi.', '..iiiiiii..'];
+  const SY_DIGITS = { 0: ['###', '#.#', '#.#', '#.#', '###'], 1: ['.#.', '##.', '.#.', '.#.', '###'], 2: ['###', '..#', '###', '#..', '###'], 3: ['###', '..#', '.##', '..#', '###'], 4: ['#.#', '#.#', '###', '..#', '..#'],
+    5: ['###', '#..', '###', '..#', '###'], 6: ['###', '#..', '###', '#.#', '###'], 7: ['###', '..#', '.#.', '.#.', '.#.'], 8: ['###', '#.#', '###', '#.#', '###'], 9: ['###', '#.#', '###', '..#', '###'] };
+  // rok, który się zaczyna (od lipca następny — także przy Sylwestrze włączonym wcześniej z panelu), pikselowymi cyframi
+  const syYear = () => { const d = new Date(), y = String(d.getFullYear() + (d.getMonth() >= 6 ? 1 : 0)); return [0, 1, 2, 3, 4].map(r => [...y].map(c => SY_DIGITS[c][r].replace(/#/g, r ? 'Y' : 'L')).join('.')); };
+  const SY_FIREWORK = [['....C....', '.C..C..C.', '..C.C.C..', '...CWC...', 'CCCWWWCCC', '...CWC...', '..C.C.C..', '.C..C..C.', '....C....'], ['C...C...C', '.........', '..C.C.C..', '...C.C...', 'C.C.W.C.C', '...C.C...', '..C.C.C..', '.........', 'C...C...C']];
+  const WA_LETTER = ['sssssssssssss', 'sLWLLLLLLLWLs', 'sLLWLLLLLWLLs', 'sLLLWLLLWLLLs', 'sLLLLWRWLLLLs', 'sLLLLRRRLLLLs', 'sLLLLLRLLLLLs', 'sLLLLLLLLLLLs', 'sssssssssssss'];
+  const WI_EGG = ['..MMM..', '.MMMMM.', '.YYYYY.', 'MWMWMWM', 'MMMMMMM', 'QQQQQQQ', '.QWQWQ.', '.QQQQQ.', '..QQQ..'];
+  const WI_EGGS = WI_EGG.map((r, i) => r + '.' + r.replace(/M/g, 'q').replace(/Q/g, 'G').replace(/Y/g, 'R').replace(/q/g, 'V') + '.' + r.replace(/M/g, 'Y').replace(/Q/g, 'M').replace(/Y/g, 'Q'));
+  const WI_CHICK = ['...YYY..', '..YYkYY.', '..YYYYOO', '.YYYYYY.', 'YyYYYYYY', 'YYyYYYYY', '.YYYYYY.', '..O..O..'];
+  const MC_CAKE = ['.WWWWWWWWWW.', 'WWRWWWWWRWWW', 'WWWWWRWWWWWW', 'CCCCCCCCCCCC', 'bbbbbbbbbbbb', 'bBbbbbBbbbbb', 'CCCCCCCCCCCC', 'bbbBbbbbbBbb', 'BBBBBBBBBBBB'];
+  const MC_GEM = ['..QQQ..', '.QWQQQ.', 'QWQQQQq', 'QQQQQqq', '.QQQqq.', '..Qqq..', '...q...'];
+  const MCK = { W: '#ffffff', R: '#ef4444', C: '#fde68a', b: '#a16207', B: '#713f12', Q: '#67e8f9', q: '#0891b2' };
+  const DZ_RAINBOW = ['......................', '.......RRRRRRRR.......', '.....RRROOOOOORRR.....', '....RROOYYYYYYOORR....', '...ROOYYYGGGGYYYOOR...', '..RROYYGGQQQQGGYYORR..', '..ROYYGQQQVVQQQGYYOR..', '.ROOYGQQVVVVVVQQGYOOR.', '.ROYGGQV......VQGGYOR.', '.ROYGQVV......VVQGYOR.', 'RROYGQV........VQGYORR'];
+  const DZ_KITE = [['....Q....', '...QQR...', '..QQQRR..', '.QQQQRRR.', 'YYYYsGGGG', '.YYYsGGG.', '..YYsGG..', '...YsG...', '....s....', '.....s...', '....RsR..', '......s..', '.....YsY.', '.......s.'], ['....Q....', '...QQR...', '..QQQRR..', '.QQQQRRR.', 'YYYYsGGGG', '.YYYsGGG.', '..YYsGG..', '...YsG...', '....s....', '...s.....', '..RsR....', '..s......', '.YsY.....', '.s.......']];
+  const WK_UMBRELLA = ['......O......', '....OWOWO....', '..OWOWOWOWO..', '.OWOWOWOWOWO.', 'OWOWOWOWOWOWO', 'b.....B.....b', '......B......', '......B......', '......B......', '......B......', '......B......', '.....XBX.....'];
+  const WK_ICECREAM = ['..PPP..', '.PPWPP.', '.PPPPP.', 'TTTTTTT', '.TTWTT.', 'XxXxXxX', '.xXxXx.', '.XxXxX.', '..xXx..', '..XxX..', '...x...'];
+  const MB_GIFTS = BZ_GIFTS.map(r => r.replace(/R/g, 'P').replace(/B/g, 'C').replace(/g/g, 'S'));
+  const MB_BALLOONS = DZ_BALLOONS.map(r => r.replace(/R/g, 'P').replace(/Q/g, 'S'));
+  // życzenia pod „Witaj, Gracz.” na stronie głównej (tłumaczenia w EN w ui.js)
+  const GREET = { halloween: 'Cukierek albo psikus!', niepodleglosc: 'Wszystkiego dobrego w Święto Niepodległości!', boze: 'Wesołych Świąt i samych wygranych walk!',
+    sylwester: 'Szczęśliwego Nowego Roku!', walentynki: 'Wszystkiego miłego w Walentynki!', wielkanoc: 'Wesołych Świąt Wielkanocnych!',
+    primaaprilis: 'Dziś nie wierz nikomu. Nawet przyciskowi GRAJ.', urodzinymc: 'Wszystkiego najlepszego, Minecraft!',
+    dziendziecka: 'Wszystkiego najlepszego z okazji Dnia Dziecka!', wakacje: 'Udanych wakacji — więcej czasu na granie!',
+    urodzinymib: 'MiB Client ma urodziny — dzięki, że grasz z nami!' };
   const STRIP = 'left:0;right:0;bottom:0';
   const DECOR = {
     niepodleglosc: { name: 'Święto Niepodległości', ico: [NP_ICO, NP], top: ['bunting', NP_GARLAND, NP, 3],
-      hero: [['flag', NP_FLAG, NP, 4, 'right:26px;bottom:0']] },
+      hero: [['flag', NP_FLAG, NP, 4, 'right:26px;bottom:0'], ['cockade', NP_COCKADE, NP, 3, 'right:104px;bottom:14px']] },
     boze: { name: 'Boże Narodzenie', ico: [BZ_ICO, BZ], top: ['lights', BZ_LIGHTS, BZ, 2],
-      hero: [['snow', BZ_SNOW, BZ, 3, STRIP], ['tree', BZ_TREE, BZ, 4, 'right:78px;bottom:9px'], ['gifts', BZ_GIFTS, BZ, 3, 'right:20px;bottom:9px']] },
+      hero: [['snow', BZ_SNOW, BZ, 3, STRIP], ['tree', BZ_TREE, BZ, 4, 'right:78px;bottom:9px'], ['gifts', BZ_GIFTS, BZ, 3, 'right:20px;bottom:9px'], ['snowman', BZ_SNOWMAN, BZ, 3, 'right:146px;bottom:9px']] },
     sylwester: { name: 'Sylwester', ico: [SY_ICO, SY], top: ['stars', SY_GARLAND, SY, 2],
-      hero: [['bottle', SY_BOTTLE, SY, 4, 'right:104px;bottom:10px'], ['glass', SY_GLASS, SY, 4, 'right:74px;bottom:10px'], ['clock', SY_CLOCK, SY, 4, 'right:20px;bottom:10px']] },
+      hero: () => [['bottle', SY_BOTTLE, SY, 4, 'right:104px;bottom:10px'], ['glass', SY_GLASS, SY, 4, 'right:74px;bottom:10px'], ['clock', SY_CLOCK, SY, 4, 'right:20px;bottom:10px'],
+        ['year', syYear(), SY, 5, 'right:150px;top:16px'], ['firework', SY_FIREWORK, SY, 4, 'right:40px;top:12px'], ['firework fw2', SY_FIREWORK, { ...SY, C: '#f472b6' }, 3, 'right:96px;top:46px']] },
     walentynki: { name: 'Walentynki', ico: [WA_ICO, WA], top: ['hearts', WA_GARLAND, WA, 2],
-      hero: [['heart', WA_HEART, WA, 4, 'right:24px;bottom:14px'], ['heart2', WA_SMALL, WA, 3, 'right:96px;bottom:70px']] },
+      hero: [['heart', WA_HEART, WA, 4, 'right:24px;bottom:14px'], ['heart2', WA_SMALL, WA, 3, 'right:96px;bottom:70px'], ['letter', WA_LETTER, WA, 4, 'right:96px;bottom:12px']] },
     wielkanoc: { name: 'Wielkanoc', ico: [WI_ICO, WI], top: ['bunting', WI_GARLAND, WI, 3],
-      hero: [['grass', WI_GRASS, WI, 3, STRIP], ['basket', WI_BASKET, WI, 4, 'right:68px;bottom:8px'], ['bunny', WI_BUNNY, WI, 4, 'right:18px;bottom:8px']] },
+      hero: [['grass', WI_GRASS, WI, 3, STRIP], ['basket', WI_BASKET, WI, 4, 'right:68px;bottom:8px'], ['bunny', WI_BUNNY, WI, 4, 'right:18px;bottom:8px'], ['chick', WI_CHICK, WI, 3, 'right:126px;bottom:9px'], ['eggs', WI_EGGS, WI, 3, 'right:160px;bottom:9px']] },
     primaaprilis: { name: 'Prima Aprilis', ico: [PA_ICO, PA], top: ['bunting', PA_GARLAND, PA, 3],
       hero: [['jester', PA_JESTER, PA, 5, 'right:24px;bottom:14px'], ['q', PA_Q, PA, 3, 'right:96px;bottom:60px']] },
     urodzinymc: { name: 'Urodziny Minecrafta', ico: [MC_ICO, MC], top: ['bunting', MC_GARLAND, MC, 3],
-      hero: [['blocks', MC_BLOCKS, MC, 3, STRIP], ['torch', MC_TORCH, MC, 4, 'right:20px;bottom:15px']] },
+      hero: [['blocks', MC_BLOCKS, MC, 3, STRIP], ['torch', MC_TORCH, MC, 4, 'right:20px;bottom:15px'], ['cake', MC_CAKE, MCK, 4, 'right:96px;bottom:15px'], ['gem', MC_GEM, MCK, 4, 'right:160px;bottom:15px']] },
     dziendziecka: { name: 'Dzień Dziecka', ico: [DZ_ICO, DZ], top: ['bunting', DZ_GARLAND, DZ, 3],
-      hero: [['balloons', DZ_BALLOONS, DZ, 5, 'right:20px;bottom:6px']] },
+      hero: [['rainbow', DZ_RAINBOW, { ...DZ, R: '#ef4444', O: '#f97316', Y: '#facc15', G: '#22c55e', Q: '#38bdf8', V: '#a855f7' }, 5, 'right:110px;bottom:0'], ['balloons', DZ_BALLOONS, DZ, 5, 'right:20px;bottom:6px'], ['kite', DZ_KITE, { ...DZ, s: '#e5e7eb' }, 4, 'right:96px;top:10px']] },
     wakacje: { name: 'Wakacje', ico: [WK_ICO, WK], top: ['bunting', WK_GARLAND, WK, 3],
-      hero: [['sea', WK_SEA, WK, 3, STRIP], ['sun', WK_SUN, WK, 3, 'right:22px;top:14px'], ['palm', WK_PALM, WK, 4, 'right:26px;bottom:12px']] },
+      hero: [['sea', WK_SEA, WK, 3, STRIP], ['sun', WK_SUN, WK, 3, 'right:22px;top:14px'], ['palm', WK_PALM, WK, 4, 'right:26px;bottom:12px'], ['umbrella', WK_UMBRELLA, WK, 4, 'right:96px;bottom:12px'], ['icecream', WK_ICECREAM, WK, 3, 'right:162px;bottom:14px']] },
     urodzinymib: { name: 'Urodziny MiB Client', ico: [MB_ICO, MB], top: ['bunting', MB_GARLAND, MB, 3],
-      hero: [['cake', MB_CAKE, MB, 4, 'right:20px;bottom:10px']] },
+      hero: [['cake', MB_CAKE, MB, 4, 'right:20px;bottom:10px'], ['gifts', MB_GIFTS, MB, 3, 'right:104px;bottom:10px'], ['balloons', MB_BALLOONS, MB, 4, 'right:156px;bottom:8px']] },
   };
   function sprite([cls, rows, pal, k, pos]) {
     const frames = Array.isArray(rows[0]) ? rows : [rows], w = Math.max(...frames[0].map(r => r.length)), h = frames[0].length;
@@ -148,13 +176,16 @@
     if (!halloweenDecor) halloweenDecor = [...hw.children].map(n => n.cloneNode(true));
     if (hero) for (const n of hero.querySelectorAll('.hol')) n.remove();
     root.style.removeProperty('--hol-ico');
+    // życzenia zamiast podpisu pod „Witaj, Gracz.” (pierwotny tekst wraca po święcie)
+    const lead = document.querySelector('#p-home .ptitle .lead');
+    if (lead) { if (lead.dataset.orig === undefined) lead.dataset.orig = lead.textContent; lead.textContent = GREET[id] || lead.dataset.orig; lead.classList.toggle('hol-greet', !!GREET[id]); }
     if (!d) { hw.replaceChildren(...(id === 'halloween' ? halloweenDecor.map(n => n.cloneNode(true)) : [])); return; }
     hw.replaceChildren(sprite([d.top[0], d.top[1], d.top[2], d.top[3], 'left:var(--side-w);right:0;top:var(--top-h)']));
     root.style.setProperty('--hol-ico', img(d.ico[0], d.ico[1]));
     if (!hero) return;
     const art = document.createElement('div');
     art.className = 'hol hol-art';
-    art.append(...d.hero.map(sprite));
+    art.append(...(typeof d.hero === 'function' ? d.hero() : d.hero).map(sprite));
     hero.append(art);
     const tag = document.createElement('span');
     tag.className = 'hol hol-tag';
