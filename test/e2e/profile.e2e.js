@@ -440,6 +440,34 @@ function png(w, h, px) {
     delete fake.cosmetics.cape_view;
     ok('(az) postać w Kosmetykach: 20 okien zakupu, filtr i zakładki bez wczytywania od nowa, nowa postać po utracie kontekstu WebGL');
 
+    // Zestawy kosmetyków (0.47.3): założone pod nazwą, założenie jednym kliknięciem (zdejmuje resztę), usunięcie
+    const eqOld = tester.equipped;
+    tester.equipped = { hat: 'hat_shop' };
+    await w.click('.nav[data-p="cos"]:not([data-tab="shop"])');
+    await w.waitForSelector('#cos-outfits');
+    assert.match(await w.textContent('#cos-outfits'), /Zestawy.*zapisz je jako zestaw/s, 'zachęta bez zestawów');
+    await w.click('#of-save');
+    await w.waitForFunction(() => /od 1 do 24 znaków/.test(document.querySelector('#cos-outfits .of-err').textContent), null, { timeout: 5000 });
+    await w.fill('#of-name', 'Na co dzień');
+    await w.click('#of-save');
+    await w.waitForSelector('#cos-outfits .of-chip');
+    assert.deepEqual(fake.st.outfits.map(o => [o.name, o.items]), [['Na co dzień', { hat: 'hat_shop' }]]);
+    tester.equipped = { cape: 'cape_shop' };
+    await w.click('.nav[data-p="cos"]:not([data-tab="shop"])');
+    await w.waitForFunction(() => document.getElementById('skin3d').dataset.back === 'cape');
+    await w.click('#cos-outfits .of-wear');
+    await w.waitForFunction(() => { const d = document.getElementById('skin3d').dataset; return d.hat === '1' && d.back === ''; });
+    assert.deepEqual(tester.equipped, { hat: 'hat_shop' }, 'zestaw zdjął pelerynę i założył czapkę');
+    await w.waitForSelector('.toast:has-text("Założono zestaw")');
+    await w.locator('#cos-outfits').scrollIntoViewIfNeeded();
+    await shot('cos-outfits.png');
+    await w.click('#cos-outfits .of-x');
+    await w.click('#cfm-ok');
+    await w.waitForFunction(() => !document.querySelector('#cos-outfits .of-chip'));
+    assert.equal(fake.st.outfits.length, 0, 'usunięty');
+    tester.equipped = eqOld;
+    ok('(bb) zestawy kosmetyków: zapis założonych, założenie jednym kliknięciem, usunięcie');
+
     // Święta (0.25.0): maska i wysoka czapka na podglądzie, kolekcja w sklepie z datą końca, nagroda świąteczna i kalendarz
     // adwentowy na stronie głównej (dzień w atrapie: 5 grudnia), wyłączenie motywów w Ustawieniach. Tekstury z schema.sql.
     const seededP = id => new RegExp("\\('" + id + "', '[^']*', '\\w+', \\w+, '(data:image/png;base64,[^']+)'\\)").exec(fs.readFileSync(path.join(__dirname, '../../supabase/schema.sql'), 'utf8'))[1];
@@ -937,6 +965,38 @@ function png(w, h, px) {
     await until(() => kolega.warnings === 1 && fake.st.reports[0].status === 'warned');
     await w.waitForFunction(() => /Brak nowych zgłoszeń/.test(document.getElementById('ar-list').textContent));
     ok('(ae) zgłoszenia w panelu admina: kopia rozmowy i ostrzeżenie 1/4');
+
+    // Błędy launchera (0.47.3): błąd w oknie trafia do bazy bez danych osobowych, raz na uruchomienie; zakładka Błędy, Naprawione;
+    // ustawienie wyłącza zgłaszanie
+    await w.evaluate(() => { for (let i = 0; i < 2; i++) window.dispatchEvent(new ErrorEvent('error', { message: "Cannot read properties of null (reading 'x') C:\\Users\\Jan\\a.js", error: Object.assign(new Error('x'), { stack: 'TypeError\n    at f (file:///home/jan/mib/app.asar/profile-ui.js:12:3)' }) })); });
+    if (fake.st.launcherErrors.length) console.log('błędy launchera zgłoszone wcześniej w teście:', JSON.stringify(fake.st.launcherErrors.map(e => e.message)));
+    await until(() => fake.st.launcherErrors.some(e => /reading 'x'/.test(e.message)));
+    await w.waitForTimeout(300);
+    const le = fake.st.launcherErrors.find(e => /reading 'x'/.test(e.message));
+    assert.equal(le.count, 1, 'ten sam błąd raz na uruchomienie');
+    assert.equal(le.kind, 'ui');
+    assert.ok(!/Jan|jan/.test(le.message + le.stack), 'bez nazwy użytkownika: ' + le.message + ' | ' + le.stack);
+    assert.match(le.stack, /at f \(profile-ui\.js:12:3\)/);
+    assert.deepEqual(le.versions, [require('../../package.json').version]);
+    assert.match(le.systems[0], /^(linux|win32|darwin) /);
+    assert.match(le.installs[0], /^[0-9a-f]{16}$/);
+    const setOld = await w.evaluate(() => mib.call('settings:get'));
+    await w.evaluate(s => mib.call('settings:set', { ...s, errorReports: false }), setOld);
+    await w.evaluate(() => mib.call('errors:report', { kind: 'ui', message: 'Inny błąd przy wyłączonych raportach' }));
+    await w.waitForTimeout(500);
+    assert.ok(!fake.st.launcherErrors.some(e => /Inny błąd/.test(e.message)), 'wyłączone ustawieniem');
+    await w.evaluate(s => mib.call('settings:set', s), setOld);
+    await w.click('[data-tab="errors"]');
+    await w.waitForSelector('#ae-list .ae-row');
+    assert.match(await w.textContent(`#ae-list .ae-row[data-id="${le.id}"]`), /Okno launchera.*1 gracz · 1×.*Cannot read properties of null.*Wersje: \d+\.\d+\.\d+/s);
+    await w.waitForTimeout(400);
+    await shot('admin-errors.png');
+    await w.click(`#ae-list .ae-row[data-id="${le.id}"] [data-fix]`);
+    await w.waitForSelector('.toast:has-text("Oznaczono jako naprawiony")');
+    assert.ok(le.fixed_at, 'naprawiony');
+    await w.click('[data-f="true"]');
+    await w.waitForSelector('#ae-list .ae-row');
+    ok('(ba) błędy launchera: zgłoszenie bez danych osobowych, raz na uruchomienie, wyłączanie, zakładka Błędy i Naprawione');
     await w.click('[data-tab="ann"]');
     assert.equal(await w.textContent('[data-tab="ann"]'), 'Aktualności');
     await w.waitForSelector('#ad-title');
@@ -1002,6 +1062,17 @@ function png(w, h, px) {
     await w.waitForFunction(() => !document.querySelector('#as-chart .ac-tip').hidden && /W launcherze: \d+.*W grze: \d+.*Nowe profile: \d+/s.test(document.querySelector('#as-chart .ac-tip').textContent));
     await w.locator('#as-chart').scrollIntoViewIfNeeded();
     await shot('admin-stats.png');
+    // Sklep (0.47.3): wydane coinsy, najczęściej kupowane, pakiety i wykres dzienny (zakupy z testu (an))
+    await w.waitForSelector('#ass-tiles');
+    const spent = fake.st.coinLog.filter(l => ['buy', 'gift', 'offer'].includes(l.kind)).reduce((n, l) => n - l.delta, 0);
+    assert.ok(spent >= 1700, 'zakupy z testu sklepu: ' + spent);
+    assert.equal(await w.$eval('#ass-tiles .stat', (el, n) => el.querySelector('b').textContent === Number(n).toLocaleString('pl-PL') && /Wydane coinsy/.test(el.textContent), spent), true, 'wydane coinsy');
+    assert.match(await w.textContent('#ass'), /Najczęściej kupowane.*Czapka sklepowa.*Pakiety i oferty.*Pakiet testowy/s);
+    assert.equal(await w.$$eval('#ass-chart rect', l => l.length) >= 1, true, 'słupki wykresu');
+    await w.selectOption('#ass-days', '7');
+    await w.waitForFunction(() => document.querySelectorAll('#ass-chart svg text').length > 0);
+    await w.locator('#ass').scrollIntoViewIfNeeded();
+    await shot('admin-shop-stats.png');
     await w.click('[data-tab="players"]');
     await w.waitForFunction(() => /Tester_1/.test(document.getElementById('ap-res').textContent));
     await w.click('#ap-res .arow:has-text("Tester_1")');
@@ -1141,6 +1212,8 @@ function png(w, h, px) {
     await w.evaluate(() => MibThemes.refresh());
     await w.waitForFunction(() => !document.documentElement.classList.contains('t-walentynki'));
     // Podgląd (0.47.3): drugie okno launchera w danym święcie, z animacją startową w tym święcie, tylko do oglądania
+    assert.equal(await w.$$eval('#at-list [data-game]', l => l.length), 11, '„W grze” przy każdym święcie');
+    assert.ok(await w.$('[data-game="none"]') && await w.$('[data-peek="none"]'), 'podgląd i gra bez święta');
     const pvWin = app.waitForEvent('window');
     await w.click('#at-list [data-peek="boze"]');
     const pv = await pvWin;

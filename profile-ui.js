@@ -37,6 +37,8 @@
     server_error: 'Serwer MiB ma chwilowy problem. Spróbuj za kilka minut.',
     code_invalid: 'Nie ma takiego kodu. Sprawdź jego pisownię.',
     not_owned: 'Nie masz tego przedmiotu.',
+    outfit_name_invalid: 'Nazwa zestawu: od 1 do 24 znaków.', outfit_empty: 'Najpierw załóż jakieś kosmetyki — zestaw zapisuje to, co masz na sobie.',
+    outfit_limit: 'Masz już 10 zestawów. Usuń któryś albo zapisz pod istniejącą nazwą.', outfit_missing: 'Tego zestawu już nie ma.',
     pet_name_invalid: 'Imię peta: do 16 znaków, bez brzydkich słów.',
     code_expired: 'Ten kod już wygasł.',
     code_used_up: 'Ten kod został już wykorzystany.',
@@ -853,6 +855,38 @@
   // ustawienia peta gracza (tryb, strona, imię) — z bazy przy wejściu na Kosmetyki
   let petCfg = { mode: 'fly', side: 'left', name: '' };
   let lastItems = [];
+  // Zestawy kosmetyków (od 0.47.3): założone przedmioty zapisane pod nazwą, zakładane jednym kliknięciem (też w grze)
+  let outfitList = [];
+  function outfitsCard() {
+    // własna klasa błędu: karta jest w lewej kolumnie, przed polem kodu z jego .err
+    const err = h('p', { class: 'of-err', role: 'alert' }), name = h('input', { id: 'of-name', maxlength: 24, placeholder: T('Nazwa zestawu') });
+    const save = h('button', { class: 'b ghost', type: 'button', id: 'of-save', on: { click: async () => {
+      err.textContent = '';
+      const r = await mib.call('prof:outfitSave', { name: name.value });
+      if (!r || r.error) { err.textContent = msg((r && r.error) || 'unknown'); return; }
+      toast(T('Zestaw zapisany.'));
+      renderCos();
+    } } }, T('Zapisz założone'));
+    name.onkeydown = e => { if (e.key === 'Enter') save.click(); };
+    const chip = o => h('div', { class: 'of-chip', 'data-id': o.id },
+      h('button', { class: 'of-wear', type: 'button', title: o.missing ? T('Brakuje przedmiotów') + ': ' + o.missing : T('Załóż zestaw'), on: { click: async () => {
+        const r = await mib.call('prof:outfitWear', { id: o.id });
+        if (!r || r.error) return toast(msg((r && r.error) || 'unknown'), 1);
+        toast(T('Założono zestaw') + ' „' + o.name + '”. ' + T('Widać to w grze.'));
+        trying = {};
+        renderCos();
+      } } }, o.name, o.missing ? h('small', { class: 'mut' }, ' −' + o.missing) : null),
+      h('button', { class: 'of-x', type: 'button', title: T('Usuń zestaw'), 'aria-label': T('Usuń zestaw') + ' ' + o.name, on: { click: async () => {
+        if (!(await window.mibConfirm(T('Usunąć zestaw') + ' „' + o.name + '”?', { danger: true, ok: T('Usuń') }))) return;
+        const r = await mib.call('prof:outfitDelete', { id: o.id });
+        if (r && r.error) return toast(msg(r.error), 1);
+        renderCos();
+      } } }, '×'));
+    return h('div', { class: 'card outfits', id: 'cos-outfits' }, h('h4', {}, T('Zestawy')),
+      outfitList.length ? h('div', { class: 'of-list' }, ...outfitList.map(chip))
+        : h('p', { class: 'mut' }, T('Załóż kosmetyki i zapisz je jako zestaw — potem zmienisz cały strój jednym kliknięciem, też w grze.')),
+      outfitList.length < 10 ? h('div', { class: 'row of-new' }, name, save) : h('small', { class: 'mut' }, T('Najwyżej 10 zestawów — nowy zapiszesz pod nazwą istniejącego.')), err);
+  }
   async function dressPage(list) {
     lastDress = list;
     if (!skinViewer) return;
@@ -915,6 +949,7 @@
       st.loggedIn ? h('div', { class: 'card cosworn' }, h('h4', {}, T('Założone')), h('div', { class: 'slots' },
         slot('cape', 'Peleryna'), slot('hat', 'Czapka'), slot('mask', 'Maska'), slot('wings', 'Skrzydła'), slot('aura', 'Aura'),
         slot('pet', 'Pet'), slot('tail', 'Ogon'), slot('back', 'Plecak'))) : null,
+      st.loggedIn ? outfitsCard() : null,
       st.loggedIn && items.some(x => x.equipped && x.type === 'pet') ? petPanel(items) : null);
   }
   // Ustawienia założonego peta (od 0.34.0): jak się zachowuje (lata, na ramieniu, chodzi), po której stronie i jak ma na imię.
@@ -958,7 +993,8 @@
     if (st.loading) return box.replaceChildren(h('h2', {}, T('Kosmetyki')), h('p', { class: 'mut' }, T('Wczytywanie…')));
     const skin = await skinSection();
     if (!st.loggedIn) return renderBrowse(skin);
-    const [list, pc] = await Promise.all([mib.call('prof:cosmetics'), mib.call('prof:pet')]);
+    const [list, pc, ofs] = await Promise.all([mib.call('prof:cosmetics'), mib.call('prof:pet'), mib.call('prof:outfits')]);
+    outfitList = Array.isArray(ofs) ? ofs : [];
     const items = Array.isArray(list) ? list : [];
     if (pc && !pc.error) petCfg = pc;
     lastItems = items;
@@ -1349,6 +1385,8 @@
   // launcher sprawdza prezenty i odpowiedzi co minutę (main.js); kliknięte powiadomienie otwiera okno albo Pomysły
   mib.on('gifts:changed', n => { if (st.loggedIn && (n !== giftCount || (n && !giftOpen))) giftsCheck(true); });
   mib.on('gifts:open', () => giftsCheck(true));
+  // zestaw założony w grze (od 0.47.3, main.js onOutfit): Kosmetyki od razu w nowym stroju
+  mib.on('cosmetics:changed', () => { if ($('p-cos').classList.contains('on') && !giftOpen) renderCos(); });
   mib.on('ideas:changed', n => { if (!st.loggedIn) return; if ($('p-ideas').classList.contains('on')) renderIdeas(); else navCount('ideas', n); });
   mib.on('ideas:open', () => go('ideas'));
 

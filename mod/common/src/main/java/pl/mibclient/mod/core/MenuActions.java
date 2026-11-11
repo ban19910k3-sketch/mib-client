@@ -44,6 +44,10 @@ public interface MenuActions {
 	default void setShowPets(boolean on) {
 	}
 
+	/** Zakłada zestaw kosmetyków (przez launcher, od 0.47.3); komunikat jak przy zmianie kosmetyku. */
+	default void wearOutfit(long id) {
+	}
+
 	/** Odbiera prezent od MiB (przez launcher); komunikat jak przy zmianie kosmetyku. */
 	default void claimGift(long id) {
 	}

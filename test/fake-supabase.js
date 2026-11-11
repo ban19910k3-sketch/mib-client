@@ -7,7 +7,7 @@ const THEME_SEED = { niepodleglosc: ['Święto Niepodległości', 50], boze: ['B
   primaaprilis: ['Prima Aprilis', 1], urodzinymc: ['Urodziny Minecrafta', 50], dziendziecka: ['Dzień Dziecka', 100], wakacje: ['Wakacje', 100], urodzinymib: ['Urodziny MiB Client', 200], halloween: ['Halloween', 50] };
 
 function createFake() {
-  const st = { today: null, themes: P.DEFAULT_THEMES.map(t => ({ ...t, name: THEME_SEED[t.id][0], gift_coins: THEME_SEED[t.id][1], gift_cosmetic: null, daily_bonus: 0, items: [] })),
+  const st = { outfits: [], outfitId: 0, launcherErrors: [], errId: 0, today: null, themes: P.DEFAULT_THEMES.map(t => ({ ...t, name: THEME_SEED[t.id][0], gift_coins: THEME_SEED[t.id][1], gift_cosmetic: null, daily_bonus: 0, items: [] })),
     themeClaims: [], advent: Array.from({ length: 24 }, (_, i) => ({ day: i + 1, coins: i + 1 >= 20 ? 0 : 20, cosmetic_id: null })), adventClaims: [], offers: [], offerId: 0, coinLog: [], logId: 0, daily: {}, config: {}, votes: [], blocks: [], reports: [], reportId: 0, warnings: [], warnId: 0, activity: {}, parties: [], partyId: 0, friends: [], presence: {}, invites: [], messages: [], msgId: 0, gifts: [], giftId: 0, ann: [], annId: 0, ideas: [], ideaId: 0, users: [], sessions: {}, refresh: {}, owned: [], backups: [], codes: { START: { cosmetic: 'cape_start', max: 100, used: 0 } }, redemptions: [], recovery: {}, num: 0, calls: [] };
   const cosmetics = { cape_start: { id: 'cape_start', name: 'Peleryna Start', type: 'cape', image_url: null } };
   const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
@@ -91,6 +91,15 @@ function createFake() {
           if (!u || st.recovery[u.id] !== norm(body.p_code)) return json(res, 200, false);
           u.password = body.p_new_password; delete st.recovery[u.id];
           return json(res, 200, true);
+        }
+        // błędy launchera (0.47.3): bez logowania, jak report_launcher_error w schema.sql
+        if (fn === 'report_launcher_error') {
+          if (!/^[0-9a-f]{16}$/.test(body.p_hash || '') || !['ui', 'promise', 'main', 'gl'].includes(body.p_kind) || !String(body.p_message || '').trim()) return json(res, 400, { code: 'P0001', message: 'error_invalid' });
+          let e = st.launcherErrors.find(x => x.hash === body.p_hash);
+          if (!e) st.launcherErrors.push(e = { id: ++st.errId, hash: body.p_hash, kind: body.p_kind, message: String(body.p_message).slice(0, 500), stack: body.p_stack || null, versions: [], systems: [], installs: [], count: 0, first_at: new Date().toISOString(), fixed_at: null, fixed_ver: null });
+          e.count++; e.last_at = new Date().toISOString();
+          for (const [k, v] of [['versions', body.p_version], ['systems', body.p_system], ['installs', body.p_install]]) if (v && !e[k].includes(v)) e[k].push(v);
+          return json(res, 204);
         }
         if (!user) return json(res, 401, { code: '42501', message: 'permission denied' });
         if (fn === 'set_recovery_code') { st.recovery[user.id] = norm(body.p_code); return json(res, 204); }
@@ -196,6 +205,25 @@ function createFake() {
             },
             admin_delete_offer: () => { st.offers = st.offers.filter(o => o.id !== body.p_id); return null; },
             admin_coin_log: () => coinLog(body.p_user),
+            admin_launcher_errors: () => st.launcherErrors.filter(e => !!e.fixed_at === !!body.p_fixed).map(({ installs, hash, ...e }) => ({ ...e, players: Math.max(1, installs.length) })),
+            admin_count_launcher_errors: () => st.launcherErrors.filter(e => !e.fixed_at).length,
+            admin_fix_launcher_error: () => { const e = st.launcherErrors.find(x => x.id === body.p_id); if (e) { e.fixed_at = body.p_fixed ? new Date().toISOString() : null; e.fixed_ver = body.p_fixed ? e.versions[e.versions.length - 1] || null : null; } return null; },
+            admin_delete_launcher_error: () => { st.launcherErrors = st.launcherErrors.filter(x => x.id !== body.p_id); return null; },
+            // statystyki sklepu (0.47.3): jak admin_shop_stats w schema.sql
+            admin_shop_stats: () => {
+              const from = body.p_days == null ? 0 : Date.now() - body.p_days * 864e5, L = st.coinLog.filter(l => Date.parse(l.at) >= from);
+              const sold = L.filter(l => ['buy', 'gift', 'offer'].includes(l.kind)), sum = (a, f) => a.reduce((n, x) => n + f(x), 0);
+              const group = (a, name) => Object.values(a.reduce((m, l) => { const r = m[l.item] = m[l.item] || { ...name(l), sales: 0, coins: 0 }; r.sales++; r.coins -= l.delta; return m; }, {}))
+                .sort((x, y) => y.sales - x.sales || y.coins - x.coins).slice(0, 10);
+              const nd = Math.min(Math.max(body.p_days || 90, 7), 90), day = t => new Date(t).toISOString().slice(0, 10);
+              return { spent: -sum(sold, l => l.delta), sales: sold.length, buyers: new Set(sold.map(l => l.user)).size, gifts: sold.filter(l => l.kind === 'gift').length,
+                added: sum(L.filter(l => l.kind === 'admin' && l.delta > 0), l => l.delta), free: sum(L.filter(l => ['daily', 'theme', 'advent'].includes(l.kind)), l => l.delta),
+                held: sum(st.users, u => u.coins || 0),
+                top: group(sold.filter(l => l.kind !== 'offer'), l => ({ id: l.item, name: (cosmetics[l.item] || {}).name || l.label, type: (cosmetics[l.item] || {}).type || null })),
+                offers: group(sold.filter(l => l.kind === 'offer'), l => ({ name: l.label })),
+                themes: st.themes.map(t => { const a = sold.filter(l => l.kind !== 'offer' && t.items.includes(l.item)); return { id: t.id, name: t.name, sales: a.length, coins: -sum(a, l => l.delta) }; }).filter(t => t.sales),
+                days: Array.from({ length: nd }, (_, i) => { const d = day(Date.now() - (nd - 1 - i) * 864e5), a = sold.filter(l => day(l.at) === d); return { day: d, spent: -sum(a, l => l.delta), sales: a.length }; }) };
+            },
             admin_list_themes: () => st.themes.map(t => { const sp = P.themeSpan(t, today()), season = P.themeSeason(t, today()), c = cosmetics[t.gift_cosmetic];
               return { id: t.id, name: t.name, starts: t.starts, ends: t.ends, enabled: t.enabled, forced: t.forced, gift_coins: t.gift_coins, gift_cosmetic: t.gift_cosmetic, gift_name: c ? c.name : null,
                 daily_bonus: t.daily_bonus, items: t.items, active: season != null, d_from: iso(sp.from), d_to: iso(sp.to), claims: st.themeClaims.filter(k => k.theme === t.id && k.season === sp.season).length }; }),
@@ -293,6 +321,27 @@ function createFake() {
           if (name.length > 16) return json(res, 400, { code: 'P0001', message: 'pet_name_invalid' });
           user.pet = { mode: body.p_mode, side: body.p_side, name };
           return json(res, 200, user.pet);
+        }
+        // zestawy kosmetyków (0.47.3): jak my_outfits, save_outfit, wear_outfit, delete_outfit w schema.sql
+        if (['my_outfits', 'save_outfit', 'wear_outfit', 'delete_outfit'].includes(fn)) {
+          const err = m => json(res, 400, { code: 'P0001', message: m }), mine = st.outfits.filter(o => o.user === user.id);
+          const owned = items => Object.fromEntries(Object.entries(items || {}).filter(([k, v]) => cosmetics[v] && cosmetics[v].type === k && st.owned.some(o => o.user === user.id && o.cosmetic === v)));
+          if (fn === 'my_outfits') return json(res, 200, mine.map(o => ({ id: o.id, name: o.name, items: o.items, missing: Object.keys(o.items).length - Object.keys(owned(o.items)).length })));
+          if (fn === 'save_outfit') {
+            const name = String(body.p_name || '').trim(), items = owned(user.equipped);
+            if (!name || name.length > 24) return err('outfit_name_invalid');
+            if (!Object.keys(items).length) return err('outfit_empty');
+            let o = mine.find(x => x.name === name);
+            if (!o && mine.length >= 10) return err('outfit_limit');
+            if (!o) st.outfits.push(o = { id: ++st.outfitId, user: user.id, name });
+            o.items = items;
+            return json(res, 200, o.id);
+          }
+          const o = mine.find(x => x.id === body.p_id);
+          if (fn === 'delete_outfit') { st.outfits = st.outfits.filter(x => x !== o); return json(res, 204); }
+          if (!o) return err('outfit_missing');
+          user.equipped = owned(o.items);
+          return json(res, 200, user.equipped);
         }
         if (fn === 'equip_cosmetic') {
           const c = cosmetics[body.p_id];

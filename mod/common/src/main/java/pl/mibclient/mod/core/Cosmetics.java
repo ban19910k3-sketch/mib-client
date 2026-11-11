@@ -13,6 +13,21 @@ public final class Cosmetics {
 	/** Ustawienia własnego peta z launchera (od 0.34.0): tryb (Pets.FLY…), strona (+1 lewa, −1 prawa), imię albo null. */
 	public int petMode = Pets.FLY, petSide = 1;
 	public String petName;
+	/** Zestawy kosmetyków z launchera (od 0.47.3): klik w menu zakłada cały strój. */
+	public List<Outfit> outfits = Collections.emptyList();
+
+	/** Zestaw: id, nazwa (1–24 znaki) i ile jego przedmiotów gracz już nie ma. */
+	public static final class Outfit {
+		public final long id;
+		public final String name;
+		public final int missing;
+
+		public Outfit(long id, String name, int missing) {
+			this.id = id;
+			this.name = name;
+			this.missing = missing;
+		}
+	}
 
 	public Cosmetics(boolean loggedIn, List<Item> items) {
 		this(loggedIn, items, Collections.<Gift>emptyList());

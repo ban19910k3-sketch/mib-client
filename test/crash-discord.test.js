@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const net = require('node:net'), path = require('node:path'), os = require('node:os'), fs = require('node:fs');
-const { diagnoseCrash, crashMods } = require('../lib/crash');
+const { diagnoseCrash, crashMods, cleanErr, errReport } = require('../lib/crash');
 const { buildActivity, createPresence, encode } = require('../lib/discord');
 const { pngInfo, validCapeSize, capeFrames, CAPE_FRAME_MS } = require('../lib/profile');
 
@@ -188,4 +188,22 @@ test('off() disconnects and does not reconnect', async () => {
   p.stop(); server.close();
   assert.equal(st.conns, 1, 'bez ponownego łączenia');
   assert.ok(closed, 'połączenie zamknięte');
+});
+
+test('cleanErr i errReport: błąd launchera bez danych osobowych, ten sam błąd = ten sam hash (0.47.3)', () => {
+  const t = cleanErr('Nie ma C:\\Users\\Jan Kowalski\\AppData\\Roaming\\x.json, /Users/janek/Library/a, /home/ola/.config/b, jan.k@wp.pl, ' +
+    'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnop 5e1f2c3d4b5a69788796a5b4c3d2e1f0 5e1f2c3d-4b5a-6978-8796-a5b4c3d2e1f0');
+  for (const bad of ['Jan', 'Kowalski', 'janek', 'ola', 'wp.pl', 'eyJ', '5e1f2c3d']) assert.ok(!t.includes(bad), bad + ' w: ' + t);
+  assert.equal(cleanErr('at f (file:///C:/Program%20Files/MiB%20Client/resources/app.asar/profile-ui.js:12:3)'), 'at f (profile-ui.js:12:3)');
+  assert.equal(cleanErr('/opt/mib-client/resources/app.asar/lib/mibmod.js:5'), 'mibmod.js:5');
+  assert.ok(!/Jan/.test(cleanErr('C:\\Users\\Jan\\AppData\\Local\\Programs\\MiB Client\\resources\\app.asar\\ui.js:3')), 'instalacja w folderze użytkownika');
+  const a = errReport('ui', 'Cannot read properties of null (reading 12)', 'TypeError\n    at f (file:///x/ui.js:10:5)\n    at g (ui.js:1:1)');
+  const b = errReport('ui', 'Cannot read properties of null (reading 13)', 'TypeError\n    at f (file:///y/ui.js:99:1)');
+  assert.match(a.hash, /^[0-9a-f]{16}$/);
+  assert.equal(a.hash, b.hash, 'inne liczby i linie, ten sam błąd');
+  assert.notEqual(a.hash, errReport('promise', a.message, a.stack).hash, 'inny rodzaj');
+  assert.equal(a.stack, 'TypeError\n    at f (ui.js:10:5)\n    at g (ui.js:1:1)');
+  assert.equal(errReport('zly', 'x'), null);
+  assert.equal(errReport('ui', '   '), null);
+  assert.equal(errReport('ui', 'x'.repeat(900)).message.length, 500);
 });

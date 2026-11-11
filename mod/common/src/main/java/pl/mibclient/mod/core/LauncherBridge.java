@@ -18,7 +18,8 @@ import java.util.Map;
  * cosmetic-request.json, cosmetic-result.json) i gracze MiB na serwerze (players-request.json od moda,
  * players.json i capes/ID.png od launchera), status.json (serwer dla znajomych), notice.json (powiadomienie o znajomym) i rozmowy
  * ze znajomymi (friends.json i chat.json od launchera, chat-request.json i chat-send.json od moda, chat-result.json przy błędzie).
- * Prezenty od MiB są w cosmetics.json (gifts); „Odbierz” w grze to cosmetic-request.json z polem gift.
+ * Prezenty od MiB są w cosmetics.json (gifts); „Odbierz” w grze to cosmetic-request.json z polem gift. Zestawy kosmetyków
+ * (od 0.47.3) też w cosmetics.json (outfits), założenie to cosmetic-request.json z polem outfit.
  */
 public final class LauncherBridge {
 	private final File dir;
@@ -106,6 +107,19 @@ public final class LauncherBridge {
 					x.get("message") instanceof String ? (String) x.get("message") : null));
 		}
 		Cosmetics c = new Cosmetics(true, out, gifts);
+		// zestawy (od 0.47.3): najwyżej 10, nazwa do 24 znaków
+		if (m.get("outfits") instanceof List) {
+			List<Cosmetics.Outfit> outfits = new ArrayList<Cosmetics.Outfit>();
+			for (Object o : (List<?>) m.get("outfits")) {
+				if (!(o instanceof Map) || outfits.size() >= 10) continue;
+				Map<?, ?> x = (Map<?, ?>) o;
+				if (!(x.get("id") instanceof Number) || !(x.get("name") instanceof String) || ((String) x.get("name")).isEmpty()) continue;
+				String name = (String) x.get("name");
+				outfits.add(new Cosmetics.Outfit(((Number) x.get("id")).longValue(), name.length() > 24 ? name.substring(0, 24) : name,
+						x.get("missing") instanceof Number ? Math.max(0, ((Number) x.get("missing")).intValue()) : 0));
+			}
+			c.outfits = java.util.Collections.unmodifiableList(outfits);
+		}
 		if (m.get("pet") instanceof Map) {
 			Map<?, ?> p = (Map<?, ?>) m.get("pet");
 			c.petMode = Pets.mode(p.get("mode") instanceof String ? (String) p.get("mode") : null);
@@ -186,6 +200,14 @@ public final class LauncherBridge {
 		pet.put("side", side < 0 ? "right" : "left");
 		Map<String, Object> m = new LinkedHashMap<String, Object>();
 		m.put("pet", pet);
+		m.put("at", System.currentTimeMillis());
+		write("cosmetic-request.json", m);
+	}
+
+	/** Prośba do launchera: załóż zestaw kosmetyków (od 0.47.3). */
+	public void requestOutfit(long outfitId) {
+		Map<String, Object> m = new LinkedHashMap<String, Object>();
+		m.put("outfit", outfitId);
 		m.put("at", System.currentTimeMillis());
 		write("cosmetic-request.json", m);
 	}

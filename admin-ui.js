@@ -241,11 +241,12 @@
   const IDEA_CAT = { feature: 'Nowa funkcja', cosmetic: 'Kosmetyk', bug: 'Błąd', other: 'Inne' };
   const IDEA_ST = { new: 'Nowy', seen: 'Przeczytany', planned: 'W planach', done: 'Zrobione', rejected: 'Odrzucony' };
   // Licznik nowych pomysłów przy „Panel admina” i na zakładce; raz na uruchomienie także powiadomienie
-  let fresh = 0, freshReports = 0, greeted = false;
+  let fresh = 0, freshReports = 0, freshErrors = 0, greeted = false;
   async function badge() {
-    const [n, r] = await Promise.all([call('admin_count_new_ideas'), call('admin_count_new_reports')]);
+    const [n, r, e] = await Promise.all([call('admin_count_new_ideas'), call('admin_count_new_reports'), call('admin_count_launcher_errors')]);
     if (typeof n !== 'number') return;
-    fresh = n; freshReports = typeof r === 'number' ? r : 0;
+    fresh = n; freshReports = typeof r === 'number' ? r : 0; freshErrors = typeof e === 'number' ? e : 0;
+    // błędy launchera tylko na zakładce i w powiadomieniu (licznik przy „Panel admina” to nowe od graczy)
     const all = n + freshReports, nav = document.querySelector('.nav[data-p="admin"]');
     let b = nav.querySelector('.cnt');
     if (!b) { b = h('em', { class: 'cnt' }); nav.append(b); }
@@ -254,9 +255,12 @@
     const t = document.querySelector('[data-tab="ideas"]'), t2 = document.querySelector('[data-tab="reports"]');
     if (t) t.textContent = 'Pomysły' + (n ? ' (' + n + ')' : '');
     if (t2) t2.textContent = 'Zgłoszenia' + (freshReports ? ' (' + freshReports + ')' : '');
-    if (all && !greeted) {
+    const t3 = document.querySelector('[data-tab="errors"]');
+    if (t3) t3.textContent = 'Błędy' + (freshErrors ? ' (' + freshErrors + ')' : '');
+    if ((all || freshErrors) && !greeted) {
       greeted = true;
-      toast([n ? 'Nowe pomysły od graczy: ' + n + '.' : '', freshReports ? 'Nowe zgłoszenia graczy: ' + freshReports + '.' : ''].filter(Boolean).join(' ') + ' Zobacz w Panelu admina.');
+      toast([n ? 'Nowe pomysły od graczy: ' + n + '.' : '', freshReports ? 'Nowe zgłoszenia graczy: ' + freshReports + '.' : '',
+        freshErrors ? 'Błędy launchera do naprawy: ' + freshErrors + '.' : ''].filter(Boolean).join(' ') + ' Zobacz w Panelu admina.');
     }
   }
   window.mibAdminBadge = badge;
@@ -361,6 +365,41 @@
         toast('Konto zbanowane.'); done();
       } } }, 'Zbanuj'));
   }
+  // ===== Błędy launchera (od 0.47.3): launchery graczy same zgłaszają swoje błędy, bez danych osobowych =====
+  const ERR_KIND = { ui: 'Okno launchera', promise: 'Okno launchera (w tle)', main: 'Proces główny', gl: 'Postać 3D (WebGL)' };
+  const sysName = x => String(x).replace(/^win32/, 'Windows').replace(/^darwin/, 'macOS').replace(/^linux/, 'Linux');
+  let errFixed = false;
+  async function viewErrors(box) {
+    const seg = h('div', { class: 'seg', role: 'tablist' }, ...[[false, 'Do naprawy'], [true, 'Naprawione']].map(([v, l]) =>
+      h('button', { type: 'button', class: errFixed === v ? 'on' : '', 'data-f': String(v), on: { click: () => { errFixed = v; box.replaceChildren(); viewErrors(box); } } }, l)));
+    const list = h('div', { id: 'ae-list' }, h('p', { class: 'mut' }, 'Wczytywanie…'));
+    box.append(h('p', { class: 'lead' }, 'Launchery graczy same zgłaszają tu swoje błędy: treść błędu, wersję launchera i system — bez nicku, konta i ścieżek z nazwą użytkownika. ' +
+      'Ten sam błąd to jedna karta z liczbą graczy. Naprawiony wraca, jeśli pojawi się w nowszej wersji launchera. Gracz może to wyłączyć w Ustawieniach.'), seg, list);
+    const l = await call('admin_launcher_errors', { p_fixed: errFixed });
+    if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
+    if (!l.length) return list.replaceChildren(h('p', { class: 'empty' }, errFixed ? 'Nic jeszcze nie oznaczono jako naprawione.' : 'Brak błędów do naprawy.'));
+    list.replaceChildren(...l.map(e => h('div', { class: 'card arow ae-row', 'data-id': e.id },
+      h('div', { class: 'ae-main' },
+        h('b', {}, ERR_KIND[e.kind] || e.kind, h('em', { class: 'tag ' + (e.players > 1 ? 'st-rejected' : 'st-seen') }, e.players + (e.players === 1 ? ' gracz' : ' graczy') + ' · ' + e.count + '×')),
+        h('code', { class: 'ae-msg' }, e.message),
+        h('small', { class: 'mut' }, 'Wersje: ' + (e.versions.length ? e.versions.join(', ') : '—') + ' · ' + (e.systems.length ? e.systems.map(sysName).join(', ') : 'system nieznany') +
+          ' · ostatnio ' + fmtDate(e.last_at) + (e.fixed_at ? ' · naprawiony ' + fmtDate(e.fixed_at) + (e.fixed_ver ? ' (widziany do ' + e.fixed_ver + ')' : '') : '')),
+        e.stack ? h('details', {}, h('summary', {}, 'Szczegóły'), h('pre', { class: 'ae-stack' }, e.stack)) : null),
+      h('div', { class: 'row' },
+        h('button', { class: 'b ghost', type: 'button', 'data-fix': e.id, on: { click: async () => {
+          const r = await call('admin_fix_launcher_error', { p_id: e.id, p_fixed: !errFixed });
+          if (failed(r)) return toast(err(r), 1);
+          toast(errFixed ? 'Błąd wrócił do naprawy.' : 'Oznaczono jako naprawiony. Wróci, jeśli pojawi się w nowszej wersji launchera.');
+          box.replaceChildren(); viewErrors(box); badge();
+        } } }, errFixed ? 'Do naprawy' : 'Naprawione'),
+        h('button', { class: 'b ghost', type: 'button', on: { click: async () => {
+          if (!(await mibConfirm('Usunąć ten błąd z listy? Jeśli pojawi się znowu, wróci jako nowy.', { danger: true, ok: 'Usuń' }))) return;
+          const r = await call('admin_delete_launcher_error', { p_id: e.id });
+          if (failed(r)) return toast(err(r), 1);
+          box.replaceChildren(); viewErrors(box); badge();
+        } } }, 'Usuń')))));
+  }
+
   async function viewReports(box) {
     const filter = h('select', { id: 'ar-filter' }, h('option', { value: 'new' }, 'Nowe'), h('option', { value: '' }, 'Wszystkie'));
     const list = h('div', { id: 'ar-list' });
@@ -842,6 +881,51 @@
     h('div', { class: 'sec' }, h('h3', {}, 'Kosmetyki'), h('div', { class: 'stats' }, tile('Przedmioty w katalogu', r.cosmetics), tile('Przedmioty u graczy', r.owned))),
     h('div', { class: 'sec' }, h('h3', {}, 'Najpopularniejsze wersje'),
       ...(r.versions.length ? r.versions.map(v => row(v.version, window.MibProfile.formatPlaytime(v.min) + ', uruchomień: ' + v.runs)) : [h('p', { class: 'empty' }, 'Brak danych o grze.')])));
+    box.append(shopStats());
+  }
+
+  // Sklep (od 0.47.3): wydane coinsy, ile zakupów i kupujących, co się sprzedaje, pakiety, kolekcje świąt i wykres dzienny
+  function shopStats() {
+    const period = h('select', { id: 'ass-days', 'aria-label': 'Okres' }, h('option', { value: '7' }, 'Ostatnie 7 dni'), h('option', { value: '30', selected: true }, 'Ostatnie 30 dni'),
+      h('option', { value: '90' }, 'Ostatnie 90 dni'), h('option', { value: '' }, 'Od początku'));
+    const body = h('div', {}, h('p', { class: 'mut' }, 'Wczytywanie…'));
+    const tile = (l, v, hint) => h('div', { class: 'stat', title: hint || null }, h('b', {}, v), h('span', {}, l));
+    const line = (name, sub, sales, coins) => h('div', { class: 'sr' }, h('span', {}, name, sub ? h('small', { class: 'mut' }, ' · ' + sub) : null),
+      h('b', {}, sales + (sales === 1 ? ' raz' : ' razy') + ' · ' + coins_(coins) + ' coinsów'));
+    const block = (title, rows, empty) => h('div', { class: 'ass-block' }, h('h4', {}, title), ...(rows.length ? rows : [h('p', { class: 'empty' }, empty)]));
+    function bars(days) {
+      const W = 640, H = 150, L = 40, T = 8, B = 22, pw = W - L - 8, ph = H - T - B, n = days.length, max = Math.max(1, ...days.map(d => d.spent));
+      const step = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000].find(x => x * 4 >= max) || Math.ceil(max / 4), top = step * 4;
+      const bw = Math.max(2, Math.min(18, pw / n - 3));
+      let svg = '';
+      for (let k = 0; k <= 4; k++) { const y = T + ph - (k / 4) * ph; svg += `<line x1="${L}" x2="${L + pw}" y1="${y}" y2="${y}" class="ac-grid"/><text x="${L - 6}" y="${y + 4}" class="ac-tick" text-anchor="end">${coins_(k * step)}</text>`; }
+      days.forEach((d, i) => {
+        const cx = L + (i + 0.5) * pw / n, hh = d.spent ? Math.max(2, ph * d.spent / top) : 0;
+        if (hh) svg += `<rect x="${cx - bw / 2}" y="${T + ph - hh}" width="${bw}" height="${hh}" rx="${Math.min(3, bw / 2)}" fill="${SERIES[0][2]}"><title>${fmtDate(d.day)}: ${coins_(d.spent)} coinsów, zakupów: ${d.sales}</title></rect>`;
+        if (i % 7 === (n - 1) % 7) svg += `<text x="${cx}" y="${H - 6}" class="ac-tick" text-anchor="middle">${d.day.slice(8, 10)}.${d.day.slice(5, 7)}</text>`;
+      });
+      const el = h('div', { class: 'ac-plot', id: 'ass-chart' });
+      el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wydane MiB Coins dziennie, ${n} dni">${svg}</svg>`;
+      return el;
+    }
+    async function load() {
+      const r = await call('admin_shop_stats', { p_days: period.value ? +period.value : null });
+      if (failed(r)) return body.replaceChildren(h('p', { class: 'err' }, err(r)));
+      body.replaceChildren(
+        h('div', { class: 'stats', id: 'ass-tiles' }, tile('Wydane coinsy', coins_(r.spent), 'Zakupy dla siebie, prezenty dla znajomych i pakiety'), tile('Zakupy', coins_(r.sales)),
+          tile('Kupujący', coins_(r.buyers)), tile('Prezenty dla znajomych', coins_(r.gifts)),
+          tile('Dodane przez admina', coins_(r.added), 'Np. coinsy kupione na stronie i dopisane w zakładce Gracze'), tile('Rozdane za darmo', coins_(r.free), 'Nagroda dzienna, świąteczna i kalendarz adwentowy'),
+          tile('Coinsy u graczy teraz', coins_(r.held))),
+        h('p', { class: 'mut' }, 'Wydane coinsy dziennie' + (period.value ? '' : ' (ostatnie 90 dni)') + ' — najedź na słupek, żeby zobaczyć dzień:'), bars(r.days || []),
+        h('div', { class: 'ass-grid' },
+          block('Najczęściej kupowane', (r.top || []).map(x => line(x.name || x.id, TYPES[x.type] || '', x.sales, x.coins)), 'Nic jeszcze nie kupiono.'),
+          block('Pakiety i oferty', (r.offers || []).map(x => line(x.name, '', x.sales, x.coins)), 'Żadnego pakietu jeszcze nie kupiono.'),
+          block('Kolekcje świąt', (r.themes || []).map(x => line(x.name, '', x.sales, x.coins)), 'Nic z kolekcji świątecznych.')));
+    }
+    period.onchange = load;
+    load();
+    return h('div', { class: 'sec', id: 'ass' }, h('div', { class: 'row', style: 'align-items:center;justify-content:space-between' }, h('h3', {}, 'Sklep'), period),
+      h('p', { class: 'mut' }, 'Za ile MiB Coins gracze kupują i co się sprzedaje najlepiej.'), body);
   }
 
   // ===== Motywy świąteczne (od 0.25.0): daty, włączanie, nagroda, dodatek do nagrody dziennej, kolekcja i kalendarz =====
@@ -854,6 +938,10 @@
     const peek = (id, label) => h('button', { class: 'b ghost', type: 'button', 'data-peek': id, title: 'Otwórz drugie okno launchera w tym motywie', on: { click: async () => {
       if (!(await mib.call('theme:preview', id))) toast('Nie udało się otworzyć podglądu.', 1);
     } } }, label);
+    // W grze (od 0.47.3): Minecraft w tym święcie tylko to jedno uruchomienie (-Dmib.theme), wersja z listy na stronie głównej
+    const inGame = (id, name) => h('button', { class: 'b ghost', type: 'button', 'data-game': id, title: 'Uruchom grę w tym motywie — tylko ten raz', on: { click: () => {
+      if (window.mibPlayTheme && window.mibPlayTheme(id)) toast('Uruchamiam grę ' + (id === 'none' ? 'bez święta' : 'w motywie „' + name + '”') + ' — tylko ten raz.');
+    } } }, 'W grze');
     function state(t) {
       if (!t.enabled) return ['wyłączony', 'off'];
       if (t.forced) return ['włączony teraz ręcznie', 'now'];
@@ -898,7 +986,7 @@
             h('span', { class: 'mut' }, 'Nagroda: ' + (t.gift_coins ? t.gift_coins + ' MiB Coins' : '') + (t.gift_name ? (t.gift_coins ? ' i ' : '') + t.gift_name : '') + (!t.gift_coins && !t.gift_name ? 'brak' : '') +
               (t.claims ? ' (odebrało ' + t.claims + ')' : '') + ' · kolekcja: ' + t.items.length + (t.daily_bonus ? ' · dzienna +' + t.daily_bonus : ''))),
           h('div', { class: 'row' },
-            h('button', { class: 'b ghost', type: 'button', on: { click: () => { open = open === t.id ? null : t.id; load(); } } }, open === t.id ? 'Zwiń' : 'Edytuj'), peek(t.id, 'Podgląd')));
+            h('button', { class: 'b ghost', type: 'button', on: { click: () => { open = open === t.id ? null : t.id; load(); } } }, open === t.id ? 'Zwiń' : 'Edytuj'), peek(t.id, 'Podgląd'), inGame(t.id, t.name)));
         return open === t.id ? h('div', {}, row, form(t)) : row;
       }));
     }
@@ -935,19 +1023,19 @@
       }));
       sum();
     }
-    box.append(h('p', { class: 'lead' }, 'Wygląd każdego święta jest wbudowany w launcher i w grę. Tu ustawiasz daty, włączasz i wyłączasz motywy, nagrodę świąteczną, dodatek do nagrody dziennej i kolekcję w sklepie. Zmiany działają bez aktualizacji launchera. „Podgląd” otwiera drugie okno launchera w danym motywie (tylko do oglądania).'),
-      h('div', { class: 'row' }, peek('none', 'Podgląd bez święta')),
+    box.append(h('p', { class: 'lead' }, 'Wygląd każdego święta jest wbudowany w launcher i w grę. Tu ustawiasz daty, włączasz i wyłączasz motywy, nagrodę świąteczną, dodatek do nagrody dziennej i kolekcję w sklepie. Zmiany działają bez aktualizacji launchera. „Podgląd” otwiera drugie okno launchera w danym motywie (tylko do oglądania), a „W grze” uruchamia Minecrafta w tym motywie tylko ten jeden raz.'),
+      h('div', { class: 'row' }, peek('none', 'Podgląd bez święta'), inGame('none', '')),
       list, h('div', { class: 'sec', id: 'aa' }, h('h3', {}, 'Kalendarz adwentowy'),
         h('p', { class: 'mut' }, 'Gracze otwierają okienka od 1 do 24 grudnia na stronie głównej, zaległe do 26 grudnia, gdy motyw Bożego Narodzenia jest włączony. Nagrodę widać dopiero po otwarciu. Zmiana zapisuje się od razu. Kliknij przedmiot, żeby go zmienić i zobaczyć na postaci.'), advSum, advStage, adv));
     load(); loadAdvent();
   }
   const coins_ = n => Number(n || 0).toLocaleString('pl-PL');
 
-  const TABS = [['ann', 'Aktualności', viewAnn], ['ideas', 'Pomysły', viewIdeas], ['reports', 'Zgłoszenia', viewReports], ['cos', 'Kosmetyki', viewCos], ['themes', 'Motywy', viewThemes], ['codes', 'Kody', viewCodes], ['players', 'Gracze', viewPlayers], ['stats', 'Statystyki', viewStats]];
+  const TABS = [['ann', 'Aktualności', viewAnn], ['ideas', 'Pomysły', viewIdeas], ['reports', 'Zgłoszenia', viewReports], ['errors', 'Błędy', viewErrors], ['cos', 'Kosmetyki', viewCos], ['themes', 'Motywy', viewThemes], ['codes', 'Kody', viewCodes], ['players', 'Gracze', viewPlayers], ['stats', 'Statystyki', viewStats]];
   function render() {
     const box = $('admin-box'), body = h('div', { id: 'admin-tab' });
     box.replaceChildren(h('h2', {}, 'Panel admina'),
-      h('div', { class: 'seg', role: 'tablist' }, ...TABS.map(([k, l]) => h('button', { class: tab === k ? 'on' : '', type: 'button', 'data-tab': k, on: { click: () => { tab = k; render(); } } }, l + (k === 'ideas' && fresh ? ' (' + fresh + ')' : k === 'reports' && freshReports ? ' (' + freshReports + ')' : '')))),
+      h('div', { class: 'seg', role: 'tablist' }, ...TABS.map(([k, l]) => h('button', { class: tab === k ? 'on' : '', type: 'button', 'data-tab': k, on: { click: () => { tab = k; render(); } } }, l + (k === 'ideas' && fresh ? ' (' + fresh + ')' : k === 'reports' && freshReports ? ' (' + freshReports + ')' : k === 'errors' && freshErrors ? ' (' + freshErrors + ')' : '')))),
       body);
     TABS.find(t => t[0] === tab)[2](body);
   }

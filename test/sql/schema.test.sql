@@ -1075,10 +1075,22 @@ do $$ begin
   assert (select count(*) from public.admin_coin_log('88888888-8888-8888-8888-888888888888')) = 5, 'historia gracza dla admina';
   perform public.admin_save_offer(null, 'Krótka', array['halloween_hat_mummy'], 100, now() + interval '1 hour');
 end $$;
+-- statystyki sklepu (0.47.3): wydane coinsy, pakiety, najczęściej kupowane, wykres dzienny
+do $$
+declare s json := public.admin_shop_stats(30);
+begin
+  assert (s ->> 'sales')::int >= 2 and (s ->> 'spent')::int > 0 and (s ->> 'buyers')::int >= 1, 'statystyki sklepu: ' || s::text;
+  assert (select (x ->> 'sales')::int from json_array_elements(s -> 'offers') x where x ->> 'name' = 'Pakiet Halloween') = 1, 'pakiety w statystykach';
+  assert json_array_length(s -> 'top') >= 1 and json_array_length(s -> 'days') = 30, 'najczęściej kupowane i wykres 30 dni';
+  assert (select sum((x ->> 'spent')::int) from json_array_elements(s -> 'days') x) = (s ->> 'spent')::int, 'wykres sumuje się do wydanych';
+  assert (s ->> 'held')::int > 0, 'coinsy u graczy (wszystkich, nie tylko widocznych dla admina przez RLS)';
+  assert json_array_length(public.admin_shop_stats(null) -> 'days') = 90, 'od początku: wykres 90 dni';
+end $$;
 reset role;
 update private.shop_offers set ends_at = now() - interval '1 second' where name = 'Krótka';
 set role authenticated;
 set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+select pg_temp.expect_error($q$select public.admin_shop_stats(7)$q$, 'not_admin');
 do $$ begin
   assert not exists (select 1 from json_array_elements(public.shop() -> 'offers') x where x ->> 'name' = 'Krótka'), 'zakończonej oferty nie ma';
   assert not exists (select 1 from json_array_elements(public.shop() -> 'items') x where x ->> 'id' = 'halloween_hat_mummy'), 'ani jej przedmiotów';
@@ -1578,3 +1590,130 @@ do $$ begin
   assert to_regclass('private.mobile_players') is null, 'bez listy kont z telefonu';
   assert to_regprocedure('public.mobile_hello(text, text)') is null, 'bez funkcji mobile_hello';
 end $$;
+
+-- ===== Błędy launchera (0.47.3): zgłaszanie bez logowania, jeden wiersz na błąd, gracze, wersje, naprawione i powrót =====
+reset role;
+set role anon;
+do $$ begin
+  perform public.report_launcher_error('0123456789abcdef', 'ui', 'TypeError: x is null', 'at a (ui.js:1:2)', '0.47.2', 'darwin arm64 24.1.0', 'aaaaaaaaaaaaaaaa');
+  perform public.report_launcher_error('0123456789abcdef', 'ui', 'TypeError: x is null', null, '0.47.3', 'win32 x64 10.0.22631', 'bbbbbbbbbbbbbbbb');
+  perform public.report_launcher_error('0123456789abcdef', 'ui', 'TypeError: x is null', null, '0.47.3', 'win32 x64 10.0.22631', 'bbbbbbbbbbbbbbbb');
+  perform public.report_launcher_error('fedcba9876543210', 'gl', 'Postać 3D straciła kontekst WebGL', null, 'zła', 'TempleOS', 'nie-hex');
+end $$;
+select pg_temp.expect_error($q$select public.report_launcher_error('zly', 'ui', 'x', null, '0.47.3', 'linux x64', 'aaaaaaaaaaaaaaaa')$q$, 'error_invalid');
+select pg_temp.expect_error($q$select public.report_launcher_error('0123456789abcdef', 'inny', 'x', null, '0.47.3', 'linux x64', 'aaaaaaaaaaaaaaaa')$q$, 'error_invalid');
+select pg_temp.expect_error($q$select public.admin_launcher_errors(false)$q$, 'permission denied');
+select pg_temp.expect_error($q$select count(*) from private.launcher_errors$q$, 'permission denied');
+reset role;
+set role authenticated;
+set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+select pg_temp.expect_error($q$select public.admin_launcher_errors(false)$q$, 'not_admin');
+-- admin: profil z kontem ban19910k, sesja potwierdzona przez Mojanga
+set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-0000000ad001';
+set request.jwt.claim.session_id = '5e550000-0000-0000-0000-0000000000ad';
+do $$ begin assert (public.admin_unlock('ban19910k', 'abababababababababababababababab') ->> 'ok')::boolean, 'panel odblokowany'; end $$;
+do $$
+declare r record;
+begin
+  select * into r from public.admin_launcher_errors(false) where message = 'TypeError: x is null';
+  assert r.count = 3 and r.players = 2, 'jeden wiersz, 3 zgłoszenia, 2 graczy: ' || r.count || '/' || r.players;
+  assert r.versions = array['0.47.2', '0.47.3'] and cardinality(r.systems) = 2 and r.stack = 'at a (ui.js:1:2)', 'wersje, systemy i stos';
+  select * into r from public.admin_launcher_errors(false) where kind = 'gl';
+  assert r.versions = '{}' and r.systems = '{}' and r.players = 1, 'złe wersje i systemy pominięte';
+  assert public.admin_count_launcher_errors() = 2, 'licznik przy zakładce';
+  perform public.admin_fix_launcher_error((select id from public.admin_launcher_errors(false) where message = 'TypeError: x is null'), true);
+  assert (select fixed_ver from public.admin_launcher_errors(true) where message = 'TypeError: x is null') = '0.47.3', 'naprawiony w 0.47.3';
+  assert public.admin_count_launcher_errors() = 1;
+end $$;
+reset role;
+set role anon;
+-- ta sama stara wersja: zostaje naprawiony; nowsza wersja: wraca do naprawy
+select public.report_launcher_error('0123456789abcdef', 'ui', 'TypeError: x is null', null, '0.47.3', 'linux x64', 'cccccccccccccccc');
+reset role;
+do $$ begin
+  assert (select fixed_at is not null from private.launcher_errors where hash = '0123456789abcdef'), 'ta sama wersja — dalej naprawiony';
+end $$;
+set role anon;
+select public.report_launcher_error('0123456789abcdef', 'ui', 'TypeError: x is null', null, '0.47.10', 'linux x64', 'cccccccccccccccc');
+reset role;
+do $$ begin
+  assert (select fixed_at is null and count = 5 and cardinality(installs) = 3 from private.launcher_errors where hash = '0123456789abcdef'), 'nowsza wersja (0.47.10 > 0.47.3) — wraca';
+end $$;
+set role authenticated;
+set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-0000000ad001';
+do $$ begin
+  perform public.admin_delete_launcher_error((select id from public.admin_launcher_errors(false) where kind = 'gl'));
+  assert not exists (select 1 from public.admin_launcher_errors(false) where kind = 'gl'), 'usunięty';
+end $$;
+reset role;
+
+-- ===== Zestawy kosmetyków (0.47.3): zapis założonych, zakładanie jednym kliknięciem, tylko posiadane, limit 10 =====
+reset role;
+insert into public.owned_cosmetics (user_id, cosmetic_id) values
+  ('88888888-8888-8888-8888-888888888888', 'zima_hat_mikolaj'), ('88888888-8888-8888-8888-888888888888', 'back_mis'),
+  ('88888888-8888-8888-8888-888888888888', 'halloween_hat_mummy')
+  on conflict do nothing;
+set role authenticated;
+set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+do $$
+declare v_a bigint; v_b bigint; r record; e jsonb;
+begin
+  perform public.equip_cosmetic('cape', null); perform public.equip_cosmetic('back', null);
+  perform public.equip_cosmetic('aura', null); perform public.equip_cosmetic('wings', null);
+  perform public.equip_cosmetic('mask', null); perform public.equip_cosmetic('pet', null); perform public.equip_cosmetic('tail', null);
+  perform public.equip_cosmetic('hat', 'zima_hat_mikolaj');
+  perform public.equip_cosmetic('back', 'back_mis');
+  v_a := public.save_outfit('  Zima  ');
+  perform public.equip_cosmetic('hat', 'halloween_hat_mummy');
+  perform public.equip_cosmetic('back', null);
+  v_b := public.save_outfit('Halloween');
+  assert (select array_agg(name order by id) from public.my_outfits()) = array['Zima', 'Halloween'], 'dwa zestawy, nazwa bez spacji';
+  e := public.wear_outfit(v_a);
+  assert e = '{"hat": "zima_hat_mikolaj", "back": "back_mis"}'::jsonb, 'zestaw Zima założony: ' || e::text;
+  assert (select equipped from public.profiles where id = auth.uid()) = e;
+  e := public.wear_outfit(v_b);
+  assert e = '{"hat": "halloween_hat_mummy"}'::jsonb, 'Halloween zdejmuje plecak';
+  -- ta sama nazwa nadpisuje
+  perform public.equip_cosmetic('back', 'back_mis');
+  assert public.save_outfit('Halloween') = v_b, 'ta sama nazwa — ten sam zestaw';
+  e := (select o.items from public.my_outfits() o where o.id = v_b);
+  assert e = '{"hat": "halloween_hat_mummy", "back": "back_mis"}'::jsonb, 'nadpisany: ' || coalesce(e::text, 'null');
+  assert (select missing from public.my_outfits() where id = v_a) = 0;
+end $$;
+-- przedmiot, którego gracz już nie ma, nie zakłada się
+reset role;
+delete from public.owned_cosmetics where user_id = '88888888-8888-8888-8888-888888888888' and cosmetic_id = 'back_mis';
+set role authenticated;
+do $$ begin
+  assert (select missing from public.my_outfits() where name = 'Zima') = 1, 'brakuje plecaka';
+  assert public.wear_outfit((select id from public.my_outfits() where name = 'Zima')) = '{"hat": "zima_hat_mikolaj"}'::jsonb, 'bez plecaka, którego nie ma';
+end $$;
+select pg_temp.expect_error($q$select public.save_outfit('')$q$, 'outfit_name_invalid');
+select pg_temp.expect_error($q$select public.save_outfit(repeat('x', 25))$q$, 'outfit_name_invalid');
+do $$ begin for i in 1..8 loop perform public.save_outfit('Zestaw ' || i); end loop; end $$;
+select pg_temp.expect_error($q$select public.save_outfit('Jedenasty')$q$, 'outfit_limit');
+do $$ begin perform public.save_outfit('Zestaw 1'); end $$; -- nadpisanie przy limicie działa
+do $$ begin perform public.equip_cosmetic('hat', null); end $$;
+select pg_temp.expect_error($q$select public.save_outfit('Pusty')$q$, 'outfit_empty');
+-- cudzego zestawu nie da się założyć ani usunąć
+set request.jwt.claim.sub = '99999999-9999-9999-9999-999999999999';
+select pg_temp.expect_error($q$select public.wear_outfit((select id from private.outfits limit 1))$q$, 'permission denied');
+do $$ declare v bigint; begin
+  assert not exists (select 1 from public.my_outfits()), 'cudzych zestawów nie widać';
+end $$;
+reset role;
+do $$ declare v bigint := (select id from private.outfits where name = 'Zima'); begin
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub', '99999999-9999-9999-9999-999999999999', true);
+  begin perform public.wear_outfit(v); raise exception 'powinno odmówić'; exception when others then assert sqlerrm = 'outfit_missing', sqlerrm; end;
+  perform public.delete_outfit(v);
+end $$;
+reset role;
+do $$ begin assert exists (select 1 from private.outfits where name = 'Zima'), 'cudzy zestaw nie usunięty'; end $$;
+set role authenticated;
+set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+do $$ begin
+  perform public.delete_outfit((select id from public.my_outfits() where name = 'Zima'));
+  assert not exists (select 1 from public.my_outfits() where name = 'Zima'), 'usunięty';
+end $$;
+reset role;

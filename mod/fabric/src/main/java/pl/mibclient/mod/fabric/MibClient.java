@@ -911,6 +911,15 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 	}
 
 	@Override
+	public void wearOutfit(long id) {
+		if (bridge == null) return;
+		equipAt = System.currentTimeMillis();
+		bridge.requestOutfit(id);
+		cosMessage = Lang.t("cos.working");
+		cosReadAt = 0;
+	}
+
+	@Override
 	public void claimGift(long id) {
 		if (bridge == null) return;
 		equipAt = System.currentTimeMillis();

@@ -74,6 +74,7 @@ public final class Lang {
 		put("cos.working", "Zmieniam…", "Changing…");
 		put("cos.gift", "Prezent: %s", "Gift: %s");
 		put("cos.claim", "Odbierz", "Claim");
+		put("cos.outfits", "Zestawy:", "Outfits:");
 		put("notice.started", "Znajomy w grze", "Friend playing");
 		put("notice.started.body", "%s gra teraz w Minecraft", "%s is now playing Minecraft");
 		put("notice.on", "na %s", "on %s");

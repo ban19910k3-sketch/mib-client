@@ -16,7 +16,7 @@ const { Auth } = require('msmc');
 if (process.env.MIB_TEST_HOOKS === '1') globalThis.__mibRequire = require;
 const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
-const { diagnoseCrash, crashMods } = require('./lib/crash');
+const { diagnoseCrash, crashMods, errReport } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
 const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText, THEME_IDS, mcProfileAction, partyPlay, partyEntry, partyChatRows } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
@@ -33,7 +33,7 @@ const wr = (f, v) => {
   fs.writeFileSync(jf(f), JSON.stringify(v, null, 2), PRIVATE.has(f) ? { mode: 0o600 } : undefined);
   if (PRIVATE.has(f) && process.platform !== 'win32') try { fs.chmodSync(jf(f), 0o600); } catch {}
 };
-const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, mibMod: true, shareServer: true, perfMods: true, friendNotify: true, invisible: false, chatFilter: true });
+const defaults = () => ({ ram: 2048, java: '', width: 1280, height: 720, root: path.join(dir(), 'minecraft'), jvm: '', lang: 'pl', hideUpdates: false, pingHost: '', priority: true, discord: true, errorReports: true, mibMod: true, shareServer: true, perfMods: true, friendNotify: true, invisible: false, chatFilter: true });
 const logBuf = []; let logCount = 0;
 const san = s => String(s).replace(/(--accessToken\s+)\S+/gi, '$1[ukryte]').replace(/(--uuid\s+)\S+/gi, '$1[ukryte]').replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, '[token]').replace(/((?:access|refresh)[_-]?token|bearer)(["'=:\s]+)[\w.\-~+\/]{20,}/gi, '$1$2[ukryte]');
 // Profil MiB (Supabase). Klucz publiczny — bezpieczny w launcherze; uprawnienia pilnuje baza.
@@ -317,6 +317,8 @@ app.whenReady().then(() => {
   // zamknięty launcher zamyka też okna podglądu motywu
   win.on('closed', () => { for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed() && previews.has(w.webContents.id)) w.close(); });
   win.webContents.once('did-finish-load', () => setTimeout(() => checkUpdate(false), 4000));
+  // bezpieczny start przerwany (launcher zamknięty w trakcie gry): odłożone mody gracza wracają przy następnym starcie
+  setTimeout(() => { try { for (const v of fs.readdirSync(path.join(rootDir(), 'instances'))) mibmod.safeBack(modsDir(v)); } catch {} }, 1500);
 });
 app.on('window-all-closed', () => app.quit());
 
@@ -527,8 +529,10 @@ ipcMain.handle('accounts:relaunch', async (_, id) => { try { return await relaun
 let worker = null, gamePid = null, lastVersion = null, pendingRelaunch = null, gameInfo = null;
 const notify = (t, b) => { try { if (Notification.isSupported()) new Notification({ title: t, body: b, icon: path.join(__dirname, 'icon.png') }).show(); } catch {} };
 // server: „Dołącz” do znajomego — gra od razu łączy się z jego serwerem
-ipcMain.handle('launch', (_, arg) => doLaunch(arg.version, arg.server));
-async function doLaunch(version, server) {
+// once: tylko to uruchomienie — theme: podgląd motywu w grze z panelu admina (id święta albo 'none', od 0.47.3)
+// safe: bezpieczny start — tylko mod MiB i mody na wydajność, mody gracza odłożone na to uruchomienie (od 0.47.3)
+ipcMain.handle('launch', (_, arg) => doLaunch(arg.version, arg.server, { theme: arg.theme, safe: arg.safe === true }));
+async function doLaunch(version, server, once = {}) {
   lastVersion = version;
   if (launching) return 'Już trwa uruchamianie.';
   if (!auth) return 'Najpierw zaloguj się kontem Microsoft (kliknij konto u góry).';
@@ -540,6 +544,9 @@ async function doLaunch(version, server) {
   launching = true;
   // gra się nie uruchomiła: zgłoszony gracz MiB przestaje być widoczny jako grający
   let presenceOn = false, spawned = false;
+  // bezpieczny start: odłożone mody gracza wracają po zamknięciu gry, przy błędzie i przerwaniu
+  let safeDir = null;
+  const safeEnd = () => { if (safeDir) { const n = mibmod.safeBack(safeDir); safeDir = null; if (n) send('log', 'Twoje mody wróciły do folderu (' + n + ').'); } };
   const endPresence = () => { if (presenceOn && !spawned) { presenceOn = false; mibPresence.stop().catch(() => {}); } };
   try {
     const javaPath = s.java || await ensureJava(await javaMajor(version));
@@ -560,11 +567,18 @@ async function doLaunch(version, server) {
     try {
       const dirMib = path.join(s.root, 'mib');
       const m = await mibmod.prepareMibMod({ gv: version, inst: instGet(version), settings: s, modsDir: modsDir(version), resDir: modResDir(), mibDir: dirMib, ensureDep, setInst: o => instSet(version, o), log: t => send('log', t) });
-      if (m.active) { opts.customArgs.push(...m.jvmArgs, '-Dmib.theme=' + (theme || 'none'), ...(!theme && styleColors ? ['-Dmib.colors=' + styleColors] : [])); mibDir = dirMib; }
+      const peek = once.theme === 'none' || THEME_IDS.includes(once.theme), th = peek ? (once.theme === 'none' ? '' : once.theme) : theme;
+      if (peek) send('log', 'Podgląd motywu w grze: ' + (th || 'bez święta') + ' (tylko to uruchomienie).');
+      if (m.active) { opts.customArgs.push(...m.jvmArgs, '-Dmib.theme=' + (th || 'none'), ...(!th && !peek && styleColors ? ['-Dmib.colors=' + styleColors] : [])); mibDir = dirMib; }
     } catch (e) { send('log', 'Mod MiB pominięty: ' + e.message); }
     const loader = instGet(version).loader;
     // dwie wersje tego samego moda (np. Fabric API od MiB i nowsza z moda z Modrinth): Fabric i Forge wtedy nie uruchamiają
     // gry — zostaje najnowsza, starsze są wyłączane (od 0.47.0; naprawia też foldery z wcześniejszych wersji launchera)
+    if (once.safe) {
+      safeDir = modsDir(version);
+      const n = mibmod.safeOff(safeDir, instGet(version).mibDeps || []).length;
+      send('log', 'Bezpieczny start: ' + (n ? 'odłożono Twoje mody (' + n + ') na to uruchomienie — wrócą po zamknięciu gry.' : 'nie ma Twoich modów do odłożenia.'));
+    }
     for (const d of mibmod.dedupeMods(modsDir(version))) send('log', 'Wyłączono starszą kopię moda ' + d.id + ' (' + d.off + ') — zostaje ' + d.kept + '. Dwie kopie nie pozwalały uruchomić gry.');
     // mody gracza, które i tak nie pozwoliłyby uruchomić gry: brakujące biblioteki z Modrinth, a mody na inną wersję gry
     // albo bez biblioteki w Modrinth są wyłączane z komunikatem (od 0.47.0)
@@ -591,7 +605,7 @@ async function doLaunch(version, server) {
       try { const ok = await Promise.race([mibPresence.start(auth.mclc()), new Promise((_, rej) => setTimeout(() => rej(new Error('brak odpowiedzi')), 6000))]); if (launching) send('log', helloMessage(ok)); }
       catch (e) { send('log', helloMessage(false, san(e.message))); }
     }
-    if (!launching) { endPresence(); return 'Anulowano.'; }
+    if (!launching) { endPresence(); safeEnd(); return 'Anulowano.'; }
     return await new Promise(res => {
       const w = utilityProcess.fork(path.join(__dirname, 'worker.js')); worker = w; let done = false;
       const fin = r => { if (!done) { done = true; res(r); } };
@@ -599,14 +613,14 @@ async function doLaunch(version, server) {
         if (m.t === 'log') send('log', m.d); else if (m.t === 'progress') send('progress', m.d);
         else if (m.t === 'spawned') { spawned = true; gamePid = m.pid; prof.gameStarted(version); gameInfo = { version, since: Date.now(), root, logFrom: logCount }; setPresence(gameInfo); startHud(m.pid, mibDir, gameAcc); try { if (s.priority !== false) require('os').setPriority(m.pid, require('os').constants.priority.PRIORITY_HIGH); } catch {}
           send('started'); notify('MiB Client', 'Pobieranie zakończone — gra się uruchamia.'); win.minimize(); fin('ok'); }
-        else if (m.t === 'close') { launching = false; gamePid = null; serverList.after(srv); prof.gameClosed(); stopHud(); mibPresence.stop().catch(() => {}); send('closed', m.c); if (m.c !== 0 && gameInfo && !pendingRelaunch) reportCrash(m.c, gameInfo); gameInfo = null; setPresence(null);
+        else if (m.t === 'close') { launching = false; gamePid = null; serverList.after(srv); prof.gameClosed(); stopHud(); mibPresence.stop().catch(() => {}); safeEnd(); send('closed', m.c); if (m.c !== 0 && gameInfo && !pendingRelaunch) reportCrash(m.c, gameInfo, { safeRun: !!once.safe }); else if (m.c === 0 && gameInfo) crashStreak(gameInfo.version, false); gameInfo = null; setPresence(null);
           if (pendingRelaunch) { const v = pendingRelaunch; pendingRelaunch = null; send('relaunch'); setTimeout(() => doLaunch(v).then(r => { if (r !== 'ok') { send('log', r); notify('MiB Client', String(r).slice(0, 120)); send('closed', 1); } }), 600); } }
-        else if (m.t === 'error') { launching = false; endPresence(); notify('MiB Client — błąd', String(m.d).slice(0, 120)); fin('Błąd: ' + m.d); }
+        else if (m.t === 'error') { launching = false; endPresence(); safeEnd(); notify('MiB Client — błąd', String(m.d).slice(0, 120)); fin('Błąd: ' + m.d); }
       });
-      w.on('exit', () => { const was = launching; launching = false; worker = null; stopHud(); endPresence(); fin(was ? 'Uruchamianie przerwane.' : 'Anulowano.'); });
+      w.on('exit', () => { const was = launching; launching = false; worker = null; stopHud(); endPresence(); safeEnd(); fin(was ? 'Uruchamianie przerwane.' : 'Anulowano.'); });
       w.postMessage(opts);
     });
-  } catch (e) { launching = false; endPresence(); notify('MiB Client — błąd', String(e.message).slice(0, 120)); return 'Błąd: ' + e.message; }
+  } catch (e) { launching = false; endPresence(); safeEnd(); notify('MiB Client — błąd', String(e.message).slice(0, 120)); return 'Błąd: ' + e.message; }
 }
 ipcMain.handle('cancel', () => { launching = false; if (worker) worker.kill(); return true; });
 
@@ -682,6 +696,33 @@ ipcMain.handle('ver', () => app.getVersion());
 // Kopiowanie do schowka przez Electron (navigator.clipboard w oknie bez ramki potrafi po cichu odmówić, np. MiB ID w Profilu MiB)
 ipcMain.handle('clip:write', (_, t) => { if (typeof t !== 'string' || !t || t.length > 20000) return false; clipboard.writeText(t); return true; });
 ipcMain.handle('sys:mem', () => Math.round(require('os').totalmem() / 1048576));
+
+// ===== Błędy launchera do panelu admina (od 0.47.3, zakładka Błędy) =====
+// Okno (errors:report z ui.js: błędy skryptów i obietnic, utracona postać 3D) i proces główny. Bez danych osobowych (errReport
+// w lib/crash.js wycina ścieżki z nazwą użytkownika, e-maile i tokeny), bez logowania; ten sam błąd raz na uruchomienie,
+// najwyżej 20; wyłącza ustawienie errorReports. Numer instalacji (losowy, mib-state.json) tylko do liczenia graczy z błędem.
+const errSent = new Set();
+function errInstall() {
+  const st = rd('mib-state.json', {}) || {};
+  if (/^[0-9a-f]{16}$/.test(st.install || '')) return st.install;
+  const id = crypto.randomBytes(8).toString('hex');
+  wr('mib-state.json', { ...st, install: id });
+  return id;
+}
+function reportError(kind, message, stack) {
+  try {
+    const s = { ...defaults(), ...rd('settings.json', {}) };
+    if (s.errorReports === false || errSent.size >= 20) return;
+    const e = errReport(kind, message, stack);
+    if (!e || errSent.has(e.hash)) return;
+    errSent.add(e.hash);
+    const os = require('os');
+    Promise.resolve(prof.reportError({ ...e, version: app.getVersion(), system: [process.platform, process.arch, os.release()].join(' '), install: errInstall() })).catch(() => {});
+  } catch {}
+}
+ipcMain.handle('errors:report', (_, x) => { if (x && typeof x === 'object') reportError(['promise', 'gl'].includes(x.kind) ? x.kind : 'ui', String(x.message || ''), String(x.stack || '')); });
+process.on('uncaughtException', e => { try { send('log', 'Błąd launchera: ' + san((e && e.message) || e)); } catch {} reportError('main', (e && e.message) || String(e), e && e.stack); });
+process.on('unhandledRejection', e => reportError('main', (e && e.message) || String(e), e && e.stack));
 
 ipcMain.handle('skin', async (_, name) => {
   try {
@@ -889,7 +930,15 @@ function readTail(file, max) {
   try { const size = fs.fstatSync(fd).size, n = Math.min(size, max), b = Buffer.alloc(n); fs.readSync(fd, b, 0, n, size - n); return b.toString('utf8'); }
   finally { fs.closeSync(fd); }
 }
-function reportCrash(code, game) {
+// Awarie z rzędu w pierwszych 2 minutach gry (od 0.47.3, mib-state.json crashStreak): po drugiej okno awarii proponuje
+// bezpieczny start; udana gra albo awaria później w grze zeruje licznik. Zwraca liczbę awarii z rzędu tej wersji.
+function crashStreak(version, early) {
+  const st = rd('mib-state.json', {}) || {}, all = { ...(st.crashStreak || {}) };
+  all[version] = early ? (all[version] || 0) + 1 : 0;
+  wr('mib-state.json', { ...st, crashStreak: all });
+  return all[version];
+}
+function reportCrash(code, game, opt = {}) {
   let report = '';
   try {
     const d = path.join(game.root, 'crash-reports');
@@ -902,7 +951,9 @@ function reportCrash(code, game) {
   const inDir = mibmod.modFiles(modsDir(game.version)).filter(m => m.on), mods = crashMods(report + '\n' + log)
     .map(m => ({ ...m, off: !!m.id && !mibmod.MANAGED_IDS.includes(m.id) && inDir.some(f => f.id === m.id) }));
   lastCrash = { code, report: report.slice(-6000), cause: diagnoseCrash(report + '\n' + log), mods };
-  send('crashed', { code, cause: lastCrash.cause, report: !!report, mods, gv: game.version });
+  const streak = crashStreak(game.version, Date.now() - game.since < 120e3);
+  const safe = !opt.safeRun && streak >= 2 && mibmod.playerMods(modsDir(game.version), instGet(game.version).mibDeps || []).length > 0;
+  send('crashed', { code, cause: lastCrash.cause, report: !!report, mods, gv: game.version, safe, safeRun: !!opt.safeRun });
   notify('MiB Client', 'Gra zamknęła się z błędem.');
   if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 }
@@ -964,17 +1015,19 @@ function startHud(pid, mibDir, gameAcc) {
           const st = await prof.state();
           if (!st || st.offline) return null; // bez sieci: zostaje poprzednia lista
           if (!st.loggedIn) return { loggedIn: false, items: [] };
-          const [l, g, pt] = await Promise.all([prof.cosmetics(), prof.gifts(), prof.pet()]);
+          const [l, g, pt, of] = await Promise.all([prof.cosmetics(), prof.gifts(), prof.pet(), prof.outfits()]);
           if (!Array.isArray(l)) return null;
           // miniatury do kafelków w grze (0.40.0): gotowe z mib/thumbs, brakujące rysuje okno launchera (thumbs:make)
           thumbDir = path.join(mibDir, 'thumbs');
           const items = l.map(x => { const n = mibmod.thumbName(x); return n && fs.existsSync(path.join(thumbDir, n)) ? { ...x, thumb: n } : x; });
           const miss = l.filter(x => { const n = mibmod.thumbName(x); return n && !thumbAsked.has(n) && !fs.existsSync(path.join(thumbDir, n)); });
           if (miss.length) { miss.forEach(x => thumbAsked.add(mibmod.thumbName(x))); send('thumbs:make', miss.map(x => ({ name: mibmod.thumbName(x), type: x.type, imageUrl: x.texture }))); }
-          return { loggedIn: true, items, gifts: Array.isArray(g) ? g : [], pet: pt && !pt.error ? pt : null };
+          return { loggedIn: true, items, gifts: Array.isArray(g) ? g : [], pet: pt && !pt.error ? pt : null, outfits: Array.isArray(of) ? of : [] };
         },
         // „Odbierz” prezent w menu gry
         onClaim: async id => { const r = await prof.claimGift({ id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się odebrać prezentu.'); watchGifts().catch(() => {}); },
+        // zestaw kosmetyków z menu w grze (od 0.47.3); launcher widzi zmianę przy następnym wejściu w Kosmetyki
+        onOutfit: async id => { const r = await prof.outfitWear({ id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się założyć zestawu.'); send('cosmetics:changed'); },
         onEquip: async (type, id) => { const r = await prof.equip({ type, id }); if (r && r.error) throw new Error(r.error === 'offline' ? 'Brak połączenia z serwerem MiB.' : 'Nie udało się zmienić kosmetyku.'); },
         // tryb i strona peta z menu w grze (imię zostaje to z launchera)
         onPet: async ({ mode, side }) => { const cur = await prof.pet(); const r = await prof.setPet({ mode, side, name: cur && !cur.error ? cur.name : '' }); if (r && r.error) throw new Error('Nie udało się zmienić ustawień peta.'); },

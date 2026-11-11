@@ -89,6 +89,18 @@ class LauncherBridgeTest {
 		b.requestClaim(7);
 		String claim = new String(Files.readAllBytes(new File(dir, "cosmetic-request.json").toPath()), StandardCharsets.UTF_8);
 		assertTrue(claim.startsWith("{\"gift\":7,\"at\":"), claim);
+		// zestawy kosmetyków (0.47.3): lista z launchera i założenie z menu w grze
+		assertTrue(b.cosmetics().outfits.isEmpty(), "bez zestawów pusta lista");
+		write("cosmetics.json", "{\"loggedIn\":true,\"items\":[],\"outfits\":[{\"id\":3,\"name\":\"Zima\",\"missing\":1},"
+				+ "{\"id\":4,\"name\":\"012345678901234567890123456789\"},{\"id\":\"zly\",\"name\":\"x\"},{\"id\":5,\"name\":\"\"}]}");
+		Cosmetics co = b.cosmetics();
+		assertEquals(2, co.outfits.size());
+		assertEquals("Zima", co.outfits.get(0).name);
+		assertEquals(1, co.outfits.get(0).missing);
+		assertEquals(24, co.outfits.get(1).name.length(), "nazwa najwyżej 24 znaki");
+		b.requestOutfit(3);
+		String of = new String(Files.readAllBytes(new File(dir, "cosmetic-request.json").toPath()), StandardCharsets.UTF_8);
+		assertTrue(of.startsWith("{\"outfit\":3,\"at\":"), of);
 		write("cosmetic-result.json", "{\"ok\":false,\"message\":\"Brak sieci\",\"at\":" + (System.currentTimeMillis() + 5) + "}");
 		assertEquals("Brak sieci", b.cosmeticFailure(System.currentTimeMillis() - 1000));
 	}

@@ -2246,6 +2246,232 @@ begin
     where l.user_id = p_user order by l.id desc limit 100;
 end $$;
 
+-- ===== Statystyki sklepu (od 0.47.3, panel admina → Statystyki): wydane coinsy, co się sprzedaje, pakiety, kolekcje świąt =====
+-- p_days: liczba dni wstecz (1–3650) albo null = od początku. Wydane = zakupy dla siebie, prezenty dla znajomych i pakiety;
+-- dodane = coinsy od admina (np. kupione na stronie); za darmo = nagroda dzienna, świąteczna i kalendarz. Wykres: najwyżej 90 dni.
+create or replace function public.admin_shop_stats(p_days integer)
+returns json
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_from timestamptz := case when p_days is null then '-infinity'::timestamptz else now() - make_interval(days => least(greatest(p_days, 1), 3650)) end;
+  v_chart integer := least(greatest(coalesce(p_days, 90), 7), 90);
+begin
+  perform private.need_admin();
+  return json_build_object(
+    'spent', (select coalesce(sum(-l.delta), 0) from private.coin_log l where l.kind in ('buy', 'gift', 'offer') and l.created_at >= v_from),
+    'sales', (select count(*) from private.coin_log l where l.kind in ('buy', 'gift', 'offer') and l.created_at >= v_from),
+    'buyers', (select count(distinct l.user_id) from private.coin_log l where l.kind in ('buy', 'gift', 'offer') and l.created_at >= v_from),
+    'gifts', (select count(*) from private.coin_log l where l.kind = 'gift' and l.created_at >= v_from),
+    'added', (select coalesce(sum(l.delta), 0) from private.coin_log l where l.kind = 'admin' and l.delta > 0 and l.created_at >= v_from),
+    'free', (select coalesce(sum(l.delta), 0) from private.coin_log l where l.kind in ('daily', 'theme', 'advent') and l.created_at >= v_from),
+    'held', (select coalesce(sum(p.coins), 0) from public.profiles p),
+    'top', (select coalesce(json_agg(x), '[]'::json) from (
+      select l.item as id, coalesce(c.name, max(l.reason)) as name, c.type, count(*) as sales, sum(-l.delta) as coins
+      from private.coin_log l left join public.cosmetics c on c.id = l.item
+      where l.kind in ('buy', 'gift') and l.created_at >= v_from
+      group by l.item, c.name, c.type order by 4 desc, 5 desc limit 10) x),
+    'offers', (select coalesce(json_agg(x), '[]'::json) from (
+      select max(l.reason) as name, count(*) as sales, sum(-l.delta) as coins from private.coin_log l
+      where l.kind = 'offer' and l.created_at >= v_from group by l.item order by 2 desc, 3 desc limit 10) x),
+    'themes', (select coalesce(json_agg(x), '[]'::json) from (
+      select t.id, t.name, count(*) as sales, sum(-l.delta) as coins from public.themes t
+      join private.coin_log l on l.item = any (t.items) and l.kind in ('buy', 'gift') and l.created_at >= v_from
+      group by t.id, t.name, t.sort order by 4 desc, t.sort) x),
+    'days', (select coalesce(json_agg(x order by x.day), '[]'::json) from (
+      select d::date as day,
+        (select coalesce(sum(-l.delta), 0) from private.coin_log l
+          where l.kind in ('buy', 'gift', 'offer') and (l.created_at at time zone 'Europe/Warsaw')::date = d::date) as spent,
+        (select count(*) from private.coin_log l
+          where l.kind in ('buy', 'gift', 'offer') and (l.created_at at time zone 'Europe/Warsaw')::date = d::date) as sales
+      from generate_series(private.today() - (v_chart - 1), private.today(), interval '1 day') d) x));
+end $$;
+
+-- ===== Zestawy kosmetyków (od 0.47.3): założone przedmioty zapisane pod nazwą, zakładane jednym kliknięciem =====
+-- W launcherze (Kosmetyki → Zestawy) i w grze (menu Kosmetyki, most cosmetics.json → cosmetic-request.json z polem outfit).
+-- Najwyżej 10 zestawów na gracza, nazwa 1–24 znaki; ta sama nazwa zapisuje od nowa. Zakładanie bierze tylko przedmioty,
+-- które gracz nadal ma (peleryna i plecak razem się nie zakładają, jak w equip_cosmetic).
+create table if not exists private.outfits (
+  id bigserial primary key,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  name text not null check (length(name) between 1 and 24),
+  items jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (user_id, name)
+);
+alter table private.outfits enable row level security;
+revoke all on private.outfits from public, anon, authenticated;
+
+-- przedmioty zestawu, które gracz nadal ma, z właściwym rodzajem (bez plecaka, gdy jest peleryna)
+create or replace function private.outfit_owned(p_user uuid, p_items jsonb) returns jsonb
+language sql stable set search_path = '' as $$
+  select coalesce(jsonb_object_agg(k.key, k.value) filter (where not (k.key = 'back' and p_items ? 'cape')), '{}'::jsonb)
+  from jsonb_each(case when jsonb_typeof(p_items) = 'object' then p_items else '{}'::jsonb end) k
+  where k.key in ('cape', 'hat', 'wings', 'aura', 'mask', 'pet', 'tail', 'back') and jsonb_typeof(k.value) = 'string'
+    and exists (select 1 from public.owned_cosmetics o join public.cosmetics c on c.id = o.cosmetic_id
+      where o.user_id = p_user and o.cosmetic_id = k.value #>> '{}' and c.type = k.key);
+$$;
+
+create or replace function public.my_outfits()
+returns table (id bigint, name text, items jsonb, missing integer)
+language plpgsql stable security definer set search_path = '' as $$
+declare v_uid uuid := auth.uid();
+begin
+  if v_uid is null then raise exception 'not_logged_in'; end if;
+  return query select o.id, o.name, o.items,
+    ((select count(*) from jsonb_object_keys(o.items)) - (select count(*) from jsonb_object_keys(private.outfit_owned(v_uid, o.items))))::integer
+    from private.outfits o where o.user_id = v_uid order by o.created_at, o.id;
+end $$;
+
+-- obecnie założone jako zestaw (ta sama nazwa: nadpisuje)
+create or replace function public.save_outfit(p_name text) returns bigint
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_name text := btrim(coalesce(p_name, ''));
+  v_items jsonb;
+  v_id bigint;
+begin
+  if v_uid is null then raise exception 'not_logged_in'; end if;
+  if length(v_name) < 1 or length(v_name) > 24 then raise exception 'outfit_name_invalid'; end if;
+  select private.outfit_owned(v_uid, p.equipped) into v_items from public.profiles p where p.id = v_uid;
+  if v_items is null then raise exception 'no_profile'; end if;
+  if v_items = '{}'::jsonb then raise exception 'outfit_empty'; end if;
+  if not exists (select 1 from private.outfits o where o.user_id = v_uid and o.name = v_name)
+     and (select count(*) from private.outfits o where o.user_id = v_uid) >= 10 then
+    raise exception 'outfit_limit';
+  end if;
+  insert into private.outfits (user_id, name, items) values (v_uid, v_name, v_items)
+    on conflict (user_id, name) do update set items = excluded.items
+    returning id into v_id;
+  return v_id;
+end $$;
+
+-- zakłada zestaw (to, czego nie ma w zestawie, zdejmuje); zwraca nowe założone
+create or replace function public.wear_outfit(p_id bigint) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_items jsonb;
+  v jsonb;
+begin
+  if v_uid is null then raise exception 'not_logged_in'; end if;
+  select o.items into v_items from private.outfits o where o.id = p_id and o.user_id = v_uid;
+  if v_items is null then raise exception 'outfit_missing'; end if;
+  update public.profiles p set equipped = private.outfit_owned(v_uid, v_items) where p.id = v_uid returning p.equipped into v;
+  if v is null then raise exception 'no_profile'; end if;
+  return v;
+end $$;
+
+create or replace function public.delete_outfit(p_id bigint) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_uid uuid := auth.uid();
+begin
+  if v_uid is null then raise exception 'not_logged_in'; end if;
+  delete from private.outfits o where o.id = p_id and o.user_id = v_uid;
+end $$;
+revoke all on function private.outfit_owned(uuid, jsonb) from public, anon, authenticated;
+revoke all on function public.my_outfits(), public.save_outfit(text), public.wear_outfit(bigint), public.delete_outfit(bigint) from public, anon;
+grant execute on function public.my_outfits(), public.save_outfit(text), public.wear_outfit(bigint), public.delete_outfit(bigint) to authenticated;
+
+-- ===== Błędy launchera (od 0.47.3, panel admina → Błędy) =====
+-- Launcher sam zgłasza swoje błędy (okno, proces główny, utracona postać 3D), także bez logowania. Bez danych osobowych:
+-- treść błędu po wycięciu ścieżek z nazwą użytkownika (robi to launcher), wersja launchera, system i losowy numer instalacji
+-- (tylko do liczenia, ilu graczy ma ten błąd). Ten sam błąd (hash) to jeden wiersz z licznikiem; najwyżej 2000 różnych.
+-- Naprawiony wraca na listę, gdy przyjdzie z wersji nowszej niż wszystkie, w których go widziano.
+create table if not exists private.launcher_errors (
+  id bigserial primary key,
+  hash text not null unique check (hash ~ '^[0-9a-f]{16}$'),
+  kind text not null check (kind in ('ui', 'promise', 'main', 'gl')),
+  message text not null check (length(message) between 1 and 500),
+  stack text check (stack is null or length(stack) <= 2000),
+  versions text[] not null default '{}',
+  systems text[] not null default '{}',
+  installs text[] not null default '{}',
+  count integer not null default 1,
+  first_at timestamptz not null default now(),
+  last_at timestamptz not null default now(),
+  fixed_at timestamptz,
+  fixed_ver text
+);
+alter table private.launcher_errors enable row level security;
+revoke all on private.launcher_errors from public, anon, authenticated;
+
+create or replace function private.ver_num(v text) returns integer[]
+language sql immutable set search_path = '' as $$
+  select case when v ~ '^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$' then string_to_array(v, '.')::integer[] else array[0, 0, 0] end;
+$$;
+
+create or replace function public.report_launcher_error(p_hash text, p_kind text, p_message text, p_stack text, p_version text, p_system text, p_install text)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_msg text := left(btrim(coalesce(p_message, '')), 500);
+  v_stack text := nullif(left(coalesce(p_stack, ''), 2000), '');
+  v_ver text := case when p_version ~ '^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$' then p_version end;
+  v_sys text := case when p_system ~ '^(win32|darwin|linux)( [A-Za-z0-9_.-]{1,24}){0,2}$' then p_system end;
+  v_inst text := case when p_install ~ '^[0-9a-f]{16}$' then p_install end;
+begin
+  if p_hash is null or p_hash !~ '^[0-9a-f]{16}$' or p_kind is null or p_kind not in ('ui', 'promise', 'main', 'gl') or v_msg = '' then
+    raise exception 'error_invalid';
+  end if;
+  if not exists (select 1 from private.launcher_errors e where e.hash = p_hash) and (select count(*) from private.launcher_errors) >= 2000 then
+    return;
+  end if;
+  insert into private.launcher_errors as e (hash, kind, message, stack, versions, systems, installs)
+  values (p_hash, p_kind, v_msg, v_stack, '{}', '{}', '{}')
+  on conflict (hash) do update set count = least(e.count + 1, 1000000000), last_at = now(),
+    stack = coalesce(e.stack, excluded.stack),
+    fixed_at = case when e.fixed_at is not null and v_ver is not null and private.ver_num(v_ver) > private.ver_num(e.fixed_ver) then null else e.fixed_at end;
+  update private.launcher_errors e set
+    versions = case when v_ver is null or v_ver = any (e.versions) then e.versions else (e.versions || v_ver)[greatest(1, cardinality(e.versions) - 8):] end,
+    systems = case when v_sys is null or v_sys = any (e.systems) then e.systems else (e.systems || v_sys)[greatest(1, cardinality(e.systems) - 8):] end,
+    installs = case when v_inst is null or v_inst = any (e.installs) or cardinality(e.installs) >= 500 then e.installs else e.installs || v_inst end
+  where e.hash = p_hash;
+end $$;
+revoke all on function public.report_launcher_error(text, text, text, text, text, text, text) from public;
+grant execute on function public.report_launcher_error(text, text, text, text, text, text, text) to anon, authenticated;
+
+-- p_fixed: false = do naprawy (najczęstsze i najświeższe na górze), true = naprawione
+create or replace function public.admin_launcher_errors(p_fixed boolean)
+returns table (id bigint, kind text, message text, stack text, versions text[], systems text[], players integer, count integer,
+  first_at timestamptz, last_at timestamptz, fixed_at timestamptz, fixed_ver text)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return query select e.id, e.kind, e.message, e.stack, e.versions, e.systems, greatest(cardinality(e.installs), 1), e.count,
+    e.first_at, e.last_at, e.fixed_at, e.fixed_ver
+    from private.launcher_errors e where (e.fixed_at is not null) = coalesce(p_fixed, false)
+    order by e.last_at > now() - interval '7 days' desc, cardinality(e.installs) desc, e.count desc, e.last_at desc limit 200;
+end $$;
+
+-- do naprawy w ostatnich 7 dniach (licznik przy zakładce)
+create or replace function public.admin_count_launcher_errors()
+returns integer
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  return (select count(*) from private.launcher_errors e where e.fixed_at is null and e.last_at > now() - interval '7 days')::integer;
+end $$;
+
+-- naprawiony (zapamiętuje najnowszą wersję, w której go widziano) albo z powrotem do naprawy
+create or replace function public.admin_fix_launcher_error(p_id bigint, p_fixed boolean)
+returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  update private.launcher_errors e set fixed_at = case when p_fixed then now() end,
+    fixed_ver = case when p_fixed then (select v from unnest(e.versions) v order by private.ver_num(v) desc limit 1) end
+  where e.id = p_id;
+end $$;
+
+create or replace function public.admin_delete_launcher_error(p_id bigint)
+returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.need_admin();
+  delete from private.launcher_errors e where e.id = p_id;
+end $$;
+
 -- ===== Kosmetyki na święta, nagrody świąteczne i kalendarz adwentowy (od 0.25.0) =====
 -- 43 kosmetyki do motywów (ceny to propozycje, zmienia je admin). Nowy rodzaj: maska (osobne miejsce, razem z czapką).
 -- Czapka z teksturą szeroką na 128 px (klatka 128×64) ma drugą kostkę nad głową: dolna od (0,0), górna od (64,0); od 0.33.0

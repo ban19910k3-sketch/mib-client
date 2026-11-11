@@ -73,8 +73,20 @@ const ok = m => console.log('PASS', m);
     assert.match(await w.textContent('#crash-t'), /zabrakło pamięci RAM/);
     await w.waitForTimeout(300);
     await w.screenshot({ path: path.join(OUT, 'crash.png') });
+    assert.equal(await w.isVisible('#crash-safe'), false, 'bez bezpiecznego startu po pierwszej awarii');
     await w.click('#crash-x');
-    ok('8 okno awarii gry z przyczyną');
+    // bezpieczny start (0.47.3): druga awaria z rzędu przy starcie, gracz ma swoje mody
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('crashed', { code: 1, cause: 'unknown', safe: true, gv: '1.21.11' }));
+    await w.waitForSelector('#crash.on #crash-safe:not([hidden])');
+    assert.match(await w.textContent('#crash-safe'), /drugi raz z rzędu.*Uruchom tylko z modami MiB/s);
+    await w.screenshot({ path: path.join(OUT, 'crash-safe.png') });
+    await w.click('#crash-x');
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('crashed', { code: 1, cause: 'unknown', safeRun: true }));
+    await w.waitForSelector('#crash.on');
+    assert.match(await w.textContent('#crash-c'), /nawet bez Twoich modów/);
+    assert.equal(await w.isVisible('#crash-safe'), false);
+    await w.click('#crash-x');
+    ok('8 okno awarii gry z przyczyną i bezpiecznym startem');
 
     await w.evaluate(() => window.mibUnlock({ name: 'Peleryna Start', type: 'cape' }));
     await w.waitForTimeout(250);

@@ -736,3 +736,36 @@ test('fixMods: mody gracza przed GRAJ — brakująca biblioteka z Modrinth, mod 
   assert.strictEqual(m.depSlug('cloth-config2'), 'cloth-config');
   assert.strictEqual(m.depSlug('some_lib'), 'some-lib');
 });
+
+// ===== Bezpieczny start (0.47.3): mody gracza odłożone na jedno uruchomienie, potem wracają =====
+test('safeOff i safeBack: mody gracza na bok, mod MiB, jego biblioteki i mody na wydajność zostają', () => {
+  const fsx = require('fs'), os = require('os'), dir = fsx.mkdtempSync(path.join(os.tmpdir(), 'mib-safe-'));
+  const put = (f, id) => fsx.writeFileSync(path.join(dir, f), modJar(id, '1.0'));
+  put('fabric-api-0.1.jar', 'fabric-api'); put('sodium-1.jar', 'sodium'); put('yacl-3.jar', 'yet_another_config_lib_v3');
+  put('zoomify-2.jar', 'zoomify'); put('iris-1.jar', 'iris'); put('stare-1.jar.disabled', 'stare');
+  fsx.writeFileSync(path.join(dir, 'mib-client-mod.jar'), 'x');
+  assert.deepEqual(m.playerMods(dir, ['yacl-3.jar']).map(x => x.file).sort(), ['iris-1.jar', 'zoomify-2.jar']);
+  assert.deepEqual(m.safeOff(dir, ['yacl-3.jar']).sort(), ['iris-1.jar', 'zoomify-2.jar']);
+  const now = () => fsx.readdirSync(dir).sort();
+  assert.deepEqual(now(), ['fabric-api-0.1.jar', 'iris-1.jar.mibsafe', 'mib-client-mod.jar', 'sodium-1.jar', 'stare-1.jar.disabled', 'yacl-3.jar', 'zoomify-2.jar.mibsafe']);
+  assert.equal(m.playerMods(dir, ['yacl-3.jar']).length, 0, 'gra startuje bez modów gracza');
+  put('iris-1.jar', 'iris'); // gracz wrzucił ten sam plik w trakcie gry
+  assert.equal(m.safeBack(dir), 2);
+  assert.deepEqual(now(), ['fabric-api-0.1.jar', 'iris-1.jar', 'iris-1.jar.disabled', 'mib-client-mod.jar', 'sodium-1.jar', 'stare-1.jar.disabled', 'yacl-3.jar', 'zoomify-2.jar']);
+  assert.equal(m.safeBack(dir), 0, 'drugi raz nic');
+  assert.equal(m.safeBack(path.join(dir, 'nie-ma')), 0);
+});
+
+// ===== Zestawy kosmetyków w grze (0.47.3): lista w cosmetics.json, „Załóż” w cosmetic-request.json =====
+test('cosmeticsPayload z zestawami i readOutfit: tylko zestaw z listy gracza', () => {
+  const c = { loggedIn: true, items: [], outfits: [{ id: 7, name: 'Zima', missing: 1 }, { id: '8', name: 'x'.repeat(40) }, { id: 'zly', name: 'Zły' }] };
+  const j = JSON.parse(m.cosmeticsPayload(c));
+  assert.deepEqual(j.outfits, [{ id: 7, name: 'Zima', missing: 1 }, { id: 8, name: 'x'.repeat(24), missing: 0 }]);
+  assert.deepEqual(JSON.parse(m.cosmeticsPayload({ loggedIn: true, items: [] })).outfits, [], 'bez zestawów pusta lista');
+  assert.equal(m.readOutfit('{"outfit":7}', c), 7);
+  assert.equal(m.readOutfit('{"outfit":8}', c), 8);
+  assert.equal(m.readOutfit('{"outfit":9}', c), null, 'cudzy albo usunięty zestaw');
+  assert.equal(m.readOutfit('{"outfit":"7"}', c), null);
+  assert.equal(m.readOutfit('{"type":"hat","id":null}', c), null, 'zwykłe zdjęcie czapki to nie zestaw');
+  assert.equal(m.readOutfit('nie json', c), null);
+});

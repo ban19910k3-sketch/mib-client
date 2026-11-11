@@ -1023,6 +1023,34 @@ public final class MenuView {
 			}));
 			cx += r[2] + 4;
 		}
+		// zestawy (od 0.47.3, zapisane w launcherze): klik zakłada cały strój
+		if (!cs.outfits.isEmpty()) {
+			cx = lx;
+			cy += 20;
+			String lab = Lang.t("cos.outfits");
+			c.text(lab, cx, cy + 4, Theme.MUTED, false);
+			cx += c.textWidth(lab) + 6;
+			for (final Cosmetics.Outfit o : cs.outfits) {
+				String t = Shapes.ellipsize(c, o.name, 96, false);
+				int[] r = {cx, cy, c.textWidth(t) + 14, 16};
+				if (r[0] + r[2] > lx + lw && cx > lx) {
+					cx = lx;
+					cy += 20;
+					r[0] = cx;
+					r[1] = cy;
+				}
+				boolean hover = in(r, mx, my);
+				box(c, r[0], r[1], r[2], r[3], hover ? BOX_HOVER : BOX, hover ? Theme.AM : LINE);
+				c.text(t, r[0] + 7, r[1] + 4, hover ? Theme.AM_HI : Theme.TEXT, false);
+				hits.add(new Hit("outfit:" + o.id, r, new Runnable() {
+					@Override
+					public void run() {
+						actions.wearOutfit(o.id);
+					}
+				}));
+				cx += r[2] + 4;
+			}
+		}
 		int listTop = cy + 22;
 		// kafelki: peleryny na początku, potem reszta; tylko wybrany rodzaj
 		List<Cosmetics.Item> items = new ArrayList<Cosmetics.Item>();

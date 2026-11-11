@@ -10,7 +10,7 @@ const ADMIN_FNS = new Set(['admin_stats', 'admin_find_players', 'admin_player_co
   'admin_list_announcements', 'admin_save_announcement', 'admin_delete_announcement',
   'admin_list_ideas', 'admin_count_new_ideas', 'admin_set_idea_status', 'admin_delete_idea', 'admin_answer_idea', 'admin_gift', 'admin_gift_all',
   'admin_idea_details', 'admin_list_reports', 'admin_count_new_reports', 'admin_warn', 'admin_ban', 'admin_unban', 'admin_dismiss_report', 'admin_activity',
-  'admin_give_coins', 'admin_set_config', 'admin_set_price', 'admin_list_offers', 'admin_save_offer', 'admin_delete_offer', 'admin_coin_log',
+  'admin_give_coins', 'admin_set_config', 'admin_set_price', 'admin_list_offers', 'admin_save_offer', 'admin_delete_offer', 'admin_coin_log', 'admin_shop_stats', 'admin_launcher_errors', 'admin_count_launcher_errors', 'admin_fix_launcher_error', 'admin_delete_launcher_error',
   'admin_list_themes', 'admin_save_theme', 'admin_advent', 'admin_set_advent_day']);
 const CRASH_MAX = 20000;
 
@@ -343,6 +343,11 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
       return P.petSettings(await authed(t => supa.rpc('set_pet', { p_mode: mode, p_side: side, p_name: nm }, t)));
     },
     // Założenie (id) albo zdjęcie (id = null) kosmetyku danego typu; baza sprawdza, czy gracz go ma
+    // zestawy kosmetyków (od 0.47.3): lista, zapis założonych pod nazwą, założenie zestawu, usunięcie
+    async outfits() { return (await authed(t => supa.rpc('my_outfits', {}, t))) || []; },
+    async outfitSave({ name }) { return { ok: true, id: await authed(t => supa.rpc('save_outfit', { p_name: String(name || '').trim().slice(0, 24) }, t)) }; },
+    async outfitWear({ id }) { return { ok: true, equipped: (await authed(t => supa.rpc('wear_outfit', { p_id: Number(id) }, t))) || {} }; },
+    async outfitDelete({ id }) { await authed(t => supa.rpc('delete_outfit', { p_id: Number(id) }, t)); return { ok: true }; },
     async equip({ type, id }) {
       const equipped = await authed(t => supa.rpc('equip_cosmetic', { p_type: type, p_id: id || null }, t));
       return { ok: true, equipped: equipped || {} };
@@ -380,6 +385,12 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     ideaUpdates: () => authed(t => supa.rpc('ideas_updates', {}, t)),
     async ideasSeen() { await authed(t => supa.rpc('ideas_seen', {}, t)); return { ok: true }; },
     // Raport awarii jako zgłoszenie błędu (raport składa main.js bez tokenów); za długi: początek i koniec
+    // błąd launchera (od 0.47.3, main.js reportError): bez logowania, już bez danych osobowych
+    async reportError(x) {
+      await supa.rpc('report_launcher_error', { p_hash: x.hash, p_kind: x.kind, p_message: x.message, p_stack: x.stack || null,
+        p_version: x.version, p_system: x.system, p_install: x.install });
+      return true;
+    },
     async submitCrash({ body, details }) {
       const b = String(body || '').trim();
       if (b.length < 10) return { error: 'idea_short' };
@@ -530,7 +541,8 @@ const CHANNELS = { state: 'prof:state', signup: 'prof:signup', login: 'prof:logi
   card: 'prof:card', ideasPublic: 'prof:ideasPublic', ideaVote: 'prof:ideaVote', wallet: 'prof:wallet', shopOpen: 'prof:shopOpen',
   shop: 'prof:shop', buy: 'prof:buy', buyOffer: 'prof:buyOffer', coinLog: 'prof:coinLog', daily: 'prof:daily',
   themes: 'prof:themes', themeGifts: 'prof:themeGifts', claimThemeGift: 'prof:claimThemeGift', advent: 'prof:advent', claimAdvent: 'prof:claimAdvent',
-  pet: 'prof:pet', setPet: 'prof:setPet', catalog: 'prof:catalog' };
+  pet: 'prof:pet', setPet: 'prof:setPet', catalog: 'prof:catalog',
+  outfits: 'prof:outfits', outfitSave: 'prof:outfitSave', outfitWear: 'prof:outfitWear', outfitDelete: 'prof:outfitDelete' };
 
 function register(ipcMain, api) {
   for (const [k, ch] of Object.entries(CHANNELS)) ipcMain.handle(ch, (_, arg) => api[k](arg || {}));

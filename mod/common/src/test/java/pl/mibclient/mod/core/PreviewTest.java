@@ -48,7 +48,10 @@ class PreviewTest {
 				c1.thumb = "c1-00000000.png";
 				c2.thumb = "c2-00000000.png";
 				h1.thumb = "h1-00000000.png";
-				return new Cosmetics(true, Arrays.asList(c1, c2, h1, new Cosmetics.Item("p1", "Kotek", "pet", false, null), new Cosmetics.Item("w1", "Skrzydła nocy", "wings", false, null)));
+				Cosmetics cs = new Cosmetics(true, Arrays.asList(c1, c2, h1, new Cosmetics.Item("p1", "Kotek", "pet", false, null), new Cosmetics.Item("w1", "Skrzydła nocy", "wings", false, null)));
+				// zestawy (od 0.47.3)
+				cs.outfits = Arrays.asList(new Cosmetics.Outfit(1, "PvP", 0), new Cosmetics.Outfit(2, "Zima", 0), new Cosmetics.Outfit(3, "Halloween", 1));
+				return cs;
 			}
 
 			@Override
