@@ -140,8 +140,15 @@ test('redeem normalizes the code and maps the result', async () => {
   const supa = fakeSupa({ rpc: async n => (n === 'redeem_code' ? { cosmetic_id: 'cape', name: 'Peleryna', type: 'cape', image_url: null } : null) });
   const { p } = mk({ supa });
   await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
-  assert.deepEqual(await p.redeem({ code: ' start ' }), { id: 'cape', name: 'Peleryna', type: 'cape', imageUrl: null });
+  assert.deepEqual(await p.redeem({ code: ' start ' }), { id: 'cape', name: 'Peleryna', type: 'cape', imageUrl: null, coins: 0, balance: null });
   assert.deepEqual(supa.calls.find(c => c[1] === 'redeem_code')[2], { p_code: 'START' });
+});
+
+test('redeem: kod na same MiB Coins (0.47.4) daje coinsy i saldo bez przedmiotu', async () => {
+  const supa = fakeSupa({ rpc: async n => (n === 'redeem_code' ? { cosmetic_id: null, name: null, type: null, image_url: null, coins: 500, balance: 620 } : null) });
+  const { p } = mk({ supa });
+  await p.login({ email: 'a@b.pl', password: 'tajnehaslo1' });
+  assert.deepEqual(await p.redeem({ code: 'coinsy500' }), { id: null, name: null, type: null, imageUrl: null, coins: 500, balance: 620 });
 });
 
 test('errors become {error} and never throw', async () => {

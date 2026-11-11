@@ -1717,3 +1717,47 @@ do $$ begin
   assert not exists (select 1 from public.my_outfits() where name = 'Zima'), 'usunięty';
 end $$;
 reset role;
+
+-- ===== Kody na MiB Coins (0.47.4): same coinsy albo przedmiot z coinsami; przedmiot posiadany pominięty, coinsy i tak =====
+set role authenticated;
+set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-0000000ad001';
+set request.jwt.claim.session_id = '5e550000-0000-0000-0000-0000000000ad';
+do $$
+declare v json; r record;
+begin
+  v := public.admin_create_codes(null, 1, 10, null, null, 'coins500', 500);
+  assert v::text = '["COINS500"]', 'kod tylko na coinsy';
+  perform public.admin_create_codes('zima_hat_mikolaj', 1, 10, null, null, 'CZAPKA-COINS', 100);
+  perform public.admin_create_codes('back_mis', 1, 10, null, null, 'MIS-COINS', 50);
+  select * into r from public.admin_list_codes() where code = 'COINS500';
+  assert r.coins = 500 and r.cosmetic_id is null and r.cosmetic_name is null, 'na liście: coinsy bez przedmiotu';
+  assert (select coins from public.admin_list_codes() where code = 'TURNIEJ2026') = 0, 'stare kody bez coinsów';
+  assert (select count(*) from json_array_elements_text(public.admin_create_codes(null, 3, 1, 30, null, null, 50))) = 3, 'losowe kody na coinsy';
+end $$;
+select pg_temp.expect_error($q$select public.admin_create_codes(null, 1, 1, null, null, null, 0)$q$, 'code_empty');
+select pg_temp.expect_error($q$select public.admin_create_codes('', 1, 1, null, null, null, null)$q$, 'code_empty');
+select pg_temp.expect_error($q$select public.admin_create_codes(null, 1, 1, null, null, null, 2000000)$q$, 'codes_invalid');
+select pg_temp.expect_error($q$select public.admin_create_codes(null, 1, 1, null, null, null, -5)$q$, 'codes_invalid');
+set request.jwt.claim.sub = '88888888-8888-8888-8888-888888888888';
+select pg_temp.expect_error($q$select public.admin_create_codes(null, 1, 1, null, null, null, 100)$q$, 'not_admin');
+do $$
+declare r json; b integer;
+begin
+  r := public.redeem_code(' coins500 ');
+  assert (r ->> 'coins')::int = 500 and (r ->> 'cosmetic_id') is null, 'same coinsy: ' || r::text;
+  b := (r ->> 'balance')::int;
+  assert (select delta from public.my_coin_log() order by id desc limit 1) = 500 and (select kind from public.my_coin_log() order by id desc limit 1) = 'code'
+    and (select balance from public.my_coin_log() order by id desc limit 1) = b, 'w historii coinsów jako kod';
+  r := public.redeem_code('CZAPKA-COINS');
+  assert (r ->> 'cosmetic_id') is null and (r ->> 'coins')::int = 100 and (r ->> 'balance')::int = b + 100, 'czapka już jest, coinsy i tak: ' || r::text;
+  r := public.redeem_code('MIS-COINS');
+  assert (r ->> 'cosmetic_id') = 'back_mis' and (r ->> 'coins')::int = 50 and (r ->> 'balance')::int = b + 150, 'przedmiot i coinsy';
+  assert exists (select 1 from public.owned_cosmetics where user_id = auth.uid() and cosmetic_id = 'back_mis'), 'plecak dodany';
+end $$;
+select pg_temp.expect_error($q$select public.redeem_code('COINS500')$q$, 'code_already_used');
+set request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-0000000ad001';
+do $$ begin
+  assert (public.admin_shop_stats(30) ->> 'codes')::int >= 650, 'statystyki: coinsy z kodów';
+  assert (select used_count from public.admin_list_codes() where code = 'COINS500') = 1;
+end $$;
+reset role;

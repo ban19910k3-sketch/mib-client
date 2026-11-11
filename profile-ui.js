@@ -1059,7 +1059,13 @@
       btn.disabled = false;
       if (r.error) { err.textContent = msg(r.error); return; }
       inp.value = '';
-      if (window.mibUnlock) mibUnlock(r); else toast(T('Nowy przedmiot') + ': ' + r.name);
+      // od 0.47.4 kod może dać MiB Coins: saldo od razu w portfelu i górnym pasku
+      if (r.coins > 0) {
+        if (Number.isInteger(r.balance)) showCoins(r.balance);
+        toast(T('Kod') + ': +' + fmtCoins(r.coins) + ' MiB Coins');
+      }
+      if (r.id) { if (window.mibUnlock) mibUnlock(r); else toast(T('Nowy przedmiot') + ': ' + r.name); }
+      else if (r.coins > 0 && window.mibUnlock) mibUnlock({ name: '+' + fmtCoins(r.coins) + ' MiB Coins', label: T('Kod odebrany!'), glyph: coinIcon() });
       renderCos();
     } } }, inp, btn);
     // przymiarka tylko przedmiotów, które gracz dalej ma i które nie są już założone
@@ -1225,6 +1231,7 @@
     if (l.kind === 'offer') return T('Pakiet') + ': ' + l.label;
     if (l.kind === 'theme') return T('Nagroda świąteczna') + (l.label ? ': ' + l.label : '');
     if (l.kind === 'advent') return T('Kalendarz adwentowy') + (l.item ? ' · ' + T('{n} grudnia').replace('{n}', l.item) : '');
+    if (l.kind === 'code') return T('Kod') + (l.label ? ': ' + l.label : '');
     if (l.kind === 'daily') return T('Nagroda dzienna') + (+l.item > 1 ? ' · ' + T('{n}. dzień z rzędu').replace('{n}', l.item) : '');
     return T(l.delta > 0 ? 'Dodane przez MiB' : 'Zabrane przez MiB') + (l.label ? ': ' + l.label : '');
   }

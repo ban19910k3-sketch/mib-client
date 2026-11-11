@@ -354,7 +354,8 @@ function createProfile({ supa, store, safeStorage, randomBytes, now = Date.now, 
     },
     async redeem({ code }) {
       const r = await authed(t => supa.rpc('redeem_code', { p_code: String(code || '').trim().toUpperCase() }, t));
-      return { id: r.cosmetic_id, name: r.name, type: r.type, imageUrl: r.image_url };
+      // od 0.47.4 kod może dać MiB Coins (coins, balance — saldo po odebraniu); id null = bez przedmiotu
+      return { id: r.cosmetic_id || null, name: r.name, type: r.type, imageUrl: r.image_url, coins: r.coins || 0, balance: Number.isInteger(r.balance) ? r.balance : null };
     },
     // ===== Gracze MiB w grze (logo przed nickiem, peleryny innych) =====
     // Zgłoszenie konta Minecrafta (potwierdza je Mojang); z profilem MiB baza łączy konto z profilem (peleryna)

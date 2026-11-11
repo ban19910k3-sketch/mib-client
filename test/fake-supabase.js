@@ -113,11 +113,14 @@ function createFake() {
           const err = m => json(res, 400, { code: 'P0001', message: m });
           if (!code) return err('code_invalid');
           if (st.redemptions.some(r => r.code === body.p_code && r.user === user.id)) return err('code_already_used');
-          if (st.owned.some(o => o.user === user.id && o.cosmetic === code.cosmetic)) return err('already_owned');
-          st.redemptions.push({ code: body.p_code, user: user.id });
-          st.owned.push({ user: user.id, cosmetic: code.cosmetic, at: new Date().toISOString() });
-          const c = cosmetics[code.cosmetic];
-          return json(res, 200, { cosmetic_id: c.id, name: c.name, type: c.type, image_url: c.image_url });
+          // od 0.47.4 kod może dawać też (albo tylko) MiB Coins; przedmiot, który gracz już ma, jest pomijany, gdy kod daje coinsy
+          const coins = code.coins || 0, has = code.cosmetic && st.owned.some(o => o.user === user.id && o.cosmetic === code.cosmetic);
+          if (has && !coins) return err('already_owned');
+          st.redemptions.push({ code: body.p_code, user: user.id }); code.used++;
+          if (code.cosmetic && !has) st.owned.push({ user: user.id, cosmetic: code.cosmetic, at: new Date().toISOString() });
+          if (coins) { user.coins = (user.coins || 0) + coins; const k = String(body.p_code).trim().toUpperCase(); st.coinLog.push({ id: ++st.logId, user: user.id, delta: coins, balance: user.coins, kind: 'code', item: k, label: k, to: null, at: new Date().toISOString() }); }
+          const c = code.cosmetic && !has ? cosmetics[code.cosmetic] : {};
+          return json(res, 200, { cosmetic_id: c.id || null, name: c.name || null, type: c.type || null, image_url: c.image_url || null, coins, balance: user.coins || 0 });
         }
         if (fn === 'is_admin') return json(res, 200, user.num === 2);
         // Raport awarii: tak jak submit_crash w schema.sql
@@ -149,16 +152,20 @@ function createFake() {
             admin_delete_announcement: () => { st.ann = st.ann.filter(x => x.id !== body.p_id); return null; },
             admin_stats: () => ({ profiles: st.users.length, new7: st.users.length, active7: 0, foundersLeft: 1000 - st.num, cosmetics: Object.keys(cosmetics).length, owned: st.owned.length, versions: [], nowGame: 2, nowLauncher: 1, nowMod: 3, nowServers: [{ server: 'play.mib.pl', players: 2 }], nowVersions: [{ version: '1.21.11', players: 2 }] }),
             admin_create_codes: () => {
+              const coins = body.p_coins || 0, item = body.p_cosmetic || null;
+              if (!Number.isInteger(coins) || coins < 0 || coins > 1000000) throw Object.assign(new Error('codes_invalid'), { pg: true });
+              if (!item && !coins) throw Object.assign(new Error('code_empty'), { pg: true });
+              if (item && !cosmetics[item]) throw Object.assign(new Error('cosmetic_missing'), { pg: true });
               if (body.p_code) {
                 const c = String(body.p_code).trim().toUpperCase();
                 if (!/^[A-Z0-9-]{4,24}$/.test(c)) throw Object.assign(new Error('code_name_invalid'), { pg: true });
                 if (st.codes[c]) throw Object.assign(new Error('code_exists'), { pg: true });
-                st.codes[c] = { cosmetic: body.p_cosmetic, max: body.p_max_uses, used: 0, until: body.p_until || null };
+                st.codes[c] = { cosmetic: item, coins, max: body.p_max_uses, used: 0, until: body.p_until || null };
                 return [c];
               }
-              return Array.from({ length: body.p_count }, (_, i) => { const c = 'MIB-TEST-' + String(Object.keys(st.codes).length + 1).padStart(4, '0'); st.codes[c] = { cosmetic: body.p_cosmetic, max: body.p_max_uses, used: 0, until: body.p_until || null }; return c; });
+              return Array.from({ length: body.p_count }, (_, i) => { const c = 'MIB-TEST-' + String(Object.keys(st.codes).length + 1).padStart(4, '0'); st.codes[c] = { cosmetic: item, coins, max: body.p_max_uses, used: 0, until: body.p_until || null }; return c; });
             },
-            admin_list_codes: () => Object.entries(st.codes).map(([code, c]) => ({ code, cosmetic_id: c.cosmetic, cosmetic_name: cosmetics[c.cosmetic].name, used_count: c.used, max_uses: c.max, expires_at: c.until || null, created_at: new Date().toISOString() })),
+            admin_list_codes: () => Object.entries(st.codes).map(([code, c]) => ({ code, cosmetic_id: c.cosmetic || null, cosmetic_name: c.cosmetic ? cosmetics[c.cosmetic].name : null, coins: c.coins || 0, used_count: c.used, max_uses: c.max, expires_at: c.until || null, created_at: new Date().toISOString() })),
             admin_delete_code: () => { delete st.codes[body.p_code]; return null; },
             admin_find_players: () => st.users.filter(u => !u.noProfile && (!body.p_q || !/^MIB-\d+$/i.test(body.p_q) || u.num === +body.p_q.replace(/\D/g, '')))
               .map(u => ({ id: u.id, num: u.num, nick: u.nick, email: u.email, created_at: u.created, founder: u.num <= 1000, playtime_min: u.playtime || 0, launches: u.launches || 0,
@@ -217,7 +224,7 @@ function createFake() {
                 .sort((x, y) => y.sales - x.sales || y.coins - x.coins).slice(0, 10);
               const nd = Math.min(Math.max(body.p_days || 90, 7), 90), day = t => new Date(t).toISOString().slice(0, 10);
               return { spent: -sum(sold, l => l.delta), sales: sold.length, buyers: new Set(sold.map(l => l.user)).size, gifts: sold.filter(l => l.kind === 'gift').length,
-                added: sum(L.filter(l => l.kind === 'admin' && l.delta > 0), l => l.delta), free: sum(L.filter(l => ['daily', 'theme', 'advent'].includes(l.kind)), l => l.delta),
+                added: sum(L.filter(l => l.kind === 'admin' && l.delta > 0), l => l.delta), free: sum(L.filter(l => ['daily', 'theme', 'advent'].includes(l.kind)), l => l.delta), codes: sum(L.filter(l => l.kind === 'code'), l => l.delta),
                 held: sum(st.users, u => u.coins || 0),
                 top: group(sold.filter(l => l.kind !== 'offer'), l => ({ id: l.item, name: (cosmetics[l.item] || {}).name || l.label, type: (cosmetics[l.item] || {}).type || null })),
                 offers: group(sold.filter(l => l.kind === 'offer'), l => ({ name: l.label })),

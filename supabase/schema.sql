@@ -134,6 +134,11 @@ create table if not exists private.gift_codes (
   expires_at timestamptz,
   created_at timestamptz not null default now()
 );
+-- kody na MiB Coins (od 0.47.4): sam przedmiot, same coinsy albo jedno i drugie
+alter table private.gift_codes add column if not exists coins integer not null default 0;
+alter table private.gift_codes alter column cosmetic_id drop not null;
+alter table private.gift_codes drop constraint if exists gift_codes_reward;
+alter table private.gift_codes add constraint gift_codes_reward check (coins between 0 and 1000000 and (cosmetic_id is not null or coins > 0));
 create table if not exists private.redemptions (
   code text not null references private.gift_codes (code) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -147,6 +152,8 @@ declare
   v_uid uuid := auth.uid();
   g private.gift_codes;
   c public.cosmetics;
+  v_item boolean := false;
+  v_bal integer;
 begin
   if v_uid is null then raise exception 'not_logged_in'; end if;
   select * into g from private.gift_codes where code = upper(trim(p_code)) for update;
@@ -154,12 +161,22 @@ begin
   if g.expires_at is not null and g.expires_at < now() then raise exception 'code_expired'; end if;
   if exists (select 1 from private.redemptions where code = g.code and user_id = v_uid) then raise exception 'code_already_used'; end if;
   if g.used_count >= g.max_uses then raise exception 'code_used_up'; end if;
-  if exists (select 1 from public.owned_cosmetics where user_id = v_uid and cosmetic_id = g.cosmetic_id) then raise exception 'already_owned'; end if;
+  -- kod na przedmiot i MiB Coins (od 0.47.4): przedmiot, który gracz już ma, pomija, a coinsy i tak daje
+  if g.cosmetic_id is not null then
+    v_item := not exists (select 1 from public.owned_cosmetics where user_id = v_uid and cosmetic_id = g.cosmetic_id);
+    if not v_item and g.coins = 0 then raise exception 'already_owned'; end if;
+  end if;
   insert into private.redemptions (code, user_id) values (g.code, v_uid);
   update private.gift_codes set used_count = used_count + 1 where code = g.code;
-  insert into public.owned_cosmetics (user_id, cosmetic_id, source) values (v_uid, g.cosmetic_id, 'code');
-  select * into c from public.cosmetics where id = g.cosmetic_id;
-  return json_build_object('cosmetic_id', c.id, 'name', c.name, 'type', c.type, 'image_url', coalesce(c.texture, c.image_url));
+  if v_item then insert into public.owned_cosmetics (user_id, cosmetic_id, source) values (v_uid, g.cosmetic_id, 'code'); end if;
+  if g.coins > 0 then
+    update public.profiles set coins = coins + g.coins where id = v_uid returning coins into v_bal;
+    if v_bal is null then raise exception 'no_profile'; end if;
+    insert into private.coin_log (user_id, delta, balance, reason, kind, item) values (v_uid, g.coins, v_bal, g.code, 'code', g.code);
+  end if;
+  if v_item then select * into c from public.cosmetics where id = g.cosmetic_id; end if;
+  return json_build_object('cosmetic_id', c.id, 'name', c.name, 'type', c.type, 'image_url', coalesce(c.texture, c.image_url),
+    'coins', g.coins, 'balance', v_bal);
 end $$;
 
 -- ===== Kod odzyskiwania i reset hasła =====
@@ -1554,26 +1571,32 @@ begin
 end $$;
 
 -- Kody prezentowe: losowe (MIB-XXXX-XXXX) albo jeden kod o własnej nazwie (p_code, np. TURNIEJ2026); ważność w dniach
--- albo do daty (p_until, od 0.20.0)
+-- albo do daty (p_until, od 0.20.0). Od 0.47.4 kod może dawać MiB Coins (p_coins): sam, albo razem z przedmiotem
+-- (p_cosmetic null = tylko coinsy).
 drop function if exists public.admin_create_codes(text, integer, integer, integer);
+drop function if exists public.admin_create_codes(text, integer, integer, integer, timestamptz, text);
 create or replace function public.admin_create_codes(p_cosmetic text, p_count integer, p_max_uses integer, p_days integer default null,
-  p_until timestamptz default null, p_code text default null) returns json
+  p_until timestamptz default null, p_code text default null, p_coins integer default 0) returns json
 language plpgsql security definer set search_path = '' as $$
 declare
   v text;
   out text[] := '{}';
   v_own text := nullif(upper(btrim(coalesce(p_code, ''))), '');
   v_exp timestamptz := coalesce(p_until, case when p_days is null then null else now() + make_interval(days => p_days) end);
+  v_item text := nullif(p_cosmetic, '');
+  v_coins integer := coalesce(p_coins, 0);
 begin
   perform private.need_admin();
-  if not exists (select 1 from public.cosmetics where id = p_cosmetic) then raise exception 'cosmetic_missing'; end if;
+  if v_item is not null and not exists (select 1 from public.cosmetics where id = v_item) then raise exception 'cosmetic_missing'; end if;
+  if v_coins not between 0 and 1000000 then raise exception 'codes_invalid'; end if;
+  if v_item is null and v_coins = 0 then raise exception 'code_empty'; end if;
   if p_count not between 1 and 100 or p_max_uses not between 1 and 100000 or (p_days is not null and p_days not between 1 and 3650)
     or (p_until is not null and p_until <= now()) then raise exception 'codes_invalid'; end if;
   if v_own is not null then
     if v_own !~ '^[A-Z0-9-]{4,24}$' then raise exception 'code_name_invalid'; end if;
     if p_count <> 1 then raise exception 'codes_invalid'; end if;
     if exists (select 1 from private.gift_codes where code = v_own) then raise exception 'code_exists'; end if;
-    insert into private.gift_codes (code, cosmetic_id, max_uses, expires_at) values (v_own, p_cosmetic, p_max_uses, v_exp);
+    insert into private.gift_codes (code, cosmetic_id, coins, max_uses, expires_at) values (v_own, v_item, v_coins, p_max_uses, v_exp);
     return to_json(array[v_own]);
   end if;
   for i in 1..p_count loop
@@ -1581,20 +1604,21 @@ begin
       v := private.random_code();
       exit when not exists (select 1 from private.gift_codes where code = v);
     end loop;
-    insert into private.gift_codes (code, cosmetic_id, max_uses, expires_at) values (v, p_cosmetic, p_max_uses, v_exp);
+    insert into private.gift_codes (code, cosmetic_id, coins, max_uses, expires_at) values (v, v_item, v_coins, p_max_uses, v_exp);
     out := out || v;
   end loop;
   return to_json(out);
 end $$;
 
+drop function if exists public.admin_list_codes();
 create or replace function public.admin_list_codes()
-returns table (code text, cosmetic_id text, cosmetic_name text, used_count integer, max_uses integer, expires_at timestamptz, created_at timestamptz)
+returns table (code text, cosmetic_id text, cosmetic_name text, coins integer, used_count integer, max_uses integer, expires_at timestamptz, created_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$
 begin
   perform private.need_admin();
   return query
-    select g.code, g.cosmetic_id, c.name, g.used_count, g.max_uses, g.expires_at, g.created_at
-    from private.gift_codes g join public.cosmetics c on c.id = g.cosmetic_id
+    select g.code, g.cosmetic_id, c.name, g.coins, g.used_count, g.max_uses, g.expires_at, g.created_at
+    from private.gift_codes g left join public.cosmetics c on c.id = g.cosmetic_id
     order by g.created_at desc limit 200;
 end $$;
 
@@ -2264,6 +2288,7 @@ begin
     'gifts', (select count(*) from private.coin_log l where l.kind = 'gift' and l.created_at >= v_from),
     'added', (select coalesce(sum(l.delta), 0) from private.coin_log l where l.kind = 'admin' and l.delta > 0 and l.created_at >= v_from),
     'free', (select coalesce(sum(l.delta), 0) from private.coin_log l where l.kind in ('daily', 'theme', 'advent') and l.created_at >= v_from),
+    'codes', (select coalesce(sum(l.delta), 0) from private.coin_log l where l.kind = 'code' and l.created_at >= v_from),
     'held', (select coalesce(sum(p.coins), 0) from public.profiles p),
     'top', (select coalesce(json_agg(x), '[]'::json) from (
       select l.item as id, coalesce(c.name, max(l.reason)) as name, c.type, count(*) as sales, sum(-l.delta) as coins
@@ -2689,7 +2714,7 @@ on conflict do nothing;
 
 -- nowe rodzaje zmian coinsów: nagroda świąteczna i kalendarz adwentowy
 alter table private.coin_log drop constraint if exists coin_log_kind_check;
-alter table private.coin_log add constraint coin_log_kind_check check (kind in ('admin', 'buy', 'gift', 'offer', 'daily', 'theme', 'advent'));
+alter table private.coin_log add constraint coin_log_kind_check check (kind in ('admin', 'buy', 'gift', 'offer', 'daily', 'theme', 'advent', 'code'));
 
 -- Nagroda świąteczna: raz na każde święto w roku (coinsy i/lub kosmetyk z panelu admina)
 create table if not exists private.theme_claims (

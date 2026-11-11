@@ -11,9 +11,10 @@
     aura_id_invalid: 'Wybierz ruch aury: ID aury kończy się na _souls, _pumpkins, _ghosts albo _magic.',
     cosmetic_in_use: 'Tego przedmiotu nie można usunąć: mają go gracze albo są do niego kody.',
     cosmetic_missing: 'Najpierw dodaj ten przedmiot w zakładce Kosmetyki.',
-    codes_invalid: 'Kody: od 1 do 100 naraz, użyć od 1 do 100 000, data końca w przyszłości; kod o własnej nazwie tylko jeden.',
+    codes_invalid: 'Kody: od 1 do 100 naraz, użyć od 1 do 100 000, MiB Coins od 0 do 1 000 000, data końca w przyszłości; kod o własnej nazwie tylko jeden.',
     code_name_invalid: 'Nazwa kodu: 4–24 znaki, litery A–Z, cyfry i myślnik.',
     code_exists: 'Taki kod już istnieje. Wybierz inną nazwę.',
+    code_empty: 'Kod musi coś dawać: wybierz przedmiot albo wpisz liczbę MiB Coins.',
     warn_reason: 'Wpisz powód (najwyżej 300 znaków). Gracz go zobaczy.',
     cannot_ban_admin: 'Konta admina nie można ostrzec ani zbanować.',
     already_banned: 'Ten gracz ma już bana.',
@@ -621,17 +622,20 @@
     const item = h('select', { id: 'ak-item' }), count = h('input', { type: 'number', min: 1, max: 100, value: 1, id: 'ak-count' });
     const uses = h('input', { type: 'number', min: 1, max: 100000, value: 1, id: 'ak-uses' }), until = h('input', { type: 'date', id: 'ak-until' });
     const own = h('input', { id: 'ak-code', maxlength: 24, placeholder: 'np. TURNIEJ2026 (puste = losowe kody)', autocomplete: 'off' });
+    // MiB Coins z kodu (od 0.47.4): same coinsy (przedmiot „bez przedmiotu”) albo przedmiot i coinsy
+    const coins = h('input', { type: 'number', min: 0, max: 1000000, value: 0, id: 'ak-coins' });
     own.oninput = () => { count.disabled = !!own.value.trim(); if (count.disabled) count.value = 1; };
     const e = h('p', { class: 'err' }), out = h('div', { id: 'ak-out' }), list = h('div', { id: 'ak-list' });
     const cos = await allWithTextures();
-    item.replaceChildren(...cos.map(c => h('option', { value: c.id }, c.name + ' (' + (TYPES[c.type] || c.type) + ')')));
+    item.replaceChildren(h('option', { value: '' }, 'bez przedmiotu (tylko MiB Coins)'), ...cos.map(c => h('option', { value: c.id }, c.name + ' (' + (TYPES[c.type] || c.type) + ')')));
+    item.value = cos.length ? cos[0].id : '';
     const itemPrev = pickPreview(item, cos);
     async function load() {
       const l = await call('admin_list_codes');
       if (failed(l)) return list.replaceChildren(h('p', { class: 'err' }, err(l)));
       list.replaceChildren(...(l.length ? l.map(k => h('div', { class: 'card arow' },
         h('div', {}, h('b', { class: 'mono' }, k.code, k.expires_at && new Date(k.expires_at) < new Date() ? h('em', { class: 'tag' }, 'wygasł') : null),
-          h('span', { class: 'mut' }, k.cosmetic_name + ', użyto ' + k.used_count + ' z ' + k.max_uses + (k.expires_at ? ', ważny do ' + fmtDate(k.expires_at) : ''))),
+          h('span', { class: 'mut' }, [k.cosmetic_name, k.coins ? Number(k.coins).toLocaleString('pl-PL') + ' MiB Coins' : null].filter(Boolean).join(' + ') + ', użyto ' + k.used_count + ' z ' + k.max_uses + (k.expires_at ? ', ważny do ' + fmtDate(k.expires_at) : ''))),
         h('button', { class: 'b ghost', on: { click: () => copy(k.code) } }, 'Kopiuj'),
         h('button', { class: 'b danger', on: { click: async () => { if (!(await mibConfirm('Usunąć kod ' + k.code + '?', { danger: true, ok: 'Usuń' }))) return; const r = await call('admin_delete_code', { p_code: k.code }); if (failed(r)) return toast(err(r), 1); load(); } } }, 'Usuń')))
         : [h('p', { class: 'empty' }, 'Nie ma jeszcze kodów.')]));
@@ -639,10 +643,10 @@
     const gen = h('button', { class: 'b', type: 'submit', id: 'ak-go' }, 'Wygeneruj kody');
     const form = h('form', { class: 'pform', on: { submit: async ev => {
       ev.preventDefault();
-      if (!item.value) { e.textContent = ERR.cosmetic_missing; return; }
+      if (!item.value && !(+coins.value > 0)) { e.textContent = ERR.code_empty; return; }
       gen.disabled = true;
-      const r = await call('admin_create_codes', { p_cosmetic: item.value, p_count: +count.value, p_max_uses: +uses.value, p_days: null,
-        p_until: until.value ? new Date(until.value + 'T23:59:59').toISOString() : null, p_code: own.value.trim() || null });
+      const r = await call('admin_create_codes', { p_cosmetic: item.value || null, p_count: +count.value, p_max_uses: +uses.value, p_days: null,
+        p_until: until.value ? new Date(until.value + 'T23:59:59').toISOString() : null, p_code: own.value.trim() || null, p_coins: Math.max(0, Math.floor(+coins.value || 0)) });
       gen.disabled = false;
       if (failed(r)) { e.textContent = err(r); return; }
       e.textContent = ''; own.value = ''; count.disabled = false;
@@ -650,7 +654,9 @@
         h('button', { class: 'b ghost', on: { click: () => copy(r.join('\n')) } }, 'Kopiuj wszystkie')));
       load();
     } } },
-    h('div', { class: 'sr' }, h('span', {}, 'Przedmiot'), h('span', { class: 'row', style: 'align-items:flex-start' }, item, itemPrev)), h('label', { class: 'sr' }, h('span', {}, 'Ile kodów'), count),
+    h('div', { class: 'sr' }, h('span', {}, 'Przedmiot'), h('span', { class: 'row', style: 'align-items:flex-start' }, item, itemPrev)),
+    h('label', { class: 'sr' }, h('span', {}, 'MiB Coins'), h('span', { class: 'fld' }, coins, h('small', { class: 'mut' }, 'Ile coinsów daje kod (0 = bez coinsów). Bez przedmiotu kod daje same coinsy; gracz, który ma już przedmiot, i tak dostaje coinsy.'))),
+    h('label', { class: 'sr' }, h('span', {}, 'Ile kodów'), count),
     h('label', { class: 'sr' }, h('span', {}, 'Użyć na jeden kod'), h('span', { class: 'fld' }, uses, h('small', { class: 'mut' }, '1 = kod dla jednej osoby (np. zwycięzcy)'))),
     h('label', { class: 'sr' }, h('span', {}, 'Własna nazwa kodu'), h('span', { class: 'fld' }, own, h('small', { class: 'mut' }, 'Jeden kod, który łatwo podać na streamie albo Discordzie'))),
     h('label', { class: 'sr' }, h('span', {}, 'Ważny do'), h('span', { class: 'fld' }, until, h('small', { class: 'mut' }, 'Do końca tego dnia; puste = bez końca'))), e, h('div', { class: 'row' }, gen));
@@ -733,7 +739,7 @@
         const l = await call('admin_coin_log', { p_user: p.id });
         if (failed(l)) return toast(err(l), 1);
         const what = x => ({ buy: 'Zakup: ' + x.label, gift: 'Prezent dla ' + (x.friend || '?') + ': ' + x.label, offer: 'Pakiet: ' + x.label,
-          daily: 'Nagroda dzienna (' + x.item + '. dzień)' })[x.kind] || (x.delta > 0 ? 'Od admina' : 'Zabrane przez admina') + (x.label ? ': ' + x.label : '');
+          daily: 'Nagroda dzienna (' + x.item + '. dzień)', code: 'Kod: ' + x.label })[x.kind] || (x.delta > 0 ? 'Od admina' : 'Zabrane przez admina') + (x.label ? ': ' + x.label : '');
         hist.replaceChildren(...(l.length ? l.map(x => h('div', { class: 'cl-row' }, h('span', { class: 'cl-t' }, h('span', {}, what(x)), h('small', { class: 'mut' }, new Date(x.created_at).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' }))),
           h('b', { class: 'cl-d ' + (x.delta > 0 ? 'plus' : 'minus') }, (x.delta > 0 ? '+' : '−') + coins(Math.abs(x.delta))), h('small', { class: 'mut cl-b' }, coins(x.balance))))
           : [h('p', { class: 'mut' }, 'Brak zmian.')]));
@@ -914,7 +920,7 @@
       body.replaceChildren(
         h('div', { class: 'stats', id: 'ass-tiles' }, tile('Wydane coinsy', coins_(r.spent), 'Zakupy dla siebie, prezenty dla znajomych i pakiety'), tile('Zakupy', coins_(r.sales)),
           tile('Kupujący', coins_(r.buyers)), tile('Prezenty dla znajomych', coins_(r.gifts)),
-          tile('Dodane przez admina', coins_(r.added), 'Np. coinsy kupione na stronie i dopisane w zakładce Gracze'), tile('Rozdane za darmo', coins_(r.free), 'Nagroda dzienna, świąteczna i kalendarz adwentowy'),
+          tile('Dodane przez admina', coins_(r.added), 'Np. coinsy kupione na stronie i dopisane w zakładce Gracze'), tile('Rozdane za darmo', coins_(r.free), 'Nagroda dzienna, świąteczna i kalendarz adwentowy'), tile('Z kodów', coins_(r.codes), 'MiB Coins odebrane z kodów'),
           tile('Coinsy u graczy teraz', coins_(r.held))),
         h('p', { class: 'mut' }, 'Wydane coinsy dziennie' + (period.value ? '' : ' (ostatnie 90 dni)') + ' — najedź na słupek, żeby zobaczyć dzień:'), bars(r.days || []),
         h('div', { class: 'ass-grid' },

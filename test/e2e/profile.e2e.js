@@ -193,6 +193,15 @@ function png(w, h, px) {
     await w.fill('#cos-code', 'START'); await w.press('#cos-code', 'Enter');
     await w.waitForFunction(() => /odebrany|Masz już/.test(document.querySelector('#cos-box .err').textContent));
     ok('(d) kod prezentowy dodaje przedmiot, drugi raz daje czytelny błąd');
+    // kod na MiB Coins (0.47.4): saldo od razu w górnym pasku, wpis „Kod” w historii coinsów
+    fake.st.codes.COINS100 = { cosmetic: null, coins: 100, max: 10, used: 0 };
+    await w.fill('#cos-code', 'coins100'); await w.press('#cos-code', 'Enter');
+    await w.waitForFunction(() => /\+100 MiB Coins/.test(document.body.textContent));
+    const fromCode = fake.st.coinLog.find(l => l.kind === 'code' && l.item === 'COINS100');
+    assert.ok(fromCode && fromCode.delta === 100, 'coinsy z kodu w historii');
+    await w.waitForFunction(b => document.getElementById('tb-coins-n').textContent.replace(/\D/g, '') === String(b), fromCode.balance);
+    await w.waitForSelector('#unlock', { state: 'detached', timeout: 5000 });
+    ok('(d2) kod na MiB Coins: coinsy od razu w górnym pasku i w historii');
 
     await w.click('.cosi .b');
     await w.waitForFunction(() => /Założona/.test(document.querySelector('.cosi').textContent) && document.querySelector('.cosi .b').textContent === 'Zdejmij');
@@ -1052,6 +1061,20 @@ function png(w, h, px) {
     await w.waitForFunction(() => (document.querySelector('#ak-out pre') || {}).textContent === 'TURNIEJ2026');
     assert.ok(fake.st.codes.TURNIEJ2026 && fake.st.codes.TURNIEJ2026.until, 'kod z datą końca');
     await w.waitForFunction(() => /TURNIEJ2026.*ważny do/s.test(document.getElementById('ak-list').textContent));
+    // kod na same MiB Coins (0.47.4): „bez przedmiotu” bez coinsów to błąd, z coinsami — kod na liście
+    await w.click('#ak-item + .ipick'); await w.waitForSelector('#ipk .ipk-t');
+    await w.fill('#ipk-q', ''); await w.click('#ipk .ipk-t.none'); await w.waitForSelector('#ipk', { state: 'detached' });
+    await w.fill('#ak-code', 'coinsy500');
+    await w.click('#ak-go');
+    await w.waitForFunction(() => /coś dawać/.test(document.querySelector('#admin-tab .pform .err').textContent));
+    await w.fill('#ak-coins', '500');
+    await w.click('#ak-go');
+    await w.waitForFunction(() => (document.querySelector('#ak-out pre') || {}).textContent === 'COINSY500');
+    assert.deepEqual([fake.st.codes.COINSY500.cosmetic, fake.st.codes.COINSY500.coins], [null, 500], 'kod bez przedmiotu z coinsami');
+    await w.waitForFunction(() => /COINSY500.*500 MiB Coins, użyto 0 z 1/s.test(document.getElementById('ak-list').textContent));
+    assert.match(await w.textContent('.ipick'), /bez przedmiotu/, 'przycisk wyboru pokazuje „bez przedmiotu”');
+    await w.locator('#ak-coins').scrollIntoViewIfNeeded();
+    await shot('admin-codes-coins.png');
     await w.click('[data-tab="stats"]');
     await w.waitForFunction(() => /Profile MiB/.test(document.getElementById('admin-tab').textContent));
     assert.match(await w.textContent('#as-now'), /W grze \(profile MiB\).*W launcherze.*play\.mib\.pl2 graczy.*1\.21\.11/s, '„Teraz”: liczniki, serwery i wersje');
