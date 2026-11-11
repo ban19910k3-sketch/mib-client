@@ -582,10 +582,66 @@ test('installFromModrinth: mod z Modrinth wymaga Fabric API, a w folderze jest s
   };
   const fetch = async u => ({ arrayBuffer: async () => files[u] });
   const r = await m.installFromModrinth({ slug: 'modmenu', gv: '1.21.11', cur: 'fabric', instDir: inst, mr, fetch });
-  assert.deepStrictEqual(r, { loader: 'fabric', pack: false, files: ['modmenu-16.0.0.jar', 'fabric-api-0.133.4+1.21.11.jar'] });
+  assert.deepStrictEqual(r, { loader: 'fabric', pack: false, files: ['fabric-api-0.133.4+1.21.11.jar', 'modmenu-16.0.0.jar'] });
   assert.deepStrictEqual(fs.readdirSync(mods).sort(), ['fabric-api-0.133.4+1.21.11.jar', 'modmenu-16.0.0.jar', 'sodium-fabric-0.7.3+mc1.21.11.jar']);
   // Iris z przypiętą wersją Sodium: dokładnie ta wersja zastępuje Sodium od MiB (inną Iris by nie wystartował), bez drugiej kopii
   await m.installFromModrinth({ slug: 'iris', gv: '1.21.11', cur: 'fabric', instDir: inst, mr, fetch });
   assert.deepStrictEqual(fs.readdirSync(mods).sort(), ['fabric-api-0.133.4+1.21.11.jar', 'iris-fabric-1.9.6+mc1.21.11.jar', 'modmenu-16.0.0.jar', 'sodium-fabric-0.7.0+mc1.21.11.jar']);
   assert.deepStrictEqual(m.dedupeMods(mods), []);
+});
+
+// ===== Zgodność modów (0.47.0): wymagania z fabric.mod.json (wersja gry, biblioteki) przed instalacją =====
+test('versionOk: warunki wersji Fabric', () => {
+  const ok = (v, p) => m.versionOk(v, p);
+  assert.strictEqual(ok('26.1', '26.1.2'), false);
+  assert.strictEqual(ok('26.1.2', '26.1.2'), true);
+  assert.strictEqual(ok('26.1', '>=26.1 <26.2'), true);
+  assert.strictEqual(ok('1.21', '>=1.21 <1.21.2'), true);
+  assert.strictEqual(ok('1.21.2', '>=1.21 <1.21.2'), false);
+  assert.strictEqual(ok('1.21.4', '~1.21.4'), true);
+  assert.strictEqual(ok('1.21.5', '~1.21.4'), true);
+  assert.strictEqual(ok('1.22', '~1.21.4'), false);
+  assert.strictEqual(ok('1.21.11', '1.21.x'), true);
+  assert.strictEqual(ok('1.22', '1.21.x'), false);
+  assert.strictEqual(ok('1.21', ['1.21', '1.21.1']), true);
+  assert.strictEqual(ok('1.21.2', ['1.21', '1.21.1']), false);
+  assert.strictEqual(ok('1.21.1', '*'), true);
+  assert.strictEqual(ok('0.102.0+1.21', '>=0.104.0+1.21.1'), false);
+  assert.strictEqual(ok('0.141.6+1.21.11', '>=0.104.0'), true);
+  assert.strictEqual(ok('1.21.2', '>=1.21.2-alpha.24.38.a'), true);
+  assert.strictEqual(ok('2.0.0', '^1.2.0'), false);
+  assert.strictEqual(ok('1.9.9', '^1.2.0'), true);
+  assert.strictEqual(ok('1.21', '>1.20.6'), true);
+  assert.strictEqual(ok('1.21', '<=1.20.6'), false);
+});
+test('installFromModrinth: wersja moda niezgodna z wersją gry albo z bibliotekami — bierze starszą, która pasuje', async () => {
+  const crypto = require('crypto');
+  const jarD = (id, version, depends) => { const z = new AdmZipD(); z.addFile('fabric.mod.json', Buffer.from(JSON.stringify({ schemaVersion: 1, id, version, depends }))); return z.toBuffer(); };
+  const inst = tmp(), mods = path.join(inst, 'mods');
+  fs.mkdirSync(mods);
+  fs.writeFileSync(path.join(mods, 'fabric-api-0.102.0+1.21.jar'), jarD('fabric-api', '0.102.0+1.21', { minecraft: '~1.21' }));
+  const files = {
+    'u/sodium-new': jarD('sodium', '0.9.2+mc26.1.2', { minecraft: '26.1.2' }), 'u/sodium-ok': jarD('sodium', '0.9.0+mc26.1', { minecraft: '>=26.1 <26.1.2' }),
+    'u/yacl-new': jarD('yacl', '3.8.2+1.21.1', { minecraft: '>=1.21', 'fabric-api': '>=0.104.0+1.21.1' }), 'u/yacl-ok': jarD('yacl', '3.5.0+1.21', { minecraft: '>=1.21', 'fabric-api': '>=0.100.0' }),
+    'u/zoomify': jarD('zoomify', '2.14.0', { minecraft: '>=1.21', yacl: '*' }),
+  };
+  const ver = (id, url, deps = []) => ({ id, loaders: ['fabric'], files: [{ url, filename: url.slice(2) + '.jar', primary: true, hashes: { sha512: crypto.createHash('sha512').update(files[url]).digest('hex') } }], dependencies: deps });
+  const mr = async u => {
+    if (u === '/project/sodium') return { project_type: 'mod' };
+    if (u === '/project/zoomify') return { project_type: 'mod' };
+    if (u.startsWith('/project/sodium/version')) return [ver('s2', 'u/sodium-new'), ver('s1', 'u/sodium-ok')];
+    if (u.startsWith('/project/zoomify/version')) return [ver('z1', 'u/zoomify', [{ project_id: 'YACLID', dependency_type: 'required' }])];
+    if (u.startsWith('/project/YACLID/version')) return [ver('y2', 'u/yacl-new'), ver('y1', 'u/yacl-ok')];
+    throw new Error('nieznane ' + u);
+  };
+  const fetch = async u => ({ arrayBuffer: async () => files[u] });
+  const s = await m.installFromModrinth({ slug: 'sodium', gv: '26.1', cur: 'fabric', instDir: inst, mr, fetch });
+  assert.deepStrictEqual(s.files, ['sodium-ok.jar'], 'Sodium dla 26.1, nie ta wymagająca 26.1.2');
+  const z = await m.installFromModrinth({ slug: 'zoomify', gv: '1.21', cur: 'fabric', instDir: inst, mr, fetch });
+  assert.deepStrictEqual(z.files, ['yacl-ok.jar', 'zoomify.jar'], 'YACL zgodna z Fabric API dla 1.21');
+  assert.ok(!fs.readdirSync(mods).includes('yacl-new.jar'));
+  // ensureModDep (biblioteki moda MiB) też wybiera zgodną wersję
+  const inst2 = tmp(), mods2 = path.join(inst2, 'mods');
+  await m.ensureModDep({ slug: 'sodium', gv: '26.1', loader: 'fabric', dest: mods2, mr, fetch });
+  assert.deepStrictEqual(fs.readdirSync(mods2), ['sodium-ok.jar']);
 });

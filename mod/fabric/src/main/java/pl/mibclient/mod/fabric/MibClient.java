@@ -1123,10 +1123,13 @@ public final class MibClient implements ClientModInitializer, MenuActions {
 			ticks = 0;
 			switch (step++) {
 				case 0:
+					// nazwy Mojanga: środowisko deweloperskie i gra od 26.1; gra 1.21.x z launchera ma nazwy pośrednie
+					// (od 0.47.0 test działa też w grze z launchera — test z popularnymi modami)
 					try {
 						Class.forName("net.minecraft.client.player.AbstractClientPlayer");
+						System.out.println("[MIB-SMOKE] names mojang");
 					} catch (ClassNotFoundException e) {
-						throw new IllegalStateException(e);
+						System.out.println("[MIB-SMOKE] names intermediary");
 					}
 					Input.open(c, new MenuScreen(MibClient.this, null));
 					break;

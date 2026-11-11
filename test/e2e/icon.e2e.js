@@ -42,20 +42,24 @@ public static class W {
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr h, uint m, IntPtr w, IntPtr l, uint f, uint t, out IntPtr r);
   [DllImport("user32.dll")] public static extern IntPtr GetClassLongPtr(IntPtr h, int i);
 }
 "@
 $out = $null
 [W]::EnumWindows({ param($h, $l) $p = 0; [void][W]::GetWindowThreadProcessId($h, [ref]$p)
   $sb = New-Object System.Text.StringBuilder 256; [void][W]::GetWindowText($h, $sb, 256); $t = $sb.ToString()
-  if ($p -eq ${pid} -and $t -like 'Minecraft*') { $big = [W]::SendMessage($h, 0x7F, [IntPtr]1, [IntPtr]0); $small = [W]::SendMessage($h, 0x7F, [IntPtr]0, [IntPtr]0)
-    $cls = [W]::GetClassLongPtr($h, -14); $script:out = "$t|$big|$small|$cls" }
+  if ($p -eq ${pid} -and $t -like 'Minecraft*') { $r = [IntPtr]::Zero
+    [void][W]::SendMessageTimeout($h, 0x7F, [IntPtr]1, [IntPtr]0, 2, 5000, [ref]$r); $big = $r
+    [void][W]::SendMessageTimeout($h, 0x7F, [IntPtr]0, [IntPtr]0, 2, 5000, [ref]$r); $small = $r
+    [void][W]::SendMessageTimeout($h, 0x7F, [IntPtr]2, [IntPtr]0, 2, 5000, [ref]$r); $small2 = $r
+    $cls = [W]::GetClassLongPtr($h, -14); $clsSm = [W]::GetClassLongPtr($h, -34); $script:out = "$t|$big|$small|$cls|$small2|$clsSm" }
   return $true }, [IntPtr]::Zero) | Out-Null
 $out`;
   const o = run('powershell', ['-NoProfile', '-Command', ps]).trim().split('\n').pop().trim();
   if (!o || !o.includes('|')) return null;
-  const [title, big, small, cls] = o.split('|');
-  return { title, icon: big !== '0' || small !== '0', detail: 'WM_GETICON big=' + big + ' small=' + small + ', ikona klasy okna (exe Javy)=' + cls };
+  const [title, big, small, cls, small2, clsSm] = o.split('|');
+  return { title, icon: big !== '0' || small !== '0', detail: 'WM_GETICON big=' + big + ' small=' + small + ' small2=' + small2 + ', ikona klasy okna=' + cls + '/' + clsSm };
 }
 
 (async () => {
@@ -68,7 +72,8 @@ $out`;
       const javaPath = await ensureJava({ base: path.join(TMP, 'java', String(major)), major, fetch, log: () => {} });
       // Windows bez karty graficznej: OpenGL z Mesa obok javaw.exe
       if (OS === 'win32' && process.env.MESA_DIR) for (const f of fs.readdirSync(process.env.MESA_DIR).filter(f => f.endsWith('.dll'))) fs.copyFileSync(path.join(process.env.MESA_DIR, f), path.join(path.dirname(javaPath), f));
-      const args = [];
+      // maszyna testowa z Windows bez karty graficznej: LWJGL 2 (stare wersje) przyjmuje wtedy tylko programowy OpenGL
+      const args = OS === 'win32' ? ['-Dorg.lwjgl.opengl.Display.allowSoftwareOpenGL=true'] : [];
       if (OS === 'darwin') {
         const icon = await mac.dockIcon({ dir: path.join(TMP, 'launcher'), roots: [ROOT], fetch });
         assert.ok(icon && fs.readFileSync(icon).subarray(0, 4).toString('latin1') === 'icns', 'minecraft.icns z zasobów Mojanga');

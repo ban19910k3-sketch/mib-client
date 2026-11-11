@@ -30,6 +30,8 @@ const mr = m.modrinthApi(fetch, 'MiB-Client-CI (github.com/ban19910k3-sketch/mib
   }
   // 2. popularne mody z MiB Hub (z wymaganymi bibliotekami, bez duplikatów); który plik należy do którego moda
   const base = new Set(fs.readdirSync(MODS_DIR).filter(f => f.endsWith('.jar'))), owners = {}, none = [];
+  const CACHE_SRC = path.join(TMP, 'base'); fs.mkdirSync(CACHE_SRC);
+  for (const f of base) fs.copyFileSync(path.join(MODS_DIR, f), path.join(CACHE_SRC, f));
   for (const slug of MODS) {
     try {
       const r = await m.installFromModrinth({ slug, gv: GV, cur: 'fabric', instDir: INST, mr, fetch, log: t => console.log(t) });
@@ -39,6 +41,9 @@ const mr = m.modrinthApi(fetch, 'MiB-Client-CI (github.com/ban19910k3-sketch/mib
   const dup = m.dedupeMods(MODS_DIR);
   const all = fs.readdirSync(MODS_DIR).filter(f => f.endsWith('.jar')), slugs = MODS.filter(x => !none.some(n => n.split(':')[0] === x));
   const CACHE = path.join(TMP, 'cache'); fs.mkdirSync(CACHE);
+  // mod MiB, jego biblioteki i mody na FPS (po id moda — popularny mód mógł podmienić plik na inną wersję) są zawsze
+  const idOf = {}; for (const f of all) { const mm = m.modMeta(fs.readFileSync(path.join(MODS_DIR, f))); idOf[f] = mm && mm.id; }
+  const baseIds = new Set([...base].map(f => { try { const mm = m.modMeta(fs.readFileSync(path.join(CACHE_SRC, f))); return mm && mm.id; } catch { return null; } }).filter(Boolean));
   for (const f of all) fs.copyFileSync(path.join(MODS_DIR, f), path.join(CACHE, f));
   note('mod MiB: ' + (mib ? 'tak' : 'nie') + ' · mody (' + all.length + '): ' + all.join(', ') + (none.length ? ' · bez wersji: ' + none.join(', ') : '') + (dup.length ? ' · duplikaty wyłączone: ' + dup.map(d => d.off).join(', ') : ''));
   // 3. Fabric (jak ensureFabric w main.js) i Java dla tej wersji gry
@@ -56,7 +61,7 @@ const mr = m.modrinthApi(fetch, 'MiB-Client-CI (github.com/ban19910k3-sketch/mib
   // 4. gra z wybranymi modami (pliki bez właściciela = mod MiB, jego biblioteki i mody na FPS — zawsze)
   async function play(chosen) {
     for (const f of fs.readdirSync(MODS_DIR)) if (f.endsWith('.jar')) fs.unlinkSync(path.join(MODS_DIR, f));
-    for (const f of all) if (!owners[f] || [...owners[f]].some(x => chosen.includes(x))) fs.copyFileSync(path.join(CACHE, f), path.join(MODS_DIR, f));
+    for (const f of all) if (baseIds.has(idOf[f]) || !owners[f] || [...owners[f]].some(x => chosen.includes(x))) fs.copyFileSync(path.join(CACHE, f), path.join(MODS_DIR, f));
     fs.rmSync(path.join(INST, 'crash-reports'), { recursive: true, force: true });
     const c = new Client(), log = [];
     const done = new Promise(resolve => {
