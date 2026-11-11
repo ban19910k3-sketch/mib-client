@@ -5,7 +5,7 @@ name: Mod MiB
 
 on:
   push:
-    paths: ['mod/**', 'lib/mibmod.js', 'test/e2e/mods.e2e.js', '.github/workflows/mod.yml', '.github/workflows/annotate.sh', '.github/workflows/retry.sh']
+    paths: ['mod/**', 'lib/mibmod.js', 'test/e2e/mods.e2e.js', '.github/workflows/mod.yml', '.github/workflows/annotate.sh', '.github/workflows/retry.sh', '.github/workflows/apt.sh']
   workflow_dispatch:
     inputs:
       versions:
@@ -59,7 +59,7 @@ jobs:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v6
-      - run: bash .github/workflows/retry.sh sudo apt-get update && bash .github/workflows/retry.sh sudo apt-get install -y xvfb mesa-vulkan-drivers
+      - run: bash .github/workflows/apt.sh xvfb mesa-vulkan-drivers
       - name: Zbuduj
         shell: bash
         working-directory: mod
@@ -125,7 +125,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: bash .github/workflows/retry.sh npm ci
-      - run: bash .github/workflows/retry.sh sudo apt-get update && bash .github/workflows/retry.sh sudo apt-get install -y xvfb mesa-vulkan-drivers
+      - run: bash .github/workflows/apt.sh xvfb mesa-vulkan-drivers
       - uses: actions/download-artifact@v4
         continue-on-error: true
         with:
