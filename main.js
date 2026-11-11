@@ -805,6 +805,15 @@ ipcMain.handle('mods:add', async (_, { gv, paths }) => {
   if (added.length) modsChanged(gv);
   return { added, errors };
 });
+// wyłączenie modów po id (przycisk „Wyłącz” w oknie awarii)
+ipcMain.handle('mods:off', (_, { gv, ids }) => {
+  const dir = modsDir(gv), off = [];
+  for (const m of mibmod.modFiles(dir)) if (m.on && Array.isArray(ids) && ids.includes(m.id) && !mibmod.MANAGED_IDS.includes(m.id)) {
+    try { fs.renameSync(path.join(dir, m.file), path.join(dir, m.file + '.disabled')); off.push(m.file); } catch {}
+  }
+  if (off.length) modsChanged(gv);
+  return off;
+});
 ipcMain.handle('mods:delete', (_, { gv, file }) => { if (!safe(file) || mibmod.isMibFile(file)) return false; fs.unlinkSync(path.join(modsDir(gv), file)); modsChanged(gv); return true; });
 ipcMain.handle('mods:updates', async (_, gv) => {
   try {
@@ -856,8 +865,11 @@ function reportCrash(code, game) {
   } catch {}
   // tylko linie logu z tej sesji gry (nie z poprzednich uruchomień)
   const log = logBuf.slice(-Math.min(200, Math.max(0, logCount - game.logFrom))).join('\n');
-  lastCrash = { code, report: report.slice(-6000), cause: diagnoseCrash(report + '\n' + log), mods: crashMods(report + '\n' + log) };
-  send('crashed', { code, cause: lastCrash.cause, report: !!report, mods: lastCrash.mods });
+  // winne mody (od 0.47.0): te dodane przez gracza można wyłączyć jednym kliknięciem w oknie awarii (bez moda MiB i jego bibliotek)
+  const inDir = mibmod.modFiles(modsDir(game.version)).filter(m => m.on), mods = crashMods(report + '\n' + log)
+    .map(m => ({ ...m, off: !!m.id && !mibmod.MANAGED_IDS.includes(m.id) && inDir.some(f => f.id === m.id) }));
+  lastCrash = { code, report: report.slice(-6000), cause: diagnoseCrash(report + '\n' + log), mods };
+  send('crashed', { code, cause: lastCrash.cause, report: !!report, mods, gv: game.version });
   notify('MiB Client', 'Gra zamknęła się z błędem.');
   if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 }

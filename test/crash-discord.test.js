@@ -6,14 +6,14 @@ const { buildActivity, createPresence, encode } = require('../lib/discord');
 const { pngInfo, validCapeSize, capeFrames, CAPE_FRAME_MS } = require('../lib/profile');
 
 test('crashMods names the mod Fabric or the crash report blames', () => {
-  assert.deepEqual(crashMods("- Mod 'Zoomify' (zoomify) 2.14.0 requires version 3.6.6 or later of yet_another_config_lib_v3, which is missing!"), ['Zoomify']);
-  assert.deepEqual(crashMods("- Mod 'Iris' (iris) 1.8.0 is incompatible with any version of mod 'OptiFabric' (optifabric)!\n- Mod 'Iris' (iris) 1.8.0 requires sodium"), ['Iris']);
-  assert.deepEqual(crashMods('Mixin apply for mod notenoughanimations failed notenoughanimations.mixins.json:X'), ['notenoughanimations']);
-  assert.deepEqual(crashMods('Suspected Mods: Not Enough Animations (notenoughanimations), Minecraft (minecraft)'), ['Not Enough Animations']);
+  assert.deepEqual(crashMods("- Mod 'Zoomify' (zoomify) 2.14.0 requires version 3.6.6 or later of yet_another_config_lib_v3, which is missing!"), [{ id: 'zoomify', name: 'Zoomify' }]);
+  assert.deepEqual(crashMods("- Mod 'Iris' (iris) 1.8.0 is incompatible with any version of mod 'OptiFabric' (optifabric)!\n- Mod 'Iris' (iris) 1.8.0 requires sodium"), [{ id: 'iris', name: 'Iris' }]);
+  assert.deepEqual(crashMods('Mixin apply for mod notenoughanimations failed notenoughanimations.mixins.json:X'), [{ id: 'notenoughanimations', name: 'notenoughanimations' }]);
+  assert.deepEqual(crashMods('Suspected Mods: Not Enough Animations (notenoughanimations), Minecraft (minecraft)'), [{ id: 'notenoughanimations', name: 'Not Enough Animations' }]);
   assert.deepEqual(crashMods('Suspected Mods: NONE'), []);
-  assert.deepEqual(crashMods("java.lang.RuntimeException: Could not execute entrypoint stage 'client' due to errors, provided by 'notenoughanimations' at 'dev.tr7zw.X'!"), ['notenoughanimations']);
+  assert.deepEqual(crashMods("java.lang.RuntimeException: Could not execute entrypoint stage 'client' due to errors, provided by 'notenoughanimations' at 'dev.tr7zw.X'!"), [{ id: 'notenoughanimations', name: 'notenoughanimations' }]);
   // błąd mixina wskazuje winnego dokładniej niż mod, którego punkt startowy padł
-  assert.deepEqual(crashMods("Mixin apply for mod moreculling failed x\nCould not execute entrypoint stage 'client' due to errors, provided by 'sodium' at 'y'!"), ['moreculling']);
+  assert.deepEqual(crashMods("Mixin apply for mod moreculling failed x\nCould not execute entrypoint stage 'client' due to errors, provided by 'sodium' at 'y'!"), [{ id: 'moreculling', name: 'moreculling' }]);
   assert.deepEqual(crashMods('java.lang.OutOfMemoryError'), []);
 });
 

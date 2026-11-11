@@ -1297,6 +1297,20 @@ function png(w, h, px) {
       await w.dispatchEvent('#p-mods', 'dragleave');
       assert.equal(await w.$('#p-mods.drop'), null);
       ok('(x) mody przeciągnięte do Moje mody: tylko .jar z modem na loader i wersję gry, z bibliotekami');
+
+      // awaria gry z winnym modem gracza: „Wyłącz <mod>” w oknie awarii wyłącza go w folderze (od 0.47.0)
+      const culprit = mkJson('winny.jar', { schemaVersion: 1, id: 'winnymod', version: '1.0', depends: { minecraft: '*' } });
+      assert.deepEqual((await w.evaluate(p => mib.call('mods:add', { gv: '1.21.11', paths: [p] }), culprit)).added, ['winny.jar']);
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('crashed', { code: 1, cause: 'mods', report: true, gv: '1.21.11',
+        mods: [{ id: 'winnymod', name: 'Winny Mod', off: true }, { id: 'sodium', name: 'Sodium', off: false }] }));
+      await w.waitForSelector('#crash.on #crash-mods button');
+      assert.match(await w.textContent('#crash-t'), /Prawdopodobnie winny mod: Winny Mod, Sodium/);
+      assert.deepEqual(await w.$$eval('#crash-mods button', l => l.map(b => b.textContent)), ['Wyłącz Winny Mod'], 'tylko mod gracza, nie Sodium od MiB');
+      await shot('crash-mod.png');
+      await w.click('#crash-mods button');
+      await until(async () => (await w.evaluate(() => mib.call('mods:list', '1.21.11'))).some(m => m.file === 'winny.jar.disabled' && !m.on));
+      await w.click('#crash-x');
+      ok('(x2) okno awarii: winny mod gracza wyłączony jednym kliknięciem');
     }
 
     await new Promise(r => { fake.server.closeAllConnections && fake.server.closeAllConnections(); fake.server.close(r); });

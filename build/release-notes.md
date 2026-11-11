@@ -1,7 +1,7 @@
 <!-- 0.47.0 -->
 ## Dodane
 - Więcej możliwości wyglądu launchera (Ustawienia → Wygląd): 6 nowych gotowych motywów (Zachód, Mięta, Wiśnia, Złoto, Grafit, Lawenda), zaokrąglenie rogów, czcionka (zwykła, pikselowa, systemowa), ilość cząsteczek w tle oraz przyciemnienie i rozmycie własnego obrazka tła. Ustawienia zapisują się na profilu MiB.
-- Po awarii gry launcher pokazuje, który mod był prawdopodobnie winny.
+- Po awarii gry launcher pokazuje, który mod był prawdopodobnie winny, i pozwala go wyłączyć jednym kliknięciem.
 
 ## Zmienione
 - Baner na stronie głównej ma kolory wybranego motywu launchera.
