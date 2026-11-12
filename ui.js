@@ -50,9 +50,9 @@ $('s-pick').onclick=async()=>{const d=await mib.call('pickdir');if(d)$('s-root')
 $('s-save').onclick=async()=>{setTimeout(()=>mibSync.push(),0);for(const k in F)S[k]=['ram','width','height'].includes(k)?Math.max(1,+$(F[k]).value||1):$(F[k]).value;S.hideUpdates=$('s-hu').checked;S.priority=$('s-pri').checked;S.discord=$('s-dc').checked;S.errorReports=$('s-err').checked;S.mibMod=$('s-mib').checked;S.perfMods=$('s-perf').checked;S.shareServer=$('s-share').checked;S.friendNotify=$('s-fn').checked;S.invisible=$('s-inv').checked;S.chatFilter=$('s-cf').checked;await mib.call('settings:set',S);$('s-msg').textContent='Zapisano'};
 // Aktualizacje launchera
 let pend=null;
-mib.on('upd:avail',i=>{pend=i;$('u-st').textContent='Dostępna wersja '+i.version+' — kliknij „Sprawdź aktualizacje", aby zainstalować.';
+mib.on('upd:avail',i=>{pend=i;$('u-st').textContent='Dostępna wersja '+MibProfile.versionLabel(i.version)+' — kliknij „Sprawdź aktualizacje", aby zainstalować.';
  if(S.hideUpdates){return}showUpd()});
-function showUpd(){if(!pend)return;$('u-v').textContent='Wersja '+pend.current+' → '+pend.version;$('u-n').textContent=pend.notes;$('upd').classList.add('on')}
+function showUpd(){if(!pend)return;$('u-v').textContent='Wersja '+MibProfile.versionLabel(pend.current)+' → '+MibProfile.versionLabel(pend.version);$('u-n').textContent=pend.notes;$('upd').classList.add('on')}
 mib.on('upd:none',t=>{$('u-st').textContent=t;$('u-go').disabled=false});
 mib.on('upd:prog',p=>{$('u-pb').style.display='block';$('u-p').style.width=p+'%'});
 $('u-later').onclick=async()=>{if($('u-hide').checked){S.hideUpdates=true;await mib.call('settings:set',S);fill()}$('upd').classList.remove('on')};
@@ -60,7 +60,7 @@ $('u-go').onclick=()=>{$('u-go').disabled=true;mib.call('upd:install')};
 $('u-chk').onclick=async()=>{$('u-st').textContent='Sprawdzanie…';pend=null;await mib.call('upd:check');if(pend)showUpd()};
 document.addEventListener('DOMContentLoaded',()=>{});
 
-mib.call('ver').then(v=>{$('u-cur').textContent=v;$('brand-v').textContent=v});
+mib.call('ver').then(v=>{v=MibProfile.versionLabel(v);$('u-cur').textContent=v;$('brand-v').textContent=v});
 // Zastępcza głowa (8×8 pikseli), gdy skin nie wczyta się z sieci
 const FACE='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" shape-rendering="crispEdges"><rect width="8" height="8" fill="#3a2256"/><rect y="2" width="8" height="6" fill="#6b4a8f"/><rect x="1" y="4" width="2" height="1" fill="#eee6f8"/><rect x="5" y="4" width="2" height="1" fill="#eee6f8"/><rect x="2" y="4" width="1" height="1" fill="#a855f7"/><rect x="5" y="4" width="1" height="1" fill="#a855f7"/><rect x="3" y="6" width="2" height="1" fill="#2a1545"/></svg>');
 for(const i of ['topav','plav','s-av'])$(i).onerror=function(){this.onerror=null;this.src=FACE};
@@ -344,7 +344,7 @@ $('crash-send').onclick=async()=>{if(await repSend('',$('crash-send')))$('crash'
 // (po ekranie startowym i powitaniu przy pierwszym uruchomieniu)
 const wnWait=setInterval(async()=>{if(!(sp.classList.contains('out')||sp.style.display==='none')||$('welcome').classList.contains('on')||gateNeed===null||gate.on)return;clearInterval(wnWait);
  const w=await mib.call('whatsnew');if(!w||!window.mibUI)return;const {h}=window.mibUI,secs=MibProfile.releaseNotes(w.notes);if(!secs.length)return;
- const close=()=>ov.remove(),ov=h('div',{class:'ov on',id:'wn'},h('div',{class:'m wn-m',role:'dialog','aria-label':tr('Co nowego')},h('small',{class:'gift-kicker'},'MiB Client '+w.version),h('h3',{},tr('Co nowego')),
+ const close=()=>ov.remove(),ov=h('div',{class:'ov on',id:'wn'},h('div',{class:'m wn-m',role:'dialog','aria-label':tr('Co nowego')},h('small',{class:'gift-kicker'},'MiB Client '+MibProfile.versionLabel(w.version)),h('h3',{},tr('Co nowego')),
   h('div',{class:'wn-list'},...secs.map(x=>h('div',{class:'wn-sec'},h('h4',{},tr(x.title)),h('ul',{},...x.items.map(i=>h('li',{},i)))))),h('div',{class:'row',style:'justify-content:flex-end'},h('button',{class:'b',id:'wn-ok',type:'button',on:{click:close}},tr('Super!')))));
  ov.addEventListener('keydown',e=>{if(e.key==='Escape')close()});document.body.append(ov);$('wn-ok').focus()},500);
 

@@ -164,6 +164,19 @@ test('achievements: odznaki z liczb profilu', () => {
   assert.equal(P.achievements(null).filter(x => x.done).length, 0, 'bez danych nic nie jest zdobyte');
 });
 
+test('versionLabel: Beta 1.0 od wersji 1.0.0, starsze numery bez zmian', () => {
+  assert.equal(P.BETA, true);
+  assert.equal(P.versionLabel('1.0.0'), 'Beta 1.0');
+  assert.equal(P.versionLabel('1.0.1'), 'Beta 1.0.1');
+  assert.equal(P.versionLabel('1.1.0'), 'Beta 1.1');
+  assert.equal(P.versionLabel('2.10.3'), 'Beta 2.10.3');
+  assert.equal(P.versionLabel(' 1.0.0 '), 'Beta 1.0');
+  assert.equal(P.versionLabel('0.47.4'), '0.47.4');
+  assert.equal(P.versionLabel('1.0.0-rc.1'), '1.0.0-rc.1');
+  assert.equal(P.versionLabel(''), '');
+  assert.equal(P.versionLabel(null), '');
+});
+
 test('releaseNotes: sekcje i punkty z notatek wydania', () => {
   const md = '<!-- 0.20.0 -->\n## Dodane\n\n- Blokowanie graczy.\n- Osiągnięcia.\n## Zmienione\n- Kody z datą końca.\n## Usunięte\n';
   assert.deepEqual(P.releaseNotes(md), [{ title: 'Dodane', items: ['Blokowanie graczy.', 'Osiągnięcia.'] }, { title: 'Zmienione', items: ['Kody z datą końca.'] }]);

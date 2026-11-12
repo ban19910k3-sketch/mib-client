@@ -46,6 +46,9 @@ function png(w, h, px) {
   };
   try {
     await w.waitForSelector('#app.on', { timeout: 15000 });
+    // numer wersji dla gracza (od 1.0.0: „Beta 1.0”) w pasku bocznym i w Aktualnościach
+    const verLabel = require('../../lib/profile').versionLabel(require('../../package.json').version);
+    await w.waitForFunction(v => document.getElementById('brand-v').textContent === v && document.getElementById('u-cur').textContent === v, verLabel);
     await w.click('#w-go', { timeout: 5000 }).catch(() => {});
     // Okno logowania przy starcie (0.35.0): bez konta Microsoft logo MiB Client, logowanie, PL/EN, bezpieczeństwo, „Później”
     await w.waitForSelector('#gate.on #g-go', { timeout: 15000 });

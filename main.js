@@ -18,7 +18,7 @@ const { createSupa } = require('./lib/supa');
 const profileMain = require('./profile-main');
 const { diagnoseCrash, crashMods, errReport } = require('./lib/crash');
 const { buildActivity, createPresence } = require('./lib/discord');
-const { pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText, THEME_IDS, mcProfileAction, partyPlay, partyEntry, partyChatRows } = require('./lib/profile');
+const { versionLabel, pngInfo, validCapeSize, friendsStarted, newInvites, newMessages, freshKeys, friendNotice, cleanText, THEME_IDS, mcProfileAction, partyPlay, partyEntry, partyChatRows } = require('./lib/profile');
 const mibmod = require('./lib/mibmod');
 const serverList = require('./lib/servers');
 const { createMibPresence, joinMojang, helloMessage } = require('./lib/presence');
@@ -653,12 +653,12 @@ async function checkUpdate(manual) {
     try {
       const r = await macUp.latest((...a) => fetch(...a));
       if (r && macUp.newer(r.version, app.getVersion())) { macNext = r; send('upd:avail', { version: r.version, notes: txt(r.notes) || 'Brak opisu zmian.', current: app.getVersion() }); }
-      else if (manual) send('upd:none', 'Masz najnowszą wersję (' + app.getVersion() + ').');
+      else if (manual) send('upd:none', 'Masz najnowszą wersję (' + versionLabel(app.getVersion()) + ').');
     } catch { if (manual) send('upd:none', 'Nie udało się sprawdzić aktualizacji.'); }
     return;
   }
   try { const r = await autoUpdater.checkForUpdates();
-    if (!r || !r.updateInfo || r.updateInfo.version === app.getVersion()) { if (manual) send('upd:none', 'Masz najnowszą wersję (' + app.getVersion() + ').'); }
+    if (!r || !r.updateInfo || r.updateInfo.version === app.getVersion()) { if (manual) send('upd:none', 'Masz najnowszą wersję (' + versionLabel(app.getVersion()) + ').'); }
   } catch (e) { if (manual) send('upd:none', 'Nie udało się sprawdzić aktualizacji.'); }
 }
 autoUpdater.on('update-available', i => send('upd:avail', { version: i.version, notes: txt(i.releaseNotes) || 'Brak opisu zmian.', current: app.getVersion() }));
